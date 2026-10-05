@@ -4,12 +4,4 @@ module.exports = {
     config.module.rules.push({ test: /\.typ$/, type: "asset/source" });
     return config;
   },
-  async rewrites() {
-    return [
-      {
-        source: '/sike',
-        destination: 'https://www.youtube.com/',
-      },
-    ];
-  },
 };
