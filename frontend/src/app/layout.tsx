@@ -32,10 +32,11 @@ export const metadata: Metadata = {
     siteName: "resumezip",
     images: [
       {
-        url: "/ThreeResumes.png",
-        width: 1200,
-        height: 630,
-        alt: "Three resumes made with resumezip",
+        // The first frame of the home page's printer video.
+        url: "/video/printer-poster.jpg",
+        width: 1280,
+        height: 720,
+        alt: "A printer with a fresh page in its tray",
       },
     ],
     type: "website",
