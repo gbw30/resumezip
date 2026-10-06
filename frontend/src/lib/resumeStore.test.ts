@@ -175,6 +175,25 @@ describe("two tabs", () => {
   })
 })
 
+describe("two tabs editing the profile", () => {
+  test("keep different values changed in each", () => {
+    const storage = memoryStorage(saved({ ...ada, profileSection: { fullName: "Ada Lovelace", email: "" } }))
+    const one = openTab(storage)
+    const two = openTab(storage)
+    one.edit("a", "profileSection", { fullName: "Ada King", email: "" })
+    two.edit("a", "profileSection", { fullName: "Ada Lovelace", email: "ada@example.com" })
+    one.flush()
+    two.receive(keyOf("a"))
+    two.flush()
+    one.receive(keyOf("a"))
+
+    const both = { fullName: "Ada King", email: "ada@example.com" }
+    expect(stored(storage, "a")?.profileSection).toEqual(both)
+    expect(one.getState().resumes.a.profileSection).toEqual(both)
+    expect(two.getState().resumes.a.profileSection).toEqual(both)
+  })
+})
+
 describe("deleting", () => {
   test("a resume deleted in another tab goes from this one too", () => {
     const storage = memoryStorage(saved(ada, grace))

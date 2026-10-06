@@ -11,6 +11,7 @@
 
 import type { ResumeContent } from "./resumeFile"
 import {
+  changedPaths,
   deleteKeptAside,
   EVERY_FIELD,
   idOf,
@@ -120,7 +121,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
   /** Changes one field of a resume. It's saved once typing pauses. */
   function edit(id: string, field: string, value: unknown) {
     if (!has(id)) return
-    markChanged(id, field, "updatedAt")
+    markChanged(id, ...changedPaths(field, state.resumes[id][field], value), "updatedAt")
     const resume = { ...state.resumes[id], [field]: value, updatedAt: new Date().toISOString() }
     setState({ resumes: { ...state.resumes, [id]: resume } })
     saveSoon()

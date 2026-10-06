@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { memoryStorage } from "./memoryStorage"
 import {
   BACKUP_KEY,
+  changedPaths,
   deleteKeptAside,
   EVERY_FIELD,
   getStorage,
@@ -238,6 +239,15 @@ describe("mergeResume", () => {
     })
   })
 
+  test("takes single changed values inside the profile from this tab, and the other values from the other", () => {
+    const theirs = { ...ada, profileSection: { fullName: "Ada Lovelace", email: "ada@theirs.example" } }
+    const ours = { ...ada, profileSection: { fullName: "Ada King", email: "ada@example.com" } }
+    expect(mergeResume(theirs, ours, new Set(["profileSection.fullName"])).profileSection).toEqual({
+      fullName: "Ada King",
+      email: "ada@theirs.example",
+    })
+  })
+
   test("takes everything from this tab for a new or replaced resume", () => {
     expect(mergeResume(grace, ada, new Set([EVERY_FIELD]))).toBe(ada)
   })
@@ -245,6 +255,20 @@ describe("mergeResume", () => {
   test("keeps the later edit time", () => {
     const merged = mergeResume({ updatedAt: "2026-10-06T10:00:00.000Z" }, { updatedAt: "2026-10-06T11:00:00.000Z" }, new Set(["updatedAt"]))
     expect(merged.updatedAt).toBe("2026-10-06T11:00:00.000Z")
+  })
+})
+
+describe("changedPaths", () => {
+  test("names each value that changed inside the profile or the headings", () => {
+    expect(changedPaths("profileSection", { fullName: "Ada", email: "a@x" }, { fullName: "Ada King", email: "a@x" })).toEqual([
+      "profileSection.fullName",
+    ])
+    expect(changedPaths("headings", {}, { Work: "Experience" })).toEqual(["headings.Work"])
+  })
+
+  test("names the whole field otherwise", () => {
+    expect(changedPaths("workExperienceSection", [], [{ companyName: "Acme" }])).toEqual(["workExperienceSection"])
+    expect(changedPaths("profileSection", undefined, { fullName: "Ada" })).toEqual(["profileSection"])
   })
 })
 

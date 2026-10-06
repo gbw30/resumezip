@@ -48,16 +48,20 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
       // Only localStorage; sessionStorage changes in a same-origin frame fire this too.
       if (storage && event.storageArea === storage) store.receive(event.key);
     };
-    const onPageHide = () => store.flush();
+    const flush = () => store.flush();
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") store.flush();
     };
     window.addEventListener("storage", onStorage);
-    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pagehide", flush);
+    // And when the window loses focus, as when clicking into another window
+    // with the same resume open, so its changes are saved before typing there.
+    window.addEventListener("blur", flush);
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("storage", onStorage);
-      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("blur", flush);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       store.flush();
     };

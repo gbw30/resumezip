@@ -217,13 +217,14 @@ function readEntry(value: unknown): { resume: Resume | null; complete: boolean }
   return { resume: Object.fromEntries(fields), complete }
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
+export const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-// Fields the editor reads as lists of entries, and as objects. Older resumes
-// can lack some of them, or have them empty (null); only other shapes count.
+// Fields the editor reads as lists of entries, and as objects of named
+// values. Older resumes can lack some of them, or have them empty (null);
+// only other shapes count.
 const ENTRY_LISTS = new Set(Object.values(SECTIONS).map((section) => section.dataKey))
-const OBJECTS = new Set(["profileSection", "headings"])
+export const OBJECT_FIELDS = new Set(["profileSection", "headings"])
 
 /** A field as the editor can show it, and whether that's all of it; null if none of it. */
 function readField(key: string, value: unknown): { value: unknown; complete: boolean } | null {
@@ -234,7 +235,7 @@ function readField(key: string, value: unknown): { value: unknown; complete: boo
     const items = value.filter(key === "sectionOrder" ? (item) => typeof item === "string" : isObject)
     return { value: items, complete: items.length === value.length }
   }
-  if (OBJECTS.has(key) && !isObject(value)) return null
+  if (OBJECT_FIELDS.has(key) && !isObject(value)) return null
   return { value, complete: true }
 }
 
@@ -293,15 +294,43 @@ export function removeResume(storage: Storage | null, id: string): SaveStatus {
 }
 
 /**
- * Another tab's version of a resume, with the fields this tab changed taken
- * from its own, and the later of the two edit times. Changing the same field
- * in two tabs at once keeps the one saved last.
+ * Another tab's version of a resume, with what this tab changed taken from
+ * its own, and the later of the two edit times. `changed` names fields, or
+ * single values inside an object field, like "profileSection.email" (see
+ * changedPaths). Changing the same one in two tabs at once keeps the one
+ * saved last.
  */
 export function mergeResume(theirs: Resume, ours: Resume, changed: ReadonlySet<string>): Resume {
   if (changed.has(EVERY_FIELD)) return ours
-  const fields = Object.entries(theirs).filter(([field]) => !changed.has(field))
-  for (const field of changed) if (Object.hasOwn(ours, field)) fields.push([field, ours[field]])
+  const fields = new Map(Object.entries(theirs))
+  for (const path of changed) {
+    const dot = path.indexOf(".")
+    if (dot < 0) {
+      if (Object.hasOwn(ours, path)) fields.set(path, ours[path])
+      else fields.delete(path)
+      continue
+    }
+    // One value in an object field: theirs, with ours for that value.
+    const field = path.slice(0, dot)
+    const key = path.slice(dot + 1)
+    if (changed.has(field)) continue
+    const values = new Map(Object.entries(isObject(fields.get(field)) ? (fields.get(field) as Resume) : {}))
+    const mine = isObject(ours[field]) ? (ours[field] as Resume) : {}
+    if (Object.hasOwn(mine, key)) values.set(key, mine[key])
+    else values.delete(key)
+    fields.set(field, Object.fromEntries(values))
+  }
   return { ...Object.fromEntries(fields), updatedAt: later(theirs.updatedAt, ours.updatedAt) }
+}
+
+/**
+ * What an edit changed, as mergeResume takes it: the field, or for an object
+ * field like the profile, each value in it that changed.
+ */
+export function changedPaths(field: string, before: unknown, after: unknown): string[] {
+  if (!OBJECT_FIELDS.has(field) || !isObject(before) || !isObject(after)) return [field]
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)])
+  return [...keys].filter((key) => before[key] !== after[key]).map((key) => `${field}.${key}`)
 }
 
 // When a resume was last edited, for comparing; unknown times come first.
