@@ -14,15 +14,18 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # Moves only with react-pdf, which needs one exact version of it
+      # (src/lib/pdfjsVersion.test.ts fails until they match).
+      - dependency-name: "pdfjs-dist"
     groups:
       # Must move together: the compiler file loaded from jsDelivr is pinned
       # to this version (src/lib/typst/compilerSource.ts), and CI fails until
       # COMPILER_VERSION and COMPILER_INTEGRITY are updated to match.
       typst:
         patterns: ["@myriaddreamin/*"]
-      # pdfjs-dist is pinned to the version react-pdf uses.
-      pdf:
-        patterns: ["react-pdf", "pdfjs-dist"]
+      # On its own, since updating it can mean setting pdfjs-dist to match.
+      react-pdf:
+        patterns: ["react-pdf"]
       # Everything else that doesn't change a major version, in one pull request.
       minor-and-patch:
         update-types: [minor, patch]
