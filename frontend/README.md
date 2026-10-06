@@ -50,6 +50,11 @@ builds the site (`.github/workflows/ci.yml`), and `main` only accepts a pull
 request once that passes. The browser tests run in their own job next to it. It also audits the packages that ship, as a report
 that doesn't block merging. Dependabot opens update pull requests weekly.
 
+The workflows name each action by its full commit SHA, with the version in a
+comment (`actions/checkout@<sha> # v7.0.1`), so a tag moved to other code can't
+change what runs. Dependabot updates the SHA and the comment together, monthly.
+Pin any new action the same way.
+
 A pull request that fixes a bug (its description says "fixes" and the issue
 number) gets that bug's severity label, even if the bug gets one later
 (`.github/workflows/pr-severity.yml`). Greptile's dashboard is set to review
