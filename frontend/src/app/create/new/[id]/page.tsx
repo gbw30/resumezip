@@ -10,6 +10,7 @@ import ProfileForm from "@/components/editor/ProfileForm"
 import SectionForm from "@/components/editor/SectionForm"
 import SectionNav, { WIDE_SCREEN, type ActiveSection } from "@/components/editor/SectionNav"
 import TemplatePicker from "@/components/editor/TemplatePicker"
+import NotSaved from "@/components/site/NotSaved"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import { uniqueTitle } from "@/lib/resumeTitles"
 import { compileResumeUrl, downloadResume } from "@/lib/typst/compile"
@@ -18,7 +19,7 @@ const pad = (n: number) => String(n).padStart(2, "0")
 
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>()
-  const { setCurrentResumeId, formData, updateFormData, loaded, resumes } = useResumeContext()
+  const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus } = useResumeContext()
   const [active, setActive] = useState<ActiveSection>("Profile")
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [compileError, setCompileError] = useState<string | null>(null)
@@ -182,7 +183,9 @@ export default function EditorPage() {
               }}
               className="min-w-0 max-w-[58vw] border-0 border-b border-transparent bg-transparent py-0.5 font-serif lg:max-w-[40vw] text-[19px] text-ink outline-none transition-colors placeholder:text-ink-2 hover:border-rule-strong focus:border-accent focus-visible:outline-none"
             />
-            <span className="label-mono hidden shrink-0 text-ink-2 xl:inline">Saved in this browser</span>
+            {saveStatus === "saved" && (
+              <span className="label-mono hidden shrink-0 text-ink-2 xl:inline">Saved in this browser</span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <TemplatePicker value={formData.selectedTemplate} onChange={(template) => updateFormData("selectedTemplate", template)} />
@@ -201,6 +204,7 @@ export default function EditorPage() {
             </button>
           </div>
         </div>
+        <NotSaved className="border-t border-rule px-5 py-2.5 lg:px-6" />
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
