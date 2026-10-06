@@ -6,7 +6,7 @@ is never sent to a server.
 
 ## Running it
 
-Needs Node 22.12 or newer.
+Uses Node 24, set by `engines` in `package.json`, which CI and Vercel build with.
 
 ```bash
 npm install
@@ -36,6 +36,11 @@ to a PDF without its attachment, reads it back through the importer, and
 checks it prints the same resume. Fields that don't read back yet are listed in
 `KNOWN_GAPS` in `src/lib/import/roundtrip.test.ts`; when you fix one, delete it
 there. A new template needs a sample and an entry in that list.
+
+On every pull request, GitHub Actions type-checks, lints, runs the tests and
+builds the site (`.github/workflows/ci.yml`), and `main` only accepts a pull
+request once that passes. It also audits the packages that ship, as a report
+that doesn't block merging. Dependabot opens update pull requests weekly.
 
 ## Deploying
 
