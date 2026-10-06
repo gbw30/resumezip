@@ -61,7 +61,8 @@ export interface SavedResumes {
   /**
    * "blocked" if the browser won't let the site use storage; "full" or
    * "failed" if saved data that can't be read couldn't be kept aside (so it's
-   * left as it is); otherwise "saved".
+   * left as it is), or resumes couldn't be moved from where earlier versions
+   * saved them; otherwise "saved".
    */
   status: SaveStatus
 }
@@ -143,7 +144,7 @@ export interface Migrated {
   saved: string[]
   /** What could be read of the resumes it found, moved or not. */
   resumes: Resumes
-  /** "saved", unless something that couldn't be read couldn't be kept aside either. */
+  /** "saved", unless something couldn't be moved, or couldn't be read and kept aside either. */
   status: SaveStatus
 }
 
@@ -178,7 +179,9 @@ export function migrateLegacy(storage: Storage, text: string | null = storage.ge
     try {
       storage.setItem(keyOf(id), JSON.stringify(resume))
       saved.push(id)
-    } catch {
+    } catch (error) {
+      // It still loads from the old key (see loadSaved); the status says why it wasn't moved.
+      status = worse(status, failure(error))
       moved = false
     }
   }
@@ -328,21 +331,28 @@ export function removeResume(storage: Storage | null, id: string): SaveStatus {
   } catch (error) {
     return failure(error)
   }
-  removeLegacy(storage, id)
-  return "saved"
+  return removeLegacy(storage, id)
 }
 
 // A resume not yet moved from where earlier versions saved it (see loadSaved)
-// is removed from there too, or it would come back.
-function removeLegacy(storage: Storage, id: string) {
+// is removed from there too, or it would come back. If that fails, the
+// status says so, and the deletion is tried again.
+function removeLegacy(storage: Storage, id: string): SaveStatus {
+  let all: unknown
   try {
     const text = storage.getItem(LEGACY_KEY)
-    if (text === null) return
-    const all: unknown = JSON.parse(text)
-    if (!isObject(all) || !Object.hasOwn(all, id)) return
-    storage.setItem(LEGACY_KEY, JSON.stringify(Object.fromEntries(Object.entries(all).filter(([key]) => key !== id))))
+    if (text === null) return "saved"
+    all = JSON.parse(text)
   } catch {
     // Unreadable there, so it can't come back from there either.
+    return "saved"
+  }
+  if (!isObject(all) || !Object.hasOwn(all, id)) return "saved"
+  try {
+    storage.setItem(LEGACY_KEY, JSON.stringify(Object.fromEntries(Object.entries(all).filter(([key]) => key !== id))))
+    return "saved"
+  } catch (error) {
+    return failure(error)
   }
 }
 

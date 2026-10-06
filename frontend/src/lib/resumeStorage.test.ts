@@ -229,6 +229,16 @@ describe("a resume saved under its own key", () => {
     expect(storage.getItem(LEGACY_KEY)).toBe(JSON.stringify({ g: grace }))
   })
 
+  test("says so when it can't be removed from where an earlier version saved it", () => {
+    const legacy = JSON.stringify({ a: ada, g: grace })
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: text(ada), [LEGACY_KEY]: legacy })
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw quotaError()
+    })
+    expect(removeResume(storage, "a")).toBe("full")
+    expect(storage.getItem(LEGACY_KEY)).toBe(legacy)
+  })
+
   test("can be removed", () => {
     const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: text(ada) })
     expect(removeResume(storage, "a")).toBe("saved")
@@ -412,7 +422,9 @@ describe("resumes saved by earlier versions, all under one key", () => {
     vi.spyOn(storage, "setItem").mockImplementation(() => {
       throw quotaError()
     })
-    expect(loadSaved(storage).resumes).toEqual({ a: ada, g: grace })
+    const loaded = loadSaved(storage)
+    expect(loaded.resumes).toEqual({ a: ada, g: grace })
+    expect(loaded.status).toBe("full")
     expect(storage.getItem(LEGACY_KEY)).toBe(legacy)
   })
 })

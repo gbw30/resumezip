@@ -263,6 +263,8 @@ export function createResumeStore(delay = SAVE_DELAY) {
           seen.set(id, saved.text)
           setState({ resumes: { ...state.resumes, [id]: saved.resume } })
         }
+        // It couldn't be kept aside, and is left as it is: show why.
+        if (saved.status !== "saved") setState({ saveStatus: worse(state.saveStatus, saved.status) })
       }
       setState({ unreadable: readKeptAside(storage) })
       return

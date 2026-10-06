@@ -219,6 +219,24 @@ describe("deleting", () => {
     expect(stored(storage, "a")?.resumeTitle).toBe("Still writing")
   })
 
+  test("a deletion that couldn't be finished says so, and is tried again", () => {
+    const storage = memoryStorage(saved(ada, grace))
+    const tab = openTab(storage)
+    // An earlier version still has it, and there's no room to change that.
+    storage.setItem(LEGACY_KEY, JSON.stringify({ a: ada }))
+    const setItem = vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw new DOMException("The quota has been exceeded.", "QuotaExceededError")
+    })
+    tab.remove("a")
+    expect(tab.getState().saveStatus).toBe("full")
+
+    setItem.mockRestore()
+    tab.flush()
+    expect(tab.getState().saveStatus).toBe("saved")
+    expect(storage.getItem(LEGACY_KEY)).toBe("{}")
+    expect(Object.keys(openTab(storage).getState().resumes)).toEqual(["g"])
+  })
+
   test("if another tab clears storage, a resume this tab has unsaved changes to is saved again", () => {
     const storage = memoryStorage(saved(ada, grace))
     const tab = openTab(storage)
@@ -243,6 +261,20 @@ describe("something another tab saved that can't be read", () => {
     vi.advanceTimersByTime(SAVE_DELAY)
     expect(stored(storage, "a")).toEqual(ada)
     expect(tab.getState().unreadable).toEqual(["not json"])
+  })
+})
+
+describe("a resume another tab saved that can't all be read", () => {
+  test("shows why when it can't be kept aside, and loads what can be read", () => {
+    const storage = memoryStorage(saved(ada))
+    const tab = openTab(storage)
+    storage.setItem(keyOf("x"), JSON.stringify({ id: "x", resumeTitle: "X", educationSection: { schoolName: "MIT" } }))
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw new DOMException("The quota has been exceeded.", "QuotaExceededError")
+    })
+    tab.receive(keyOf("x"))
+    expect(tab.getState().resumes.x).toEqual({ id: "x", resumeTitle: "X" })
+    expect(tab.getState().saveStatus).toBe("full")
   })
 })
 
