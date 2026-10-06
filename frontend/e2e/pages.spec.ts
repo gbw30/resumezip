@@ -10,7 +10,11 @@ for (const path of PAGES) {
     await page.waitForLoadState("networkidle")
 
     expect(await seriousAccessibilityProblems(page)).toEqual([])
-    // The 404 page's own "not found" response is expected; anything else is a real error.
-    expect(errors.filter((error) => !(path === "/does-not-exist" && error.includes("404")))).toEqual([])
+    // The 404 page's own "not found" response is expected, and browsers log it.
+    // Only that exact message for this page is let through.
+    const ownNotFound = (error: string) =>
+      path === "/does-not-exist" &&
+      /^Failed to load resource: the server responded with a status of 404 \(Not Found\) \(at http:\/\/[^/]+\/does-not-exist\)$/.test(error)
+    expect(errors.filter((error) => !ownNotFound(error))).toEqual([])
   })
 }
