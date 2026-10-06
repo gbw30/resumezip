@@ -71,6 +71,20 @@ export function readResumes(storage: Storage, text: string): Loaded {
   return { resumes, unreadable: true, status: keepAside(storage, text) ? "saved" : "failed" }
 }
 
+/**
+ * Whether saving can start again after it was stopped to protect saved data
+ * that couldn't be kept aside: yes once something readable has replaced it,
+ * or once it can be kept aside (there may be room now).
+ */
+export function canSaveOver(storage: Storage): boolean {
+  try {
+    const text = storage.getItem(RESUMES_KEY)
+    return text === null || readResumes(storage, text).status === "saved"
+  } catch {
+    return false
+  }
+}
+
 /** The resumes in saved text that can be read, and whether that's all of it. */
 function parse(text: string): { resumes: Resumes; complete: boolean } {
   let value: unknown

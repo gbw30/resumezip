@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import {
+  canSaveOver,
   deleteKeptAside,
   getStorage,
   isKeptAside,
@@ -170,6 +171,26 @@ describe("saved data that can't be read", () => {
     })
     expect(loadResumes(storage)).toEqual({ resumes: {}, unreadable: true, status: "failed" })
     expect(storage.getItem(RESUMES_KEY)).toBe("hello")
+    expect(readKeptAside(storage)).toEqual([])
+  })
+
+  test("that couldn't be kept aside can be saved over once there's room to keep it", () => {
+    const storage = memoryStorage({ [RESUMES_KEY]: "hello" })
+    const setItem = vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw quotaError()
+    })
+    expect(loadResumes(storage).status).toBe("failed")
+    expect(canSaveOver(storage)).toBe(false)
+
+    setItem.mockRestore()
+    expect(canSaveOver(storage)).toBe(true)
+    expect(readKeptAside(storage)).toEqual(["hello"])
+  })
+
+  test("that couldn't be kept aside can be saved over once something readable replaces it", () => {
+    const storage = memoryStorage({ [RESUMES_KEY]: JSON.stringify({ a: ada }) })
+    expect(canSaveOver(storage)).toBe(true)
+    expect(canSaveOver(memoryStorage())).toBe(true)
     expect(readKeptAside(storage)).toEqual([])
   })
 

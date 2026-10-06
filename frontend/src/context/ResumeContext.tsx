@@ -3,6 +3,7 @@ import React, { createContext, useState, useEffect, useMemo, useRef } from "reac
 import { DEFAULT_TEMPLATE } from "@/lib/templates"
 import type { ResumeContent } from "@/lib/resumeFile"
 import {
+  canSaveOver,
   deleteKeptAside,
   getStorage,
   isKeptAside,
@@ -112,16 +113,22 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
     return currentResumeId ? resumes[currentResumeId] || {} : {};
   }, [currentResumeId, resumes]);
 
-  // Save to localStorage on change, and show whether that worked.
+  // Save to localStorage on change, and show whether that worked. If saving
+  // was stopped to protect saved data, first check whether it can start again.
   useEffect(() => {
-    if (loaded && canSave.current) {
-      setSaveStatus(saveResumes(storage.current, resumes));
+    if (!loaded) return;
+    if (!canSave.current && storage.current && canSaveOver(storage.current)) {
+      canSave.current = true;
+      setUnreadable(readKeptAside(storage.current));
     }
+    if (canSave.current) setSaveStatus(saveResumes(storage.current, resumes));
   }, [resumes, loaded]);
 
   const deleteUnreadable = () => {
     deleteKeptAside(storage.current);
     setUnreadable(readKeptAside(storage.current));
+    // That frees room, so if saving was stopped, try again now.
+    if (!canSave.current) setResumes((current) => ({ ...current }));
   };
 
   // Resumes only live in this browser's localStorage; there are no accounts.
