@@ -6,6 +6,13 @@
 /** Where the resumes are saved. */
 export const RESUMES_KEY = "allResumes"
 
+/**
+ * Where saved data that can't be read is kept instead of being saved over:
+ * "allResumes-unreadable", then "allResumes-unreadable-2" and so on.
+ */
+export const UNREADABLE_KEY = "allResumes-unreadable"
+const KEPT = new RegExp(`^${UNREADABLE_KEY}(?:-(\\d+))?$`)
+
 type Resumes = Record<string, Record<string, any>>
 
 /**
@@ -27,37 +34,50 @@ export function getStorage(): Storage | null {
 }
 
 export interface Loaded {
-  /** The saved resumes; none if nothing is saved or it couldn't be read. */
+  /** The saved resumes that could be read; none if nothing is saved yet. */
   resumes: Resumes
+  /** Whether some of what's saved couldn't be read. It's kept aside unless the status says otherwise. */
+  unreadable: boolean
   /** "saved" if saving can go ahead; otherwise why it mustn't. */
   status: SaveStatus
 }
 
-/**
- * Reads the saved resumes. Saved data that can't be read is left as it is,
- * with a status that says not to save, so it isn't replaced.
- */
+/** Reads the saved resumes, as readResumes does. */
 export function loadResumes(storage: Storage | null): Loaded {
-  if (!storage) return { resumes: {}, status: "blocked" }
+  const blocked: Loaded = { resumes: {}, unreadable: false, status: "blocked" }
+  if (!storage) return blocked
   let text: string | null
   try {
     text = storage.getItem(RESUMES_KEY)
   } catch {
-    return { resumes: {}, status: "blocked" }
+    return blocked
   }
-  if (text === null) return { resumes: {}, status: "saved" }
-  const resumes = parse(text)
-  return resumes ? { resumes, status: "saved" } : { resumes: {}, status: "failed" }
+  return text === null ? { resumes: {}, unreadable: false, status: "saved" } : readResumes(storage, text)
 }
 
-/** The resumes in saved text, or null if it isn't an object of resumes. */
-function parse(text: string): Resumes | null {
+/**
+ * Reads resumes from saved text, as loaded or as another tab saved it. If any
+ * of it can't be read, all of it is kept aside first, so saving the rest
+ * can't destroy it. If that fails, the status says not to save.
+ */
+export function readResumes(storage: Storage, text: string): Loaded {
+  const { resumes, complete } = parse(text)
+  if (complete) return { resumes, unreadable: false, status: "saved" }
+  return { resumes, unreadable: true, status: keepAside(storage, text) ? "saved" : "failed" }
+}
+
+/** The resumes in saved text that can be read, and whether that's all of it. */
+function parse(text: string): { resumes: Resumes; complete: boolean } {
+  let value: unknown
   try {
-    const value: unknown = JSON.parse(text)
-    return isObject(value) && Object.values(value).every(isObject) ? (value as Resumes) : null
+    value = JSON.parse(text)
   } catch {
-    return null
+    return { resumes: {}, complete: false }
   }
+  if (!isObject(value)) return { resumes: {}, complete: false }
+  const entries = Object.entries(value)
+  const resumes = entries.filter((entry): entry is [string, Record<string, any>] => isObject(entry[1]))
+  return { resumes: Object.fromEntries(resumes), complete: resumes.length === entries.length }
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -79,3 +99,51 @@ export function saveResumes(storage: Storage | null, resumes: Resumes): SaveStat
 // Older versions of Firefox give the error their own name.
 const isQuotaError = (error: unknown) =>
   error instanceof DOMException && (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED")
+
+/** Copies saved data under a key of its own (see UNREADABLE_KEY). False if it couldn't. */
+function keepAside(storage: Storage, text: string): boolean {
+  try {
+    const kept = keptKeys(storage)
+    // Another tab may have kept it already.
+    if (kept.some((key) => storage.getItem(key) === text)) return true
+    let n = 1
+    while (kept.includes(keptKey(n))) n++
+    storage.setItem(keptKey(n), text)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const keptKey = (n: number) => (n === 1 ? UNREADABLE_KEY : `${UNREADABLE_KEY}-${n}`)
+
+/** The keys of the data kept aside, oldest first. */
+function keptKeys(storage: Storage): string[] {
+  const kept: [number, string][] = []
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i)
+    const match = key?.match(KEPT)
+    if (key && match) kept.push([Number(match[1] ?? 1), key])
+  }
+  return kept.sort(([a], [b]) => a - b).map(([, key]) => key)
+}
+
+/** The saved data kept aside because it couldn't be read, oldest first. */
+export function readKeptAside(storage: Storage | null): string[] {
+  if (!storage) return []
+  try {
+    return keptKeys(storage).flatMap((key) => storage.getItem(key) ?? [])
+  } catch {
+    return []
+  }
+}
+
+/** Deletes the saved data kept aside. */
+export function deleteKeptAside(storage: Storage | null) {
+  if (!storage) return
+  try {
+    for (const key of keptKeys(storage)) storage.removeItem(key)
+  } catch {
+    // Anything not deleted is still listed by readKeptAside.
+  }
+}

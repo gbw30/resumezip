@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { getStorage, loadResumes, RESUMES_KEY, saveResumes } from "./resumeStorage"
+import {
+  deleteKeptAside,
+  getStorage,
+  loadResumes,
+  readKeptAside,
+  readResumes,
+  RESUMES_KEY,
+  saveResumes,
+  UNREADABLE_KEY,
+} from "./resumeStorage"
 
 /** A stand-in for localStorage, starting with `items`. */
 function memoryStorage(items: Record<string, string> = {}) {
@@ -31,26 +40,82 @@ describe("saved resumes", () => {
   test("are read back as they were saved, as after a reload", () => {
     const storage = memoryStorage()
     expect(saveResumes(storage, { a: ada, g: grace })).toBe("saved")
-    expect(loadResumes(storage)).toEqual({ resumes: { a: ada, g: grace }, status: "saved" })
+    expect(loadResumes(storage)).toEqual({ resumes: { a: ada, g: grace }, unreadable: false, status: "saved" })
   })
 
   test("start empty when nothing is saved yet", () => {
-    expect(loadResumes(memoryStorage())).toEqual({ resumes: {}, status: "saved" })
+    expect(loadResumes(memoryStorage())).toEqual({ resumes: {}, unreadable: false, status: "saved" })
   })
 })
 
 describe("saved data that can't be read", () => {
-  test.each([
+  const unreadable = [
     ["cut-off JSON", '{"a": {"resumeTitle": "Ada'],
     ["not JSON", "hello"],
     ["null", "null"],
     ["a list", "[]"],
     ["a number", "42"],
     ["entries that aren't resumes", '{"a": null}'],
-  ])("is left as it was, and nothing is saved over it (%s)", (_, text) => {
+  ]
+
+  test.each(unreadable)("is kept aside before anything is saved over it (%s)", (_, text) => {
     const storage = memoryStorage({ [RESUMES_KEY]: text })
-    expect(loadResumes(storage)).toEqual({ resumes: {}, status: "failed" })
-    expect(storage.getItem(RESUMES_KEY)).toBe(text)
+    expect(loadResumes(storage)).toEqual({ resumes: {}, unreadable: true, status: "saved" })
+    expect(storage.getItem(UNREADABLE_KEY)).toBe(text)
+
+    expect(saveResumes(storage, { a: ada })).toBe("saved")
+    expect(readKeptAside(storage)).toEqual([text])
+  })
+
+  test("is kept whole, while the resumes in it that can be read are loaded", () => {
+    const text = JSON.stringify({ a: ada, b: null, c: "junk" })
+    const storage = memoryStorage({ [RESUMES_KEY]: text })
+    expect(loadResumes(storage)).toEqual({ resumes: { a: ada }, unreadable: true, status: "saved" })
+    expect(readKeptAside(storage)).toEqual([text])
+  })
+
+  test("is kept once, however often it's read", () => {
+    const storage = memoryStorage({ [RESUMES_KEY]: "hello" })
+    loadResumes(storage)
+    loadResumes(storage)
+    expect(readKeptAside(storage)).toEqual(["hello"])
+  })
+
+  test("found later is kept as well, without replacing what was kept before", () => {
+    const storage = memoryStorage({ [RESUMES_KEY]: "first" })
+    loadResumes(storage)
+    storage.setItem(RESUMES_KEY, "second")
+    loadResumes(storage)
+    storage.setItem(RESUMES_KEY, "third")
+    loadResumes(storage)
+    expect(storage.getItem(`${UNREADABLE_KEY}-2`)).toBe("second")
+    expect(readKeptAside(storage)).toEqual(["first", "second", "third"])
+  })
+
+  test("saved by another tab is kept aside too", () => {
+    const storage = memoryStorage()
+    expect(readResumes(storage, "hello")).toEqual({ resumes: {}, unreadable: true, status: "saved" })
+    expect(readKeptAside(storage)).toEqual(["hello"])
+  })
+
+  test("is left where it is, and saving stops, if it can't be kept aside", () => {
+    const storage = memoryStorage({ [RESUMES_KEY]: "hello" })
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw quotaError()
+    })
+    expect(loadResumes(storage)).toEqual({ resumes: {}, unreadable: true, status: "failed" })
+    expect(storage.getItem(RESUMES_KEY)).toBe("hello")
+    expect(readKeptAside(storage)).toEqual([])
+  })
+
+  test("can be deleted once it's been kept aside", () => {
+    const storage = memoryStorage({ [RESUMES_KEY]: "first" })
+    loadResumes(storage)
+    storage.setItem(RESUMES_KEY, "second")
+    loadResumes(storage)
+    deleteKeptAside(storage)
+    expect(readKeptAside(storage)).toEqual([])
+    expect(storage.length).toBe(1)
   })
 })
 
@@ -76,8 +141,10 @@ describe("when the browser won't let the site save anything", () => {
   })
 
   test("loading and saving say it's blocked", () => {
-    expect(loadResumes(null)).toEqual({ resumes: {}, status: "blocked" })
+    expect(loadResumes(null)).toEqual({ resumes: {}, unreadable: false, status: "blocked" })
     expect(saveResumes(null, { a: ada })).toBe("blocked")
+    expect(readKeptAside(null)).toEqual([])
+    expect(() => deleteKeptAside(null)).not.toThrow()
   })
 
   test("loading says it's blocked when reading throws", () => {
@@ -85,7 +152,7 @@ describe("when the browser won't let the site save anything", () => {
     vi.spyOn(storage, "getItem").mockImplementation(() => {
       throw deniedError()
     })
-    expect(loadResumes(storage)).toEqual({ resumes: {}, status: "blocked" })
+    expect(loadResumes(storage)).toEqual({ resumes: {}, unreadable: false, status: "blocked" })
   })
 })
 
