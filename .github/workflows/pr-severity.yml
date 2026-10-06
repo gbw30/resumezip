@@ -46,8 +46,8 @@ jobs:
                 `query ($owner: String!, $repo: String!, $number: Int!) {
                   repository(owner: $owner, name: $repo) {
                     issue(number: $number) {
-                      closedByPullRequestsReferences(first: 20, includeClosedPrs: false) {
-                        nodes { number labels(first: 20) { nodes { name } } }
+                      closedByPullRequestsReferences(first: 100, includeClosedPrs: false) {
+                        nodes { number labels(first: 100) { nodes { name } } }
                       }
                     }
                   }
@@ -66,8 +66,8 @@ jobs:
               `query ($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {
                   pullRequest(number: $number) {
-                    closingIssuesReferences(first: 20) {
-                      nodes { labels(first: 20) { nodes { name } } }
+                    closingIssuesReferences(first: 100) {
+                      nodes { labels(first: 100) { nodes { name } } }
                     }
                   }
                 }
