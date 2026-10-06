@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs"
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 import { pageErrors, seriousAccessibilityProblems } from "./helpers"
 
 declare global {
@@ -21,6 +21,13 @@ async function startWriting(page: Page) {
   await expect(page).toHaveURL(/\/create\/new\//)
   return `resume:${new URL(page.url()).pathname.split("/").pop()}`
 }
+
+/**
+ * The preview showing some text. Tests wait for this before leaving the
+ * editor: Safari reports leaving while the editor still downloads its PDF
+ * compiler as an error.
+ */
+const previewShows = (preview: Locator, text: RegExp) => preview.getByText(text).first()
 
 /** The text saved under a localStorage key, as one page sees it. */
 const savedAt = (page: Page, key: string) => () => page.evaluate((key) => localStorage.getItem(key) ?? "", key)
@@ -94,6 +101,7 @@ test("when storage is full, the editor says the changes aren't saved until they 
   await name.fill("Ada King")
   await expect(notSaved(page)).toHaveCount(0)
   await expect(saved).toHaveCount(1)
+  await expect(previewShows(page.getByRole("region", { name: "Live preview" }), /Ada King/i)).toBeVisible()
   await page.reload()
   await expect(page.getByLabel("Full name")).toHaveValue("Ada King")
 
@@ -166,6 +174,8 @@ test("typing is saved once it pauses, and just opening a page saves nothing", as
     }
   })
   const key = await startWriting(page)
+  const editor = new URL(page.url()).pathname
+  const preview = page.getByRole("region", { name: "Live preview" })
   const saves = () => page.evaluate(() => window.saves ?? [])
   await page.evaluate(() => (window.saves = []))
 
@@ -175,14 +185,17 @@ test("typing is saved once it pauses, and just opening a page saves nothing", as
   const made = await saves()
   expect(made.every((saved) => saved === key)).toBe(true)
   expect(made.length).toBeLessThanOrEqual(3)
+  await expect(previewShows(preview, /Ada Lovelace/i)).toBeVisible()
 
-  // Opening the editor again, or the dashboard, saves nothing.
-  for (const path of [new URL(page.url()).pathname, "/create/dashboard"]) {
-    await page.goto(path)
-    await expect(page.getByText(/^1 resume\W+stored in this browser$/i).or(page.getByLabel("Full name"))).toBeVisible()
-    await page.waitForTimeout(1_000)
-    expect(await saves()).toEqual([])
-  }
+  // Opening the dashboard, or the editor again, saves nothing.
+  await page.goto("/create/dashboard")
+  await expect(page.getByText(/^1 resume\W+stored in this browser$/i)).toBeVisible()
+  await page.waitForTimeout(1_000)
+  expect(await saves()).toEqual([])
+  await page.goto(editor)
+  await expect(previewShows(preview, /Ada Lovelace/i)).toBeVisible()
+  await page.waitForTimeout(1_000)
+  expect(await saves()).toEqual([])
 
   expect(errors).toEqual([])
 })
@@ -191,12 +204,14 @@ test("a change made just before the page closes is saved", async ({ page }) => {
   const errors = pageErrors(page)
   await page.clock.install()
   const key = await startWriting(page)
-  await expect(page.getByLabel("Full name")).toBeVisible()
+  const name = page.getByLabel("Full name")
+  await name.fill("Ada")
+  await expect(previewShows(page.getByRole("region", { name: "Live preview" }), /Ada/i)).toBeVisible()
 
   // With the page's clock stopped, typing never pauses long enough to be
   // saved, so only the save as the page closes can save it.
   await page.clock.pauseAt(Date.now() + 1_000)
-  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await name.fill("Ada Lovelace")
   expect(await savedAt(page, key)()).not.toContain("Ada Lovelace")
   await page.reload()
   await page.clock.resume()
