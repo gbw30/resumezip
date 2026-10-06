@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://www.tryresumezip.com">
-    <img src="frontend/public/logo.svg" width="72" height="72" alt="">
+    <img src="frontend/public/logo.svg" width="72" height="72" alt="resumezip">
   </a>
 </p>
 
@@ -34,7 +34,7 @@
 - **Private.** Your resume is saved in your browser and the PDF is made on your device. Nothing is uploaded.
 - **Live preview.** The PDF updates as you type.
 - **Pick up where you left off.** Every PDF carries its resume, so you can open it again on any computer and keep editing.
-- **Bring your old resume.** Open a PDF or Word file, check what was found, and carry on from there.
+- **Bring your old resume.** Open a PDF or Word (.docx) file, check what was found, and carry on from there.
 - **Made for applications.** Clean templates without icons or graphics that trip up applicant tracking systems.
 
 ## Templates
