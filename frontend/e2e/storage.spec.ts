@@ -127,21 +127,26 @@ test("when another tab saves something unreadable, the open resume stays and is 
   const errors = pageErrors(page)
   await startWriting(page)
   await page.getByLabel("Full name").fill("Ada Lovelace")
+  const saved = () => page.evaluate(() => localStorage.getItem("allResumes") ?? "")
+  await expect.poll(saved).toContain("Ada Lovelace")
 
-  // Another tab (a page in the same browser) saves over the resumes with something unreadable.
+  // Another tab (a page in the same browser) saves over the resumes with
+  // something unreadable, once it has read them itself.
   const other = await context.newPage()
-  await other.goto("/about")
+  await other.goto("/create/dashboard")
+  await expect(other.getByText(/^1 resume\W+stored in this browser$/i)).toBeVisible()
   await other.evaluate(() => localStorage.setItem("allResumes", "not json"))
 
-  // The editor keeps its resume and saves it back, and what was unreadable is kept aside.
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("allResumes") ?? "")).toContain("Ada Lovelace")
+  // The editor keeps what was unreadable aside, keeps its resume, and saves it back.
+  const kept = () =>
+    page.evaluate(() =>
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith("allResumes-unreadable-"))
+        .map((key) => localStorage.getItem(key)),
+    )
+  await expect.poll(kept).toEqual(["not json"])
+  await expect.poll(saved).toContain("Ada Lovelace")
   await expect(page.getByLabel("Full name")).toHaveValue("Ada Lovelace")
-  const kept = await page.evaluate(() =>
-    Object.keys(localStorage)
-      .filter((key) => key.startsWith("allResumes-unreadable-"))
-      .map((key) => localStorage.getItem(key)),
-  )
-  expect(kept).toEqual(["not json"])
 
   expect(errors).toEqual([])
 })
