@@ -82,7 +82,8 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
     setLoaded(true);
 
     const onStorage = (event: StorageEvent) => {
-      if (!storage.current) return;
+      // Only localStorage; sessionStorage changes in a same-origin frame fire this too.
+      if (!storage.current || event.storageArea !== storage.current) return;
       // Another tab kept data aside or deleted it, or cleared everything.
       if (event.key === null || isKeptAside(event.key)) setUnreadable(readKeptAside(storage.current));
       if (event.key !== RESUMES_KEY || event.newValue === null) return;
