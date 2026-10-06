@@ -6,17 +6,32 @@ declare global {
   interface Window {
     /** Set by a test to make saving fail as if storage were full. */
     storageFull?: boolean
+    /** The keys saved to localStorage, noted by a test. */
+    saves?: string[]
   }
 }
 
 /** What the editor and dashboard show while the latest changes aren't saved. */
 const notSaved = (page: Page) => page.getByRole("alert").filter({ hasText: "Not saved" })
 
+/** Starts a new resume, and returns the localStorage key it's saved under. */
 async function startWriting(page: Page) {
   await page.goto("/")
   await page.getByRole("link", { name: "Start writing" }).first().click()
   await expect(page).toHaveURL(/\/create\/new\//)
+  return `resume:${new URL(page.url()).pathname.split("/").pop()}`
 }
+
+/** The text saved under a localStorage key, as one page sees it. */
+const savedAt = (page: Page, key: string) => () => page.evaluate((key) => localStorage.getItem(key) ?? "", key)
+
+/** The saved data a page has kept aside because it couldn't be read. */
+const keptAside = (page: Page) => () =>
+  page.evaluate(() =>
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith("allResumes-unreadable-"))
+      .map((key) => localStorage.getItem(key)),
+  )
 
 test("when the browser won't let the site save anything, it still works and says so", async ({ page }) => {
   const errors = pageErrors(page)
@@ -95,12 +110,7 @@ test("saved data that can't be read is kept instead of being saved over", async 
     localStorage.setItem("allResumes", text)
   }, unreadable)
   await page.goto("/create/dashboard")
-  const kept = () =>
-    page.evaluate(() =>
-      Object.keys(localStorage)
-        .filter((key) => key.startsWith("allResumes-unreadable-"))
-        .map((key) => localStorage.getItem(key)),
-    )
+  const kept = keptAside(page)
 
   const note = page.getByText("couldn't be read, so resumezip kept a copy")
   await expect(note).toBeVisible()
@@ -125,28 +135,104 @@ test("saved data that can't be read is kept instead of being saved over", async 
 
 test("when another tab saves something unreadable, the open resume stays and is saved again", async ({ page, context }) => {
   const errors = pageErrors(page)
-  await startWriting(page)
+  const key = await startWriting(page)
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  const saved = () => page.evaluate(() => localStorage.getItem("allResumes") ?? "")
+  const saved = savedAt(page, key)
   await expect.poll(saved).toContain("Ada Lovelace")
 
-  // Another tab (a page in the same browser) saves over the resumes with
-  // something unreadable, once it has read them itself.
+  // Another tab (a page in the same browser) saves something unreadable over
+  // it, once it has read the resumes itself.
   const other = await context.newPage()
   await other.goto("/create/dashboard")
   await expect(other.getByText(/^1 resume\W+stored in this browser$/i)).toBeVisible()
-  await other.evaluate(() => localStorage.setItem("allResumes", "not json"))
+  await other.evaluate((key) => localStorage.setItem(key, "not json"), key)
 
   // The editor keeps what was unreadable aside, keeps its resume, and saves it back.
-  const kept = () =>
-    page.evaluate(() =>
-      Object.keys(localStorage)
-        .filter((key) => key.startsWith("allResumes-unreadable-"))
-        .map((key) => localStorage.getItem(key)),
-    )
-  await expect.poll(kept).toEqual(["not json"])
+  await expect.poll(keptAside(page)).toEqual(["not json"])
   await expect.poll(saved).toContain("Ada Lovelace")
   await expect(page.getByLabel("Full name")).toHaveValue("Ada Lovelace")
 
   expect(errors).toEqual([])
+})
+
+test("typing is saved once it pauses, and just opening a page saves nothing", async ({ page }) => {
+  const errors = pageErrors(page)
+  await page.addInitScript(() => {
+    const setItem = Storage.prototype.setItem
+    window.saves = []
+    Storage.prototype.setItem = function (key: string, value: string) {
+      window.saves?.push(key)
+      setItem.call(this, key, value)
+    }
+  })
+  const key = await startWriting(page)
+  const saves = () => page.evaluate(() => window.saves ?? [])
+  await page.evaluate(() => (window.saves = []))
+
+  // Twelve keystrokes are saved once, or a few times if the machine stalls mid-word.
+  await page.getByLabel("Full name").pressSequentially("Ada Lovelace", { delay: 25 })
+  await expect.poll(saves).not.toEqual([])
+  const made = await saves()
+  expect(made.every((saved) => saved === key)).toBe(true)
+  expect(made.length).toBeLessThanOrEqual(3)
+
+  // Opening the editor again, or the dashboard, saves nothing.
+  for (const path of [new URL(page.url()).pathname, "/create/dashboard"]) {
+    await page.goto(path)
+    await expect(page.getByText(/^1 resume\W+stored in this browser$/i).or(page.getByLabel("Full name"))).toBeVisible()
+    await page.waitForTimeout(1_000)
+    expect(await saves()).toEqual([])
+  }
+
+  expect(errors).toEqual([])
+})
+
+test("a change made just before the page closes is saved", async ({ page }) => {
+  const errors = pageErrors(page)
+  await page.clock.install()
+  const key = await startWriting(page)
+  await expect(page.getByLabel("Full name")).toBeVisible()
+
+  // With the page's clock stopped, typing never pauses long enough to be
+  // saved, so only the save as the page closes can save it.
+  await page.clock.pauseAt(Date.now() + 1_000)
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  expect(await savedAt(page, key)()).not.toContain("Ada Lovelace")
+  await page.reload()
+  await page.clock.resume()
+  await expect(page.getByLabel("Full name")).toHaveValue("Ada Lovelace")
+
+  expect(errors).toEqual([])
+})
+
+test("two tabs editing different resumes at once keep both edits", async ({ page, context }) => {
+  const errors = pageErrors(page)
+  await startWriting(page)
+  const other = await context.newPage()
+  const otherErrors = pageErrors(other)
+  await other.goto("/create/dashboard")
+  await other.getByRole("button", { name: "New resume" }).click()
+  await other.getByLabel("Name", { exact: true }).fill("Second resume")
+  await other.getByRole("button", { name: "Create" }).click()
+  await expect(other).toHaveURL(/\/create\/new\//)
+
+  await Promise.all([
+    page.getByLabel("Full name").pressSequentially("Ada Lovelace", { delay: 20 }),
+    other.getByLabel("Full name").pressSequentially("Grace Hopper", { delay: 20 }),
+  ])
+
+  // A page opened afterwards finds both.
+  const third = await context.newPage()
+  await third.goto("/create/dashboard")
+  const names = () =>
+    third.evaluate(() =>
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith("resume:"))
+        .map((key) => JSON.parse(localStorage.getItem(key) ?? "{}").profileSection?.fullName)
+        .sort(),
+    )
+  await expect.poll(names).toEqual(["Ada Lovelace", "Grace Hopper"])
+
+  expect(errors).toEqual([])
+  expect(otherErrors).toEqual([])
 })
