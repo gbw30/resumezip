@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest"
+import { SECTION_NAMES } from "@/components/editor/sections"
 import { toTemplateData } from "./resumeData"
 
 const bulletsOf = (description: string) =>
@@ -40,5 +41,35 @@ describe("bold and italic words in bullets", () => {
 
   test("each bullet is read on its own", () => {
     expect(bulletsOf("• **All bold**\n• none")).toEqual([[bold("All bold")], [plain("none")]])
+  })
+})
+
+describe("section order", () => {
+  test("sections missing from an older saved order are printed at the end", () => {
+    // Saved before Publications existed.
+    const data = toTemplateData({
+      sectionOrder: ["Work", "Education", "Skills", "Projects", "Volunteership", "Leadership", "Awards"],
+      publicationsSection: [{ id: 1, publicationTitle: "Fast Joins on Small Machines" }],
+    })
+    expect(data.publications).toHaveLength(1)
+    expect(data.order).toEqual(["Work", "Education", "Skills", "Projects", "Volunteership", "Leadership", "Awards", "Publications"])
+  })
+
+  test("unknown names are ignored and no section is printed twice", () => {
+    expect(toTemplateData({ sectionOrder: ["Skills", "Hobbies", "Skills", 7, "Work"] }).order).toEqual([
+      "Skills",
+      "Work",
+      "Education",
+      "Projects",
+      "Publications",
+      "Volunteership",
+      "Leadership",
+      "Awards",
+    ])
+  })
+
+  test("every section the editor has is printed, even without a saved order", () => {
+    expect(toTemplateData({}).order).toEqual(SECTION_NAMES)
+    expect(toTemplateData({ sectionOrder: [] }).order).toEqual(SECTION_NAMES)
   })
 })
