@@ -5,8 +5,8 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
-    # Instead of Dependabot's own "dependencies" and "javascript" labels.
-    labels: ["type: chore"]
+    # None, instead of Dependabot's own "dependencies" and "javascript" labels.
+    labels: [ ]
     open-pull-requests-limit: 5
     groups:
       # Must move together: the compiler file loaded from jsDelivr is pinned
@@ -25,4 +25,4 @@ updates:
     directory: /
     schedule:
       interval: monthly
-    labels: ["type: chore", "area: ci"]
+    labels: [ ]
