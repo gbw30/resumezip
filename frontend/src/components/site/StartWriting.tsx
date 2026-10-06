@@ -3,7 +3,7 @@
 import type React from "react"
 import { useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { useResumeContext } from "@/context/ResumeContext"
+import { useResumeActions } from "@/context/ResumeContext"
 import type { TemplateId } from "@/lib/templates"
 
 /**
@@ -13,10 +13,12 @@ import type { TemplateId } from "@/lib/templates"
  */
 export function useStartWriting() {
   const router = useRouter()
-  const { resumes, loaded, createNewResume } = useResumeContext()
+  // The resumes are only looked at on a click, so this doesn't re-render as they change.
+  const { getState, createNewResume } = useResumeActions()
 
   return useCallback(
     (template?: TemplateId) => {
+      const { resumes, loaded } = getState()
       const hasResumes = Object.keys(resumes).length > 0
       if (!loaded || (hasResumes && !template)) {
         router.push("/create/dashboard")
@@ -25,7 +27,7 @@ export function useStartWriting() {
       const id = createNewResume("Untitled resume", "personal", template)
       router.push(`/create/new/${id}`)
     },
-    [resumes, loaded, createNewResume, router],
+    [getState, createNewResume, router],
   )
 }
 
