@@ -24,10 +24,10 @@ export const metadata: Metadata = {
     // Other pages set a short title, e.g. "Templates" becomes "Templates · resumezip".
     template: "%s · resumezip",
   },
-  description: "Great resumes, no sign-up.",
+  description: "Free, open-source resume builder that runs in your browser.",
   openGraph: {
     title: "resumezip · Free resume builder, no sign-up",
-    description: "Great resumes, no sign-up.",
+    description: "Free, open-source resume builder that runs in your browser.",
     url: "/",
     siteName: "resumezip",
     images: [
