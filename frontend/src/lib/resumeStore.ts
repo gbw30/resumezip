@@ -275,14 +275,19 @@ export function createResumeStore(delay = SAVE_DELAY) {
     setState({ resumes: { ...state.resumes, [id]: resume } })
   }
 
-  // A tab still on an earlier version saved every resume under one key. What
-  // it saved is used even if this tab has removed that key since, or can't
-  // move it to keys of their own for lack of room.
+  // A tab still on an earlier version saved every resume under one key. What's
+  // there now is used, as the event can be older than a change this tab made
+  // since; if this tab has removed the key since, it's what the event says
+  // was saved. Either way, resumes this tab has seen deleted stay deleted,
+  // and newer ones that can't be moved to keys of their own for lack of room
+  // are still taken in.
   function receiveLegacy(storage: Storage, text: string) {
-    const legacy = migrateLegacy(storage, text)
+    const gone = (id: string) => deleted.has(id) || seen.get(id) === null
+    const legacy = migrateLegacy(storage, storage.getItem(LEGACY_KEY) ?? text, gone)
+    if (legacy.status !== "saved") setState({ saveStatus: worse(state.saveStatus, legacy.status) })
     for (const id of legacy.saved) receiveResume(storage, id)
     for (const [id, resume] of Object.entries(legacy.resumes)) {
-      if (legacy.saved.includes(id) || deleted.has(id) || (has(id) && !supersedes(resume, state.resumes[id]))) continue
+      if (legacy.saved.includes(id) || gone(id) || (has(id) && !supersedes(resume, state.resumes[id]))) continue
       // Newer, but not moved: taken in here, and saved under its own key once there's room.
       const changed = pending.get(id)
       const ours = has(id) ? state.resumes[id] : undefined
@@ -302,6 +307,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
     const kept = [...pending.keys()].filter(has).map((id) => [id, state.resumes[id]] as const)
     for (const [id] of kept) markChanged(id, EVERY_FIELD)
     setState({ resumes: { ...saved.resumes, ...Object.fromEntries(kept) }, unreadable: readKeptAside(storage) })
+    if (saved.status !== "saved") setState({ saveStatus: worse(state.saveStatus, saved.status) })
     if (pending.size > 0) saveSoon()
   }
 

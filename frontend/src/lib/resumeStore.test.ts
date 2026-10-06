@@ -356,6 +356,28 @@ describe("a tab still on an earlier version", () => {
   })
 })
 
+describe("a late event from a tab on an earlier version", () => {
+  test("doesn't bring back a resume deleted here since", () => {
+    const storage = memoryStorage(saved(ada, grace))
+    const tab = openTab(storage)
+    tab.remove("a")
+    // Saved before the deletion, but heard of only now.
+    tab.receive(LEGACY_KEY, JSON.stringify({ a: ada, g: grace }))
+    expect(storage.getItem(keyOf("a"))).toBeNull()
+    expect(Object.keys(tab.getState().resumes)).toEqual(["g"])
+  })
+
+  test("that can't be read or kept aside says why", () => {
+    const storage = memoryStorage(saved(ada))
+    const tab = openTab(storage)
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw new DOMException("The quota has been exceeded.", "QuotaExceededError")
+    })
+    tab.receive(LEGACY_KEY, "not json")
+    expect(tab.getState().saveStatus).toBe("full")
+  })
+})
+
 describe("adding resumes", () => {
   test("a new resume is saved straight away, numbered if its name is taken", () => {
     const storage = memoryStorage()

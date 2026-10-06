@@ -155,9 +155,14 @@ export interface Migrated {
  * since. A resume already under its own key is only replaced by a newer
  * version (see supersedes). The old text is copied once to BACKUP_KEY (or kept
  * aside, if some of it can't be read), then removed. Anything that can't be
- * moved is left for next time. Throws if storage can't be read.
+ * moved is left for next time, and resumes `skip` names aren't moved at all.
+ * Throws if storage can't be read.
  */
-export function migrateLegacy(storage: Storage, text: string | null = storage.getItem(LEGACY_KEY)): Migrated {
+export function migrateLegacy(
+  storage: Storage,
+  text: string | null = storage.getItem(LEGACY_KEY),
+  skip: (id: string) => boolean = () => false,
+): Migrated {
   if (text === null) return { saved: [], resumes: {}, status: "saved" }
   const { resumes, complete } = parse(text)
   let status: SaveStatus = complete ? "saved" : keepAside(storage, text)
@@ -165,6 +170,7 @@ export function migrateLegacy(storage: Storage, text: string | null = storage.ge
   const saved: string[] = []
   let moved = true
   for (const [id, resume] of Object.entries(resumes)) {
+    if (skip(id)) continue
     const current = storage.getItem(keyOf(id))
     if (current !== null) {
       const existing = readResume(current)
