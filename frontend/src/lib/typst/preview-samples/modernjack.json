@@ -45,7 +45,7 @@
       "workLocation": "Remote",
       "workStartDate": "Jan 2024",
       "workEndDate": "Present",
-      "workDescription": "• Lead the ledger team's move of the balances service from a single database primary to a sharded cluster of 16 nodes, keeping p99 write latency under 40 ms at 12,000 writes per second with no downtime\n• Designed an idempotency layer for the payouts API that ended duplicate transfers during client retries\n• Built a reconciliation job in Go that matches 3 million bank records each night and flags mismatches for the finance team, replacing a manual check that took four people a full morning\n• Mentor three engineers, run the team's weekly design review and lead on-call training for every new hire"
+      "workDescription": "• Lead the ledger team's move of the balances service from a single database primary to a sharded cluster of 16 nodes, keeping p99 write latency under 40 ms at 12,000 writes per second with no downtime\n• Designed an idempotency layer for the payouts API so a retried request can never send the same transfer twice\n• Built a reconciliation job in Go that matches 3 million bank records each night and flags mismatches for the finance team, replacing a manual check that took four people a full morning\n• Mentor three engineers, run the team's weekly design review and lead on-call training for every new hire"
     },
     {
       "id": 2,
