@@ -50,6 +50,11 @@ builds the site (`.github/workflows/ci.yml`), and `main` only accepts a pull
 request once that passes. The browser tests run in their own job next to it. It also audits the packages that ship, as a report
 that doesn't block merging. Dependabot opens update pull requests weekly.
 
+A pull request that fixes a bug (its description says "fixes" and the issue
+number) gets that bug's severity label, even if the bug gets one later
+(`.github/workflows/pr-severity.yml`). Greptile's dashboard is set to review
+pull requests by label, so fixes for serious bugs get a review.
+
 ## Deploying
 
 Vercel builds and deploys this folder (`frontend/`). Only `main` deploys, to
