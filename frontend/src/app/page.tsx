@@ -26,15 +26,16 @@ export default function Home() {
 
         <div className="relative mx-auto w-full max-w-[1440px] px-5 pt-6 md:px-10">
           <h1 className="max-w-[1000px] font-serif text-[56px] leading-[0.92] tracking-[-0.045em] sm:text-[80px] lg:text-[116px] lg:leading-[0.88]">
-            Great resumes,
-            <br />
-            no sign-up.
+            The resume builder that never sees your resume.
           </h1>
         </div>
 
         <div className="relative mx-auto flex w-full max-w-[1440px] flex-1 flex-wrap items-end justify-between gap-8 px-5 pb-6 pt-12 md:px-10 md:pb-10">
           <div className="flex w-full max-w-[420px] flex-col gap-7 bg-white px-7 pb-5 pt-7 text-[#171717]">
-            <p className="text-xl leading-[1.35] tracking-[-0.015em]">Pick a template, fill it in, download the PDF.</p>
+            <p className="text-xl leading-[1.35] tracking-[-0.015em]">
+              resumezip is a free, open-source resume builder that runs in your browser. Pick a template, write, and
+              download the PDF.
+            </p>
             <StartWritingLink className="group flex items-center justify-between gap-4 border-t border-[#171717] pt-4">
               <span className="label-caps">Start writing</span>
               <span className="inline-flex h-7 w-7 items-center justify-center bg-accent text-white transition-transform group-hover:-translate-y-0.5">
