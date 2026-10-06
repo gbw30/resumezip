@@ -74,6 +74,6 @@ Found a bug or have an idea? [Open an issue](https://github.com/ian-hoang/resume
 
 ## License
 
-[MIT](LICENSE) © Ian Hoang. The fonts in `frontend/public/fonts` keep their own licenses, listed in [`frontend/src/lib/typst/README.md`](frontend/src/lib/typst/README.md#fonts).
+[MIT](LICENSE) © Ian Hoang. The fonts in `frontend/src/lib/typst/fonts` keep their own licenses, listed in [`frontend/src/lib/typst/README.md`](frontend/src/lib/typst/README.md#fonts).
 
 If resumezip helped you, a ⭐ helps other people find it.

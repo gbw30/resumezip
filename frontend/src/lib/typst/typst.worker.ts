@@ -24,26 +24,29 @@ const SOURCES: Record<string, string> = {
   "/resumeworded.typ": resumeworded,
 }
 
-// Served from public/fonts. Templates can only use these fonts: Typst's
-// default CDN-hosted fonts are disabled so everything is served by this app.
+// Templates can only use these fonts: Typst's default CDN-hosted fonts are
+// disabled so everything is served by this app. They're bundled, so each is
+// served under a name with its content's hash that browsers keep for good;
+// a changed font gets a new name. The bundler only finds paths written out
+// in full, so each one is.
 const FONTS = [
-  "NewCM10-Regular.otf",
-  "NewCM10-Bold.otf",
-  "NewCM10-Italic.otf",
-  "NewCM10-BoldItalic.otf",
-  "Lato-Regular.ttf",
-  "Lato-Bold.ttf",
-  "Lato-Italic.ttf",
-  "Lato-BoldItalic.ttf",
-  "texgyreheros-regular.otf",
-  "texgyreheros-bold.otf",
-  "texgyreheros-italic.otf",
-  "texgyreheros-bolditalic.otf",
-  "EBGaramond-Regular.ttf",
-  "EBGaramond-Bold.ttf",
-  "EBGaramond-Italic.ttf",
-  "EBGaramond-BoldItalic.ttf",
-].map((file) => `/fonts/${file}`)
+  new URL("./fonts/NewCM10-Regular.otf", import.meta.url),
+  new URL("./fonts/NewCM10-Bold.otf", import.meta.url),
+  new URL("./fonts/NewCM10-Italic.otf", import.meta.url),
+  new URL("./fonts/NewCM10-BoldItalic.otf", import.meta.url),
+  new URL("./fonts/Lato-Regular.ttf", import.meta.url),
+  new URL("./fonts/Lato-Bold.ttf", import.meta.url),
+  new URL("./fonts/Lato-Italic.ttf", import.meta.url),
+  new URL("./fonts/Lato-BoldItalic.ttf", import.meta.url),
+  new URL("./fonts/texgyreheros-regular.otf", import.meta.url),
+  new URL("./fonts/texgyreheros-bold.otf", import.meta.url),
+  new URL("./fonts/texgyreheros-italic.otf", import.meta.url),
+  new URL("./fonts/texgyreheros-bolditalic.otf", import.meta.url),
+  new URL("./fonts/EBGaramond-Regular.ttf", import.meta.url),
+  new URL("./fonts/EBGaramond-Bold.ttf", import.meta.url),
+  new URL("./fonts/EBGaramond-Italic.ttf", import.meta.url),
+  new URL("./fonts/EBGaramond-BoldItalic.ttf", import.meta.url),
+].map((url) => url.href)
 
 // Downloads wrap the template in a file that also attaches a copy of the
 // resume, so templates don't need to know about it. Checked to leave every
