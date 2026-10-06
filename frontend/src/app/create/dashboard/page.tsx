@@ -9,6 +9,7 @@ import CreateResumeModal from "@/components/dashboard/CreateResumeModal"
 import DeleteResumeModal from "@/components/dashboard/DeleteResumeModal"
 import { ConflictDialog, OpenErrorDialog, ReadingDialog } from "@/components/dashboard/OpenFileDialogs"
 import ResumeTable from "@/components/dashboard/ResumeTable"
+import UnreadableData from "@/components/dashboard/UnreadableData"
 import NotSaved from "@/components/site/NotSaved"
 import PageIntro from "@/components/site/PageIntro"
 import SiteFooter from "@/components/site/SiteFooter"
@@ -189,6 +190,7 @@ export default function DashboardPage() {
         />
 
         <NotSaved className="max-w-[720px]" />
+        <UnreadableData />
 
         {loaded && count > 0 && <ResumeTable resumes={sorted} onDelete={setResumeToDelete} />}
 
