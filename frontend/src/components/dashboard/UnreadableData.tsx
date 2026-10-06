@@ -17,11 +17,17 @@ export default function UnreadableData() {
   const [deleting, setDeleting] = useState(false)
   if (unreadable.length === 0) return null
 
+  // One copy downloads exactly as it was saved. Several go in a JSON list, so
+  // they can be told apart again.
   const download = () => {
-    const url = URL.createObjectURL(new Blob([unreadable.join("\n\n")], { type: "text/plain" }))
+    const one = unreadable.length === 1
+    const file = one
+      ? new Blob([unreadable[0]], { type: "text/plain" })
+      : new Blob([JSON.stringify(unreadable, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(file)
     const link = document.createElement("a")
     link.href = url
-    link.download = "resumezip-unreadable-data.txt"
+    link.download = one ? "resumezip-unreadable-data.txt" : "resumezip-unreadable-data.json"
     link.click()
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
   }
