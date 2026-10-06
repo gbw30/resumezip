@@ -9,6 +9,7 @@ import CreateResumeModal from "@/components/dashboard/CreateResumeModal"
 import DeleteResumeModal from "@/components/dashboard/DeleteResumeModal"
 import { ConflictDialog, OpenErrorDialog, ReadingDialog } from "@/components/dashboard/OpenFileDialogs"
 import ResumeTable from "@/components/dashboard/ResumeTable"
+import NotSaved from "@/components/site/NotSaved"
 import PageIntro from "@/components/site/PageIntro"
 import SiteFooter from "@/components/site/SiteFooter"
 import SiteHeader from "@/components/site/SiteHeader"
@@ -27,7 +28,7 @@ type Opening =
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { resumes, loaded, deleteResume, createNewResume, importResume, replaceResume } = useResumeContext()
+  const { resumes, loaded, saveStatus, deleteResume, createNewResume, importResume, replaceResume } = useResumeContext()
   const [creating, setCreating] = useState(false)
   const [resumeToDelete, setResumeToDelete] = useState<Record<string, any> | null>(null)
   const [opening, setOpening] = useState<Opening | null>(null)
@@ -171,7 +172,11 @@ export default function DashboardPage() {
 
       <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-12 px-5 pb-24 pt-16 md:px-10 md:pt-20">
         <PageIntro
-          label={loaded ? `${count} ${count === 1 ? "resume" : "resumes"} · stored in this browser` : "Stored in this browser"}
+          label={
+            loaded
+              ? `${count} ${count === 1 ? "resume" : "resumes"} · ${saveStatus === "blocked" ? "not saved" : "stored in this browser"}`
+              : "Stored in this browser"
+          }
           title="Your resumes"
           actions={
             count > 0 ? (
@@ -182,6 +187,8 @@ export default function DashboardPage() {
             ) : undefined
           }
         />
+
+        <NotSaved className="max-w-[720px]" />
 
         {loaded && count > 0 && <ResumeTable resumes={sorted} onDelete={setResumeToDelete} />}
 
