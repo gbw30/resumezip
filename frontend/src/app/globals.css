@@ -67,6 +67,15 @@
     color: var(--color-ink);
   }
 
+  /* The preview's text is drawn on a canvas, with an invisible copy laid over
+     it in a plain font so it can be selected. Selecting keeps that copy
+     invisible, with a see-through highlight (--color-accent at 40%), so the
+     resume's own font shows through instead. */
+  .textLayer ::selection {
+    background: rgb(46 91 230 / 0.4);
+    color: transparent;
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;

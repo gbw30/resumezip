@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ClipboardEvent } from "react"
 import { Document, Page, pdfjs } from "react-pdf"
 import "react-pdf/dist/esm/Page/AnnotationLayer.css"
 import "react-pdf/dist/esm/Page/TextLayer.css"
@@ -123,7 +123,7 @@ export default function PdfPreview({ pdfUrl, error }: PdfPreviewProps) {
         </div>
       </div>
 
-      <div ref={scrollerRef} className="relative min-h-[480px] flex-1 overflow-auto px-5 pb-10 md:px-8">
+      <div ref={scrollerRef} onCopy={copyPlainText} className="relative min-h-[480px] flex-1 overflow-auto px-5 pb-10 md:px-8">
         {documents.length === 0 || loadError ? (
           <div className="flex h-full min-h-[480px] items-center justify-center text-sm text-ink-2">
             {loadError || error ? "The preview couldn't be built." : "Your resume will appear here."}
@@ -174,6 +174,18 @@ export default function PdfPreview({ pdfUrl, error }: PdfPreviewProps) {
       )}
     </div>
   )
+}
+
+// Copying from the preview gives plain text, as pdf.js's own viewer does. The
+// selected text is the invisible copy over the canvas, so the browser's usual
+// rich copy would carry its transparent color and placeholder font into
+// whatever it's pasted into. The text is normalized the same way too, so a
+// ligature such as "ﬁ" would paste as "fi".
+function copyPlainText(event: ClipboardEvent) {
+  const text = window.getSelection()?.toString()
+  if (!text) return
+  event.clipboardData.setData("text/plain", pdfjs.normalizeUnicode(text))
+  event.preventDefault()
 }
 
 function clampZoom(zoom: number) {
