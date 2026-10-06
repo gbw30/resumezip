@@ -1,0 +1,315 @@
+// The resumes in memory, and when to save them. context/ResumeContext.tsx
+// shares this store with the app; lib/resumeStorage.ts reads and writes
+// localStorage for it.
+//
+// Each resume is saved under a key of its own, so tabs editing different
+// resumes never save over each other. A change is saved once typing pauses,
+// or straight away when the page is hidden or closed (see flush), and only
+// the resumes that changed are saved. What another tab saves is taken in
+// without being saved again; if both tabs changed the same resume, the fields
+// each one changed are kept.
+
+import type { ResumeContent } from "./resumeFile"
+import {
+  deleteKeptAside,
+  EVERY_FIELD,
+  idOf,
+  isKeptAside,
+  keyOf,
+  LEGACY_KEY,
+  loadSaved,
+  mergeResume,
+  migrateLegacy,
+  readKeptAside,
+  readResume,
+  readSaved,
+  removeResume,
+  saveResume,
+  type SaveStatus,
+} from "./resumeStorage"
+import { numberDuplicateTitles, uniqueTitle } from "./resumeTitles"
+import { DEFAULT_TEMPLATE } from "./templates"
+
+/** A resume as the editor stores it; its fields are listed in components/editor/sections.ts. */
+export type Resume = Record<string, any>
+
+export interface ResumeState {
+  /** Every resume saved in this browser, by id. */
+  resumes: Record<string, Resume>
+  /** False until the saved resumes have been read. */
+  loaded: boolean
+  /** Whether the latest changes are saved in this browser, and if not, why. */
+  saveStatus: SaveStatus
+  /** Saved data that couldn't be read, kept aside instead of being saved over. */
+  unreadable: string[]
+}
+
+/** Before anything has been read, as when the page is rendered on the server. */
+export const INITIAL_STATE: ResumeState = { resumes: {}, loaded: false, saveStatus: "saved", unreadable: [] }
+
+/** How long typing pauses before the changes are saved, in milliseconds. */
+export const SAVE_DELAY = 400
+
+const blankResume = (template: string) => ({
+  profileSection: {},
+  headings: {},
+  selectedTemplate: template,
+  educationSection: [],
+  workExperienceSection: [],
+  projectsSection: [],
+  publicationsSection: [],
+  volunteerExperienceSection: [],
+  skillsSection: [],
+  leadershipExperienceSection: [],
+  awardsSection: [],
+  sectionOrder: ["Education", "Work", "Skills", "Projects", "Publications", "Volunteership", "Leadership", "Awards"],
+})
+
+// The worst of two outcomes, to show for a save of several resumes.
+const RANK: SaveStatus[] = ["saved", "failed", "full", "blocked"]
+const worse = (a: SaveStatus, b: SaveStatus) => (RANK.indexOf(a) >= RANK.indexOf(b) ? a : b)
+
+const without = (resumes: Record<string, Resume>, id: string) =>
+  Object.fromEntries(Object.entries(resumes).filter(([key]) => key !== id))
+
+export type ResumeStore = ReturnType<typeof createResumeStore>
+
+export function createResumeStore(delay = SAVE_DELAY) {
+  let storage: Storage | null = null
+  let state = INITIAL_STATE
+  const listeners = new Set<() => void>()
+  // The text each resume was last read or saved as here; null once it's gone.
+  const seen = new Map<string, string | null>()
+  // The fields changed here and not saved yet, by resume.
+  const pending = new Map<string, Set<string>>()
+  // Resumes deleted here and not yet removed from storage.
+  const deleted = new Set<string>()
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  function setState(next: Partial<ResumeState>) {
+    state = { ...state, ...next }
+    for (const listener of listeners) listener()
+  }
+
+  const has = (id: string) => Object.hasOwn(state.resumes, id)
+
+  function markChanged(id: string, ...fields: string[]) {
+    const changed = pending.get(id) ?? new Set<string>()
+    for (const field of fields) changed.add(field)
+    pending.set(id, changed)
+  }
+
+  function saveSoon() {
+    clearTimeout(timer)
+    timer = setTimeout(flush, delay)
+  }
+
+  /** Reads the saved resumes from `from`: localStorage, or null if the browser won't allow it. */
+  function load(from: Storage | null) {
+    storage = from
+    const saved = loadSaved(storage)
+    seen.clear()
+    for (const [id, text] of saved.texts) seen.set(id, text)
+    // Resumes saved with the same name get numbered, and that's saved like any change.
+    const resumes = numberDuplicateTitles(saved.resumes)
+    for (const [id, resume] of Object.entries(resumes)) if (resume !== saved.resumes[id]) markChanged(id, "resumeTitle")
+    setState({ resumes, loaded: true, saveStatus: saved.status, unreadable: readKeptAside(storage) })
+    if (pending.size > 0) saveSoon()
+  }
+
+  /** Changes one field of a resume. It's saved once typing pauses. */
+  function edit(id: string, field: string, value: unknown) {
+    if (!has(id)) return
+    markChanged(id, field, "updatedAt")
+    const resume = { ...state.resumes[id], [field]: value, updatedAt: new Date().toISOString() }
+    setState({ resumes: { ...state.resumes, [id]: resume } })
+    saveSoon()
+  }
+
+  /** Adds an empty resume, and returns its id. */
+  function create(title: string, tag: string, template: string = DEFAULT_TEMPLATE): string {
+    const id = crypto.randomUUID()
+    add(id, title, { ...blankResume(template), id, resumeTag: tag, updatedAt: new Date().toISOString() })
+    return id
+  }
+
+  /**
+   * Adds a resume opened from a file, named after the file, and returns its
+   * id. A resumezip PDF keeps its resume's id, so opening it again later is
+   * recognised as the same resume.
+   */
+  function importResume(content: ResumeContent, title: string, { keepId = true } = {}): string {
+    const id = keepId && typeof content.id === "string" && content.id && !has(content.id) ? content.id : crypto.randomUUID()
+    add(id, title, {
+      ...blankResume(content.selectedTemplate ?? DEFAULT_TEMPLATE),
+      ...content,
+      id,
+      resumeTag: "personal",
+      updatedAt: content.updatedAt ?? new Date().toISOString(),
+    })
+    return id
+  }
+
+  // A new resume is saved straight away. A repeated name gets a number, e.g. "Untitled resume 2".
+  function add(id: string, title: string, resume: Resume) {
+    const resumeTitle = uniqueTitle(title, Object.values(state.resumes).map((other) => other?.resumeTitle))
+    deleted.delete(id)
+    markChanged(id, EVERY_FIELD)
+    setState({ resumes: { ...state.resumes, [id]: { ...resume, resumeTitle } } })
+    flush()
+  }
+
+  /** Replaces a resume's content with a file's, keeping its name and tag. */
+  function replace(id: string, content: ResumeContent) {
+    if (!has(id)) return
+    markChanged(id, EVERY_FIELD)
+    const resume = { ...state.resumes[id], ...content, id, updatedAt: new Date().toISOString() }
+    setState({ resumes: { ...state.resumes, [id]: resume } })
+    flush()
+  }
+
+  /** Deletes a resume. */
+  function remove(id: string) {
+    if (!has(id)) return
+    pending.delete(id)
+    deleted.add(id)
+    setState({ resumes: without(state.resumes, id) })
+    flush()
+  }
+
+  /** Saves what's changed, now. */
+  function flush() {
+    clearTimeout(timer)
+    if (!storage || (pending.size === 0 && deleted.size === 0)) return
+    let status: SaveStatus = "saved"
+    const merged: [string, Resume][] = []
+    for (const id of deleted) {
+      const removed = removeResume(storage, id)
+      if (removed !== "saved") {
+        status = worse(status, removed)
+        continue
+      }
+      deleted.delete(id)
+      seen.set(id, null)
+    }
+    for (const [id, changed] of pending) {
+      if (!has(id)) {
+        pending.delete(id)
+        continue
+      }
+      const resume = state.resumes[id]
+      const saved = saveResume(storage, id, resume, changed, seen.get(id) ?? null)
+      if (saved.status !== "saved" || saved.text === undefined || !saved.resume) {
+        status = worse(status, saved.status)
+        continue
+      }
+      pending.delete(id)
+      seen.set(id, saved.text)
+      // Another tab had saved changes to other fields, and they're in now.
+      if (saved.resume !== resume) merged.push([id, saved.resume])
+    }
+    setState({
+      saveStatus: status,
+      unreadable: readKeptAside(storage),
+      ...(merged.length > 0 && { resumes: { ...state.resumes, ...Object.fromEntries(merged) } }),
+    })
+  }
+
+  /** Takes in what another tab saved under `key` (null when it cleared everything). It isn't saved again. */
+  function receive(key: string | null) {
+    if (!storage) return
+    try {
+      if (key === null) reloadAll(storage)
+      else if (isKeptAside(key)) setState({ unreadable: readKeptAside(storage) })
+      else if (key === LEGACY_KEY) {
+        // A tab still on an earlier version saved every resume under one key.
+        for (const id of migrateLegacy(storage)) receiveResume(storage, id)
+        setState({ unreadable: readKeptAside(storage) })
+      } else {
+        const id = idOf(key)
+        if (id !== null) receiveResume(storage, id)
+      }
+    } catch {
+      // Storage can't be read any more. What's in memory stays.
+    }
+  }
+
+  function receiveResume(storage: Storage, id: string) {
+    // A deletion here that's still being saved wins.
+    if (deleted.has(id)) return
+    // What's saved now, rather than what the event said: events can arrive
+    // after this tab has saved over them.
+    const text = storage.getItem(keyOf(id))
+    if (seen.has(id) ? text === seen.get(id) : text === null) return
+    const ours = has(id) ? state.resumes[id] : undefined
+    const changed = pending.get(id)
+    if (text === null) {
+      // Deleted in another tab. Changes here that aren't saved yet keep it;
+      // they're saved again soon.
+      seen.set(id, null)
+      if (ours && !changed) setState({ resumes: without(state.resumes, id) })
+      return
+    }
+    const theirs = readResume(text)
+    if (!theirs.complete || !theirs.resume) {
+      if (ours) {
+        // Saved by something this tab can't fully read. This tab keeps its
+        // own version, and saves it back once that text is kept aside.
+        markChanged(id, EVERY_FIELD)
+        saveSoon()
+      } else {
+        const saved = readSaved(storage, id)
+        if (saved.resume && saved.text !== null) {
+          seen.set(id, saved.text)
+          setState({ resumes: { ...state.resumes, [id]: saved.resume } })
+        }
+      }
+      setState({ unreadable: readKeptAside(storage) })
+      return
+    }
+    seen.set(id, text)
+    // Changes here that aren't saved yet stay on top, and are saved soon.
+    const resume = ours && changed ? mergeResume(theirs.resume, ours, changed) : theirs.resume
+    setState({ resumes: { ...state.resumes, [id]: resume } })
+  }
+
+  // Storage was cleared in another tab. Re-read it, keeping any resume this
+  // tab has changes to, and saving it again.
+  function reloadAll(storage: Storage) {
+    const saved = loadSaved(storage)
+    seen.clear()
+    for (const [id, text] of saved.texts) seen.set(id, text)
+    const kept = [...pending.keys()].filter(has).map((id) => [id, state.resumes[id]] as const)
+    for (const [id] of kept) markChanged(id, EVERY_FIELD)
+    setState({ resumes: { ...saved.resumes, ...Object.fromEntries(kept) }, unreadable: readKeptAside(storage) })
+    if (pending.size > 0) saveSoon()
+  }
+
+  /** Deletes the saved data kept aside, which makes room, so anything waiting is saved. */
+  function deleteUnreadable() {
+    deleteKeptAside(storage)
+    setState({ unreadable: readKeptAside(storage) })
+    flush()
+  }
+
+  function subscribe(listener: () => void) {
+    listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+    }
+  }
+
+  return {
+    getState: () => state,
+    subscribe,
+    load,
+    edit,
+    create,
+    importResume,
+    replace,
+    remove,
+    flush,
+    receive,
+    deleteUnreadable,
+  }
+}

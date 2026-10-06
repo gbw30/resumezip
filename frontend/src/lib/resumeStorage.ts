@@ -20,7 +20,8 @@ export const isKeptAside = (key: string) => KEPT.test(key)
 
 /** Each resume is saved under a key of its own: this, then its id. */
 export const RESUME_PREFIX = "resume:"
-const keyOf = (id: string) => RESUME_PREFIX + id
+/** The localStorage key a resume is saved under. */
+export const keyOf = (id: string) => RESUME_PREFIX + id
 
 /** The id of the resume saved under a localStorage key, or null if it isn't one. */
 export const idOf = (key: string) => (key.startsWith(RESUME_PREFIX) ? key.slice(RESUME_PREFIX.length) : null)

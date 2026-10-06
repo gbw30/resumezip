@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
+import { memoryStorage } from "./memoryStorage"
 import {
   BACKUP_KEY,
   canSaveOver,
@@ -22,20 +23,6 @@ import {
   UNREADABLE_PREFIX,
 } from "./resumeStorage"
 
-/** A stand-in for localStorage, starting with `items`. */
-function memoryStorage(items: Record<string, string> = {}) {
-  const map = new Map(Object.entries(items))
-  return {
-    get length() {
-      return map.size
-    },
-    key: (index: number) => [...map.keys()][index] ?? null,
-    getItem: (key: string) => map.get(key) ?? null,
-    setItem: (key: string, value: string) => void map.set(key, String(value)),
-    removeItem: (key: string) => void map.delete(key),
-    clear: () => map.clear(),
-  } as Storage
-}
 
 const ada = { id: "a", resumeTitle: "Ada", profileSection: { fullName: "Ada Lovelace" } }
 const grace = { id: "g", resumeTitle: "Grace", profileSection: { fullName: "Grace Hopper" } }
