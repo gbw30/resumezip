@@ -64,7 +64,7 @@ export default function Home() {
               Your resume never leaves your browser.
             </p>
             <p className="max-w-[520px] text-xl leading-[1.35] tracking-[-0.015em]">
-              No account, no uploads. Your PDF is made right on your device.
+              No account, no uploads. To switch devices, open your PDF or Word file on the new one.
             </p>
             <StartWritingLink className="label-caps inline-flex h-11 items-center gap-3 self-start border border-white px-[18px] transition-colors hover:bg-white hover:text-accent">
               Start writing <ArrowUpRight />
