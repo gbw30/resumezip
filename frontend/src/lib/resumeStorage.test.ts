@@ -199,7 +199,7 @@ describe("a resume saved under its own key", () => {
       if (key.startsWith(UNREADABLE_PREFIX)) throw quotaError()
       setItem(key, value)
     })
-    expect(saveResume(storage, "a", ada, all, null)).toEqual({ status: "failed" })
+    expect(saveResume(storage, "a", ada, all, null)).toEqual({ status: "full" })
     expect(storage.getItem(`${RESUME_PREFIX}a`)).toBe("not json")
   })
 
@@ -219,6 +219,14 @@ describe("a resume saved under its own key", () => {
       throw new Error("disk error")
     })
     expect(saveResume(storage, "a", ada, new Set([EVERY_FIELD]), null)).toEqual({ status: "failed" })
+  })
+
+  test("can be removed, also from where an earlier version saved it", () => {
+    const legacy = JSON.stringify({ a: ada, g: grace })
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: text(ada), [LEGACY_KEY]: legacy })
+    expect(removeResume(storage, "a")).toBe("saved")
+    expect(storage.getItem(`${RESUME_PREFIX}a`)).toBeNull()
+    expect(storage.getItem(LEGACY_KEY)).toBe(JSON.stringify({ g: grace }))
   })
 
   test("can be removed", () => {
@@ -323,6 +331,7 @@ describe("loading resumes saved under keys of their own", () => {
     const loaded = loadSaved(storage)
     expect(loaded.resumes).toEqual({ a: ada })
     expect(loaded.texts.get("a")).toBe(original)
+    expect(loaded.status).toBe("full")
     expect(storage.getItem(`${RESUME_PREFIX}a`)).toBe(original)
   })
 
@@ -364,6 +373,22 @@ describe("resumes saved by earlier versions, all under one key", () => {
     // A tab still on an earlier version saved later.
     storage.setItem(LEGACY_KEY, text({ a: { ...newer, resumeTitle: "Later", updatedAt: "2026-10-06T00:00:00.000Z" } }))
     expect(loadSaved(storage).resumes.a.resumeTitle).toBe("Later")
+  })
+
+  test("replace a copy edited at the same moment if they differ, as the earlier version saved last", () => {
+    const sameTime = { ...newer, resumeTitle: "Saved by an earlier version" }
+    const storage = memoryStorage({ [LEGACY_KEY]: text({ a: sameTime }), [`${RESUME_PREFIX}a`]: text(newer) })
+    expect(loadSaved(storage).resumes.a.resumeTitle).toBe("Saved by an earlier version")
+  })
+
+  test("still load when newer than the copy under its own key, if there's no room to move them", () => {
+    const storage = memoryStorage({ [LEGACY_KEY]: text({ a: newer }), [`${RESUME_PREFIX}a`]: text(older) })
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw quotaError()
+    })
+    const loaded = loadSaved(storage)
+    expect(loaded.resumes.a).toEqual(newer)
+    expect(loaded.texts.get("a")).toBe(text(older))
   })
 
   test("that can't all be read are kept aside, and the rest moved", () => {

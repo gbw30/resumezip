@@ -58,7 +58,11 @@ export interface SavedResumes {
   resumes: Resumes
   /** The text each resume was read as, to tell later whether another tab has saved it since. */
   texts: Map<string, string>
-  /** "blocked" if the browser won't let the site use storage, otherwise "saved". */
+  /**
+   * "blocked" if the browser won't let the site use storage; "full" or
+   * "failed" if saved data that can't be read couldn't be kept aside (so it's
+   * left as it is); otherwise "saved".
+   */
   status: SaveStatus
 }
 
@@ -67,23 +71,29 @@ export function loadSaved(storage: Storage | null): SavedResumes {
   const blocked: SavedResumes = { resumes: {}, texts: new Map(), status: "blocked" }
   if (!storage) return blocked
   try {
-    migrateLegacy(storage)
-    const resumes: [string, Resume][] = []
+    let status = migrateLegacy(storage).status
+    const resumes = new Map<string, Resume>()
     const texts = new Map<string, string>()
     for (const id of savedIds(storage)) {
-      const { resume, text } = readSaved(storage, id)
-      if (resume && text !== null) {
-        resumes.push([id, resume])
-        texts.set(id, text)
+      const saved = readSaved(storage, id)
+      status = worse(status, saved.status)
+      if (saved.resume && saved.text !== null) {
+        resumes.set(id, saved.resume)
+        texts.set(id, saved.text)
       }
     }
     // Resumes that couldn't be moved yet, e.g. for lack of room, are still
-    // read from where they are. Saving one gives it a key of its own.
+    // read from where they are, if that copy is newer. Saving one gives it a
+    // key of its own.
     const legacy = storage.getItem(LEGACY_KEY)
     if (legacy !== null) {
-      for (const [id, resume] of Object.entries(parse(legacy).resumes)) if (!texts.has(id)) resumes.push([id, resume])
+      for (const [id, resume] of Object.entries(parse(legacy).resumes)) {
+        const current = resumes.get(id)
+        if (!current || supersedes(resume, current)) resumes.set(id, resume)
+      }
     }
-    return { resumes: Object.fromEntries(resumes), texts, status: "saved" }
+    // fromEntries keeps an id like "__proto__" an ordinary key.
+    return { resumes: Object.fromEntries(resumes), texts, status }
   } catch {
     return blocked
   }
@@ -93,24 +103,28 @@ export function loadSaved(storage: Storage | null): SavedResumes {
  * One saved resume, as loaded, and the text it's saved as. Text that can't be
  * fully read is kept aside, then the key is saved again with what could be
  * read (or removed, if none could), so it isn't found again next time. If it
- * can't be kept aside, it's left as it is. Throws if storage can't be read.
+ * can't be kept aside, it's left as it is, and the status says why. Throws if
+ * storage can't be read.
  */
-export function readSaved(storage: Storage, id: string): { resume: Resume | null; text: string | null } {
+export function readSaved(storage: Storage, id: string): { resume: Resume | null; text: string | null; status: SaveStatus } {
   const key = keyOf(id)
   const text = storage.getItem(key)
-  if (text === null) return { resume: null, text: null }
+  if (text === null) return { resume: null, text: null, status: "saved" }
   const { resume, complete } = readResume(text)
-  if (complete || !keepAside(storage, text)) return { resume, text }
+  if (complete) return { resume, text, status: "saved" }
+  const kept = keepAside(storage, text)
+  if (kept !== "saved") return { resume, text, status: kept }
   try {
     if (!resume) {
       storage.removeItem(key)
-      return { resume: null, text: null }
+      return { resume: null, text: null, status: "saved" }
     }
     const readable = JSON.stringify(resume)
     storage.setItem(key, readable)
-    return { resume, text: readable }
+    return { resume, text: readable, status: "saved" }
   } catch {
-    return { resume, text }
+    // It's kept aside, so it's safe as it is.
+    return { resume, text, status: "saved" }
   }
 }
 
@@ -124,27 +138,39 @@ function savedIds(storage: Storage): string[] {
   return ids
 }
 
+export interface Migrated {
+  /** The ids it saved under keys of their own. */
+  saved: string[]
+  /** What could be read of the resumes it found, moved or not. */
+  resumes: Resumes
+  /** "saved", unless something that couldn't be read couldn't be kept aside either. */
+  status: SaveStatus
+}
+
 /**
  * Moves the resumes that earlier versions saved under one key (LEGACY_KEY) to
- * keys of their own, and returns the ids it saved. A resume already under its
- * own key is only replaced by a newer one, as when a tab still running an
- * earlier version saves. The old text is copied once to BACKUP_KEY (or kept
- * aside, if some of it can't be read) and then removed. If anything can't be
- * moved, it's left for next time. Throws if storage can't be read.
+ * keys of their own. `text` is what's saved there, or what a tab still on an
+ * earlier version just saved, which is moved even if the key has been removed
+ * since. A resume already under its own key is only replaced by a newer
+ * version (see supersedes). The old text is copied once to BACKUP_KEY (or kept
+ * aside, if some of it can't be read), then removed. Anything that can't be
+ * moved is left for next time. Throws if storage can't be read.
  */
-export function migrateLegacy(storage: Storage): string[] {
-  const text = storage.getItem(LEGACY_KEY)
-  if (text === null) return []
+export function migrateLegacy(storage: Storage, text: string | null = storage.getItem(LEGACY_KEY)): Migrated {
+  if (text === null) return { saved: [], resumes: {}, status: "saved" }
   const { resumes, complete } = parse(text)
-  if (!complete && !keepAside(storage, text)) return []
+  let status: SaveStatus = complete ? "saved" : keepAside(storage, text)
+  if (status !== "saved") return { saved: [], resumes, status }
   const saved: string[] = []
   let moved = true
   for (const [id, resume] of Object.entries(resumes)) {
     const current = storage.getItem(keyOf(id))
     if (current !== null) {
       const existing = readResume(current)
-      if (existing.complete && existing.resume && time(existing.resume.updatedAt) >= time(resume.updatedAt)) continue
-      if (!existing.complete && !keepAside(storage, current)) {
+      if (existing.complete && existing.resume && !supersedes(resume, existing.resume)) continue
+      const kept = existing.complete ? "saved" : keepAside(storage, current)
+      if (kept !== "saved") {
+        status = worse(status, kept)
         moved = false
         continue
       }
@@ -156,7 +182,7 @@ export function migrateLegacy(storage: Storage): string[] {
       moved = false
     }
   }
-  if (!moved) return saved
+  if (!moved) return { saved, resumes, status }
   if (complete && Object.keys(resumes).length > 0 && storage.getItem(BACKUP_KEY) === null) {
     try {
       storage.setItem(BACKUP_KEY, text)
@@ -166,7 +192,18 @@ export function migrateLegacy(storage: Storage): string[] {
   }
   // Unless a tab on an earlier version saved again meanwhile.
   if (storage.getItem(LEGACY_KEY) === text) storage.removeItem(LEGACY_KEY)
-  return saved
+  return { saved, resumes, status }
+}
+
+/**
+ * Whether a resume an earlier version saved replaces the copy under its own
+ * key: if it was edited later, or at the same moment but differs, as that
+ * version saved last.
+ */
+export function supersedes(legacy: Resume, current: Resume): boolean {
+  const legacyTime = time(legacy.updatedAt)
+  const currentTime = time(current.updatedAt)
+  return legacyTime > currentTime || (legacyTime === currentTime && JSON.stringify(legacy) !== JSON.stringify(current))
 }
 
 /** What can be read of the resumes earlier versions saved (see LEGACY_KEY), and whether that's all of it. */
@@ -270,7 +307,8 @@ export function saveResume(
   let saving = resume
   if (current !== null) {
     const theirs = readResume(current)
-    if (!theirs.complete && !keepAside(storage, current)) return { status: "failed" }
+    const kept = theirs.complete ? "saved" : keepAside(storage, current)
+    if (kept !== "saved") return { status: kept }
     if (current !== seen && theirs.resume) saving = mergeResume(theirs.resume, resume, changed)
   }
   const text = JSON.stringify(saving)
@@ -287,9 +325,24 @@ export function removeResume(storage: Storage | null, id: string): SaveStatus {
   if (!storage) return "blocked"
   try {
     storage.removeItem(keyOf(id))
-    return "saved"
   } catch (error) {
     return failure(error)
+  }
+  removeLegacy(storage, id)
+  return "saved"
+}
+
+// A resume not yet moved from where earlier versions saved it (see loadSaved)
+// is removed from there too, or it would come back.
+function removeLegacy(storage: Storage, id: string) {
+  try {
+    const text = storage.getItem(LEGACY_KEY)
+    if (text === null) return
+    const all: unknown = JSON.parse(text)
+    if (!isObject(all) || !Object.hasOwn(all, id)) return
+    storage.setItem(LEGACY_KEY, JSON.stringify(Object.fromEntries(Object.entries(all).filter(([key]) => key !== id))))
+  } catch {
+    // Unreadable there, so it can't come back from there either.
   }
 }
 
@@ -333,6 +386,10 @@ export function changedPaths(field: string, before: unknown, after: unknown): st
   return [...keys].filter((key) => before[key] !== after[key]).map((key) => `${field}.${key}`)
 }
 
+// The worse of two outcomes, to show for a save of several things.
+const RANK: SaveStatus[] = ["saved", "failed", "full", "blocked"]
+export const worse = (a: SaveStatus, b: SaveStatus) => (RANK.indexOf(a) >= RANK.indexOf(b) ? a : b)
+
 // When a resume was last edited, for comparing; unknown times come first.
 const time = (value: unknown) => {
   const parsed = typeof value === "string" ? Date.parse(value) : NaN
@@ -350,17 +407,17 @@ function failure(error: unknown): SaveStatus {
 const isQuotaError = (error: unknown) =>
   error instanceof DOMException && (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED")
 
-/** Copies saved data under a key of its own (see UNREADABLE_PREFIX). False if it couldn't. */
-function keepAside(storage: Storage, text: string): boolean {
+/** Copies saved data under a key of its own (see UNREADABLE_PREFIX), and says how that went. */
+function keepAside(storage: Storage, text: string): SaveStatus {
   try {
     // Another tab may have kept it already.
-    if (keptKeys(storage).some((key) => storage.getItem(key) === text)) return true
+    if (keptKeys(storage).some((key) => storage.getItem(key) === text)) return "saved"
     // A new key every time, so two tabs keeping different data at once can't
     // pick the same one and save over each other's copy.
     storage.setItem(`${UNREADABLE_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, text)
-    return true
-  } catch {
-    return false
+    return "saved"
+  } catch (error) {
+    return failure(error)
   }
 }
 

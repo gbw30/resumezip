@@ -46,7 +46,7 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
     store.load(storage);
     const onStorage = (event: StorageEvent) => {
       // Only localStorage; sessionStorage changes in a same-origin frame fire this too.
-      if (storage && event.storageArea === storage) store.receive(event.key);
+      if (storage && event.storageArea === storage) store.receive(event.key, event.newValue);
     };
     const flush = () => store.flush();
     const onVisibilityChange = () => {

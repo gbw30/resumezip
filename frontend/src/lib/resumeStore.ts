@@ -26,6 +26,8 @@ import {
   readSaved,
   removeResume,
   saveResume,
+  supersedes,
+  worse,
   type SaveStatus,
 } from "./resumeStorage"
 import { numberDuplicateTitles, uniqueTitle } from "./resumeTitles"
@@ -65,10 +67,6 @@ const blankResume = (template: string) => ({
   awardsSection: [],
   sectionOrder: ["Education", "Work", "Skills", "Projects", "Publications", "Volunteership", "Leadership", "Awards"],
 })
-
-// The worst of two outcomes, to show for a save of several resumes.
-const RANK: SaveStatus[] = ["saved", "failed", "full", "blocked"]
-const worse = (a: SaveStatus, b: SaveStatus) => (RANK.indexOf(a) >= RANK.indexOf(b) ? a : b)
 
 const without = (resumes: Record<string, Resume>, id: string) =>
   Object.fromEntries(Object.entries(resumes).filter(([key]) => key !== id))
@@ -216,16 +214,17 @@ export function createResumeStore(delay = SAVE_DELAY) {
     })
   }
 
-  /** Takes in what another tab saved under `key` (null when it cleared everything). It isn't saved again. */
-  function receive(key: string | null) {
+  /**
+   * Takes in what another tab saved under `key` (null when it cleared
+   * everything), without saving it again. `value` is what it saved there.
+   */
+  function receive(key: string | null, value: string | null = null) {
     if (!storage) return
     try {
       if (key === null) reloadAll(storage)
       else if (isKeptAside(key)) setState({ unreadable: readKeptAside(storage) })
       else if (key === LEGACY_KEY) {
-        // A tab still on an earlier version saved every resume under one key.
-        for (const id of migrateLegacy(storage)) receiveResume(storage, id)
-        setState({ unreadable: readKeptAside(storage) })
+        if (value !== null) receiveLegacy(storage, value)
       } else {
         const id = idOf(key)
         if (id !== null) receiveResume(storage, id)
@@ -272,6 +271,24 @@ export function createResumeStore(delay = SAVE_DELAY) {
     // Changes here that aren't saved yet stay on top, and are saved soon.
     const resume = ours && changed ? mergeResume(theirs.resume, ours, changed) : theirs.resume
     setState({ resumes: { ...state.resumes, [id]: resume } })
+  }
+
+  // A tab still on an earlier version saved every resume under one key. What
+  // it saved is used even if this tab has removed that key since, or can't
+  // move it to keys of their own for lack of room.
+  function receiveLegacy(storage: Storage, text: string) {
+    const legacy = migrateLegacy(storage, text)
+    for (const id of legacy.saved) receiveResume(storage, id)
+    for (const [id, resume] of Object.entries(legacy.resumes)) {
+      if (legacy.saved.includes(id) || deleted.has(id) || (has(id) && !supersedes(resume, state.resumes[id]))) continue
+      // Newer, but not moved: taken in here, and saved under its own key once there's room.
+      const changed = pending.get(id)
+      const ours = has(id) ? state.resumes[id] : undefined
+      setState({ resumes: { ...state.resumes, [id]: ours && changed ? mergeResume(resume, ours, changed) : resume } })
+      markChanged(id, EVERY_FIELD)
+    }
+    if (pending.size > 0) saveSoon()
+    setState({ unreadable: readKeptAside(storage) })
   }
 
   // Storage was cleared in another tab. Re-read it, keeping any resume this

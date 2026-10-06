@@ -286,11 +286,41 @@ describe("resumes saved by earlier versions", () => {
     const tab = openTab(storage)
     const newer = { ...ada, resumeTitle: "Saved by an older tab", updatedAt: "2026-10-06T13:00:00.000Z" }
     storage.setItem(LEGACY_KEY, JSON.stringify({ a: newer }))
-    tab.receive(LEGACY_KEY)
+    tab.receive(LEGACY_KEY, storage.getItem(LEGACY_KEY))
 
     expect(tab.getState().resumes.a.resumeTitle).toBe("Saved by an older tab")
     expect(stored(storage, "a")?.resumeTitle).toBe("Saved by an older tab")
     expect(storage.getItem(LEGACY_KEY)).toBeNull()
+  })
+})
+
+describe("a tab still on an earlier version", () => {
+  const newer = { ...ada, resumeTitle: "Saved by an older tab", updatedAt: "2026-10-06T13:00:00.000Z" }
+
+  test("saving just after this tab moved everything still has its save moved", () => {
+    const storage = memoryStorage(saved(ada))
+    const tab = openTab(storage)
+    // It saved, and the key was removed again before this tab heard of it.
+    const value = JSON.stringify({ a: newer })
+    tab.receive(LEGACY_KEY, value)
+    expect(tab.getState().resumes.a.resumeTitle).toBe("Saved by an older tab")
+    expect(stored(storage, "a")?.resumeTitle).toBe("Saved by an older tab")
+  })
+
+  test("saving when there's no room to move it has its save taken in, and saved once there's room", () => {
+    const storage = memoryStorage(saved(ada))
+    const tab = openTab(storage)
+    const value = JSON.stringify({ a: newer })
+    storage.setItem(LEGACY_KEY, value)
+    const setItem = vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw new DOMException("The quota has been exceeded.", "QuotaExceededError")
+    })
+    tab.receive(LEGACY_KEY, value)
+    expect(tab.getState().resumes.a.resumeTitle).toBe("Saved by an older tab")
+
+    setItem.mockRestore()
+    tab.flush()
+    expect(stored(storage, "a")?.resumeTitle).toBe("Saved by an older tab")
   })
 })
 
