@@ -18,7 +18,18 @@ const KEPT = new RegExp(`^${UNREADABLE_PREFIX}(\\d+)-[a-z0-9]*$`)
 /** Whether a localStorage key holds saved data kept aside. */
 export const isKeptAside = (key: string) => KEPT.test(key)
 
-type Resumes = Record<string, Record<string, any>>
+/** Each resume is saved under a key of its own: this, then its id. */
+export const RESUME_PREFIX = "resume:"
+const keyOf = (id: string) => RESUME_PREFIX + id
+
+/** The id of the resume saved under a localStorage key, or null if it isn't one. */
+export const idOf = (key: string) => (key.startsWith(RESUME_PREFIX) ? key.slice(RESUME_PREFIX.length) : null)
+
+/** In a resume's changed fields: all of them, as for a new resume. */
+export const EVERY_FIELD = "*"
+
+type Resume = Record<string, any>
+type Resumes = Record<string, Resume>
 
 /**
  * Whether the latest changes are saved: "blocked" when the browser won't let
@@ -95,26 +106,42 @@ function parse(text: string): { resumes: Resumes; complete: boolean } {
   }
   if (!isObject(value)) return { resumes: {}, complete: false }
   let complete = true
-  const resumes: [string, Record<string, any>][] = []
-  for (const [id, resume] of Object.entries(value)) {
-    if (!isObject(resume)) {
-      complete = false
-      continue
-    }
-    // The editor would show a field or entry in another shape as empty, or
-    // crash on it, and the first edit would replace it. So it's left out
-    // here, with the text kept aside.
-    const fields: [string, unknown][] = []
-    for (const [key, field] of Object.entries(resume)) {
-      const readable = readField(key, field)
-      if (!readable?.complete) complete = false
-      if (readable) fields.push([key, readable.value])
-    }
-    resumes.push([id, Object.fromEntries(fields)])
+  const resumes: [string, Resume][] = []
+  for (const [id, entry] of Object.entries(value)) {
+    const { resume, complete: whole } = readEntry(entry)
+    if (!whole) complete = false
+    if (resume) resumes.push([id, resume])
   }
   // fromEntries keeps an id like "__proto__" an ordinary key. Assigning it
   // would set the object's prototype instead, and the resume would be lost.
   return { resumes: Object.fromEntries(resumes), complete }
+}
+
+/** A resume saved under its own key: what the editor can show of it, and whether that's all of it. */
+export function readResume(text: string): { resume: Resume | null; complete: boolean } {
+  try {
+    return readEntry(JSON.parse(text))
+  } catch {
+    return { resume: null, complete: false }
+  }
+}
+
+/**
+ * A resume as the editor can show it, and whether that's all of it; null if
+ * it isn't a resume at all. The editor would show a field or entry in another
+ * shape as empty, or crash on it, and the first edit would replace it. So it's
+ * left out here, and whoever saves over it keeps the text aside first.
+ */
+function readEntry(value: unknown): { resume: Resume | null; complete: boolean } {
+  if (!isObject(value)) return { resume: null, complete: false }
+  let complete = true
+  const fields: [string, unknown][] = []
+  for (const [key, field] of Object.entries(value)) {
+    const readable = readField(key, field)
+    if (!readable?.complete) complete = false
+    if (readable) fields.push([key, readable.value])
+  }
+  return { resume: Object.fromEntries(fields), complete }
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -145,10 +172,87 @@ export function saveResumes(storage: Storage | null, resumes: Resumes): SaveStat
     storage.setItem(RESUMES_KEY, JSON.stringify(resumes))
     return "saved"
   } catch (error) {
-    if (isQuotaError(error)) return "full"
-    console.warn("Couldn't save resumes:", error)
-    return "failed"
+    return failure(error)
   }
+}
+
+export interface Saved {
+  status: SaveStatus
+  /** Once saved, the text saved, and the resume as saved (with another tab's changes, if it made any). */
+  text?: string
+  resume?: Resume
+}
+
+/**
+ * Saves one resume, and says how that went. If another tab saved it since
+ * this tab last read or saved it (`seen`), what that tab saved is kept, with
+ * the fields this tab changed on top. Saved text that can't be fully read is
+ * kept aside before it's saved over; if that fails, nothing is saved.
+ */
+export function saveResume(
+  storage: Storage | null,
+  id: string,
+  resume: Resume,
+  changed: ReadonlySet<string>,
+  seen: string | null,
+): Saved {
+  if (!storage) return { status: "blocked" }
+  const key = keyOf(id)
+  let current: string | null
+  try {
+    current = storage.getItem(key)
+  } catch {
+    return { status: "blocked" }
+  }
+  let saving = resume
+  if (current !== null) {
+    const theirs = readResume(current)
+    if (!theirs.complete && !keepAside(storage, current)) return { status: "failed" }
+    if (current !== seen && theirs.resume) saving = mergeResume(theirs.resume, resume, changed)
+  }
+  const text = JSON.stringify(saving)
+  try {
+    storage.setItem(key, text)
+    return { status: "saved", text, resume: saving }
+  } catch (error) {
+    return { status: failure(error) }
+  }
+}
+
+/** Removes a saved resume, and says how that went. */
+export function removeResume(storage: Storage | null, id: string): SaveStatus {
+  if (!storage) return "blocked"
+  try {
+    storage.removeItem(keyOf(id))
+    return "saved"
+  } catch (error) {
+    return failure(error)
+  }
+}
+
+/**
+ * Another tab's version of a resume, with the fields this tab changed taken
+ * from its own, and the later of the two edit times. Changing the same field
+ * in two tabs at once keeps the one saved last.
+ */
+export function mergeResume(theirs: Resume, ours: Resume, changed: ReadonlySet<string>): Resume {
+  if (changed.has(EVERY_FIELD)) return ours
+  const fields = Object.entries(theirs).filter(([field]) => !changed.has(field))
+  for (const field of changed) if (Object.hasOwn(ours, field)) fields.push([field, ours[field]])
+  return { ...Object.fromEntries(fields), updatedAt: later(theirs.updatedAt, ours.updatedAt) }
+}
+
+// When a resume was last edited, for comparing; unknown times come first.
+const time = (value: unknown) => {
+  const parsed = typeof value === "string" ? Date.parse(value) : NaN
+  return Number.isNaN(parsed) ? -Infinity : parsed
+}
+const later = (a: unknown, b: unknown) => (time(a) >= time(b) ? a : b)
+
+function failure(error: unknown): SaveStatus {
+  if (isQuotaError(error)) return "full"
+  console.warn("Couldn't save resumes:", error)
+  return "failed"
 }
 
 // Older versions of Firefox give the error their own name.

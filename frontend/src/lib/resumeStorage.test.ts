@@ -2,13 +2,21 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import {
   canSaveOver,
   deleteKeptAside,
+  EVERY_FIELD,
   getStorage,
+  idOf,
   isKeptAside,
   loadResumes,
+  mergeResume,
   readKeptAside,
+  readResume,
   readResumes,
+  removeResume,
+  RESUME_PREFIX,
   RESUMES_KEY,
+  saveResume,
   saveResumes,
+  UNREADABLE_PREFIX,
 } from "./resumeStorage"
 
 /** A stand-in for localStorage, starting with `items`. */
@@ -269,5 +277,101 @@ describe("a save that doesn't work", () => {
     expect(saveResumes(storage, { a: ada })).toBe("full")
     expect(saveResumes(storage, { a: ada })).toBe("saved")
     expect(loadResumes(storage).resumes).toEqual({ a: ada })
+  })
+})
+
+describe("a resume saved under its own key", () => {
+  const all = new Set([EVERY_FIELD])
+  const text = (resume: object) => JSON.stringify(resume)
+  const stored = (storage: Storage, id: string) => readResume(storage.getItem(RESUME_PREFIX + id) ?? "").resume
+
+  test("is read back as it was saved, and doesn't touch other resumes", () => {
+    const storage = memoryStorage({ [`${RESUME_PREFIX}g`]: text(grace) })
+    const saved = saveResume(storage, "a", ada, all, null)
+    expect(saved).toEqual({ status: "saved", text: text(ada), resume: ada })
+    expect(stored(storage, "a")).toEqual(ada)
+    expect(storage.getItem(`${RESUME_PREFIX}g`)).toBe(text(grace))
+    expect(idOf(`${RESUME_PREFIX}a`)).toBe("a")
+    expect(idOf("allResumes")).toBeNull()
+  })
+
+  test("keeps another tab's changes to other fields when this tab saves", () => {
+    const before = { ...ada, updatedAt: "2026-10-06T10:00:00.000Z" }
+    const theirs = { ...before, profileSection: { fullName: "Ada King" }, updatedAt: "2026-10-06T10:00:05.000Z" }
+    const ours = { ...before, workExperienceSection: [{ companyName: "Analytical Engines" }], updatedAt: "2026-10-06T10:00:03.000Z" }
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: text(theirs) })
+
+    const saved = saveResume(storage, "a", ours, new Set(["workExperienceSection", "updatedAt"]), text(before))
+    expect(saved.status).toBe("saved")
+    expect(stored(storage, "a")).toEqual({ ...theirs, workExperienceSection: ours.workExperienceSection })
+    expect(saved.resume).toEqual(stored(storage, "a"))
+  })
+
+  test("keeps this tab's version of a field that both tabs changed", () => {
+    const theirs = { ...ada, profileSection: { fullName: "Ada King" } }
+    const ours = { ...ada, profileSection: { fullName: "Ada Byron" } }
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: text(theirs) })
+    saveResume(storage, "a", ours, new Set(["profileSection"]), text(ada))
+    expect(stored(storage, "a")?.profileSection).toEqual({ fullName: "Ada Byron" })
+  })
+
+  test("is saved again with this tab's changes if another tab deleted it", () => {
+    const storage = memoryStorage()
+    expect(saveResume(storage, "a", ada, new Set(["profileSection"]), text(ada)).status).toBe("saved")
+    expect(stored(storage, "a")).toEqual(ada)
+  })
+
+  test("that another tab saved in a shape the editor can't show is kept aside before it's saved over", () => {
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: "not json" })
+    expect(saveResume(storage, "a", ada, all, text(ada)).status).toBe("saved")
+    expect(readKeptAside(storage)).toEqual(["not json"])
+    expect(stored(storage, "a")).toEqual(ada)
+  })
+
+  test("isn't saved over text it can't read if that can't be kept aside", () => {
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: "not json" })
+    const setItem = storage.setItem
+    vi.spyOn(storage, "setItem").mockImplementation((key, value) => {
+      if (key.startsWith(UNREADABLE_PREFIX)) throw quotaError()
+      setItem(key, value)
+    })
+    expect(saveResume(storage, "a", ada, all, null)).toEqual({ status: "failed" })
+    expect(storage.getItem(`${RESUME_PREFIX}a`)).toBe("not json")
+  })
+
+  test("says why it wasn't saved when storage is blocked or full", () => {
+    expect(saveResume(null, "a", ada, all, null)).toEqual({ status: "blocked" })
+    const storage = memoryStorage()
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw quotaError()
+    })
+    expect(saveResume(storage, "a", ada, all, null)).toEqual({ status: "full" })
+  })
+
+  test("can be removed", () => {
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: text(ada) })
+    expect(removeResume(storage, "a")).toBe("saved")
+    expect(storage.length).toBe(0)
+    expect(removeResume(null, "a")).toBe("blocked")
+  })
+})
+
+describe("mergeResume", () => {
+  test("takes the changed fields from this tab, and the rest from the other", () => {
+    const theirs = { ...ada, resumeTitle: "Theirs", updatedAt: "2026-10-06T10:00:05.000Z" }
+    const ours = { ...ada, resumeTitle: "Ours", profileSection: { fullName: "Ours" }, updatedAt: "2026-10-06T10:00:01.000Z" }
+    expect(mergeResume(theirs, ours, new Set(["profileSection"]))).toEqual({
+      ...theirs,
+      profileSection: { fullName: "Ours" },
+    })
+  })
+
+  test("takes everything from this tab for a new or replaced resume", () => {
+    expect(mergeResume(grace, ada, new Set([EVERY_FIELD]))).toBe(ada)
+  })
+
+  test("keeps the later edit time", () => {
+    const merged = mergeResume({ updatedAt: "2026-10-06T10:00:00.000Z" }, { updatedAt: "2026-10-06T11:00:00.000Z" }, new Set(["updatedAt"]))
+    expect(merged.updatedAt).toBe("2026-10-06T11:00:00.000Z")
   })
 })
