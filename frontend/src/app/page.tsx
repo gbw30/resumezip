@@ -7,6 +7,36 @@ import SiteHeader from "@/components/site/SiteHeader"
 import { StartWritingLink } from "@/components/site/StartWriting"
 import { TEMPLATES } from "@/lib/templates"
 
+const REPO_URL = "https://github.com/ian-hoang/resumezip"
+
+const QUESTIONS = [
+  {
+    question: "Is it really free?",
+    answer: "Yes. Every template and every download. No ads, no trial, no watermark.",
+  },
+  {
+    question: "Who can see my resume?",
+    answer: (
+      <>
+        Only you. It’s saved in this browser and never sent to us or anyone else. The code is{" "}
+        <a
+          href={REPO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#171717] underline underline-offset-4 hover:decoration-2"
+        >
+          open source
+        </a>
+        , so anyone can check.
+      </>
+    ),
+  },
+  {
+    question: "How do I edit it later, or on another computer?",
+    answer: "Open the PDF you downloaded. resumezip reads your resume back out of it.",
+  },
+]
+
 function ArrowUpRight() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
@@ -110,6 +140,31 @@ export default function Home() {
             </StartWritingLink>
           ))}
         </div>
+      </section>
+
+      <section aria-labelledby="questions" className="bg-white">
+        <div className="border-b border-[#d4d4d4]">
+          <div className="px-5 py-7 md:px-10">
+            <h2 id="questions" className="label-section text-accent">
+              Questions
+            </h2>
+          </div>
+        </div>
+        <dl className="grid md:grid-cols-3">
+          {QUESTIONS.map((item, index) => (
+            <div
+              key={item.question}
+              className={`flex flex-col gap-4 border-[#d4d4d4] px-5 pb-12 pt-8 md:px-10 md:pb-20 md:pt-10 ${
+                index > 0 ? "border-t md:border-l md:border-t-0" : ""
+              }`}
+            >
+              <dt className="font-serif text-[32px] leading-none tracking-[-0.03em] md:text-[44px]">{item.question}</dt>
+              <dd className="max-w-[420px] text-base leading-[1.35] tracking-[-0.015em] text-[#5c5c5c] md:text-xl">
+                {item.answer}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </section>
 
       <SiteFooter />
