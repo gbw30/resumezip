@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import {
+  BACKUP_KEY,
   canSaveOver,
   deleteKeptAside,
   EVERY_FIELD,
   getStorage,
   idOf,
   isKeptAside,
+  LEGACY_KEY,
   loadResumes,
+  loadSaved,
   mergeResume,
   readKeptAside,
   readResume,
@@ -373,5 +376,113 @@ describe("mergeResume", () => {
   test("keeps the later edit time", () => {
     const merged = mergeResume({ updatedAt: "2026-10-06T10:00:00.000Z" }, { updatedAt: "2026-10-06T11:00:00.000Z" }, new Set(["updatedAt"]))
     expect(merged.updatedAt).toBe("2026-10-06T11:00:00.000Z")
+  })
+})
+
+describe("loading resumes saved under keys of their own", () => {
+  const text = (resume: object) => JSON.stringify(resume)
+
+  test("reads every one, and saves nothing", () => {
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: text(ada), [`${RESUME_PREFIX}g`]: text(grace), other: "x" })
+    const setItem = vi.spyOn(storage, "setItem")
+    const loaded = loadSaved(storage)
+    expect(loaded.resumes).toEqual({ a: ada, g: grace })
+    expect(loaded.texts).toEqual(new Map([["a", text(ada)], ["g", text(grace)]]))
+    expect(loaded.status).toBe("saved")
+    expect(setItem).not.toHaveBeenCalled()
+  })
+
+  test("says it's blocked when storage can't be read", () => {
+    expect(loadSaved(null).status).toBe("blocked")
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: text(ada) })
+    vi.spyOn(storage, "getItem").mockImplementation(() => {
+      throw deniedError()
+    })
+    expect(loadSaved(storage)).toEqual({ resumes: {}, texts: new Map(), status: "blocked" })
+  })
+
+  test("keeps aside one that can't be read at all, and removes it", () => {
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: text(ada), [`${RESUME_PREFIX}x`]: "not json" })
+    expect(loadSaved(storage).resumes).toEqual({ a: ada })
+    expect(readKeptAside(storage)).toEqual(["not json"])
+    expect(storage.getItem(`${RESUME_PREFIX}x`)).toBeNull()
+  })
+
+  test("keeps aside one with a field the editor can't show, and saves the rest of it once", () => {
+    const original = text({ ...ada, educationSection: { schoolName: "MIT" } })
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: original })
+    const loaded = loadSaved(storage)
+    expect(loaded.resumes).toEqual({ a: ada })
+    expect(loaded.texts.get("a")).toBe(text(ada))
+    expect(storage.getItem(`${RESUME_PREFIX}a`)).toBe(text(ada))
+    expect(readKeptAside(storage)).toEqual([original])
+
+    loadSaved(storage)
+    expect(readKeptAside(storage)).toEqual([original])
+  })
+
+  test("leaves one that can't be read as it is if it can't be kept aside", () => {
+    const original = text({ ...ada, educationSection: { schoolName: "MIT" } })
+    const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: original })
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw quotaError()
+    })
+    const loaded = loadSaved(storage)
+    expect(loaded.resumes).toEqual({ a: ada })
+    expect(loaded.texts.get("a")).toBe(original)
+    expect(storage.getItem(`${RESUME_PREFIX}a`)).toBe(original)
+  })
+
+  test("keeps an id that's special in JavaScript, like __proto__, as an ordinary resume", () => {
+    const storage = memoryStorage({ [`${RESUME_PREFIX}__proto__`]: text({ id: "__proto__", resumeTitle: "Ada" }) })
+    expect(Object.keys(loadSaved(storage).resumes)).toEqual(["__proto__"])
+  })
+})
+
+describe("resumes saved by earlier versions, all under one key", () => {
+  const text = (resume: object) => JSON.stringify(resume)
+  const older = { ...ada, profileSection: { fullName: "Ada Byron" }, updatedAt: "2026-10-01T00:00:00.000Z" }
+  const newer = { ...ada, profileSection: { fullName: "Ada King" }, updatedAt: "2026-10-05T00:00:00.000Z" }
+
+  test("are moved to keys of their own, with a backup, and then nothing is moved again", () => {
+    const legacy = text({ a: ada, g: grace })
+    const storage = memoryStorage({ [LEGACY_KEY]: legacy })
+    expect(loadSaved(storage).resumes).toEqual({ a: ada, g: grace })
+    expect(storage.getItem(`${RESUME_PREFIX}a`)).toBe(text(ada))
+    expect(storage.getItem(`${RESUME_PREFIX}g`)).toBe(text(grace))
+    expect(storage.getItem(LEGACY_KEY)).toBeNull()
+    expect(storage.getItem(BACKUP_KEY)).toBe(legacy)
+
+    const setItem = vi.spyOn(storage, "setItem")
+    expect(loadSaved(storage).resumes).toEqual({ a: ada, g: grace })
+    expect(setItem).not.toHaveBeenCalled()
+  })
+
+  test("don't replace a newer copy already under its own key, but do replace an older one", () => {
+    const storage = memoryStorage({ [LEGACY_KEY]: text({ a: older }), [`${RESUME_PREFIX}a`]: text(newer) })
+    expect(loadSaved(storage).resumes.a).toEqual(newer)
+
+    // A tab still on an earlier version saved later.
+    storage.setItem(LEGACY_KEY, text({ a: { ...newer, resumeTitle: "Later", updatedAt: "2026-10-06T00:00:00.000Z" } }))
+    expect(loadSaved(storage).resumes.a.resumeTitle).toBe("Later")
+  })
+
+  test("that can't all be read are kept aside, and the rest moved", () => {
+    const legacy = text({ a: ada, x: "junk" })
+    const storage = memoryStorage({ [LEGACY_KEY]: legacy })
+    expect(loadSaved(storage).resumes).toEqual({ a: ada })
+    expect(readKeptAside(storage)).toEqual([legacy])
+    expect(storage.getItem(LEGACY_KEY)).toBeNull()
+    expect(storage.getItem(BACKUP_KEY)).toBeNull()
+  })
+
+  test("stay where they are, and still load, if storage is too full to move them", () => {
+    const legacy = text({ a: ada, g: grace })
+    const storage = memoryStorage({ [LEGACY_KEY]: legacy })
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw quotaError()
+    })
+    expect(loadSaved(storage).resumes).toEqual({ a: ada, g: grace })
+    expect(storage.getItem(LEGACY_KEY)).toBe(legacy)
   })
 })

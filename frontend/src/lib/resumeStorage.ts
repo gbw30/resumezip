@@ -28,6 +28,11 @@ export const idOf = (key: string) => (key.startsWith(RESUME_PREFIX) ? key.slice(
 /** In a resume's changed fields: all of them, as for a new resume. */
 export const EVERY_FIELD = "*"
 
+/** Where earlier versions saved every resume, as one JSON object by id. */
+export const LEGACY_KEY = "allResumes"
+/** A copy of what was saved there, kept once when it's moved. */
+export const BACKUP_KEY = "allResumes-backup"
+
 type Resume = Record<string, any>
 type Resumes = Record<string, Resume>
 
@@ -115,6 +120,122 @@ function parse(text: string): { resumes: Resumes; complete: boolean } {
   // fromEntries keeps an id like "__proto__" an ordinary key. Assigning it
   // would set the object's prototype instead, and the resume would be lost.
   return { resumes: Object.fromEntries(resumes), complete }
+}
+
+export interface SavedResumes {
+  /** The saved resumes that could be read, by id. */
+  resumes: Resumes
+  /** The text each resume was read as, to tell later whether another tab has saved it since. */
+  texts: Map<string, string>
+  /** "blocked" if the browser won't let the site use storage, otherwise "saved". */
+  status: SaveStatus
+}
+
+/** Reads every saved resume, moving any that earlier versions saved first (see migrateLegacy). */
+export function loadSaved(storage: Storage | null): SavedResumes {
+  const blocked: SavedResumes = { resumes: {}, texts: new Map(), status: "blocked" }
+  if (!storage) return blocked
+  try {
+    migrateLegacy(storage)
+    const resumes: [string, Resume][] = []
+    const texts = new Map<string, string>()
+    for (const id of savedIds(storage)) {
+      const { resume, text } = readSaved(storage, id)
+      if (resume && text !== null) {
+        resumes.push([id, resume])
+        texts.set(id, text)
+      }
+    }
+    // Resumes that couldn't be moved yet, e.g. for lack of room, are still
+    // read from where they are. Saving one gives it a key of its own.
+    const legacy = storage.getItem(LEGACY_KEY)
+    if (legacy !== null) {
+      for (const [id, resume] of Object.entries(parse(legacy).resumes)) if (!texts.has(id)) resumes.push([id, resume])
+    }
+    return { resumes: Object.fromEntries(resumes), texts, status: "saved" }
+  } catch {
+    return blocked
+  }
+}
+
+/**
+ * One saved resume, as loaded, and the text it's saved as. Text that can't be
+ * fully read is kept aside, then the key is saved again with what could be
+ * read (or removed, if none could), so it isn't found again next time. If it
+ * can't be kept aside, it's left as it is. Throws if storage can't be read.
+ */
+export function readSaved(storage: Storage, id: string): { resume: Resume | null; text: string | null } {
+  const key = keyOf(id)
+  const text = storage.getItem(key)
+  if (text === null) return { resume: null, text: null }
+  const { resume, complete } = readResume(text)
+  if (complete || !keepAside(storage, text)) return { resume, text }
+  try {
+    if (!resume) {
+      storage.removeItem(key)
+      return { resume: null, text: null }
+    }
+    const readable = JSON.stringify(resume)
+    storage.setItem(key, readable)
+    return { resume, text: readable }
+  } catch {
+    return { resume, text }
+  }
+}
+
+// The ids of the resumes saved under keys of their own.
+function savedIds(storage: Storage): string[] {
+  const ids: string[] = []
+  for (let i = 0; i < storage.length; i++) {
+    const id = idOf(storage.key(i) ?? "")
+    if (id !== null) ids.push(id)
+  }
+  return ids
+}
+
+/**
+ * Moves the resumes that earlier versions saved under one key (LEGACY_KEY) to
+ * keys of their own, and returns the ids it saved. A resume already under its
+ * own key is only replaced by a newer one, as when a tab still running an
+ * earlier version saves. The old text is copied once to BACKUP_KEY (or kept
+ * aside, if some of it can't be read) and then removed. If anything can't be
+ * moved, it's left for next time. Throws if storage can't be read.
+ */
+export function migrateLegacy(storage: Storage): string[] {
+  const text = storage.getItem(LEGACY_KEY)
+  if (text === null) return []
+  const { resumes, complete } = parse(text)
+  if (!complete && !keepAside(storage, text)) return []
+  const saved: string[] = []
+  let moved = true
+  for (const [id, resume] of Object.entries(resumes)) {
+    const current = storage.getItem(keyOf(id))
+    if (current !== null) {
+      const existing = readResume(current)
+      if (existing.complete && existing.resume && time(existing.resume.updatedAt) >= time(resume.updatedAt)) continue
+      if (!existing.complete && !keepAside(storage, current)) {
+        moved = false
+        continue
+      }
+    }
+    try {
+      storage.setItem(keyOf(id), JSON.stringify(resume))
+      saved.push(id)
+    } catch {
+      moved = false
+    }
+  }
+  if (!moved) return saved
+  if (complete && storage.getItem(BACKUP_KEY) === null) {
+    try {
+      storage.setItem(BACKUP_KEY, text)
+    } catch {
+      // Only a precaution: every resume is under its own key by now.
+    }
+  }
+  // Unless a tab on an earlier version saved again meanwhile.
+  if (storage.getItem(LEGACY_KEY) === text) storage.removeItem(LEGACY_KEY)
+  return saved
 }
 
 /** A resume saved under its own key: what the editor can show of it, and whether that's all of it. */
