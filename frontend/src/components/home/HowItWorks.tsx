@@ -2,11 +2,21 @@
 
 import Image from "next/image"
 import { useEffect, useRef, useState } from "react"
+import { TEMPLATES } from "@/lib/templates"
 
 const STEPS = [
-  { word: "Pick", text: "Choose a template. Switch any time.", art: "/how-it-works/pick.svg" },
-  { word: "Write", text: "See the page update as you type.", art: "/how-it-works/write.svg" },
-  { word: "Send", text: "Download the PDF and apply.", art: "/how-it-works/send.svg" },
+  {
+    word: "Pick",
+    // Counted from the list, so it stays right as templates are added.
+    text: `Choose from ${TEMPLATES.length} templates. Switch any time; your words stay put.`,
+    art: "/how-it-works/pick.svg",
+  },
+  {
+    word: "Write",
+    text: "Type beside a live page. Start from scratch, or open the PDF or Word resume you already have.",
+    art: "/how-it-works/write.svg",
+  },
+  { word: "Send", text: "Download an ATS-friendly PDF so hiring software can read every word.", art: "/how-it-works/send.svg" },
 ]
 
 // Pinning needs room to scroll, and is skipped for people who prefer less motion.
