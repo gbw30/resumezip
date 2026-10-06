@@ -55,8 +55,9 @@ export default function Home() {
         <SiteHeader variant="overlay" />
 
         <div className="relative mx-auto w-full max-w-[1440px] px-5 pt-6 md:px-10">
-          <h1 className="max-w-[1000px] font-serif text-[56px] leading-[0.92] tracking-[-0.045em] sm:text-[80px] lg:text-[116px] lg:leading-[0.88]">
-            The resume builder that never sees your resume.
+          <h1 className="max-w-[1000px] text-balance font-serif text-[56px] leading-[0.92] tracking-[-0.045em] sm:text-[80px] lg:text-[116px] lg:leading-[0.88]">
+            {/* Kept on one line on wide screens so the headline doesn't open with a short "The resume". */}
+            <span className="md:whitespace-nowrap">The resume builder</span> that never sees your resume.
           </h1>
         </div>
 
