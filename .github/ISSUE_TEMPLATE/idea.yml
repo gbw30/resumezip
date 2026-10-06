@@ -1,6 +1,6 @@
 name: Idea or request
 description: Something resumezip could do, or do better.
-labels: ["type: feature", "needs-triage"]
+labels: ["feature"]
 body:
   - type: textarea
     id: idea

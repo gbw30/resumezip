@@ -1,7 +1,7 @@
-# Labels a new bug report by its answers to "How bad is it?" and "Where?"
-# (.github/scripts/issue-labels.mjs). The form itself adds "type: bug" and
-# "needs-triage". Only the answers are read, never run, so anyone opening an
-# issue can't do more than pick from the form's labels.
+# Labels a new bug report by its answer to "How bad is it?"
+# (.github/scripts/issue-labels.mjs). The form itself adds "bug". Only the
+# answer is read, never run, so anyone opening an issue can't do more than
+# pick one of the form's severities.
 
 name: Issue labels
 
