@@ -88,12 +88,21 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
       if (event.key === null || isKeptAside(event.key)) setUnreadable(readKeptAside(storage.current));
       if (event.key !== RESUMES_KEY || event.newValue === null) return;
       const changed = readResumes(storage.current, event.newValue);
-      if (changed.unreadable) setUnreadable(readKeptAside(storage.current));
-      // If another tab saved something this tab can't read or keep aside, stop
-      // saving so it isn't replaced.
       canSave.current = changed.status === "saved";
-      if (!canSave.current) setSaveStatus(changed.status);
-      setResumes(changed.resumes);
+      if (!changed.unreadable) {
+        setResumes(changed.resumes);
+        return;
+      }
+      // Something saved what this tab can't fully read. This tab keeps its own
+      // resumes, so they can still be saved or downloaded.
+      setUnreadable(readKeptAside(storage.current));
+      if (canSave.current) {
+        // It's been kept aside, so save them back over it.
+        setResumes((current) => ({ ...current }));
+      } else {
+        // It couldn't be kept aside, so stop saving instead of replacing it.
+        setSaveStatus(changed.status);
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);

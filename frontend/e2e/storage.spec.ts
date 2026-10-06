@@ -122,3 +122,26 @@ test("saved data that can't be read is kept instead of being saved over", async 
 
   expect(errors).toEqual([])
 })
+
+test("when another tab saves something unreadable, the open resume stays and is saved again", async ({ page, context }) => {
+  const errors = pageErrors(page)
+  await startWriting(page)
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+
+  // Another tab (a page in the same browser) saves over the resumes with something unreadable.
+  const other = await context.newPage()
+  await other.goto("/about")
+  await other.evaluate(() => localStorage.setItem("allResumes", "not json"))
+
+  // The editor keeps its resume and saves it back, and what was unreadable is kept aside.
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("allResumes") ?? "")).toContain("Ada Lovelace")
+  await expect(page.getByLabel("Full name")).toHaveValue("Ada Lovelace")
+  const kept = await page.evaluate(() =>
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith("allResumes-unreadable-"))
+      .map((key) => localStorage.getItem(key)),
+  )
+  expect(kept).toEqual(["not json"])
+
+  expect(errors).toEqual([])
+})
