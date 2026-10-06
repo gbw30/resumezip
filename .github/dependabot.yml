@@ -8,6 +8,12 @@ updates:
     # None, instead of Dependabot's own "dependencies" and "javascript" labels.
     labels: [ ]
     open-pull-requests-limit: 5
+    # Major versions are migrations to plan, not weekly bumps: pdf.js 6,
+    # ESLint 10 and TypeScript 7 each broke the build when Dependabot tried
+    # them. This only skips version updates; security updates aren't affected.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       # Must move together: the compiler file loaded from jsDelivr is pinned
       # to this version (src/lib/typst/compilerSource.ts), and CI fails until
