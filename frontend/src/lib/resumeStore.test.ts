@@ -367,6 +367,23 @@ describe("a late event from a tab on an earlier version", () => {
     expect(Object.keys(tab.getState().resumes)).toEqual(["g"])
   })
 
+  test("doesn't take an older save over a newer one under the resume's own key that this tab hasn't heard of", () => {
+    const storage = memoryStorage(saved(ada))
+    const one = openTab(storage)
+    const two = openTab(storage)
+    one.edit("a", "resumeTitle", "Newest, from one")
+    one.flush()
+    // Saved between ada's version and one's, by a tab on the earlier version,
+    // and heard of by two before one's save.
+    const between = { ...ada, resumeTitle: "From an older tab", updatedAt: "2026-10-06T11:00:00.000Z" }
+    two.receive(LEGACY_KEY, JSON.stringify({ a: between }))
+    expect(two.getState().resumes.a.resumeTitle).toBe("Newest, from one")
+
+    vi.advanceTimersByTime(SAVE_DELAY)
+    two.flush()
+    expect(stored(storage, "a")?.resumeTitle).toBe("Newest, from one")
+  })
+
   test("that can't be read or kept aside says why", () => {
     const storage = memoryStorage(saved(ada))
     const tab = openTab(storage)

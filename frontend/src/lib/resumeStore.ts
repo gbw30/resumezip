@@ -287,7 +287,16 @@ export function createResumeStore(delay = SAVE_DELAY) {
     if (legacy.status !== "saved") setState({ saveStatus: worse(state.saveStatus, legacy.status) })
     for (const id of legacy.saved) receiveResume(storage, id)
     for (const [id, resume] of Object.entries(legacy.resumes)) {
-      if (legacy.saved.includes(id) || gone(id) || (has(id) && !supersedes(resume, state.resumes[id]))) continue
+      if (legacy.saved.includes(id) || gone(id)) continue
+      // What's under its own key is the copy to beat, as this tab may not have
+      // heard of the latest save there yet. If it's as new, take that in instead.
+      const current = storage.getItem(keyOf(id))
+      const own = current === null ? null : readResume(current).resume
+      if (own && !supersedes(resume, own)) {
+        receiveResume(storage, id)
+        continue
+      }
+      if (has(id) && !supersedes(resume, state.resumes[id])) continue
       // Newer, but not moved: taken in here, and saved under its own key once there's room.
       const changed = pending.get(id)
       const ours = has(id) ? state.resumes[id] : undefined
