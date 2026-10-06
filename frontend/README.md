@@ -44,4 +44,16 @@ that doesn't block merging. Dependabot opens update pull requests weekly.
 
 ## Deploying
 
-Vercel builds and deploys this folder (`frontend/`).
+Vercel builds and deploys this folder (`frontend/`). Only `main` deploys, to
+the live site. Pull requests don't get preview deployments, since they use
+the same free allowance; CI's build already shows a pull request builds.
+
+To get a preview, for example to try a change on a phone, push the branch
+under a `preview/` name, then delete it when you're done:
+
+```bash
+git push origin HEAD:preview/my-change
+git push origin --delete preview/my-change
+```
+
+Which branches deploy is set in `vercel.json`.
