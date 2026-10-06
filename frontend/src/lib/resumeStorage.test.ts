@@ -74,6 +74,32 @@ describe("saved data that can't be read", () => {
     expect(readKeptAside(storage)).toEqual([text])
   })
 
+  test.each<[string, string, unknown]>([
+    ["a section that isn't a list", "educationSection", { schoolName: "MIT" }],
+    ["a profile that isn't an object", "profileSection", "Ada Lovelace"],
+    ["a section order that isn't a list", "sectionOrder", "Work"],
+  ])("in a field the editor can't show is kept aside, and the resume loads without it (%s)", (_, field, value) => {
+    const text = JSON.stringify({ a: { ...ada, [field]: value } })
+    const storage = memoryStorage({ [RESUMES_KEY]: text })
+    const loaded = loadResumes(storage)
+    expect(loaded.unreadable).toBe(true)
+    expect(loaded.resumes.a).not.toHaveProperty(field)
+    expect(loaded.resumes.a.resumeTitle).toBe("Ada")
+    expect(readKeptAside(storage)).toEqual([text])
+
+    // Once saved without it, it isn't kept aside again.
+    saveResumes(storage, loaded.resumes)
+    expect(loadResumes(storage).unreadable).toBe(false)
+    expect(readKeptAside(storage)).toEqual([text])
+  })
+
+  test("doesn't include older resumes that lack newer fields, or have them empty", () => {
+    const old = { id: "o", resumeTitle: "Old", profileSection: { fullName: "Ada" }, educationSection: null, headings: null }
+    const storage = memoryStorage({ [RESUMES_KEY]: JSON.stringify({ o: old }) })
+    expect(loadResumes(storage)).toEqual({ resumes: { o: old }, unreadable: false, status: "saved" })
+    expect(readKeptAside(storage)).toEqual([])
+  })
+
   test("is kept once, however often it's read", () => {
     const storage = memoryStorage({ [RESUMES_KEY]: "hello" })
     loadResumes(storage)

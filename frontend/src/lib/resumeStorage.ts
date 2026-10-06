@@ -3,6 +3,8 @@
 // block storage or run out of room, and what's saved can be unreadable. None
 // of that may crash the app or get saved over.
 
+import { SECTIONS } from "@/components/editor/sections"
+
 /** Where the resumes are saved. */
 export const RESUMES_KEY = "allResumes"
 
@@ -78,13 +80,32 @@ function parse(text: string): { resumes: Resumes; complete: boolean } {
     return { resumes: {}, complete: false }
   }
   if (!isObject(value)) return { resumes: {}, complete: false }
-  const entries = Object.entries(value)
-  const resumes = entries.filter((entry): entry is [string, Record<string, any>] => isObject(entry[1]))
-  return { resumes: Object.fromEntries(resumes), complete: resumes.length === entries.length }
+  let complete = true
+  const resumes: Resumes = {}
+  for (const [id, resume] of Object.entries(value)) {
+    if (!isObject(resume)) {
+      complete = false
+      continue
+    }
+    // The editor would show a field in another shape as empty, and the first
+    // edit would replace it. So it's left out here, with the text kept aside.
+    const unsupported = Object.keys(resume).filter((key) => !hasSupportedShape(key, resume[key]))
+    if (unsupported.length > 0) complete = false
+    resumes[id] = Object.fromEntries(Object.entries(resume).filter(([key]) => !unsupported.includes(key)))
+  }
+  return { resumes, complete }
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
+
+// Fields the editor reads as lists, and as objects. Older resumes can lack
+// some of them, or have them empty (null); only other shapes count.
+const LISTS = new Set(["sectionOrder", ...Object.values(SECTIONS).map((section) => section.dataKey)])
+const OBJECTS = new Set(["profileSection", "headings"])
+
+const hasSupportedShape = (key: string, value: unknown) =>
+  value == null || (LISTS.has(key) ? Array.isArray(value) : OBJECTS.has(key) ? isObject(value) : true)
 
 /** Saves the resumes over what was saved before, and says how that went. */
 export function saveResumes(storage: Storage | null, resumes: Resumes): SaveStatus {
