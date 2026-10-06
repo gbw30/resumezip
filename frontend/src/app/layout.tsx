@@ -17,6 +17,8 @@ const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono"
 const outfit = Outfit({ subsets: ["latin"], weight: "500", variable: "--font-outfit" })
 
 export const metadata: Metadata = {
+  // Links and images below are relative to the live site.
+  metadataBase: new URL("https://www.tryresumezip.com"),
   title: {
     default: "resumezip · Free resume builder, no sign-up",
     // Other pages set a short title, e.g. "Templates" becomes "Templates · resumezip".
@@ -26,14 +28,15 @@ export const metadata: Metadata = {
   openGraph: {
     title: "resumezip · Free resume builder, no sign-up",
     description: "Great resumes, no sign-up.",
-    url: "https://resumezip.io",
+    url: "/",
     siteName: "resumezip",
     images: [
       {
-        url: "https://resumezip.io/ThreeResumes.png",
-        width: 1200,
-        height: 630,
-        alt: "Three resumes made with resumezip",
+        // The first frame of the home page's printer video.
+        url: "/video/printer-poster.jpg",
+        width: 1280,
+        height: 720,
+        alt: "A printer with a fresh page in its tray",
       },
     ],
     type: "website",
