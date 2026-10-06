@@ -1,5 +1,5 @@
-// levels.fyi-style resume, ported from the LaTeX template that used to live
-// in backend/templates/overleaf3.tex.
+// "Blueprint": Helvetica-style with blue headings, ported from the LaTeX
+// template that used to live in backend/templates/overleaf3.tex.
 #import "common.typ": *
 
 #let p = data.profile

@@ -1,5 +1,5 @@
-// refer.me-style resume, ported from the LaTeX template that used to live in
-// backend/templates/overleaf4.tex.
+// "Compact": Helvetica-style with all-caps headings, ported from the LaTeX
+// template that used to live in backend/templates/overleaf4.tex.
 #import "common.typ": *
 
 #let p = data.profile

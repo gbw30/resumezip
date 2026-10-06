@@ -6,11 +6,11 @@
 
 export const TEMPLATES = [
   { id: "jake", name: "Jake's", image: "/previews/jake.webp" },
-  { id: "modernjack", name: "Modern", image: "/previews/modernjack.webp" },
-  { id: "levelsfyi", name: "levels.fyi", image: "/previews/levelsfyi.webp" },
-  { id: "referme", name: "refer.me", image: "/previews/referme.webp" },
+  { id: "modernjack", name: "Modern Jake's", image: "/previews/modernjack.webp" },
+  { id: "levelsfyi", name: "Blueprint", image: "/previews/levelsfyi.webp" },
+  { id: "referme", name: "Compact", image: "/previews/referme.webp" },
   { id: "ian", name: "Ian's", image: "/previews/ian.webp" },
-  { id: "resumeworded", name: "Resume Worded", image: "/previews/resumeworded.webp" },
+  { id: "resumeworded", name: "Harvard", image: "/previews/resumeworded.webp" },
 ] as const
 
 export type Template = (typeof TEMPLATES)[number]

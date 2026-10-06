@@ -143,7 +143,7 @@ test("every template's sample is checked", () => {
 })
 
 test("a school with its place on the right starts a new entry, even right after another school", async () => {
-  // In the Resume Worded layout a school's dates are on its second line, and a
+  // In the Harvard layout a school's dates are on its second line, and a
   // school with no details is followed straight away by the next one.
   const sample = samples.find((resume) => resume.selectedTemplate === "resumeworded")
   const [first, second] = sample.educationSection
