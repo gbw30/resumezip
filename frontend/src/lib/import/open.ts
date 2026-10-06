@@ -26,12 +26,18 @@ const MAX_BYTES = 20 * 1024 * 1024
 
 let pdfjs: Promise<typeof import("pdfjs-dist")> | null = null
 
-// pdf.js (and its worker) only download when a PDF is opened.
+// pdf.js (and its worker) only download when a PDF is opened. A failed
+// download (e.g. a network error) is forgotten, so the next PDF retries it.
 function loadPdfjs() {
-  pdfjs ??= import("pdfjs-dist").then((module) => {
-    module.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
-    return module
-  })
+  pdfjs ??= import("pdfjs-dist")
+    .then((module) => {
+      module.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
+      return module
+    })
+    .catch((error) => {
+      pdfjs = null
+      throw error
+    })
   return pdfjs
 }
 
