@@ -22,7 +22,9 @@ server to build a PDF.
    preview), made from its own sample resume in `preview-samples/<id>.json`.
    Every page that lists templates reads that list.
 
-Templates can only use the fonts in `public/fonts`, listed in `typst.worker.ts`.
+Templates can only use the fonts in `fonts/`, listed in `typst.worker.ts`. They're
+bundled rather than kept in `public/`, so browsers can cache them for good: each
+is served under a name with its content's hash, which changes when the font does.
 
 ## Fonts
 
@@ -45,7 +47,7 @@ originals. To trim a new font the same way, with
 [fontTools](https://github.com/fonttools/fonttools) installed:
 
 ```bash
-pyftsubset FONT --output-file=public/fonts/FONT --no-hinting --notdef-outline \
+pyftsubset FONT --output-file=src/lib/typst/fonts/FONT --no-hinting --notdef-outline \
   --name-IDs='*' --name-languages='*' --name-legacy \
   --layout-features=kern,liga,clig,calt,ccmp,locl,mark,mkmk,rlig,smcp,c2sc \
   --unicodes=U+0000-024F,U+02B0-036F,U+0370-03FF,U+0400-04FF,U+1E00-1EFF,U+2000-206F,U+2070-209F,U+20A0-20CF,U+2100-218F,U+2190-21FF,U+2200-22FF,U+25A0-25FF,U+2713-2717,U+FB00-FB06

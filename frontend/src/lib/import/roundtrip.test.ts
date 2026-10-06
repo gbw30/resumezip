@@ -15,7 +15,7 @@ import { linesFromPdf } from "./lines"
 import { parseResume, toResumeContent } from "./parse"
 
 const TYPST = path.resolve("src/lib/typst")
-const FONTS = path.resolve("public/fonts")
+const FONTS = path.resolve("src/lib/typst/fonts")
 const WASM = path.resolve("node_modules/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm")
 
 /**
