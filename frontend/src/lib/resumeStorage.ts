@@ -81,7 +81,7 @@ function parse(text: string): { resumes: Resumes; complete: boolean } {
   }
   if (!isObject(value)) return { resumes: {}, complete: false }
   let complete = true
-  const resumes: Resumes = {}
+  const resumes: [string, Record<string, any>][] = []
   for (const [id, resume] of Object.entries(value)) {
     if (!isObject(resume)) {
       complete = false
@@ -91,9 +91,11 @@ function parse(text: string): { resumes: Resumes; complete: boolean } {
     // edit would replace it. So it's left out here, with the text kept aside.
     const unsupported = Object.keys(resume).filter((key) => !hasSupportedShape(key, resume[key]))
     if (unsupported.length > 0) complete = false
-    resumes[id] = Object.fromEntries(Object.entries(resume).filter(([key]) => !unsupported.includes(key)))
+    resumes.push([id, Object.fromEntries(Object.entries(resume).filter(([key]) => !unsupported.includes(key)))])
   }
-  return { resumes, complete }
+  // fromEntries keeps an id like "__proto__" an ordinary key. Assigning it
+  // would set the object's prototype instead, and the resume would be lost.
+  return { resumes: Object.fromEntries(resumes), complete }
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>

@@ -43,6 +43,16 @@ describe("saved resumes", () => {
     expect(loadResumes(storage)).toEqual({ resumes: { a: ada, g: grace }, unreadable: false, status: "saved" })
   })
 
+  test("keep an id that's special in JavaScript, like __proto__, as an ordinary resume", () => {
+    const storage = memoryStorage({ [RESUMES_KEY]: '{"__proto__": {"id": "__proto__", "resumeTitle": "Ada"}}' })
+    const loaded = loadResumes(storage)
+    expect(loaded.unreadable).toBe(false)
+    expect(Object.keys(loaded.resumes)).toEqual(["__proto__"])
+
+    saveResumes(storage, loaded.resumes)
+    expect(Object.keys(loadResumes(storage).resumes)).toEqual(["__proto__"])
+  })
+
   test("start empty when nothing is saved yet", () => {
     expect(loadResumes(memoryStorage())).toEqual({ resumes: {}, unreadable: false, status: "saved" })
   })
