@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -25,7 +26,9 @@
     "react-pdf": "^9.2.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24",
     "@types/react": "^19",
