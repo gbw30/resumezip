@@ -1,4 +1,4 @@
-// "Modern Jack's": Jake's Resume set in Lato, ported from the LaTeX template
+// "Modern Jake's": Jake's Resume set in Lato, ported from the LaTeX template
 // that used to live in backend/templates/overleaf1.tex. Contact details are
 // plain text, without icons, so applicant tracking systems read them cleanly.
 #import "common.typ": *

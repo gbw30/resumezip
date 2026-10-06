@@ -1,5 +1,5 @@
-// "Resume Worded": EB Garamond with gray small-caps-style headings, after the
-// popular Resume Worded template. Contact details are plain text, without
+// "Harvard": EB Garamond with gray small-caps-style headings, in the format
+// Harvard's career office recommends. Contact details are plain text, without
 // icons, so applicant tracking systems read them cleanly.
 #import "common.typ": *
 

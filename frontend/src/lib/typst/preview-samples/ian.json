@@ -41,7 +41,7 @@
     {
       "id": 1,
       "workRole": "Software Engineer Intern",
-      "companyName": "Meridian Trading",
+      "companyName": "Citadel Securities",
       "workLocation": "Chicago, IL",
       "workStartDate": "Jun 2026",
       "workEndDate": "Aug 2026",
@@ -50,11 +50,11 @@
     {
       "id": 2,
       "workRole": "Software Engineer Intern",
-      "companyName": "Atlas Cloud",
-      "workLocation": "Seattle, WA",
+      "companyName": "Microsoft",
+      "workLocation": "Redmond, WA",
       "workStartDate": "May 2025",
       "workEndDate": "Aug 2025",
-      "workDescription": "• Designed a rate limiter in **Go** for the storage API that keeps any single tenant under its quota across **40** regional clusters\n• Moved hot metadata reads to a **Redis** cache with write-through invalidation, lowering p99 read latency from **45 ms** to **9 ms**\n• Wrote load tests that replay production traffic at five times peak volume, and used them to find and fix a connection pool leak that had been causing weekly outages for two of the largest customers"
+      "workDescription": "• Designed a rate limiter in **C#** for an Azure Storage API that keeps any single tenant under its quota across **40** regions\n• Moved hot metadata reads to a **Redis** cache with write-through invalidation, lowering p99 read latency from **45 ms** to **9 ms**\n• Wrote load tests that replay production traffic at five times peak volume, and used them to find and fix a connection pool leak in the metadata service before it could cause outages during the holiday traffic peak"
     },
     {
       "id": 3,
@@ -118,7 +118,7 @@
     {
       "id": 1,
       "skillName": "Languages",
-      "skillDetails": "C++, C, Go, Python, Rust, SQL, TypeScript"
+      "skillDetails": "C++, C, C#, Go, Python, Rust, SQL, TypeScript"
     },
     {
       "id": 2,
@@ -128,7 +128,7 @@
     {
       "id": 3,
       "skillName": "Infrastructure",
-      "skillDetails": "AWS, Docker, Kubernetes, Kafka, gRPC, Redis, Terraform, Git, CI/CD"
+      "skillDetails": "Azure, Docker, Kubernetes, Kafka, gRPC, Redis, Terraform, Git, CI/CD"
     },
     {
       "id": 4,

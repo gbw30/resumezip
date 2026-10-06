@@ -52,17 +52,17 @@
     {
       "id": 1,
       "workRole": "Machine Learning Engineer",
-      "companyName": "Quarry Analytics",
+      "companyName": "Meta",
       "workLocation": "Seattle, WA",
       "workStartDate": "Aug 2023",
       "workEndDate": "Present",
-      "workDescription": "• Own the fraud model that scores 40 million card transactions a day, raising recall at the same false-positive rate by 9 points\n• Built a feature store on Spark and Redis that serves 300 features in under 10 ms, shared by four product teams\n• Moved model training from Jupyter notebooks to scheduled pipelines with automatic evaluation and rollback, so a retrained model ships in one day instead of after two weeks of manual checks\n• Set up shadow deployments that score live traffic with a candidate model for a week before it replaces the old one\n• Mentor two junior engineers and lead the team's monthly reading group on fraud and anomaly detection papers"
+      "workDescription": "• Own the model that screens new Facebook and Instagram sign-ups for fake accounts, raising recall by 9 points at the same false-positive rate and stopping most fake accounts before they can message anyone\n• Built a feature store on Spark and Redis that serves 300 features in under 10 ms, shared by four integrity teams\n• Moved model training from Jupyter notebooks to scheduled pipelines with automatic evaluation and rollback, so a retrained model ships in one day instead of after two weeks of manual checks\n• Set up shadow deployments that score live traffic with a candidate model for a week before it replaces the old one\n• Mentor two junior engineers and lead the team's monthly reading group on fraud and abuse detection papers"
     },
     {
       "id": 2,
       "workRole": "Machine Learning Intern",
-      "companyName": "Kestrel Security",
-      "workLocation": "Atlanta, GA",
+      "companyName": "PayPal",
+      "workLocation": "San Jose, CA",
       "workStartDate": "May 2022",
       "workEndDate": "Aug 2022",
       "workDescription": "• Trained a transformer on sequences of login events to spot account takeovers, finding 30% more attacks than the rule-based system at the same alert volume for the security operations team\n• Distilled the model to a quarter of its size so it runs on the existing CPU fleet without buying any new hardware"

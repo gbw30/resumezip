@@ -41,29 +41,29 @@
     {
       "id": 1,
       "workRole": "Software Engineer II",
-      "companyName": "Harbor Payments",
-      "workLocation": "Austin, TX",
+      "companyName": "Stripe",
+      "workLocation": "Remote",
       "workStartDate": "Jan 2024",
       "workEndDate": "Present",
-      "workDescription": "• Lead the ledger team's move from a single PostgreSQL primary to a sharded cluster of 16 nodes, keeping p99 write latency under 40 ms at 12,000 writes per second with no downtime\n• Designed an idempotency layer for the payouts API that ended duplicate transfers during client retries\n• Built a reconciliation job in Go that matches 3 million bank records each night and flags mismatches for the finance team, replacing a manual check that took four people a full morning\n• Mentor three engineers, run the team's weekly design review and lead on-call training for every new hire"
+      "workDescription": "• Lead the ledger team's move of the balances service from a single database primary to a sharded cluster of 16 nodes, keeping p99 write latency under 40 ms at 12,000 writes per second with no downtime\n• Designed an idempotency layer for the payouts API so a retried request can never send the same transfer twice\n• Built a reconciliation job in Go that matches 3 million bank records each night and flags mismatches for the finance team, replacing a manual check that took four people a full morning\n• Mentor three engineers, run the team's weekly design review and lead on-call training for every new hire"
     },
     {
       "id": 2,
       "workRole": "Software Engineer",
-      "companyName": "Tidewater Energy",
-      "workLocation": "Houston, TX",
+      "companyName": "Tesla",
+      "workLocation": "Austin, TX",
       "workStartDate": "Jul 2022",
       "workEndDate": "Dec 2023",
-      "workDescription": "• Rewrote the meter-reading pipeline from cron scripts to Kafka consumers, cutting data delays to 2 minutes\n• Added contract tests between eight internal services so breaking API changes fail in CI, not in production\n• Cut the monthly AWS bill by 22% by right-sizing database instances, moving cold sensor data to S3 Glacier and turning off idle staging environments overnight and on weekends"
+      "workDescription": "• Rewrote the Powerwall telemetry pipeline from cron scripts to Kafka consumers, cutting data delays to 2 minutes\n• Added contract tests between eight internal services so breaking API changes fail in CI, not in production\n• Cut the team's monthly cloud bill by 22% by right-sizing database instances, moving cold sensor data to archive storage and turning off idle staging environments overnight and on weekends"
     },
     {
       "id": 3,
       "workRole": "Software Engineering Intern",
-      "companyName": "Lumen Robotics",
-      "workLocation": "Pittsburgh, PA",
+      "companyName": "Amazon Robotics",
+      "workLocation": "North Reading, MA",
       "workStartDate": "May 2021",
       "workEndDate": "Aug 2021",
-      "workDescription": "• Built a React and Flask dashboard showing live battery and motor health for 150 robots in two warehouses\n• Wrote alerts that page the on-call engineer when a robot's battery drains abnormally fast, which caught four failing battery packs in the first month before any of them shut down mid-shift"
+      "workDescription": "• Built a React and Flask dashboard showing live battery and motor health for 1,500 robots in two warehouses\n• Wrote alerts that page the on-call engineer when a robot's battery drains abnormally fast, which caught four failing battery packs in the first month before any of them shut down mid-shift"
     }
   ],
   "projectsSection": [
@@ -108,12 +108,12 @@
   "volunteerExperienceSection": [
     {
       "id": 1,
-      "volunteerRole": "Mentor",
-      "volunteerOrg": "Austin Code Collective",
+      "volunteerRole": "Volunteer Instructor",
+      "volunteerOrg": "Girls Who Code",
       "volunteerLocation": "Austin, TX",
       "volunteerStartDate": "2023",
       "volunteerEndDate": "Present",
-      "volunteerDescription": "• Mentor adults changing careers into software, with weekly code reviews and mock interviews for each cohort"
+      "volunteerDescription": "• Teach a weekly after-school club where 20 high school students build their first websites and games in Python"
     }
   ],
   "awardsSection": [
@@ -121,7 +121,7 @@
       "id": 1,
       "awardName": "Spot Award for the payouts idempotency launch",
       "awardDate": "2025",
-      "awardOrg": "Harbor Payments"
+      "awardOrg": "Stripe"
     },
     {
       "id": 2,

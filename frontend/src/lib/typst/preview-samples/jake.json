@@ -41,20 +41,20 @@
     {
       "id": 1,
       "workRole": "Software Engineering Intern",
-      "companyName": "Brightpath Logistics",
-      "workLocation": "Chicago, IL",
+      "companyName": "Google",
+      "workLocation": "Mountain View, CA",
       "workStartDate": "May 2026",
       "workEndDate": "Aug 2026",
-      "workDescription": "• Built a route-batching service in Go that groups same-day deliveries by neighborhood, cutting average driver miles per shift by 11% across 40 depots and saving about $1.2M a year in fuel\n• Added OpenTelemetry tracing to the dispatch API and found a slow join that added 900 ms to each request\n• Wrote a k6 load test that replays a peak holiday morning, now run before every release of the dispatch API"
+      "workDescription": "• Built a Go service for Google Maps that merges edits to business hours from owners and reviewers, cutting the time before an approved change shows up in search from about six hours to under 30 minutes\n• Added tracing to the edit pipeline and found a slow storage lookup that added 900 ms to every request\n• Wrote a load test that replays a busy holiday weekend of edits, now run before every release of the service"
     },
     {
       "id": 2,
-      "workRole": "Undergraduate Research Assistant",
-      "companyName": "University of Michigan",
-      "workLocation": "Ann Arbor, MI",
-      "workStartDate": "Jan 2025",
-      "workEndDate": "Present",
-      "workDescription": "• Built a Python toolkit that turns eye-tracking recordings from 60 study participants into reading heatmaps\n• Trained a small CNN in PyTorch to flag blinks and tracking dropouts, replacing two hours of manual cleanup per session and letting the lab run twice as many sessions each week"
+      "workRole": "Software Engineering Intern",
+      "companyName": "Ford Motor Company",
+      "workLocation": "Dearborn, MI",
+      "workStartDate": "May 2025",
+      "workEndDate": "Aug 2025",
+      "workDescription": "• Built a React dashboard that tracks over-the-air software updates by vehicle model for 40 release engineers\n• Wrote Python checks that scan 2 million vehicle telemetry records each night for missing or out-of-range fields, replacing a weekly manual spot check and catching two bad sensor firmware builds"
     },
     {
       "id": 3,

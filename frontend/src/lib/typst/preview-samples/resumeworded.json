@@ -52,20 +52,20 @@
     {
       "id": 1,
       "workRole": "Product Management Intern",
-      "companyName": "Lumen Health",
-      "workLocation": "Boston, MA",
+      "companyName": "CVS Health",
+      "workLocation": "Woonsocket, RI",
       "workStartDate": "Jun 2025",
       "workEndDate": "Aug 2025",
-      "workDescription": "• Led discovery for a prescription refill reminder, interviewing 25 patients and writing the spec the team built in six weeks\n• Defined launch metrics with the data team and ran an A/B test that raised on-time refills by 14% across 40,000 patients, which the company then rolled out to every one of its pharmacy partners nationwide\n• Wrote weekly product updates for leadership and kept a shared roadmap of 30+ requests from support and sales"
+      "workDescription": "• Led discovery for a prescription refill reminder, interviewing 25 patients and writing the spec the team built in six weeks\n• Defined launch metrics with the data team and ran an A/B test in the CVS Pharmacy app that raised on-time refills by 14% across 40,000 patients before the reminder launched to all app users\n• Wrote weekly product updates for leadership and kept a shared roadmap of 30+ requests from support and sales"
     },
     {
       "id": 2,
       "workRole": "Business Analyst Intern",
-      "companyName": "Harborview Bank",
-      "workLocation": "Providence, RI",
+      "companyName": "Fidelity Investments",
+      "workLocation": "Boston, MA",
       "workStartDate": "Jun 2024",
       "workEndDate": "Aug 2024",
-      "workDescription": "• Built a SQL and Tableau dashboard of branch wait times that managers now use to plan staffing for each weekday\n• Mapped the small-business loan process with operations staff and found two approval steps to remove, cutting the average time to a decision from 9 days to 6 for loans under $250,000 across 30 branches\n• Cleaned five years of customer survey data in Python and summarized the top complaints for the retail banking team"
+      "workDescription": "• Built a SQL and Tableau dashboard of Investor Center wait times that managers now use to plan staffing each weekday\n• Mapped the new-account process with operations staff and found two approval steps to remove, cutting the average time to open a retirement account from 9 days to 6 across 30 Investor Centers\n• Cleaned five years of customer survey data in Python and summarized the top requests for the retail investing team"
     },
     {
       "id": 3,
