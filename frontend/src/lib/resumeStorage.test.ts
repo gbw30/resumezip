@@ -103,6 +103,18 @@ describe("saved data that can't be read", () => {
     expect(readKeptAside(storage)).toEqual([text])
   })
 
+  test("in list entries the editor can't show is kept aside, and the rest of the list loads", () => {
+    const text = JSON.stringify({
+      a: { ...ada, educationSection: [{ schoolName: "MIT" }, null, "junk"], sectionOrder: ["Work", 7, "Education"] },
+    })
+    const storage = memoryStorage({ [RESUMES_KEY]: text })
+    const loaded = loadResumes(storage)
+    expect(loaded.unreadable).toBe(true)
+    expect(loaded.resumes.a.educationSection).toEqual([{ schoolName: "MIT" }])
+    expect(loaded.resumes.a.sectionOrder).toEqual(["Work", "Education"])
+    expect(readKeptAside(storage)).toEqual([text])
+  })
+
   test("doesn't include older resumes that lack newer fields, or have them empty", () => {
     const old = { id: "o", resumeTitle: "Old", profileSection: { fullName: "Ada" }, educationSection: null, headings: null }
     const storage = memoryStorage({ [RESUMES_KEY]: JSON.stringify({ o: old }) })

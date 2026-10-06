@@ -87,11 +87,16 @@ function parse(text: string): { resumes: Resumes; complete: boolean } {
       complete = false
       continue
     }
-    // The editor would show a field in another shape as empty, and the first
-    // edit would replace it. So it's left out here, with the text kept aside.
-    const unsupported = Object.keys(resume).filter((key) => !hasSupportedShape(key, resume[key]))
-    if (unsupported.length > 0) complete = false
-    resumes.push([id, Object.fromEntries(Object.entries(resume).filter(([key]) => !unsupported.includes(key)))])
+    // The editor would show a field or entry in another shape as empty, or
+    // crash on it, and the first edit would replace it. So it's left out
+    // here, with the text kept aside.
+    const fields: [string, unknown][] = []
+    for (const [key, field] of Object.entries(resume)) {
+      const readable = readField(key, field)
+      if (!readable?.complete) complete = false
+      if (readable) fields.push([key, readable.value])
+    }
+    resumes.push([id, Object.fromEntries(fields)])
   }
   // fromEntries keeps an id like "__proto__" an ordinary key. Assigning it
   // would set the object's prototype instead, and the resume would be lost.
@@ -101,13 +106,23 @@ function parse(text: string): { resumes: Resumes; complete: boolean } {
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-// Fields the editor reads as lists, and as objects. Older resumes can lack
-// some of them, or have them empty (null); only other shapes count.
-const LISTS = new Set(["sectionOrder", ...Object.values(SECTIONS).map((section) => section.dataKey)])
+// Fields the editor reads as lists of entries, and as objects. Older resumes
+// can lack some of them, or have them empty (null); only other shapes count.
+const ENTRY_LISTS = new Set(Object.values(SECTIONS).map((section) => section.dataKey))
 const OBJECTS = new Set(["profileSection", "headings"])
 
-const hasSupportedShape = (key: string, value: unknown) =>
-  value == null || (LISTS.has(key) ? Array.isArray(value) : OBJECTS.has(key) ? isObject(value) : true)
+/** A field as the editor can show it, and whether that's all of it; null if none of it. */
+function readField(key: string, value: unknown): { value: unknown; complete: boolean } | null {
+  if (value == null) return { value, complete: true }
+  if (key === "sectionOrder" || ENTRY_LISTS.has(key)) {
+    if (!Array.isArray(value)) return null
+    // Entries are objects, and the section order is a list of names.
+    const items = value.filter(key === "sectionOrder" ? (item) => typeof item === "string" : isObject)
+    return { value: items, complete: items.length === value.length }
+  }
+  if (OBJECTS.has(key) && !isObject(value)) return null
+  return { value, complete: true }
+}
 
 /** Saves the resumes over what was saved before, and says how that went. */
 export function saveResumes(storage: Storage | null, resumes: Resumes): SaveStatus {
