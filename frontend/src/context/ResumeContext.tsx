@@ -5,6 +5,7 @@ import type { ResumeContent } from "@/lib/resumeFile"
 import {
   deleteKeptAside,
   getStorage,
+  isKeptAside,
   loadResumes,
   readKeptAside,
   readResumes,
@@ -81,7 +82,10 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
     setLoaded(true);
 
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== RESUMES_KEY || event.newValue === null || !storage.current) return;
+      if (!storage.current) return;
+      // Another tab kept data aside or deleted it, or cleared everything.
+      if (event.key === null || isKeptAside(event.key)) setUnreadable(readKeptAside(storage.current));
+      if (event.key !== RESUMES_KEY || event.newValue === null) return;
       const changed = readResumes(storage.current, event.newValue);
       if (changed.unreadable) setUnreadable(readKeptAside(storage.current));
       // If another tab saved something this tab can't read or keep aside, stop
