@@ -14,6 +14,7 @@ npm run dev     # http://localhost:3000
 npm test        # renders every template and reads it back (see below)
 npm run lint
 npm run build
+npm run test:browser   # after a build; see below
 ```
 
 ## How it fits together
@@ -37,9 +38,16 @@ checks it prints the same resume. Fields that don't read back yet are listed in
 `KNOWN_GAPS` in `src/lib/import/roundtrip.test.ts`; when you fix one, delete it
 there. A new template needs a sample and an entry in that list.
 
+`npm run test:browser` runs the browser tests in `e2e/` against the production
+build, in Chrome and in WebKit (Safari's engine). They make a resume, check the
+preview, download the PDF, reload, and open the PDF again; and they check every
+page for errors and serious accessibility problems. The first time, install the
+browsers with `npx playwright install chromium webkit`. They run on port 3100,
+so a dev server on 3000 can keep running.
+
 On every pull request, GitHub Actions type-checks, lints, runs the tests and
 builds the site (`.github/workflows/ci.yml`), and `main` only accepts a pull
-request once that passes. It also audits the packages that ship, as a report
+request once that passes. The browser tests run in their own job next to it. It also audits the packages that ship, as a report
 that doesn't block merging. Dependabot opens update pull requests weekly.
 
 ## Deploying

@@ -1,6 +1,7 @@
 # Checks every pull request and every push to main. "Check" is the one
-# main requires before a merge; "Audit" only reports, so a new advisory
-# in a dependency can't block unrelated work.
+# main requires before a merge. "Browser tests" uses the built site in real
+# browsers. "Audit" only reports, so a new advisory in a dependency can't
+# block unrelated work.
 #
 # No path filters: a required check has to run on every pull request, or
 # pull requests that skip it could never be merged.
@@ -17,6 +18,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Checkouts don't keep the token (persist-credentials: false): the jobs run
+# the pull request's code and never need to push.
 permissions:
   contents: read
 
@@ -34,6 +37,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           # The version in package.json's engines.node, which Vercel uses too.
@@ -53,12 +58,48 @@ jobs:
       - name: Build
         run: npm run build
 
+  browser:
+    name: Browser tests
+    # Pinned, not ubuntu-latest: Playwright installs system libraries for the
+    # exact Ubuntu release, and ubuntu-latest moves to Ubuntu 26 on
+    # October 19, 2026. Move this when Playwright supports it.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/package.json
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium webkit
+      - name: Build
+        run: npm run build
+      - name: Browser tests
+        run: npm run test:browser
+      # Screenshots and a replayable trace of whatever failed.
+      - name: Keep the report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-test-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          retention-days: 14
+
   audit:
     name: Audit
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: frontend/package.json
