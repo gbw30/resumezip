@@ -2,11 +2,21 @@
 
 import Image from "next/image"
 import { useEffect, useRef, useState } from "react"
+import { TEMPLATES } from "@/lib/templates"
 
 const STEPS = [
-  { word: "Pick", text: "Choose a template. Switch any time.", art: "/how-it-works/pick.svg" },
-  { word: "Write", text: "See the page update as you type.", art: "/how-it-works/write.svg" },
-  { word: "Send", text: "Download the PDF and apply.", art: "/how-it-works/send.svg" },
+  {
+    word: "Pick",
+    // Counted from the list, so it stays right as templates are added.
+    text: `Choose from ${TEMPLATES.length} templates. Switch any time; your words stay put.`,
+    art: "/how-it-works/pick.svg",
+  },
+  {
+    word: "Write",
+    text: "Type beside a live page. Start from scratch, or open the PDF or Word resume you already have.",
+    art: "/how-it-works/write.svg",
+  },
+  { word: "Send", text: "Download an ATS-friendly PDF so hiring software can read every word.", art: "/how-it-works/send.svg" },
 ]
 
 // Pinning needs room to scroll, and is skipped for people who prefer less motion.
@@ -96,8 +106,13 @@ export default function HowItWorks() {
                   }`}
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-1 md:flex-none md:gap-3">
-                    <span className="font-serif text-[36px] leading-none text-accent md:text-[64px]">{index + 1}</span>
-                    <span className="font-serif text-[44px] leading-[0.95] tracking-[-0.03em] md:text-[80px]">{step.word}</span>
+                    {/* On phones the number sits beside the word, leaving the step's text room to fit. */}
+                    <div className="flex items-baseline gap-3 md:flex-col md:items-start">
+                      <span className="font-serif text-[36px] leading-none text-accent md:text-[64px]">{index + 1}</span>
+                      <span className="font-serif text-[44px] leading-[0.95] tracking-[-0.03em] md:text-[80px]">
+                        {step.word}
+                      </span>
+                    </div>
                     <p className="mt-1 max-w-[300px] text-base leading-[1.35] tracking-[-0.015em] text-[#5c5c5c] md:mt-2 md:text-xl">
                       {step.text}
                     </p>

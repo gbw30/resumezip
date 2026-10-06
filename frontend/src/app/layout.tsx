@@ -24,23 +24,25 @@ export const metadata: Metadata = {
     // Other pages set a short title, e.g. "Templates" becomes "Templates · resumezip".
     template: "%s · resumezip",
   },
-  description: "Great resumes, no sign-up.",
+  description: "Free, open-source resume builder that runs in your browser.",
   openGraph: {
     title: "resumezip · Free resume builder, no sign-up",
-    description: "Great resumes, no sign-up.",
+    description: "Free, open-source resume builder that runs in your browser.",
     url: "/",
     siteName: "resumezip",
     images: [
       {
-        // The first frame of the home page's printer video.
-        url: "/video/printer-poster.jpg",
-        width: 1280,
-        height: 720,
-        alt: "A printer with a fresh page in its tray",
+        // The logo's key drawn as a zipper, with the home page headline.
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "resumezip: the resume builder that never sees your resume",
       },
     ],
     type: "website",
   },
+  // X uses the Open Graph image above; this asks it to show the image full width.
+  twitter: { card: "summary_large_image" },
 }
 
 export default function RootLayout({

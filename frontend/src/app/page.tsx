@@ -7,6 +7,36 @@ import SiteHeader from "@/components/site/SiteHeader"
 import { StartWritingLink } from "@/components/site/StartWriting"
 import { TEMPLATES } from "@/lib/templates"
 
+const REPO_URL = "https://github.com/ian-hoang/resumezip"
+
+const QUESTIONS = [
+  {
+    question: "Is it really free?",
+    answer: "Yes. Every template and every download. No ads, no trial, no watermark.",
+  },
+  {
+    question: "Who can see my resume?",
+    answer: (
+      <>
+        Only you. It’s saved in this browser and never sent to us or anyone else. The code is{" "}
+        <a
+          href={REPO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#171717] underline underline-offset-4 hover:decoration-2"
+        >
+          open source
+        </a>
+        , so anyone can check.
+      </>
+    ),
+  },
+  {
+    question: "How do I edit it later, or on another computer?",
+    answer: "Open the PDF you downloaded. resumezip reads your resume back out of it.",
+  },
+]
+
 function ArrowUpRight() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
@@ -25,16 +55,18 @@ export default function Home() {
         <SiteHeader variant="overlay" />
 
         <div className="relative mx-auto w-full max-w-[1440px] px-5 pt-6 md:px-10">
-          <h1 className="max-w-[1000px] font-serif text-[56px] leading-[0.92] tracking-[-0.045em] sm:text-[80px] lg:text-[116px] lg:leading-[0.88]">
-            Great resumes,
-            <br />
-            no sign-up.
+          <h1 className="max-w-[1000px] text-balance font-serif text-[56px] leading-[0.92] tracking-[-0.045em] sm:text-[80px] lg:text-[116px] lg:leading-[0.88]">
+            {/* Kept on one line on wide screens so the headline doesn't open with a short "The resume". */}
+            <span className="md:whitespace-nowrap">The resume builder</span> that never sees your resume.
           </h1>
         </div>
 
         <div className="relative mx-auto flex w-full max-w-[1440px] flex-1 flex-wrap items-end justify-between gap-8 px-5 pb-6 pt-12 md:px-10 md:pb-10">
           <div className="flex w-full max-w-[420px] flex-col gap-7 bg-white px-7 pb-5 pt-7 text-[#171717]">
-            <p className="text-xl leading-[1.35] tracking-[-0.015em]">Pick a template, fill it in, download the PDF.</p>
+            <p className="text-xl leading-[1.35] tracking-[-0.015em]">
+              resumezip is a free, open-source resume builder that runs in your browser. Pick a template, write, and
+              download the PDF.
+            </p>
             <StartWritingLink className="group flex items-center justify-between gap-4 border-t border-[#171717] pt-4">
               <span className="label-caps">Start writing</span>
               <span className="inline-flex h-7 w-7 items-center justify-center bg-accent text-white transition-transform group-hover:-translate-y-0.5">
@@ -63,7 +95,7 @@ export default function Home() {
               Your resume never leaves your browser.
             </p>
             <p className="max-w-[520px] text-xl leading-[1.35] tracking-[-0.015em]">
-              No account, no uploads. Your PDF is made right on your device.
+              No account, no uploads. To switch devices, open your PDF or Word file on the new one.
             </p>
             <StartWritingLink className="label-caps inline-flex h-11 items-center gap-3 self-start border border-white px-[18px] transition-colors hover:bg-white hover:text-accent">
               Start writing <ArrowUpRight />
@@ -109,6 +141,31 @@ export default function Home() {
             </StartWritingLink>
           ))}
         </div>
+      </section>
+
+      <section aria-labelledby="questions" className="bg-white">
+        <div className="border-b border-[#d4d4d4]">
+          <div className="px-5 py-7 md:px-10">
+            <h2 id="questions" className="label-section text-accent">
+              Questions
+            </h2>
+          </div>
+        </div>
+        <dl className="grid md:grid-cols-3">
+          {QUESTIONS.map((item, index) => (
+            <div
+              key={item.question}
+              className={`flex flex-col gap-4 border-[#d4d4d4] px-5 pb-12 pt-8 md:px-10 md:pb-20 md:pt-10 ${
+                index > 0 ? "border-t md:border-l md:border-t-0" : ""
+              }`}
+            >
+              <dt className="font-serif text-[32px] leading-none tracking-[-0.03em] md:text-[44px]">{item.question}</dt>
+              <dd className="max-w-[420px] text-base leading-[1.35] tracking-[-0.015em] text-[#5c5c5c] md:text-xl">
+                {item.answer}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </section>
 
       <SiteFooter />
