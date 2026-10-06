@@ -158,10 +158,18 @@ export function templateIdOf(value: unknown): TemplateId {
   return templateById(value).id
 }
 
+// The saved order, plus any sections missing from older resumes, at the end,
+// as the editor shows them. Unknown names and repeats are dropped.
+function sectionOrder(value: unknown): string[] {
+  const saved = (Array.isArray(value) ? value : []).filter(
+    (name, index, all) => DEFAULT_SECTION_ORDER.includes(name) && all.indexOf(name) === index,
+  )
+  return [...saved, ...DEFAULT_SECTION_ORDER.filter((name) => !saved.includes(name))]
+}
+
 export function toTemplateData(resume: Record<string, any>): TemplateData {
   const profile = resume.profileSection ?? {}
   const headings = resume.headings ?? {}
-  const order = Array.isArray(resume.sectionOrder) ? resume.sectionOrder : DEFAULT_SECTION_ORDER
   // Project links are printed as text, unless the user chose to link each project's name.
   const linkTitles = resume.projectLinks === "title"
 
@@ -185,7 +193,7 @@ export function toTemplateData(resume: Record<string, any>): TemplateData {
       volunteer: text(headings.volunteer),
       awards: text(headings.awards),
     },
-    order: order.filter((section: unknown) => DEFAULT_SECTION_ORDER.includes(section as string)),
+    order: sectionOrder(resume.sectionOrder),
     education: entries(resume.educationSection, (e) => ({
       school: text(e.schoolName),
       location: text(e.schoolLocation),
