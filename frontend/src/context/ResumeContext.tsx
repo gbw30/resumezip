@@ -1,7 +1,17 @@
 "use client";
-import React, { createContext, useState, useEffect, useMemo } from "react";
+import React, { createContext, useState, useEffect, useMemo, useRef } from "react";
 import { DEFAULT_TEMPLATE } from "@/lib/templates"
 import type { ResumeContent } from "@/lib/resumeFile"
+import {
+  deleteKeptAside,
+  getStorage,
+  loadResumes,
+  readKeptAside,
+  readResumes,
+  RESUMES_KEY,
+  saveResumes,
+  type SaveStatus,
+} from "@/lib/resumeStorage"
 import { numberDuplicateTitles, uniqueTitle } from "@/lib/resumeTitles"
 
 /** A resume as the editor stores it; its fields are listed in components/editor/sections.ts. */
@@ -12,6 +22,11 @@ interface ResumeContextValue {
   resumes: Record<string, Resume>;
   /** False until the saved resumes have been read from localStorage. */
   loaded: boolean;
+  /** Whether the latest changes are saved in this browser, and if not, why. */
+  saveStatus: SaveStatus;
+  /** Saved data that couldn't be read, kept aside instead of being saved over. */
+  unreadable: string[];
+  deleteUnreadable: () => void;
   currentResumeId: string | null;
   /** The open resume, or {} when none is open. */
   formData: Resume;
@@ -44,25 +59,36 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
   const [resumes, setResumes] = useState<Record<string, Resume>>({});
   const [loaded, setLoaded] = useState(false);
   const [currentResumeId, setCurrentResumeId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [unreadable, setUnreadable] = useState<string[]>([]);
+  // localStorage, or null if the browser won't let the site use it.
+  const storage = useRef<Storage | null>(null);
+  // Off when the browser blocks saving, or when saving would replace saved data
+  // that couldn't be read or kept aside.
+  const canSave = useRef(false);
 
   // localStorage is the only copy of the user's resumes, so read it before
-  // ever writing to it, and pick up changes made in other tabs.
+  // ever writing to it, and pick up changes made in other tabs. Reading never
+  // throws (see lib/resumeStorage.ts).
   useEffect(() => {
+    storage.current = getStorage();
+    const saved = loadResumes(storage.current);
     // On first load, also number any resumes saved with the same name.
-    const read = (saved: string | null, numberDuplicates = false) => {
-      try {
-        if (!saved) return;
-        const parsed = JSON.parse(saved);
-        setResumes(numberDuplicates ? numberDuplicateTitles(parsed) : parsed);
-      } catch (error) {
-        console.error("Couldn't read saved resumes:", error);
-      }
-    };
-    read(localStorage.getItem("allResumes"), true);
+    setResumes(numberDuplicateTitles(saved.resumes));
+    setSaveStatus(saved.status);
+    canSave.current = saved.status === "saved";
+    setUnreadable(readKeptAside(storage.current));
     setLoaded(true);
 
     const onStorage = (event: StorageEvent) => {
-      if (event.key === "allResumes") read(event.newValue);
+      if (event.key !== RESUMES_KEY || event.newValue === null || !storage.current) return;
+      const changed = readResumes(storage.current, event.newValue);
+      if (changed.unreadable) setUnreadable(readKeptAside(storage.current));
+      // If another tab saved something this tab can't read or keep aside, stop
+      // saving so it isn't replaced.
+      canSave.current = changed.status === "saved";
+      if (!canSave.current) setSaveStatus(changed.status);
+      setResumes(changed.resumes);
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -72,12 +98,17 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
     return currentResumeId ? resumes[currentResumeId] || {} : {};
   }, [currentResumeId, resumes]);
 
-  // Save to localStorage on change
+  // Save to localStorage on change, and show whether that worked.
   useEffect(() => {
-    if (loaded) {
-      localStorage.setItem("allResumes", JSON.stringify(resumes));
+    if (loaded && canSave.current) {
+      setSaveStatus(saveResumes(storage.current, resumes));
     }
   }, [resumes, loaded]);
+
+  const deleteUnreadable = () => {
+    deleteKeptAside(storage.current);
+    setUnreadable(readKeptAside(storage.current));
+  };
 
   // Resumes only live in this browser's localStorage; there are no accounts.
   const createNewResume = (title: string, tag: string, template: string = DEFAULT_TEMPLATE): string => {
@@ -154,6 +185,9 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
     <ResumeContext.Provider value={{
       resumes,
       loaded,
+      saveStatus,
+      unreadable,
+      deleteUnreadable,
       currentResumeId,
       formData,
       setCurrentResumeId,
