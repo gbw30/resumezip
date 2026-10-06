@@ -30,6 +30,8 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
 
+  # The workflows pin each action to a commit SHA with its version in a
+  # comment; these updates move both.
   - package-ecosystem: github-actions
     directory: /
     schedule:
