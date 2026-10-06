@@ -43,7 +43,7 @@ request once that passes. It also audits the packages that ship, as a report
 that doesn't block merging. Dependabot opens update pull requests weekly.
 
 A pull request that fixes a bug (its description says "fixes" and the issue
-number) gets that bug's severity label
+number) gets that bug's severity label, even if the bug gets one later
 (`.github/workflows/pr-severity.yml`). Greptile's dashboard is set to review
 pull requests by label, so fixes for serious bugs get a review.
 
