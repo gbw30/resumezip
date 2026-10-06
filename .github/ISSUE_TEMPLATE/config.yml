@@ -1,0 +1,6 @@
+# Issues start from a form, so they arrive labelled.
+blank_issues_enabled: false
+contact_links:
+  - name: Questions or feedback
+    url: https://www.tryresumezip.com/contact
+    about: For anything that isn't a bug or an idea.

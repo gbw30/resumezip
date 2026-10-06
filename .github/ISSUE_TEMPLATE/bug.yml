@@ -1,0 +1,51 @@
+# The answer to "How bad is it?" becomes a severity label
+# (.github/scripts/issue-labels.mjs). Keep the two in step.
+name: Bug report
+description: Something in resumezip doesn't work or looks wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Issues are public, so please don't paste your resume or other personal details.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, and what went wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we make it happen again?
+      placeholder: |
+        1. Open a resume
+        2. Click Download PDF
+        3. …
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: How bad is it?
+      options:
+        - "Critical: resumes were lost, the site or PDFs don't work at all, or it's a security problem"
+        - "Major: something is broken or quietly wrong, and there's no easy way around it"
+        - "Minor: it's wrong in some cases, or there's an easy way around it"
+        - "Trivial: a typo or a small visual glitch"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: Chrome on a Mac, Safari on an iPhone, …
+
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else?
+      description: Screenshots help. Cover up personal details first.

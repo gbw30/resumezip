@@ -1,0 +1,31 @@
+# Labels a new bug report by its answer to "How bad is it?"
+# (.github/scripts/issue-labels.mjs). The form itself adds "bug". Only the
+# answer is read, never run, so anyone opening an issue can't do more than
+# pick one of the form's severities.
+
+name: Issue labels
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  label:
+    name: Label
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const { labelsFor } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/issue-labels.mjs`)
+            const labels = labelsFor(context.payload.issue.body)
+            if (labels.length === 0) return
+            await github.rest.issues.addLabels({ ...context.repo, issue_number: context.issue.number, labels })
