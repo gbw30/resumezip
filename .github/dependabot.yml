@@ -1,0 +1,25 @@
+# Weekly update pull requests, checked by CI like any other.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # Must move together: the compiler file loaded from jsDelivr is pinned
+      # to this version (src/lib/typst/compilerSource.ts), and CI fails until
+      # COMPILER_VERSION and COMPILER_INTEGRITY are updated to match.
+      typst:
+        patterns: ["@myriaddreamin/*"]
+      # pdfjs-dist is pinned to the version react-pdf uses.
+      pdf:
+        patterns: ["react-pdf", "pdfjs-dist"]
+      # Everything else that doesn't change a major version, in one pull request.
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
