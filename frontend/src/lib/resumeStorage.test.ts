@@ -2,27 +2,21 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { memoryStorage } from "./memoryStorage"
 import {
   BACKUP_KEY,
-  canSaveOver,
   deleteKeptAside,
   EVERY_FIELD,
   getStorage,
   idOf,
   isKeptAside,
   LEGACY_KEY,
-  loadResumes,
   loadSaved,
   mergeResume,
   readKeptAside,
   readResume,
-  readResumes,
   removeResume,
   RESUME_PREFIX,
-  RESUMES_KEY,
   saveResume,
-  saveResumes,
   UNREADABLE_PREFIX,
 } from "./resumeStorage"
-
 
 const ada = { id: "a", resumeTitle: "Ada", profileSection: { fullName: "Ada Lovelace" } }
 const grace = { id: "g", resumeTitle: "Grace", profileSection: { fullName: "Grace Hopper" } }
@@ -35,171 +29,90 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe("saved resumes", () => {
-  test("are read back as they were saved, as after a reload", () => {
-    const storage = memoryStorage()
-    expect(saveResumes(storage, { a: ada, g: grace })).toBe("saved")
-    expect(loadResumes(storage)).toEqual({ resumes: { a: ada, g: grace }, unreadable: false, status: "saved" })
-  })
-
-  test("keep an id that's special in JavaScript, like __proto__, as an ordinary resume", () => {
-    const storage = memoryStorage({ [RESUMES_KEY]: '{"__proto__": {"id": "__proto__", "resumeTitle": "Ada"}}' })
-    const loaded = loadResumes(storage)
-    expect(loaded.unreadable).toBe(false)
-    expect(Object.keys(loaded.resumes)).toEqual(["__proto__"])
-
-    saveResumes(storage, loaded.resumes)
-    expect(Object.keys(loadResumes(storage).resumes)).toEqual(["__proto__"])
-  })
-
-  test("start empty when nothing is saved yet", () => {
-    expect(loadResumes(memoryStorage())).toEqual({ resumes: {}, unreadable: false, status: "saved" })
-  })
-})
-
-describe("saved data that can't be read", () => {
-  const unreadable = [
-    ["cut-off JSON", '{"a": {"resumeTitle": "Ada'],
+describe("what the editor can show of a saved resume", () => {
+  test.each([
+    ["cut-off JSON", '{"resumeTitle": "Ada'],
     ["not JSON", "hello"],
     ["null", "null"],
     ["a list", "[]"],
     ["a number", "42"],
-    ["entries that aren't resumes", '{"a": null}'],
-  ]
-
-  test.each(unreadable)("is kept aside before anything is saved over it (%s)", (_, text) => {
-    const storage = memoryStorage({ [RESUMES_KEY]: text })
-    expect(loadResumes(storage)).toEqual({ resumes: {}, unreadable: true, status: "saved" })
-    expect(readKeptAside(storage)).toEqual([text])
-
-    expect(saveResumes(storage, { a: ada })).toBe("saved")
-    expect(readKeptAside(storage)).toEqual([text])
-  })
-
-  test("is kept whole, while the resumes in it that can be read are loaded", () => {
-    const text = JSON.stringify({ a: ada, b: null, c: "junk" })
-    const storage = memoryStorage({ [RESUMES_KEY]: text })
-    expect(loadResumes(storage)).toEqual({ resumes: { a: ada }, unreadable: true, status: "saved" })
-    expect(readKeptAside(storage)).toEqual([text])
+  ])("is nothing if it isn't a resume (%s)", (_, text) => {
+    expect(readResume(text)).toEqual({ resume: null, complete: false })
   })
 
   test.each<[string, string, unknown]>([
     ["a section that isn't a list", "educationSection", { schoolName: "MIT" }],
     ["a profile that isn't an object", "profileSection", "Ada Lovelace"],
     ["a section order that isn't a list", "sectionOrder", "Work"],
-  ])("in a field the editor can't show is kept aside, and the resume loads without it (%s)", (_, field, value) => {
-    const text = JSON.stringify({ a: { ...ada, [field]: value } })
-    const storage = memoryStorage({ [RESUMES_KEY]: text })
-    const loaded = loadResumes(storage)
-    expect(loaded.unreadable).toBe(true)
-    expect(loaded.resumes.a).not.toHaveProperty(field)
-    expect(loaded.resumes.a.resumeTitle).toBe("Ada")
-    expect(readKeptAside(storage)).toEqual([text])
-
-    // Once saved without it, it isn't kept aside again.
-    saveResumes(storage, loaded.resumes)
-    expect(loadResumes(storage).unreadable).toBe(false)
-    expect(readKeptAside(storage)).toEqual([text])
+  ])("leaves out a field in a shape it can't show (%s)", (_, field, value) => {
+    const { resume, complete } = readResume(JSON.stringify({ ...ada, [field]: value }))
+    expect(complete).toBe(false)
+    expect(resume).not.toHaveProperty(field)
+    expect(resume?.resumeTitle).toBe("Ada")
   })
 
-  test("in list entries the editor can't show is kept aside, and the rest of the list loads", () => {
+  test("leaves out list entries it can't show, and keeps the rest of the list", () => {
     const text = JSON.stringify({
-      a: { ...ada, educationSection: [{ schoolName: "MIT" }, null, "junk"], sectionOrder: ["Work", 7, "Education"] },
+      ...ada,
+      educationSection: [{ schoolName: "MIT" }, null, "junk"],
+      sectionOrder: ["Work", 7, "Education"],
     })
-    const storage = memoryStorage({ [RESUMES_KEY]: text })
-    const loaded = loadResumes(storage)
-    expect(loaded.unreadable).toBe(true)
-    expect(loaded.resumes.a.educationSection).toEqual([{ schoolName: "MIT" }])
-    expect(loaded.resumes.a.sectionOrder).toEqual(["Work", "Education"])
-    expect(readKeptAside(storage)).toEqual([text])
+    const { resume, complete } = readResume(text)
+    expect(complete).toBe(false)
+    expect(resume?.educationSection).toEqual([{ schoolName: "MIT" }])
+    expect(resume?.sectionOrder).toEqual(["Work", "Education"])
   })
 
-  test("doesn't include older resumes that lack newer fields, or have them empty", () => {
+  test("is all of an older resume that lacks newer fields, or has them empty", () => {
     const old = { id: "o", resumeTitle: "Old", profileSection: { fullName: "Ada" }, educationSection: null, headings: null }
-    const storage = memoryStorage({ [RESUMES_KEY]: JSON.stringify({ o: old }) })
-    expect(loadResumes(storage)).toEqual({ resumes: { o: old }, unreadable: false, status: "saved" })
-    expect(readKeptAside(storage)).toEqual([])
+    expect(readResume(JSON.stringify(old))).toEqual({ resume: old, complete: true })
   })
+})
 
-  test("is kept once, however often it's read", () => {
-    const storage = memoryStorage({ [RESUMES_KEY]: "hello" })
-    loadResumes(storage)
-    loadResumes(storage)
+describe("saved data that can't be read", () => {
+  // Loading keeps aside a resume it can't read, so these load some.
+  const unreadable = (...texts: string[]) => Object.fromEntries(texts.map((text, i) => [`${RESUME_PREFIX}x${i}`, text]))
+
+  test("is kept once, however often it's found", () => {
+    const storage = memoryStorage(unreadable("hello"))
+    loadSaved(storage)
+    storage.setItem(`${RESUME_PREFIX}x0`, "hello")
+    loadSaved(storage)
     expect(readKeptAside(storage)).toEqual(["hello"])
   })
 
   test("found later is kept as well, without replacing what was kept before", () => {
     let now = 1_000
     vi.spyOn(Date, "now").mockImplementation(() => now++)
-    const storage = memoryStorage({ [RESUMES_KEY]: "first" })
-    loadResumes(storage)
-    storage.setItem(RESUMES_KEY, "second")
-    loadResumes(storage)
-    storage.setItem(RESUMES_KEY, "third")
-    loadResumes(storage)
+    const storage = memoryStorage()
+    for (const text of ["first", "second", "third"]) {
+      storage.setItem(`${RESUME_PREFIX}x`, text)
+      loadSaved(storage)
+    }
     expect(readKeptAside(storage)).toEqual(["first", "second", "third"])
   })
 
-  test("kept by two tabs at the same moment gets two keys, so neither copy is lost", () => {
+  test("kept at the same moment gets a key each, so no copy is saved over", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_000)
-    const storage = memoryStorage()
-    readResumes(storage, "one tab's")
-    readResumes(storage, "another tab's")
+    const storage = memoryStorage(unreadable("one tab's", "another tab's"))
+    loadSaved(storage)
     expect(readKeptAside(storage).sort()).toEqual(["another tab's", "one tab's"])
   })
 
-  test("is kept under keys that can be told apart from the resumes", () => {
-    const storage = memoryStorage({ [RESUMES_KEY]: "hello" })
-    loadResumes(storage)
+  test("is kept under keys that can be told apart from resumes", () => {
+    const storage = memoryStorage(unreadable("hello"))
+    loadSaved(storage)
     const keys = Array.from({ length: storage.length }, (_, i) => storage.key(i) ?? "")
     expect(keys.filter(isKeptAside)).toHaveLength(1)
-    expect(isKeptAside(RESUMES_KEY)).toBe(false)
-  })
-
-  test("saved by another tab is kept aside too", () => {
-    const storage = memoryStorage()
-    expect(readResumes(storage, "hello")).toEqual({ resumes: {}, unreadable: true, status: "saved" })
-    expect(readKeptAside(storage)).toEqual(["hello"])
-  })
-
-  test("is left where it is, and saving stops, if it can't be kept aside", () => {
-    const storage = memoryStorage({ [RESUMES_KEY]: "hello" })
-    vi.spyOn(storage, "setItem").mockImplementation(() => {
-      throw quotaError()
-    })
-    expect(loadResumes(storage)).toEqual({ resumes: {}, unreadable: true, status: "failed" })
-    expect(storage.getItem(RESUMES_KEY)).toBe("hello")
-    expect(readKeptAside(storage)).toEqual([])
-  })
-
-  test("that couldn't be kept aside can be saved over once there's room to keep it", () => {
-    const storage = memoryStorage({ [RESUMES_KEY]: "hello" })
-    const setItem = vi.spyOn(storage, "setItem").mockImplementation(() => {
-      throw quotaError()
-    })
-    expect(loadResumes(storage).status).toBe("failed")
-    expect(canSaveOver(storage)).toBe(false)
-
-    setItem.mockRestore()
-    expect(canSaveOver(storage)).toBe(true)
-    expect(readKeptAside(storage)).toEqual(["hello"])
-  })
-
-  test("that couldn't be kept aside can be saved over once something readable replaces it", () => {
-    const storage = memoryStorage({ [RESUMES_KEY]: JSON.stringify({ a: ada }) })
-    expect(canSaveOver(storage)).toBe(true)
-    expect(canSaveOver(memoryStorage())).toBe(true)
-    expect(readKeptAside(storage)).toEqual([])
+    expect(keys.filter((key) => idOf(key) !== null)).toEqual([])
   })
 
   test("can be deleted once it's been kept aside", () => {
-    const storage = memoryStorage({ [RESUMES_KEY]: "first" })
-    loadResumes(storage)
-    storage.setItem(RESUMES_KEY, "second")
-    loadResumes(storage)
+    const storage = memoryStorage(unreadable("first", "second"))
+    loadSaved(storage)
     deleteKeptAside(storage)
     expect(readKeptAside(storage)).toEqual([])
-    expect(storage.length).toBe(1)
+    expect(storage.length).toBe(0)
   })
 })
 
@@ -224,49 +137,9 @@ describe("when the browser won't let the site save anything", () => {
     expect(getStorage()).toBe(storage)
   })
 
-  test("loading and saving say it's blocked", () => {
-    expect(loadResumes(null)).toEqual({ resumes: {}, unreadable: false, status: "blocked" })
-    expect(saveResumes(null, { a: ada })).toBe("blocked")
+  test("there's no data kept aside to read or delete", () => {
     expect(readKeptAside(null)).toEqual([])
     expect(() => deleteKeptAside(null)).not.toThrow()
-  })
-
-  test("loading says it's blocked when reading throws", () => {
-    const storage = memoryStorage({ [RESUMES_KEY]: JSON.stringify({ a: ada }) })
-    vi.spyOn(storage, "getItem").mockImplementation(() => {
-      throw deniedError()
-    })
-    expect(loadResumes(storage)).toEqual({ resumes: {}, unreadable: false, status: "blocked" })
-  })
-})
-
-describe("a save that doesn't work", () => {
-  test("says when storage is full, and leaves what was saved before", () => {
-    const storage = memoryStorage({ [RESUMES_KEY]: JSON.stringify({ a: ada }) })
-    vi.spyOn(storage, "setItem").mockImplementation(() => {
-      throw quotaError()
-    })
-    expect(saveResumes(storage, { a: ada, g: grace })).toBe("full")
-    expect(loadResumes(storage).resumes).toEqual({ a: ada })
-  })
-
-  test("says it failed for any other error", () => {
-    const storage = memoryStorage()
-    vi.spyOn(console, "warn").mockImplementation(() => {})
-    vi.spyOn(storage, "setItem").mockImplementation(() => {
-      throw new Error("disk error")
-    })
-    expect(saveResumes(storage, { a: ada })).toBe("failed")
-  })
-
-  test("works again once storage does", () => {
-    const storage = memoryStorage()
-    vi.spyOn(storage, "setItem").mockImplementationOnce(() => {
-      throw quotaError()
-    })
-    expect(saveResumes(storage, { a: ada })).toBe("full")
-    expect(saveResumes(storage, { a: ada })).toBe("saved")
-    expect(loadResumes(storage).resumes).toEqual({ a: ada })
   })
 })
 
@@ -336,6 +209,15 @@ describe("a resume saved under its own key", () => {
       throw quotaError()
     })
     expect(saveResume(storage, "a", ada, all, null)).toEqual({ status: "full" })
+  })
+
+  test("says it failed for any other error", () => {
+    const storage = memoryStorage()
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw new Error("disk error")
+    })
+    expect(saveResume(storage, "a", ada, new Set([EVERY_FIELD]), null)).toEqual({ status: "failed" })
   })
 
   test("can be removed", () => {
@@ -445,6 +327,12 @@ describe("resumes saved by earlier versions, all under one key", () => {
     expect(setItem).not.toHaveBeenCalled()
   })
 
+  test("get no backup when there were none", () => {
+    const storage = memoryStorage({ [LEGACY_KEY]: "{}" })
+    expect(loadSaved(storage).resumes).toEqual({})
+    expect(storage.length).toBe(0)
+  })
+
   test("don't replace a newer copy already under its own key, but do replace an older one", () => {
     const storage = memoryStorage({ [LEGACY_KEY]: text({ a: older }), [`${RESUME_PREFIX}a`]: text(newer) })
     expect(loadSaved(storage).resumes.a).toEqual(newer)
@@ -461,6 +349,12 @@ describe("resumes saved by earlier versions, all under one key", () => {
     expect(readKeptAside(storage)).toEqual([legacy])
     expect(storage.getItem(LEGACY_KEY)).toBeNull()
     expect(storage.getItem(BACKUP_KEY)).toBeNull()
+  })
+
+  test("move one saved under an id that's special in JavaScript, like __proto__, as an ordinary resume", () => {
+    const storage = memoryStorage({ [LEGACY_KEY]: '{"__proto__": {"id": "__proto__", "resumeTitle": "Ada"}}' })
+    expect(Object.keys(loadSaved(storage).resumes)).toEqual(["__proto__"])
+    expect(storage.getItem(`${RESUME_PREFIX}__proto__`)).not.toBeNull()
   })
 
   test("stay where they are, and still load, if storage is too full to move them", () => {

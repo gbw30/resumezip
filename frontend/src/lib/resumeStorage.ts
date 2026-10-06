@@ -1,12 +1,10 @@
-// Resumes are saved in the browser's localStorage, as one JSON object by id.
-// That's the only copy there is, so nothing here throws: the browser can
-// block storage or run out of room, and what's saved can be unreadable. None
-// of that may crash the app or get saved over.
+// Resumes are saved in the browser's localStorage, each under a key of its
+// own ("resume:<id>"); earlier versions saved them all under one. That's the
+// only copy there is, so nothing here throws: the browser can block storage
+// or run out of room, and what's saved can be unreadable. None of that may
+// crash the app or get saved over. lib/resumeStore.ts decides when to save.
 
 import { SECTIONS } from "@/components/editor/sections"
-
-/** Where the resumes are saved. */
-export const RESUMES_KEY = "allResumes"
 
 /**
  * Saved data that can't be read is kept instead of being saved over, each
@@ -53,74 +51,6 @@ export function getStorage(): Storage | null {
   } catch {
     return null
   }
-}
-
-export interface Loaded {
-  /** The saved resumes that could be read; none if nothing is saved yet. */
-  resumes: Resumes
-  /** Whether some of what's saved couldn't be read. It's kept aside unless the status says otherwise. */
-  unreadable: boolean
-  /** "saved" if saving can go ahead; otherwise why it mustn't. */
-  status: SaveStatus
-}
-
-/** Reads the saved resumes, as readResumes does. */
-export function loadResumes(storage: Storage | null): Loaded {
-  const blocked: Loaded = { resumes: {}, unreadable: false, status: "blocked" }
-  if (!storage) return blocked
-  let text: string | null
-  try {
-    text = storage.getItem(RESUMES_KEY)
-  } catch {
-    return blocked
-  }
-  return text === null ? { resumes: {}, unreadable: false, status: "saved" } : readResumes(storage, text)
-}
-
-/**
- * Reads resumes from saved text, as loaded or as another tab saved it. If any
- * of it can't be read, all of it is kept aside first, so saving the rest
- * can't destroy it. If that fails, the status says not to save.
- */
-export function readResumes(storage: Storage, text: string): Loaded {
-  const { resumes, complete } = parse(text)
-  if (complete) return { resumes, unreadable: false, status: "saved" }
-  return { resumes, unreadable: true, status: keepAside(storage, text) ? "saved" : "failed" }
-}
-
-/**
- * Whether saving can start again after it was stopped to protect saved data
- * that couldn't be kept aside: yes once something readable has replaced it,
- * or once it can be kept aside (there may be room now).
- */
-export function canSaveOver(storage: Storage): boolean {
-  try {
-    const text = storage.getItem(RESUMES_KEY)
-    return text === null || readResumes(storage, text).status === "saved"
-  } catch {
-    return false
-  }
-}
-
-/** The resumes in saved text that can be read, and whether that's all of it. */
-function parse(text: string): { resumes: Resumes; complete: boolean } {
-  let value: unknown
-  try {
-    value = JSON.parse(text)
-  } catch {
-    return { resumes: {}, complete: false }
-  }
-  if (!isObject(value)) return { resumes: {}, complete: false }
-  let complete = true
-  const resumes: [string, Resume][] = []
-  for (const [id, entry] of Object.entries(value)) {
-    const { resume, complete: whole } = readEntry(entry)
-    if (!whole) complete = false
-    if (resume) resumes.push([id, resume])
-  }
-  // fromEntries keeps an id like "__proto__" an ordinary key. Assigning it
-  // would set the object's prototype instead, and the resume would be lost.
-  return { resumes: Object.fromEntries(resumes), complete }
 }
 
 export interface SavedResumes {
@@ -227,7 +157,7 @@ export function migrateLegacy(storage: Storage): string[] {
     }
   }
   if (!moved) return saved
-  if (complete && storage.getItem(BACKUP_KEY) === null) {
+  if (complete && Object.keys(resumes).length > 0 && storage.getItem(BACKUP_KEY) === null) {
     try {
       storage.setItem(BACKUP_KEY, text)
     } catch {
@@ -237,6 +167,27 @@ export function migrateLegacy(storage: Storage): string[] {
   // Unless a tab on an earlier version saved again meanwhile.
   if (storage.getItem(LEGACY_KEY) === text) storage.removeItem(LEGACY_KEY)
   return saved
+}
+
+/** What can be read of the resumes earlier versions saved (see LEGACY_KEY), and whether that's all of it. */
+function parse(text: string): { resumes: Resumes; complete: boolean } {
+  let value: unknown
+  try {
+    value = JSON.parse(text)
+  } catch {
+    return { resumes: {}, complete: false }
+  }
+  if (!isObject(value)) return { resumes: {}, complete: false }
+  let complete = true
+  const resumes: [string, Resume][] = []
+  for (const [id, entry] of Object.entries(value)) {
+    const { resume, complete: whole } = readEntry(entry)
+    if (!whole) complete = false
+    if (resume) resumes.push([id, resume])
+  }
+  // fromEntries keeps an id like "__proto__" an ordinary key. Assigning it
+  // would set the object's prototype instead, and the resume would be lost.
+  return { resumes: Object.fromEntries(resumes), complete }
 }
 
 /** A resume saved under its own key: what the editor can show of it, and whether that's all of it. */
@@ -285,17 +236,6 @@ function readField(key: string, value: unknown): { value: unknown; complete: boo
   }
   if (OBJECTS.has(key) && !isObject(value)) return null
   return { value, complete: true }
-}
-
-/** Saves the resumes over what was saved before, and says how that went. */
-export function saveResumes(storage: Storage | null, resumes: Resumes): SaveStatus {
-  if (!storage) return "blocked"
-  try {
-    storage.setItem(RESUMES_KEY, JSON.stringify(resumes))
-    return "saved"
-  } catch (error) {
-    return failure(error)
-  }
 }
 
 export interface Saved {
