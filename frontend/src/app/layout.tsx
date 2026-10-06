@@ -20,13 +20,13 @@ export const metadata: Metadata = {
   // Links and images below are relative to the live site.
   metadataBase: new URL("https://www.tryresumezip.com"),
   title: {
-    default: "resumezip · Free resume builder, no sign-up",
+    default: "resumezip: Free, private, open-source resume builder",
     // Other pages set a short title, e.g. "Templates" becomes "Templates · resumezip".
     template: "%s · resumezip",
   },
   description: "Free, open-source resume builder that runs in your browser.",
   openGraph: {
-    title: "resumezip · Free resume builder, no sign-up",
+    title: "resumezip: Free, private, open-source resume builder",
     description: "Free, open-source resume builder that runs in your browser.",
     url: "/",
     siteName: "resumezip",
