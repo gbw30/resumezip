@@ -19,8 +19,10 @@ npm run test:browser   # after a build; see below
 
 ## How it fits together
 
-- `src/context/ResumeContext.tsx` holds every resume and saves them to
-  localStorage. There are no accounts, so that's the only copy.
+- `src/context/ResumeContext.tsx` shares the resumes with the app.
+  `src/lib/resumeStore.ts` holds them and saves each one to localStorage under
+  a key of its own, shortly after typing stops; `src/lib/resumeStorage.ts`
+  does the reading and writing. There are no accounts, so that's the only copy.
 - `src/app/create/dashboard` lists the resumes; `src/app/create/new/[id]` is
   the editor, with a live preview.
 - `src/lib/typst/` builds PDFs in a Web Worker. Its README covers adding a
