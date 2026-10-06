@@ -42,8 +42,8 @@
 <table>
   <tr>
     <td align="center"><img src="frontend/public/previews/jake.webp" width="260" alt="A resume in the Jake's template"><br>Jake's</td>
-    <td align="center"><img src="frontend/public/previews/modernjack.webp" width="260" alt="A resume in the Modern template"><br>Modern</td>
-    <td align="center"><img src="frontend/public/previews/resumeworded.webp" width="260" alt="A resume in the Resume Worded template"><br>Resume Worded</td>
+    <td align="center"><img src="frontend/public/previews/modernjack.webp" width="260" alt="A resume in the Modern Jake's template"><br>Modern Jake's</td>
+    <td align="center"><img src="frontend/public/previews/resumeworded.webp" width="260" alt="A resume in the Harvard template"><br>Harvard</td>
   </tr>
 </table>
 
