@@ -95,10 +95,16 @@ test("saved data that can't be read is kept instead of being saved over", async 
     localStorage.setItem("allResumes", text)
   }, unreadable)
   await page.goto("/create/dashboard")
+  const kept = () =>
+    page.evaluate(() =>
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith("allResumes-unreadable-"))
+        .map((key) => localStorage.getItem(key)),
+    )
 
   const note = page.getByText("couldn't be read, so resumezip kept a copy")
   await expect(note).toBeVisible()
-  expect(await page.evaluate(() => localStorage.getItem("allResumes-unreadable"))).toBe(unreadable)
+  expect(await kept()).toEqual([unreadable])
   expect(await seriousAccessibilityProblems(page)).toEqual([])
 
   // It's still there after a reload, and downloads exactly as it was saved.
@@ -112,7 +118,7 @@ test("saved data that can't be read is kept instead of being saved over", async 
   await page.getByRole("button", { name: "Delete it" }).click()
   await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click()
   await expect(note).toHaveCount(0)
-  expect(await page.evaluate(() => localStorage.getItem("allResumes-unreadable"))).toBeNull()
+  expect(await kept()).toEqual([])
 
   expect(errors).toEqual([])
 })

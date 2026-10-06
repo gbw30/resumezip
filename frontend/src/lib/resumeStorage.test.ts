@@ -2,12 +2,12 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import {
   deleteKeptAside,
   getStorage,
+  isKeptAside,
   loadResumes,
   readKeptAside,
   readResumes,
   RESUMES_KEY,
   saveResumes,
-  UNREADABLE_KEY,
 } from "./resumeStorage"
 
 /** A stand-in for localStorage, starting with `items`. */
@@ -61,7 +61,7 @@ describe("saved data that can't be read", () => {
   test.each(unreadable)("is kept aside before anything is saved over it (%s)", (_, text) => {
     const storage = memoryStorage({ [RESUMES_KEY]: text })
     expect(loadResumes(storage)).toEqual({ resumes: {}, unreadable: true, status: "saved" })
-    expect(storage.getItem(UNREADABLE_KEY)).toBe(text)
+    expect(readKeptAside(storage)).toEqual([text])
 
     expect(saveResumes(storage, { a: ada })).toBe("saved")
     expect(readKeptAside(storage)).toEqual([text])
@@ -82,14 +82,31 @@ describe("saved data that can't be read", () => {
   })
 
   test("found later is kept as well, without replacing what was kept before", () => {
+    let now = 1_000
+    vi.spyOn(Date, "now").mockImplementation(() => now++)
     const storage = memoryStorage({ [RESUMES_KEY]: "first" })
     loadResumes(storage)
     storage.setItem(RESUMES_KEY, "second")
     loadResumes(storage)
     storage.setItem(RESUMES_KEY, "third")
     loadResumes(storage)
-    expect(storage.getItem(`${UNREADABLE_KEY}-2`)).toBe("second")
     expect(readKeptAside(storage)).toEqual(["first", "second", "third"])
+  })
+
+  test("kept by two tabs at the same moment gets two keys, so neither copy is lost", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_000)
+    const storage = memoryStorage()
+    readResumes(storage, "one tab's")
+    readResumes(storage, "another tab's")
+    expect(readKeptAside(storage).sort()).toEqual(["another tab's", "one tab's"])
+  })
+
+  test("is kept under keys that can be told apart from the resumes", () => {
+    const storage = memoryStorage({ [RESUMES_KEY]: "hello" })
+    loadResumes(storage)
+    const keys = Array.from({ length: storage.length }, (_, i) => storage.key(i) ?? "")
+    expect(keys.filter(isKeptAside)).toHaveLength(1)
+    expect(isKeptAside(RESUMES_KEY)).toBe(false)
   })
 
   test("saved by another tab is kept aside too", () => {

@@ -7,11 +7,14 @@
 export const RESUMES_KEY = "allResumes"
 
 /**
- * Where saved data that can't be read is kept instead of being saved over:
- * "allResumes-unreadable", then "allResumes-unreadable-2" and so on.
+ * Saved data that can't be read is kept instead of being saved over, each
+ * time under a key of its own: this, then the time and a random suffix.
  */
-export const UNREADABLE_KEY = "allResumes-unreadable"
-const KEPT = new RegExp(`^${UNREADABLE_KEY}(?:-(\\d+))?$`)
+export const UNREADABLE_PREFIX = "allResumes-unreadable-"
+const KEPT = new RegExp(`^${UNREADABLE_PREFIX}(\\d+)-[a-z0-9]*$`)
+
+/** Whether a localStorage key holds saved data kept aside. */
+export const isKeptAside = (key: string) => KEPT.test(key)
 
 type Resumes = Record<string, Record<string, any>>
 
@@ -100,32 +103,29 @@ export function saveResumes(storage: Storage | null, resumes: Resumes): SaveStat
 const isQuotaError = (error: unknown) =>
   error instanceof DOMException && (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED")
 
-/** Copies saved data under a key of its own (see UNREADABLE_KEY). False if it couldn't. */
+/** Copies saved data under a key of its own (see UNREADABLE_PREFIX). False if it couldn't. */
 function keepAside(storage: Storage, text: string): boolean {
   try {
-    const kept = keptKeys(storage)
     // Another tab may have kept it already.
-    if (kept.some((key) => storage.getItem(key) === text)) return true
-    let n = 1
-    while (kept.includes(keptKey(n))) n++
-    storage.setItem(keptKey(n), text)
+    if (keptKeys(storage).some((key) => storage.getItem(key) === text)) return true
+    // A new key every time, so two tabs keeping different data at once can't
+    // pick the same one and save over each other's copy.
+    storage.setItem(`${UNREADABLE_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, text)
     return true
   } catch {
     return false
   }
 }
 
-const keptKey = (n: number) => (n === 1 ? UNREADABLE_KEY : `${UNREADABLE_KEY}-${n}`)
-
 /** The keys of the data kept aside, oldest first. */
 function keptKeys(storage: Storage): string[] {
   const kept: [number, string][] = []
   for (let i = 0; i < storage.length; i++) {
     const key = storage.key(i)
-    const match = key?.match(KEPT)
-    if (key && match) kept.push([Number(match[1] ?? 1), key])
+    const time = key?.match(KEPT)?.[1]
+    if (key && time) kept.push([Number(time), key])
   }
-  return kept.sort(([a], [b]) => a - b).map(([, key]) => key)
+  return kept.sort(([a, keyA], [b, keyB]) => a - b || keyA.localeCompare(keyB)).map(([, key]) => key)
 }
 
 /** The saved data kept aside because it couldn't be read, oldest first. */
