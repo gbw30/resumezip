@@ -175,7 +175,7 @@ export default function DashboardPage() {
         <PageIntro
           label={
             loaded
-              ? `${count} ${count === 1 ? "resume" : "resumes"} · ${saveStatus === "blocked" ? "not saved" : "stored in this browser"}`
+              ? `${count} ${count === 1 ? "resume" : "resumes"} · ${saveStatus === "saved" ? "stored in this browser" : "not saved"}`
               : "Stored in this browser"
           }
           title="Your resumes"
