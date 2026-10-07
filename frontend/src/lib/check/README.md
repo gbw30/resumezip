@@ -11,6 +11,10 @@ sent anywhere.
 - `resume.ts` reads the resume for the rules: each field as trimmed text, each
   bullet on its own (without the "• " or bold and italic marks), and the
   resume's type. Rules never read the saved data themselves.
+- `readDate.ts` reads dates the way resumes write them ("Jan 2024",
+  "01/2024", "2024", "Fall 2023", "Expected May 2027", "Present", and ranges
+  in one field like "Jun – Aug 2025"), and compares them. Rules that need to
+  know when something started or ended use it.
 - `places.ts` says where a finding is, so the editor can open it.
 - `state.ts` keeps what the person told the checker: findings they dismissed
   and words they added.
