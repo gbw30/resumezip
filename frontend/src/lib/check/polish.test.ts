@@ -189,6 +189,8 @@ describe("P7 numbers written one way", () => {
     ]
     expect(check("P7", resumeWith(job(versions))).status).toBe("passed")
     expect(check("P7", resumeWith(job(["Led 3 engineers", "Ran 4 sprints", "Mentored five interns"]))).messages).toEqual(["“five” here, digits elsewhere"])
+    // Labels written as words aren't counts either.
+    expect(check("P7", resumeWith(job(["Led 3 engineers", "Ran phase three trials", "Shipped level two support"]))).status).toBe("passed")
   })
 
   test("leaves measurements and sizes out, in digits or words", () => {

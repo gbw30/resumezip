@@ -244,28 +244,37 @@ const COUNTED = String.raw`(?= (?!(?:${NUMBER_UNITS.join("|")})\b)\p{Ll})`
 const DIGIT = new RegExp(String.raw`(?<![\p{L}\p{N}$€£.,/-])[2-9]${COUNTED}`, "gu")
 const LABELS = new Set(NUMBER_LABELS)
 
+// The word before a number in a text.
+const wordBefore = (text: string, index: number) => text.slice(0, index).trimEnd().match(/[\p{L}\p{N}.-]+$/u)?.[0] ?? ""
+
 // A digit counting something ("Led 3 engineers"), but not a version or a
 // label: not after a name ("Python 2", "iOS 7", "Java 8 services"), or after
 // a word like "version" or "phase". A capitalized first word is a name unless
 // it's a verb.
 function digitCount(text: string): string | undefined {
   for (const found of text.matchAll(DIGIT)) {
-    const before = text.slice(0, found.index).trimEnd()
-    const word = before.match(/[\p{L}\p{N}.-]+$/u)?.[0] ?? ""
-    const first = !/\s/.test(before.trim())
+    const word = wordBefore(text, found.index)
+    const first = !/\s/.test(text.slice(0, found.index).trim())
     const name = /\p{Lu}/u.test(word.slice(1)) || (/^\p{Lu}/u.test(word) && (!first || !verbOf(word)))
     if (!name && !LABELS.has(word.toLowerCase())) return found[0]
   }
 }
 
-const WORD_COUNT = new RegExp(String.raw`\b(?:${WORDS_FOR.join("|")})\b${COUNTED}`, "iu")
+const WORD_COUNT = new RegExp(String.raw`\b(?:${WORDS_FOR.join("|")})\b${COUNTED}`, "giu")
+
+// A count written as a word ("five engineers"), but not a label ("phase three").
+function wordCount(text: string): string | undefined {
+  for (const found of text.matchAll(WORD_COUNT)) {
+    if (!LABELS.has(wordBefore(text, found.index).toLowerCase())) return found[0]
+  }
+}
 
 // A count from 2 to 9, written as a digit or a word, and a percentage written
 // with "%" or "percent".
 const NUMBER_WAYS = [
   {
     digit: digitCount,
-    word: (text: string) => WORD_COUNT.exec(text)?.[0],
+    word: wordCount,
     asWord: (digit: string) => WORDS_FOR[Number(digit) - 2],
     asDigit: (word: string) => String(WORDS_FOR.indexOf(word.toLowerCase()) + 2),
     elsewhere: { digit: "digits", word: "words" },
