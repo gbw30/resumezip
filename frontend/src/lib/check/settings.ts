@@ -82,3 +82,29 @@ export const PERSONAL_DETAILS = [
 /** A Social Security number, as it's usually written. */
 export const SSN = /\b\d{3}-\d{2}-\d{4}\b/
 
+// Sections & entries (S1–S9).
+
+/** A skills line with this many items or more reads as a list to skim past. */
+export const MAX_SKILLS_PER_LINE = 15
+
+/** More courses than this, and the ones that matter get lost. */
+export const MAX_COURSES = 8
+
+/** A school whose college graduation is this many school years away or more is a freshman's, who can keep high school. */
+export const FRESHMAN_YEARS_LEFT = 3
+
+/** School years start in this month (0 = January), for counting how far away graduation is. */
+export const SCHOOL_YEAR_STARTS = 7
+
+/** How a college degree is usually written ("B.S. in…", "Master of…"). */
+export const COLLEGE_DEGREE =
+  /\b(bachelor|master|doctor|associate|ph\.?\s?d|mba|b\.?\s?(s|a|sc|eng|s\.?e|com|f\.?a|b\.?a)|m\.?\s?(s|a|sc|eng|b\.?a|phil|f\.?a)|a\.?\s?(a|s))\b\.?/i
+
+/** How a college's name usually reads. */
+export const COLLEGE_NAME = /\b(university|college|institute|polytechnic|universidad|université|universität)\b/i
+
+/** How a high school's name usually reads. */
+export const HIGH_SCHOOL_NAME = /\bhigh school\b/i
+
+/** "References available upon request", however it's worded. */
+export const REFERENCES_ON_REQUEST = /\breferences?\b[^.]{0,30}?\brequest(ed)?\b/i

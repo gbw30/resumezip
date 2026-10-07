@@ -3,5 +3,6 @@
 
 import { CONTACT_RULES } from "./contact"
 import type { Rule } from "./engine"
+import { SECTION_RULES } from "./sections"
 
-export const RULES: readonly Rule[] = [...CONTACT_RULES]
+export const RULES: readonly Rule[] = [...CONTACT_RULES, ...SECTION_RULES]
