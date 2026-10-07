@@ -136,7 +136,13 @@ export default function PdfPreview({ pdfUrl, error }: PdfPreviewProps) {
         </div>
       </div>
 
-      <div ref={scrollerRef} onCopy={copyPlainText} className="relative min-h-[480px] flex-1 overflow-auto px-5 pb-10 md:px-8">
+      {/* Focusable, so the preview can be scrolled from the keyboard. */}
+      <div
+        ref={scrollerRef}
+        tabIndex={0}
+        onCopy={copyPlainText}
+        className="relative min-h-[480px] flex-1 overflow-auto px-5 pb-10 focus-visible:outline-offset-[-2px] md:px-8"
+      >
         {loadError || (error && documents.length === 0) ? (
           <div className="flex h-full min-h-[480px] items-center justify-center text-sm text-ink-2">
             The preview couldn&apos;t be built.
