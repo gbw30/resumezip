@@ -14,6 +14,26 @@ export interface BulletLine {
 
 const wordsOf = (line: string) => line.trim().replace(/^[•○]\s*/, "")
 
+/**
+ * The text as the text box shows it: every non-empty line starts with "• ",
+ * so it reads like the PDF, or "○ " for a bullet that's left out. A bullet
+ * set in from the left counts the same, so "  ○ Fed the cat" stays left out.
+ * Otherwise only a missing space after the bullet is added, so nothing moves
+ * under the cursor while typing.
+ */
+export function withBullets(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => {
+      if (!line.trim()) return line
+      const unindented = /^\s+[•○]/.test(line) ? line.trimStart() : line
+      if (unindented === "•" || unindented === "○") return unindented
+      if (/^[•○]([^\s]|$)/.test(unindented)) return unindented.replace(/^([•○])/, "$1 ")
+      return /^[•○] /.test(unindented) ? unindented : `• ${unindented}`
+    })
+    .join("\n")
+}
+
 /** The bullets in a field's text, in order. */
 export function bulletLines(text: string): BulletLine[] {
   return text.split("\n").flatMap((line, index) => {

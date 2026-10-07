@@ -6,7 +6,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react"
 import type { Finding } from "@/lib/check/engine"
 import { LEVELS } from "@/lib/check/settings"
 import { plainText } from "@/lib/typst/resumeData"
-import { bulletLines, moveBullet, moveLine, setLeftOutLine } from "./arrange"
+import { bulletLines, moveBullet, moveLine, setLeftOutLine, withBullets } from "./arrange"
 
 interface FieldProps {
   label: string
@@ -120,19 +120,6 @@ export function MoveButtons({ name, first, last, onMove }: { name: string; first
 function fitHeight(textarea: HTMLTextAreaElement) {
   textarea.style.height = "auto"
   textarea.style.height = `${textarea.scrollHeight + 2}px`
-}
-
-// Every non-empty line starts with "• " so the textarea reads like the PDF,
-// or "○ " for a bullet that's left out of it (lib/leftOut.ts).
-function withBullets(text: string) {
-  return text
-    .split("\n")
-    .map((line) => {
-      if (!line.trim() || line === "•" || line === "○") return line
-      if (/^[•○]([^\s]|$)/.test(line)) return line.replace(/^([•○])/, "$1 ")
-      return /^[•○] /.test(line) ? line : `• ${line}`
-    })
-    .join("\n")
 }
 
 const onMac = () => /Mac|iPhone|iPad/.test(navigator.platform)

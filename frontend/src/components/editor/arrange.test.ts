@@ -1,7 +1,23 @@
 import { describe, expect, test } from "vitest"
-import { bulletLines, moveBullet, moveLine, setLeftOutLine } from "./arrange"
+import { bulletLines, moveBullet, moveLine, setLeftOutLine, withBullets } from "./arrange"
 
 const text = "• Built a loom\n\n○ Fed the cat\n• Wrote the notes"
+
+describe("the text box", () => {
+  test("starts every line with a bullet, keeping ones left out as they are", () => {
+    expect(withBullets("Built a loom\n•Fed the cat\n○Wrote the notes\n\n• Kept")).toBe("• Built a loom\n• Fed the cat\n○ Wrote the notes\n\n• Kept")
+    expect(withBullets("•\n○\n  ")).toBe("•\n○\n  ")
+  })
+
+  test("counts a bullet set in from the left the same, so a left-out one stays left out", () => {
+    expect(withBullets("  ○ Fed the cat\n\t• Built a loom")).toBe("○ Fed the cat\n• Built a loom")
+    expect(bulletLines(withBullets("  ○ Fed the cat"))).toEqual([{ line: 0, words: "Fed the cat", leftOut: true }])
+  })
+
+  test("leaves the spaces typed after a bullet alone, so nothing moves under the cursor", () => {
+    expect(withBullets("•  Two spaces")).toBe("•  Two spaces")
+  })
+})
 
 describe("arranging bullets", () => {
   test("reads each bullet with its line, its words and whether it's left out", () => {
