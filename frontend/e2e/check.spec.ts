@@ -85,6 +85,46 @@ test("the checker asks for a name and an entry first, then lists what passed", a
   expect(errors).toEqual([])
 })
 
+test("choosing a finding opens its field, fixing it clears it, and a suggestion can be dismissed", async ({ page }) => {
+  const errors = pageErrors(page)
+  await newResume(page)
+  const check = page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ })
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+
+  // No count until there's a name and an entry to check.
+  await expect(check).toHaveAccessibleName("Check")
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await page.getByLabel("Email").fill("ada@example")
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Company").fill("Analytical Engines")
+  await expect(check).toHaveAccessibleName(/^Check, \d+ to look at$/)
+
+  // The email's finding opens the profile, with the cursor in the field and why it matters under it.
+  await check.click()
+  const email = panel.getByRole("button", { name: /Not a whole email address/ })
+  await email.click()
+  const field = page.getByLabel("Email")
+  await expect(field).toBeFocused()
+  await expect(field).toHaveAttribute("aria-invalid", "true")
+  await expect(page.getByText("Recruiters reply by email, so it has to work.")).toBeVisible()
+  await field.fill("ada@example.com")
+  await expect(email).toBeHidden()
+  await expect(field).not.toHaveAttribute("aria-invalid")
+
+  // A suggestion can be dismissed, and brought back.
+  const role = panel.getByRole("button", { name: /^Experience → .* No role$/ })
+  await expect(role).toBeVisible()
+  await panel.getByRole("button", { name: "Dismiss: No role" }).click()
+  await expect(role).toBeHidden()
+  await panel.getByText("Dismissed · 1").click()
+  await panel.getByRole("button", { name: "Bring back: No role" }).click()
+  await expect(role).toBeVisible()
+
+  expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
+  expect(errors).toEqual([])
+})
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
 
