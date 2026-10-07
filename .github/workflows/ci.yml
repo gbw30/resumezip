@@ -64,7 +64,8 @@ jobs:
     # exact Ubuntu release, and ubuntu-latest moves to Ubuntu 26 on
     # October 19, 2026. Move this when Playwright supports it.
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Room for every try at installing the browsers, below, and the tests.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -75,8 +76,31 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # The browsers are kept between runs, and downloaded again only when
+      # Playwright's version changes.
+      - name: Find Playwright's version
+        id: playwright
+        run: echo "version=$(node -p 'require("./node_modules/@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
+      - name: Keep the browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-ubuntu-24.04-${{ steps.playwright.outputs.version }}
+      # The browsers, unless they were kept, and the system libraries they
+      # need, from Ubuntu's package servers. A server can stop answering
+      # partway (on October 7, 2026, one hung for 20 minutes and the job
+      # timed out), so apt gives up on one after 30 seconds and tries again,
+      # and each try is cut off after 5 minutes.
       - name: Install browsers
-        run: npx playwright install --with-deps chromium webkit
+        run: |
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/99timeouts > /dev/null
+          for try in 1 2 3; do
+            timeout 5m npx playwright install --with-deps chromium webkit && exit 0
+            echo "::warning::Installing the browsers didn't finish, try $try of 3"
+            # Finishes any package a cut-off try left half installed.
+            sudo dpkg --configure -a || true
+          done
+          exit 1
       - name: Build
         run: npm run build
       - name: Browser tests
