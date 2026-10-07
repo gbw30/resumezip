@@ -32,7 +32,7 @@ let pdfjs: Promise<typeof import("pdfjs-dist")> | null = null
 
 // pdf.js (and its worker) only download when a PDF is opened. A failed
 // download (e.g. a network error) is forgotten, so the next PDF retries it.
-function loadPdfjs() {
+export function loadPdfjs() {
   pdfjs ??= import("pdfjs-dist")
     .then((module) => {
       module.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
@@ -62,7 +62,7 @@ function until<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
 }
 
 /** Reads in a worker of its own, which is ended once it answers, or as soon as `signal` aborts. */
-function readInWorker(request: ReadRequest, signal: AbortSignal): Promise<ReadResult> {
+export function readInWorker(request: ReadRequest, signal: AbortSignal): Promise<ReadResult> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) return reject(signal.reason)
     const worker = new Worker(new URL("./import.worker.ts", import.meta.url))
