@@ -134,4 +134,11 @@ describe("places on a resume", () => {
     expect(ruleOfKey(key)).toBe("B1")
     expect(ruleOfKey("junk")).toBe("")
   })
+
+  test("tell pages apart, even when they have the same text or none", () => {
+    const first = findingKey("L3", { kind: "page", page: 1 }, "")
+    expect(findingKey("L3", { kind: "page", page: 2 }, "")).not.toBe(first)
+    expect(findingKey("L3", { kind: "page" }, "")).not.toBe(first)
+    expect(findingKey("L3", { kind: "page", page: 1 }, "")).toBe(first)
+  })
 })

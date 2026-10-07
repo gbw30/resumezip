@@ -71,7 +71,8 @@ export function textAt(view: ResumeView, place: Place): string {
 }
 
 // Which field a place is in. A bullet's line is left out: bullets move as
-// others are added above them, and their text tells them apart anyway.
+// others are added above them, and their text tells them apart anyway. A
+// page's number stays in, as pages can have the same text, or none.
 function pathOf(place: Place): string {
   switch (place.kind) {
     case "profile":
@@ -82,7 +83,7 @@ function pathOf(place: Place): string {
     case "entry":
       return place.field === undefined ? `${place.section}.${place.entry}` : `${place.section}.${place.entry}.${place.field}`
     case "page":
-      return "page"
+      return place.page === undefined ? "page" : `page.${place.page}`
   }
 }
 
