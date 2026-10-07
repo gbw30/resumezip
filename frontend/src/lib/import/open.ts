@@ -3,7 +3,7 @@
 // restored exactly; anything else is read and sorted into fields by parse.ts.
 
 import type { PDFDocumentProxy } from "pdfjs-dist"
-import { ATTACHMENT_NAME, fromAttachment, type ResumeContent } from "@/lib/resumeFile"
+import { ATTACHMENT_NAME, fromAttachment, MAX_ENTRIES, MAX_LENGTH, TooLongError, type ResumeContent } from "@/lib/resumeFile"
 import { linesFromDocx, linesFromPdf, type Line, type PageSize } from "./lines"
 import { parseResume, type ParsedResume } from "./parse"
 
@@ -82,7 +82,17 @@ export async function openResumeFile(file: File): Promise<OpenedFile> {
 
   const attachments = (await doc.getAttachments().catch(() => null)) as Record<string, { content: Uint8Array }> | null
   const attached = attachments?.[ATTACHMENT_NAME]
-  const resume = attached ? fromAttachment(new TextDecoder().decode(attached.content)) : null
+  let resume: ResumeContent | null
+  try {
+    resume = attached ? fromAttachment(new TextDecoder().decode(attached.content)) : null
+  } catch (error) {
+    await doc.destroy()
+    if (!(error instanceof TooLongError)) throw error
+    const most = (count: number) => count.toLocaleString("en-US")
+    throw new OpenFileError(
+      `This resume is longer than resumezip can open (more than ${most(MAX_ENTRIES)} entries or ${most(MAX_LENGTH)} characters).`,
+    )
+  }
   if (resume) {
     await doc.destroy()
     return { kind: "resumezip", resume, title }
