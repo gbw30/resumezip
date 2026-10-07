@@ -60,10 +60,13 @@ comment (`actions/checkout@<sha> # v7.0.1`), so a tag moved to other code can't
 change what runs. Dependabot updates the SHA and the comment together, monthly.
 Pin any new action the same way.
 
-A pull request that fixes a bug (its description says "fixes" and the issue
-number) gets that bug's severity label, even if the bug gets one later
-(`.github/workflows/pr-severity.yml`). Greptile's dashboard is set to review
-pull requests by label, so fixes for serious bugs get a review.
+Issues are labelled by priority, from "P0: critical" to "P3: low". A bug
+report starts at the priority its answer to "How bad is it?" gives it, and a
+maintainer can move it. A pull request that fixes an issue (its description
+says "fixes" and the issue number) gets that issue's priority label, even if
+the issue gets one later, and moves with it when the issue moves
+(`.github/workflows/pr-priority.yml`). Greptile's dashboard is set to review
+pull requests by label, so fixes for urgent issues get a review.
 
 ## Deploying
 
