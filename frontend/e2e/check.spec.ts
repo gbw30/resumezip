@@ -130,6 +130,58 @@ test("choosing a finding opens its field, fixing it clears it, and a suggestion 
   expect(errors).toEqual([])
 })
 
+test("with Check open, the PDF is read too: a bullet that runs three lines is flagged and opens", async ({ page }) => {
+  const errors = pageErrors(page)
+  await newResume(page)
+  const check = page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ })
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Company").fill("Analytical Engines")
+  const bullets = page.getByLabel(/^What you did/)
+  await bullets.fill(
+    "Wrote the first published algorithm for the Analytical Engine, a method for computing Bernoulli numbers that ran to " +
+      "twenty-five steps, and explained in seven long notes how the engine could act on symbols as well as numbers, " +
+      "which later readers took as the first description of a general-purpose computer and of programming itself",
+  )
+
+  // The layout rules read the preview once Check is open, and point at the bullet.
+  await check.click()
+  const long = panel.getByRole("button", { name: /^Experience → .* Runs \d+ lines$/ })
+  await expect(long).toBeVisible()
+  await expect(panel.getByText("Checking the PDF…")).toBeHidden()
+  await long.click()
+  await expect(bullets).toBeFocused()
+
+  expect(errors).toEqual([])
+})
+
+test("when the preview can't be built, the checker says its PDF checks are left out", async ({ page }) => {
+  const errors = pageErrors(page)
+  // The compiler's worker fails each resume it's given, as in download.spec.ts.
+  await page.addInitScript(() => {
+    const RealWorker = window.Worker
+    window.Worker = class extends RealWorker {
+      postMessage(message: any, options?: any) {
+        if (message?.template === undefined) return super.postMessage(message, options)
+        setTimeout(() => this.onerror?.call(this, new ErrorEvent("error", { message: "Typst crashed" })))
+      }
+    }
+  })
+  await newResume(page)
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Company").fill("Analytical Engines")
+
+  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+  await expect(panel.getByRole("status")).toHaveText("The preview couldn't be built, so the checks on the PDF are left out.")
+  expect(errors).toEqual([])
+})
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
 

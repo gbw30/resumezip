@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useId, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { hasEnoughToCheck } from "@/lib/check/labels"
 import { getStorage } from "@/lib/resumeStorage"
 import { useCheck } from "./CheckContext"
@@ -49,7 +49,11 @@ interface LeftBarProps {
  */
 export default function LeftBar({ hidden, children }: LeftBarProps) {
   const [mode, setMode] = useState<Mode>(savedMode)
-  const { report } = useCheck()
+  const { report, watchPdf } = useCheck()
+  // The PDF rules start reading the preview once Check is opened.
+  useEffect(() => {
+    if (mode === "check") watchPdf()
+  }, [mode, watchPdf])
   const id = useId()
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const bar = useRef<HTMLElement>(null)

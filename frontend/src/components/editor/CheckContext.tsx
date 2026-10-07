@@ -1,9 +1,10 @@
 "use client"
 
 import type React from "react"
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react"
-import type { Finding } from "@/lib/check/engine"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
+import type { Finding, PdfReading } from "@/lib/check/engine"
 import type { Place } from "@/lib/check/places"
+import { readPreview } from "@/lib/check/preview"
 import type { ActiveSection } from "./SectionNav"
 import { useResumeCheck } from "./useResumeCheck"
 
@@ -28,6 +29,19 @@ type CheckValue = ReturnType<typeof useResumeCheck> & {
    * field does it once, and not again when it's shown later.
    */
   claim: (request: number) => boolean
+  /** Starts reading the preview for the PDF rules, as Check is opened. */
+  watchPdf: () => void
+  /**
+   * Where the PDF rules stand: "reading" the current preview, "read",
+   * "unreadable", or "unbuilt" when the preview itself couldn't be made.
+   */
+  pdf: "reading" | "read" | "unreadable" | "unbuilt"
+}
+
+/** The preview on screen: its PDF, and what it prints (`printedOf` as JSON). */
+export interface Preview {
+  url: string
+  printed: string
 }
 
 const CheckContext = createContext<CheckValue | null>(null)
@@ -46,13 +60,59 @@ const sameIssue = (a: Finding, b: Finding) =>
   a.place.kind === b.place.kind &&
   PLACE_PARTS.every((part) => (a.place as Record<string, unknown>)[part] === (b.place as Record<string, unknown>)[part])
 
+// Runs `callback` once the page is idle, or after a moment where it can't
+// tell (Safari), and gives back how to call it off.
+function whenIdle(callback: () => void): () => void {
+  if (typeof window.requestIdleCallback === "function") {
+    const handle = window.requestIdleCallback(callback, { timeout: 2000 })
+    return () => window.cancelIdleCallback(handle)
+  }
+  const timer = setTimeout(callback, 200)
+  return () => clearTimeout(timer)
+}
+
+interface CheckProviderProps {
+  /** Shows a section in the form, as choosing it in the section list does. */
+  onSelect: (section: ActiveSection) => void
+  preview: Preview | null
+  /** What the resume prints now; a preview of anything else is out of date. */
+  printed: string
+  /** What the resume printed when its preview last failed to build. */
+  unbuilt: string | null
+  children: React.ReactNode
+}
+
 /**
  * Checks the open resume for the editor: the left bar lists what's found, and
- * the forms point at the finding the person chose to fix. `onSelect` shows a
- * section in the form, as choosing it in the section list does.
+ * the forms point at the finding the person chose to fix. Once Check has been
+ * opened, each new preview is read for the PDF rules, while the page is idle;
+ * they wait while the preview is behind what's been typed.
  */
-export function CheckProvider({ onSelect, children }: { onSelect: (section: ActiveSection) => void; children: React.ReactNode }) {
-  const check = useResumeCheck()
+export function CheckProvider({ onSelect, preview, printed, unbuilt, children }: CheckProviderProps) {
+  const [watching, setWatching] = useState(false)
+  // The latest preview as read, and what it prints; null if it couldn't be read.
+  const [read, setRead] = useState<{ printed: string; pdf: PdfReading | null } | null>(null)
+  useEffect(() => {
+    if (!watching || !preview) return
+    const reading = new AbortController()
+    const cancel = whenIdle(() => {
+      readPreview(preview.url, reading.signal)
+        .then((pdf) => setRead({ printed: preview.printed, pdf }))
+        .catch((error) => {
+          if (reading.signal.aborted) return
+          console.warn("The checker couldn't read the preview:", error)
+          setRead({ printed: preview.printed, pdf: null })
+        })
+    })
+    return () => {
+      cancel()
+      reading.abort()
+    }
+  }, [watching, preview])
+
+  const current = read?.printed === printed ? read : null
+  const pdf: CheckValue["pdf"] = current ? (current.pdf ? "read" : "unreadable") : unbuilt === printed ? "unbuilt" : "reading"
+  const check = useResumeCheck(current?.pdf ?? undefined)
   const [chosen, setChosen] = useState<Target | null>(null)
   const claimed = useRef(0)
   const select = useRef(onSelect)
@@ -73,7 +133,8 @@ export function CheckProvider({ onSelect, children }: { onSelect: (section: Acti
 
   const live = chosen ? check.report.findings.find((finding) => sameIssue(finding, chosen.finding)) : undefined
   const target = useMemo(() => (chosen && live ? { finding: live, request: chosen.request } : null), [chosen, live])
-  const value = useMemo(() => ({ ...check, target, open, pending, claim }), [check, target, open, pending, claim])
+  const watchPdf = useCallback(() => setWatching(true), [])
+  const value = useMemo(() => ({ ...check, target, open, pending, claim, watchPdf, pdf }), [check, target, open, pending, claim, watchPdf, pdf])
   return <CheckContext.Provider value={value}>{children}</CheckContext.Provider>
 }
 
