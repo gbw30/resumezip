@@ -118,7 +118,9 @@ export default function EditorPage() {
   // can be clicked while a field has focus.
   useEffect(() => {
     const touch = window.matchMedia("(pointer: coarse)")
-    const isField = (target: EventTarget | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
+    // A box to tick or a choice to pick doesn't bring the keyboard up.
+    const isField = (target: EventTarget | null) =>
+      target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && target.type !== "checkbox" && target.type !== "radio")
     const onFocusIn = (event: FocusEvent) => setTyping(touch.matches && isField(event.target))
     const onFocusOut = (event: FocusEvent) => {
       if (isField(event.target) && !isField(event.relatedTarget)) setTyping(false)
