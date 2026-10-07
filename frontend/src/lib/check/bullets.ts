@@ -3,13 +3,14 @@
 
 import type { SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
-import { compareDates, datesOf, type ResumeDate } from "./readDate"
+import { compareDates, datesOf, latestOf, type ResumeDate } from "./readDate"
 import type { Entry } from "./resume"
 import {
   BULLETS_WITH_NUMBERS,
   BUZZWORDS,
   MAX_BULLETS,
   MIN_BULLETS_FOR_NUMBERS,
+  NEAR_DUPLICATE_LENGTH,
   NUMBER_WORDS,
   SAME_START,
   VAGUE_WORDS,
@@ -207,7 +208,7 @@ const pastTense: Rule = {
     const hasEnded = (entry: Entry) => {
       if (!ended.has(entry)) {
         const end = datesOf(entry).end?.date
-        ended.set(entry, end !== undefined && !end.present && compareDates(end, now) < 0)
+        ended.set(entry, end !== undefined && !end.present && compareDates(latestOf(end), now) < 0)
       }
       return ended.get(entry)!
     }
@@ -255,13 +256,31 @@ const bulletCount: Rule = {
   },
 }
 
-// A bullet as compared with others: lower case, without punctuation.
+// A bullet as compared with others: lower case, without punctuation, but
+// with the symbols that change what it says ("C++", "C#", "40%").
 const comparable = (text: string) =>
   text
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .replace(/[.,;:!?"“”‘’'()[\]{}–—-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
+
+// How many letters two texts differ by (adding, removing or changing one),
+// or `limit + 1` once it's more than `limit`.
+function distance(a: string, b: string, limit: number): number {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i]
+    for (let j = 1; j <= b.length; j++) {
+      current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+    }
+    // No row gets better than the best in the one above it.
+    if (Math.min(...current) > limit) return limit + 1
+    previous = current
+  }
+  return previous[b.length]
+}
 
 const repeated: Rule = {
   id: "B9",
@@ -273,13 +292,18 @@ const repeated: Rule = {
   check: ({ resume }) => {
     const bullets = bulletsIn(resume)
     if (bullets.length < 2) return null
-    const seen = new Set<string>()
+    const seen: string[] = []
     const problems: Problem[] = []
     for (const { bullet, place } of bullets) {
-      const same = comparable(bullet.text)
-      if (!same) continue
-      if (seen.has(same)) problems.push({ place, message: "Same as another bullet", suggestion: "Change or delete one of them." })
-      seen.add(same)
+      const text = comparable(bullet.text)
+      if (!text) continue
+      // A letter or two apart in a long bullet, as "account" and "accounts", is a copy.
+      const limit = Math.floor(text.length / NEAR_DUPLICATE_LENGTH)
+      const closest = Math.min(...seen.map((other) => distance(text, other, limit)), limit + 1)
+      if (closest <= limit) {
+        problems.push({ place, message: closest === 0 ? "Same as another bullet" : "Almost the same as another bullet", suggestion: "Change or delete one of them." })
+      }
+      seen.push(text)
     }
     return { checked: bullets.length, problems }
   },

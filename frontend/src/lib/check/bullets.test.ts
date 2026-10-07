@@ -145,6 +145,11 @@ describe("B7 present tense on what has ended", () => {
     ])
   })
 
+  test("counts a season to its last month: fall runs to December", () => {
+    expect(check("B7", resumeWith(job(["Lead a team of 4"], "Fall 2026"))).status).toBe("skipped")
+    expect(check("B7", resumeWith(job(["Lead a team of 4"], "Spring 2026"))).messages).toEqual(["“Lead” is present tense, but this has ended"])
+  })
+
   test("leaves jobs that haven't ended, verbs the same in both tenses, and projects", () => {
     expect(check("B7", resumeWith(job(["Lead a team of 4"], "Present"))).status).toBe("skipped")
     expect(check("B7", resumeWith(job(["Lead a team of 4"], "2026"))).status).toBe("skipped")
@@ -170,6 +175,14 @@ describe("B9 repeated bullets", () => {
     const findings = check("B9", resumeWith(job(["Built the index", "Built the index", "Built the index"]))).findings
     expect(findings.map((finding) => finding.place)).toEqual([bulletAt(1), bulletAt(2)])
     expect(findings[0].key).not.toBe(findings[1].key)
+  })
+
+  test("flags a long bullet a letter or two from another, but not short ones or different symbols", () => {
+    const near = ["Managed customer account records for the sales team", "Managed customer accounts records for the sales team"]
+    expect(check("B9", resumeWith(job(near))).findings).toEqual([
+      expect.objectContaining({ place: bulletAt(1), message: "Almost the same as another bullet" }),
+    ])
+    expect(check("B9", resumeWith(job(["Built C++ tools", "Built C tools", "Led 5 engineers", "Led 6 engineers"]))).status).toBe("passed")
   })
 
   test("flags a bullet that's the same as one before it, case and punctuation aside", () => {

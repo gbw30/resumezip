@@ -259,6 +259,9 @@ export const MAX_BULLETS = 6
 /** The same first word on this many bullets or more reads as repetitive. */
 export const SAME_START = 3
 
+/** Two bullets count as the same when they differ by one letter per this many, as "account" and "accounts" in a long bullet. */
+export const NEAR_DUPLICATE_LENGTH = 25
+
 // Polish (P1–P7).
 
 /** US states and their abbreviations, to find one written both ways. */

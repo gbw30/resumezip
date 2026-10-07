@@ -136,6 +136,15 @@ export function readDateRange(text: string): DateRange | null {
   return null
 }
 
+// The month each season ends, by the month it's counted from: fall runs to December.
+const SEASON_ENDS: Record<number, number> = { 1: 3, 3: 5, 6: 8, 9: 12 }
+
+/** A date as late as it can mean, for whether it's over: “Fall 2026” is still going in October. */
+export function latestOf(date: ResumeDate): ResumeDate {
+  if (date.present || date.style.kind !== "season" || date.month === undefined) return date
+  return { ...date, month: SEASON_ENDS[date.month] ?? date.month }
+}
+
 /**
  * Which of two dates is later: below 0 if `a` is earlier, above 0 if it's
  * later, 0 if they're the same as far as both say. Present is the latest;
