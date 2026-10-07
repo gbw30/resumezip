@@ -101,6 +101,29 @@ describe("dismissing and restoring", () => {
     expect(dismiss(state, suggestion("B5|a|b", "B5"), report).dismissed).toEqual(["L1|page|text", "B5|a|b"])
   })
 
+  test("keeps a dismissal the report hasn't caught up with yet, when another follows quickly", () => {
+    const twice: Rule = {
+      id: "B1",
+      category: "bullets",
+      level: "look",
+      title: "B1",
+      why: "B1",
+      reads: "form",
+      check: () => ({
+        checked: 2,
+        problems: [
+          { place: { kind: "profile", field: "fullName" }, message: "First" },
+          { place: { kind: "profile", field: "email" }, message: "Second" },
+        ],
+      }),
+    }
+    // Both are dismissed from the same report, before it reruns.
+    const report = runChecks(sample, { rules: [twice] })
+    const [first, second] = report.findings
+    const once = dismiss({ dismissed: [], words: [] }, first, report)
+    expect(dismiss(once, second, report).dismissed).toEqual([first.key, second.key])
+  })
+
   test("keeps the latest when there are too many", () => {
     const full = { dismissed: Array.from({ length: MAX_DISMISSED }, (_, i) => `B2|a|${i}`), words: [] }
     const next = dismiss(full, suggestion("B1|new|one"))

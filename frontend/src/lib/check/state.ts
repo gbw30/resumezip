@@ -70,7 +70,9 @@ export function dismiss(state: CheckState, finding: Finding, report?: Report): C
   if (report) {
     // Rules that waited or broke didn't look, so their dismissals stay.
     const ran = new Set(report.results.filter((result) => result.status === "passed" || result.status === "failed").map((result) => result.rule.id))
-    const current = new Set(report.dismissed.map((dismissed) => dismissed.key))
+    // What's still found counts, dismissed or not: the report can be from
+    // before the last dismissal, while the checker catches up.
+    const current = new Set([...report.findings, ...report.dismissed].map((found) => found.key))
     kept = kept.filter((key) => !ran.has(ruleOfKey(key)) || current.has(key))
   }
   return { ...state, dismissed: [...kept, finding.key].slice(-MAX_DISMISSED) }
