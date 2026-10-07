@@ -36,6 +36,9 @@ describe("checking text with Harper", () => {
     expect(await rulesIn("Prototyped a parser")).toEqual([])
     expect(await rulesIn("Distilled the findings")).toEqual([])
     expect(await rulesIn("Prototypd a parser")).toEqual(["SpellCheck Prototypd"])
+    // Unless the form itself is misspelled, though the word it's built on isn't.
+    expect(await rulesIn("Occuring weekly, it was begining to help")).toEqual(["SpellCheck Occuring", "SpellCheck begining"])
+    expect(await rulesIn("Transfered and comitted the code")).toEqual(["SpellCheck Transfered", "SpellCheck comitted"])
   })
 
   test("finds repeated words, a and an, and mix-ups", async () => {

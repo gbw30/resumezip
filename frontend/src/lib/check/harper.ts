@@ -48,17 +48,37 @@ function stemsOf(word: string): string[] {
   return STEMS.flatMap(([ending, replacements]) => (ending.test(lower) ? replacements.map((replacement) => lower.replace(ending, replacement)) : []))
 }
 
+// Whether two words are one letter apart: one added, dropped or changed.
+function oneApart(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1 || a === b) return false
+  let i = 0
+  while (i < a.length && a[i] === b[i]) i++
+  const [longer, shorter] = a.length >= b.length ? [a, b] : [b, a]
+  return longer.slice(i + 1) === shorter.slice(i + (a.length === b.length ? 1 : 0))
+}
+
+// Whether Harper's suggestions hold the same word spelled another way, one
+// letter apart with the same ending: "occurring" for "occuring". Then the
+// word is a misspelling, though the word it's built on ("occur") isn't.
+const misspeltForm = (word: string, suggestions: string[]) =>
+  suggestions.some((suggestion) => {
+    const lower = suggestion.toLowerCase()
+    return oneApart(lower, word.toLowerCase()) && lower.slice(-2) === word.toLowerCase().slice(-2)
+  })
+
 /**
  * Checks pieces of text, each on its own. Harper's dictionary leaves out
  * some forms of words it knows, as "prototyped", so a word it flags is let
- * through when a word it's built on is spelled right.
+ * through when a word it's built on is spelled right, unless Harper offers
+ * the same form spelled another way ("occurring" for "occuring").
  */
 export async function lintTexts(linter: Linter, texts: readonly string[]): Promise<GrammarLint[][]> {
   const spelledRight = new Map<string, boolean>()
   const isSpelledRight = async (word: string) => {
     if (!spelledRight.has(word)) {
-      const lints = await linter.organizedLints(word, { language: "plaintext" })
-      spelledRight.set(word, !lints.SpellCheck?.length)
+      const organized = await linter.organizedLints(word, { language: "plaintext" })
+      spelledRight.set(word, !organized.SpellCheck?.length)
+      for (const lint of Object.values(organized).flat()) lint.free()
     }
     return spelledRight.get(word)!
   }
@@ -70,9 +90,9 @@ export async function lintTexts(linter: Linter, texts: readonly string[]): Promi
       for (const lint of lints) {
         const read = readLint(rule, lint)
         lint.free()
-        if (rule === "SpellCheck") {
+        if (rule === "SpellCheck" && !misspeltForm(read.text, read.suggestions)) {
           let built = false
-          for (const stem of stemsOf(read.text)) if (await isSpelledRight(stem)) built = true
+          for (const stem of stemsOf(read.text)) if (!built && (await isSpelledRight(stem))) built = true
           if (built) continue
         }
         found.push(read)

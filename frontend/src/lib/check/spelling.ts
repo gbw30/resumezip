@@ -58,6 +58,8 @@ const wordsIn = (text: string) =>
 const ALWAYS_KNOWN: ReadonlySet<string> = new Set(
   [
     ...TECH_NAMES,
+    // As G6 knows them without their dots ("nodejs"), so they're G6's, not typos.
+    ...TECH_NAMES.map((name) => name.replace(/\./g, "")),
     ...TECH_WORDS,
     ...ACRONYMS,
     ...LOWERCASE_NAMES,

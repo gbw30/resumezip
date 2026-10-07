@@ -40,7 +40,9 @@ export default function CheckPanel() {
   }
 
   const waitingFor = (reads: "pdf" | "grammar") => report.results.some((result) => result.status === "waiting" && result.rule.reads === reads)
-  const waiting = waitingFor("pdf") || waitingFor("grammar")
+  // Grammar rules check text as it's typed, so they're behind until it's all been checked.
+  const checkingGrammar = waitingFor("grammar") || grammar !== "ready"
+  const waiting = waitingFor("pdf") || checkingGrammar
   const passed = [
     ...report.results.filter((result) => result.status === "passed").map((result) => result.rule.title),
     ...report.automatic,
@@ -60,7 +62,7 @@ export default function CheckPanel() {
                   : "Checking the PDF…"}
             </p>
           )}
-          {waitingFor("grammar") && (
+          {checkingGrammar && (
             <p>{grammar === "failed" ? "Spelling and grammar couldn't be checked, so those checks are left out." : "Checking spelling and grammar…"}</p>
           )}
         </div>

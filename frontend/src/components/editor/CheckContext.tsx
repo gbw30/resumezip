@@ -38,8 +38,11 @@ type CheckValue = ReturnType<typeof useResumeCheck> & {
    * "unreadable", or "unbuilt" when the preview itself couldn't be made.
    */
   pdf: "reading" | "read" | "unreadable" | "unbuilt"
-  /** Where the grammar rules stand: the grammar checker "loading", "ready", or "failed" to load. */
-  grammar: "loading" | "ready" | "failed"
+  /**
+   * Where the grammar rules stand: "checking" text on the resume that hasn't
+   * been checked yet, "ready" when all of it has, or "failed" to check it.
+   */
+  grammar: "checking" | "ready" | "failed"
 }
 
 /** The preview on screen: its PDF, and what it prints (`printedOf` as JSON). */
@@ -142,6 +145,8 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, children }:
   const [grammarFailed, setGrammarFailed] = useState(false)
   const grammarFound = useRef(new Map<string, readonly GrammarLint[]>())
   const texts = useMemo(() => (watching ? grammarTexts(viewOf(formData)).map(({ text }) => text) : []), [watching, formData])
+  const textsNow = useRef(texts)
+  textsNow.current = texts
   useEffect(() => {
     if (!watching) return
     const known = grammarFound.current
@@ -157,9 +162,11 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, children }:
         .then((lints) => {
           // Kept even if the text has changed since: it's what that text holds whenever it's typed.
           missing.forEach((text, index) => known.set(text, lints[index]))
-          for (const oldest of known.keys()) {
+          // The oldest go first, but never what's on the resume now.
+          const onResume = new Set(textsNow.current)
+          for (const text of known.keys()) {
             if (known.size <= GRAMMAR_TEXTS_KEPT) break
-            known.delete(oldest)
+            if (!onResume.has(text)) known.delete(text)
           }
           setGrammarRead(new Map(known))
           setGrammarFailed(false)
@@ -173,7 +180,10 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, children }:
 
   const current = read?.printed === printed ? read : null
   const pdf: CheckValue["pdf"] = current ? (current.pdf ? "read" : "unreadable") : unbuilt === printed ? "unbuilt" : "reading"
-  const grammar: CheckValue["grammar"] = grammarFailed ? "failed" : grammarRead ? "ready" : "loading"
+  // The grammar rules read what's been checked so far; until all of the
+  // resume's text has been, the panel says it's still checking, or that it couldn't.
+  const unchecked = !grammarRead || texts.some((text) => !grammarRead.has(text))
+  const grammar: CheckValue["grammar"] = !unchecked ? "ready" : grammarFailed ? "failed" : "checking"
   const check = useResumeCheck(current?.pdf ?? undefined, grammarRead)
   const [chosen, setChosen] = useState<Target | null>(null)
   const claimed = useRef(0)

@@ -52,7 +52,7 @@ describe("G1 typos", () => {
   })
 
   test("knows the resume's own names, tech words, degrees and verbs", async () => {
-    const resume = resumeWith([job(["Shipped Woonsocket's new site with DuckDB and eBPF at p99", "Prototyped an autograder in malloc for the backend"], { companyName: "Woonsocket Labs" })], {
+    const resume = resumeWith([job(["Shipped Woonsocket's new site with DuckDB and eBPF at p99", "Prototyped an autograder in malloc for the nodejs backend"], { companyName: "Woonsocket Labs" })], {
       educationSection: [{ id: 1, schoolName: "Questrom School of Business", degree: "B.S.E. in Computer Science", schoolEndDate: "May 2024" }],
     })
     expect((await check("G1", resume)).status).toBe("passed")
