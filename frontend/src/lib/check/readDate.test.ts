@@ -36,7 +36,10 @@ describe("reading one date", () => {
     expect(read("01-2024")).toEqual({ year: 2024, month: 1, style: "number" })
     expect(read("2024-01")).toEqual({ year: 2024, month: 1, style: "number" })
     expect(read("01/15/2024")).toEqual({ year: 2024, month: 1, style: "number" })
+    expect(read("01/24")).toEqual({ year: 2024, month: 1, style: "number" })
+    expect(read("1/99")).toEqual({ year: 1999, month: 1, style: "number" })
     expect(readDate("13/2024")).toBeNull()
+    expect(readDate("13/24")).toBeNull()
   })
 
   test("reads a year on its own, and a season", () => {
@@ -64,6 +67,13 @@ describe("reading one date", () => {
     expect(readDate("Jan 2021")).toMatchObject({ shortYear: false })
   })
 
+  test("reads a two-digit year as POSIX does: 69 to 99 in the 1900s, the rest in the 2000s", () => {
+    expect(readDate("Jun '99")).toMatchObject({ year: 1999 })
+    expect(readDate("Jun '69")).toMatchObject({ year: 1969 })
+    expect(readDate("May '30")).toMatchObject({ year: 2030 })
+    expect(readDate("'05")).toMatchObject({ year: 2005 })
+  })
+
   test("can't read a misspelled month, a month without a year, or anything else", () => {
     for (const text of ["Jnu 2024", "Jan", "Spring", "Janu 2024", "June. 2024", "2024 Jan", "Jan 21", "soon", "", "1999-2000-01"]) {
       expect(readDate(text), text).toBeNull()
@@ -85,6 +95,7 @@ describe("reading a range in one field", () => {
     expect(range("Sep 2024 - Dec 2024")).toEqual(["Sep 2024", "2024-9", "Dec 2024", "2024-12"])
     expect(range("01/2024 - 05/2024")).toEqual(["01/2024", "2024-1", "05/2024", "2024-5"])
     expect(range("01-2024 – 05-2024")).toEqual(["01-2024", "2024-1", "05-2024", "2024-5"])
+    expect(range("01/24 - 05/24")).toEqual(["01/24", "2024-1", "05/24", "2024-5"])
     expect(range("June 2023 to Aug 2023")).toEqual(["June 2023", "2023-6", "Aug 2023", "2023-8"])
     expect(range("2024—Present")).toEqual(["2024", "2024", "Present", "Present"])
   })

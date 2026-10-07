@@ -50,7 +50,9 @@ function monthOf(word: string): { month: number; spelling: string; dotted: boole
   return { month: index + 1, spelling, dotted }
 }
 
-const yearOf = (text: string) => (/^['’‘]/.test(text) ? 2000 + Number(text.slice(1)) : Number(text))
+// A two-digit year, read as POSIX reads one: 69 to 99 are the 1900s, 00 to 68 the 2000s.
+const fullYear = (short: number) => (short >= 69 ? 1900 : 2000) + short
+const yearOf = (text: string) => (/^['’‘]/.test(text) ? fullYear(Number(text.slice(1))) : Number(text))
 
 // "Expected May 2027", "May 2027 (Expected)", "Graduated: May 2023": the date in it.
 const escaped = DATE_PREFIXES.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")
@@ -61,6 +63,8 @@ const withoutWords = (text: string) => text.trim().replace(PREFIX, "").replace(S
 const PRESENT = new RegExp(String.raw`^(?:${PRESENT_WORDS.join("|")})$`, "i")
 const MONTH_YEAR = new RegExp(String.raw`^([a-z]+\.?)(?:\s+\d{1,2}(?:st|nd|rd|th)?)?\s*,?\s*(${YEAR}|${SHORT_YEAR})$`, "i")
 const NUMBERS = new RegExp(String.raw`^(\d{1,2})\s*[/.-]\s*(?:\d{1,2}\s*[/.-]\s*)?(${YEAR})$`)
+// "01/24": a month and a two-digit year, which the resume reader in lib/import takes too.
+const NUMBERS_SHORT_YEAR = /^(\d{1,2})\s*\/\s*(\d{2})$/
 const YEAR_FIRST = new RegExp(String.raw`^(${YEAR})-(\d{1,2})$`)
 const YEAR_ONLY = new RegExp(String.raw`^(${YEAR}|${SHORT_YEAR})$`)
 
@@ -83,6 +87,7 @@ export function readDate(text: string, { monthOnly = false } = {}): ResumeDate |
   }
   if ((match = NUMBERS.exec(value))) return numbered(Number(match[1]), Number(match[2]))
   if ((match = YEAR_FIRST.exec(value))) return numbered(Number(match[2]), Number(match[1]))
+  if ((match = NUMBERS_SHORT_YEAR.exec(value))) return numbered(Number(match[1]), fullYear(Number(match[2])))
   if ((match = YEAR_ONLY.exec(value))) return { present: false, year: yearOf(match[1]), style: { kind: "year" }, shortYear: /^['’‘]/.test(match[1]) }
   if (monthOnly) {
     const season = SEASONS[value.toLowerCase()]
