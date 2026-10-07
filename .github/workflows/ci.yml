@@ -1,7 +1,7 @@
-# Checks every pull request and every push to main. "Check" is the one
-# main requires before a merge. "Browser tests" uses the built site in real
-# browsers. "Audit" only reports, so a new advisory in a dependency can't
-# block unrelated work.
+# Checks every pull request and every push to main. Main requires "Check"
+# and "Browser tests", which uses the built site in real browsers, before a
+# merge. "Audit" only reports, so a new advisory in a dependency can't block
+# unrelated work.
 #
 # No path filters: a required check has to run on every pull request, or
 # pull requests that skip it could never be merged.

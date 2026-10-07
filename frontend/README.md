@@ -50,9 +50,9 @@ browsers with `npx playwright install chromium webkit`. They run on port 3100,
 so a dev server on 3000 can keep running.
 
 On every pull request, GitHub Actions type-checks, lints, runs the tests and
-builds the site (`.github/workflows/ci.yml`), and `main` only accepts a pull
-request once that passes. The browser tests run in their own job next to it. It also audits the packages that ship, as a report
-that doesn't block merging. Dependabot opens update pull requests weekly.
+builds the site (`.github/workflows/ci.yml`). The browser tests run in their
+own job next to it, and `main` only accepts a pull request once both pass. It
+also audits the packages that ship, as a report that doesn't block merging. Dependabot opens update pull requests weekly.
 
 The workflows name each action by its full commit SHA, with the version in a
 comment (`actions/checkout@<sha> # v7.0.1`), so a tag moved to other code can't
