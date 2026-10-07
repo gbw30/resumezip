@@ -146,6 +146,16 @@ describe("running the rules", () => {
     expect(warn).toHaveBeenCalledTimes(1)
   })
 
+  test("leaves out a rule that gives back something that isn't an outcome, and runs the rest", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const noProblems = formRule("B2", () => ({ checked: 1 }) as never)
+    const nullProblem = formRule("B4", () => ({ checked: 1, problems: [null] }) as never)
+    const report = runChecks(ada, { rules: [noProblems, nullProblem, weakStarts] })
+    expect(report.results.map((result) => result.status)).toEqual(["error", "error", "failed"])
+    expect(report.findings).toHaveLength(2)
+    expect(warn).toHaveBeenCalledTimes(2)
+  })
+
   test("leaves out what a rule found at a place that isn't on the resume", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const nowhere: Problem[] = [

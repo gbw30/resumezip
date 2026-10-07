@@ -159,22 +159,25 @@ export function runChecks(resume: Record<string, any>, { rules = RULES, pdf, tod
   }
 }
 
-// One rule over the resume. A rule that breaks, or points somewhere that
-// isn't on the resume, is a bug; it's logged and left out, and the rest of
-// the checker carries on.
+// One rule over the resume. A rule that breaks, gives back something that
+// isn't an outcome, or points somewhere that isn't on the resume, is a bug;
+// it's logged and left out, and the rest of the checker carries on. The
+// checker runs as the editor draws, so one let through would take the editor
+// down with it.
 function run(rule: Rule, input: CheckInput, dismissed: ReadonlySet<string>, pdf: PdfReading | undefined): RuleResult {
   const untouched = { rule, checked: 0, credit: 1, findings: [] }
   if (rule.reads === "pdf" && !pdf) return { ...untouched, status: "waiting" }
-  let outcome: Outcome | null
   try {
-    outcome = rule.reads === "pdf" ? rule.check({ ...input, pdf: pdf! }) : rule.check(input)
+    const outcome = rule.reads === "pdf" ? rule.check({ ...input, pdf: pdf! }) : rule.check(input)
+    return outcome ? judge(rule, outcome, input.resume, dismissed, pdf) : { ...untouched, status: "skipped" }
   } catch (error) {
     console.warn(`The ${rule.id} check failed:`, error)
     return { ...untouched, status: "error" }
   }
-  if (!outcome) return { ...untouched, status: "skipped" }
+}
 
-  const view = input.resume
+// What a rule found, as findings, and how much of the resume passes it.
+function judge(rule: Rule, outcome: Outcome, view: ResumeView, dismissed: ReadonlySet<string>, pdf: PdfReading | undefined): RuleResult {
   const findings = outcome.problems.flatMap((problem): Finding[] => {
     if (!placeExists(view, problem.place, pdf?.pages.length)) {
       console.warn(`The ${rule.id} check found something at a place that isn't on the resume:`, problem.place)
