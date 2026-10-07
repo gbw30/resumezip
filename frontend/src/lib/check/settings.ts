@@ -296,6 +296,19 @@ export const LOWERCASE_NAMES = [
   "pnpm", "pytest", "scikit-learn", "seaborn", "tmux", "vim", "vite", "webpack", "wget", "yarn", "zsh",
 ]
 
+/**
+ * Words after a number that make it a measurement or a size ("9 ms",
+ * "2 weeks", "4 million"). Those are written in digits or words by their own
+ * conventions, so they aren't compared with how counts are written.
+ */
+export const NUMBER_UNITS = [
+  "thousand", "thousands", "million", "millions", "billion", "billions", "trillion", "k", "ns", "ms", "nanoseconds",
+  "microseconds", "milliseconds", "s", "sec", "secs", "second", "seconds", "min", "mins", "minute", "minutes", "hr", "hrs",
+  "hour", "hours", "day", "days", "week", "weeks", "month", "months", "yr", "yrs", "year", "years", "pt", "pts", "point",
+  "points", "percent", "times", "x", "kb", "mb", "gb", "tb", "mm", "cm", "km", "in", "inches", "ft", "feet", "mile",
+  "miles", "kg", "lbs", "degrees",
+]
+
 /** Shorthand and slang, and the word to write instead. */
 export const SHORTHAND: [string, string][] = [
   ["w/o", "without"], ["w/", "with"], ["b/c", "because"], ["mgmt", "management"], ["mgr", "manager"],

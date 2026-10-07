@@ -5,7 +5,7 @@ import type { SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
 import type { Place } from "./places"
 import { textsOf, type ResumeView } from "./resume"
-import { ACRONYMS, DEGREE_ABBREVIATIONS, LOWERCASE_NAMES, SHORTHAND, US_STATES } from "./settings"
+import { ACRONYMS, DEGREE_ABBREVIATIONS, LOWERCASE_NAMES, NUMBER_UNITS, SHORTHAND, US_STATES } from "./settings"
 import { bulletsIn, escaped, firstWord, mostCommon, type PlacedBullet } from "./text"
 
 const capitalized = (word: string) => word[0].toUpperCase() + word.slice(1).toLowerCase()
@@ -219,14 +219,17 @@ const shorthand: Rule = {
   title: "No shorthand like “w/” or “mgmt”",
   why: "Shorthand reads as a note to yourself, not a finished resume.",
   check: ({ resume }) => {
-    const bullets = bulletsIn(resume)
-    if (bullets.length === 0) return null
+    // Bullets, and fields like a role or a skill ("Project Mgr"); not links.
+    const texts = textsOf(resume).filter(({ place }) => !LINK_FIELDS.has(fieldOf(place) ?? ""))
+    if (texts.length === 0) return null
     return {
-      checked: bullets.length,
-      problems: bullets.flatMap(({ bullet, place }) => {
+      checked: texts.length,
+      problems: texts.flatMap(({ place, text }) => {
         for (const { word, pattern } of SHORTHANDS) {
-          const found = pattern.exec(bullet.text)
-          if (found) return [{ place, message: `“${found[0].trim()}” is shorthand`, suggestion: `Write “${word}”.` }]
+          const found = pattern.exec(text)?.[0].trim()
+          if (!found) continue
+          const full = /^\p{Lu}/u.test(found) ? word[0].toUpperCase() + word.slice(1) : word
+          return [{ place, message: `“${found}” is shorthand`, suggestion: `Write “${full}”.` }]
         }
         return []
       }),
@@ -235,12 +238,14 @@ const shorthand: Rule = {
 }
 
 const WORDS_FOR = ["two", "three", "four", "five", "six", "seven", "eight", "nine"]
-// A count from 2 to 9 before a word, written as a digit or a word, and a
-// percentage written with "%" or "percent".
+// Before a counted thing ("5 engineers"), but not a unit or a size ("9 ms", "4 million").
+const COUNTED = String.raw`(?= (?!(?:${NUMBER_UNITS.join("|")})\b)\p{Ll})`
+// A count from 2 to 9, written as a digit or a word, and a percentage written
+// with "%" or "percent".
 const NUMBER_WAYS = [
   {
-    digit: /(?<![\p{L}\p{N}$€£.,/-])[2-9](?= \p{Ll})/u,
-    word: new RegExp(String.raw`\b(?:${WORDS_FOR.join("|")})\b(?= \p{Ll})`, "iu"),
+    digit: new RegExp(String.raw`(?<![\p{L}\p{N}$€£.,/-])[2-9]${COUNTED}`, "u"),
+    word: new RegExp(String.raw`\b(?:${WORDS_FOR.join("|")})\b${COUNTED}`, "iu"),
     asWord: (digit: string) => WORDS_FOR[Number(digit) - 2],
     asDigit: (word: string) => String(WORDS_FOR.indexOf(word.toLowerCase()) + 2),
     elsewhere: { digit: "digits", word: "words" },

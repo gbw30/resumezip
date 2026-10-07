@@ -147,6 +147,17 @@ describe("P6 shorthand", () => {
     ])
   })
 
+  test("flags shorthand in fields too, like a role or a skill", () => {
+    const resume = {
+      ...resumeWith(job(["Built the index"], { workRole: "Project Mgr" })),
+      skillsSection: [{ id: 1, skillName: "Business", skillDetails: "Project mgmt, budgeting" }],
+    }
+    expect(check("P6", resume).findings.map(({ place, message, suggestion }) => [place, message, suggestion])).toEqual([
+      [{ kind: "entry", section: "Work", entry: 0, field: "workRole" }, "“Mgr” is shorthand", "Write “Manager”."],
+      [{ kind: "entry", section: "Skills", entry: 0, field: "skillDetails" }, "“mgmt” is shorthand", "Write “management”."],
+    ])
+  })
+
   test("leaves names and acronyms with an & or the same letters alone", () => {
     const bullets = ["Ran R&D for AT&T", "Partnered with Procter & Gamble", "Trained the HR team", "Wrote ESP32 firmware", "Worked with I/O drivers"]
     expect(check("P6", resumeWith(job(bullets))).status).toBe("passed")
@@ -164,5 +175,10 @@ describe("P7 numbers written one way", () => {
 
   test("leaves large numbers in digits next to small ones in words", () => {
     expect(check("P7", resumeWith(job(["Led five engineers", "Served 15 teams", "Grew sales 3x", "Shipped v2 of the app"]))).status).toBe("passed")
+  })
+
+  test("leaves measurements and sizes out, in digits or words", () => {
+    const bullets = ["Mentor two junior engineers", "Cut latency to 9 ms", "Served 4 million users", "Took 2 minutes off each build", "Ran for six months"]
+    expect(check("P7", resumeWith(job(bullets))).status).toBe("passed")
   })
 })
