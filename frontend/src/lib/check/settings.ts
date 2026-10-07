@@ -218,7 +218,7 @@ export const VERB_SYNONYMS: Record<string, string[]> = {
   test: ["validate", "verify", "evaluate"],
   train: ["coach", "mentor", "teach"],
   use: ["apply", "adopt", "employ"],
-  write: ["author", "draft", "document"],
+  write: ["author", "implement", "draft"],
 }
 
 /** "Buzzwords": words anyone could claim, that say little on their own. */
