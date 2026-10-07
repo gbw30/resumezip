@@ -200,18 +200,17 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
     onChange(next)
   }
 
-  // Moves the line the cursor is on, keeping the cursor where it was in it.
+  // Moves the line the cursor is on, keeping the cursor where it was in it. False if it's at that end already.
   const moveCursorLine = (textarea: HTMLTextAreaElement, by: -1 | 1) => {
     const before = text.slice(0, textarea.selectionStart)
     const line = before.split("\n").length - 1
     const column = before.length - (before.lastIndexOf("\n") + 1)
+    const to = line + by
+    if (to < 0 || to >= text.split("\n").length) return false
     const next = moveLine(text, line, by)
-    if (next === text) return
-    onChange(next)
-    const cursor = lineStart(next, line + by) + Math.min(column, next.split("\n")[line + by].length)
-    requestAnimationFrame(() => {
-      textarea.selectionStart = textarea.selectionEnd = cursor
-    })
+    const cursor = lineStart(next, to) + column
+    edit(textarea, { text: next, start: cursor, end: cursor })
+    return true
   }
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -223,12 +222,13 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
       edit(textarea, toggleMark(text, start, end, key === "b" ? 2 : 1))
       return
     }
-    if (event.altKey && !event.metaKey && !event.ctrlKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-      event.preventDefault()
-      moveCursorLine(textarea, event.key === "ArrowUp" ? -1 : 1)
+    if (event.nativeEvent.isComposing) return
+    // With Shift, Alt+↑ and Alt+↓ select (on a Mac); at either end they move the cursor as usual.
+    if (event.altKey && !event.shiftKey && !event.metaKey && !event.ctrlKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      if (moveCursorLine(textarea, event.key === "ArrowUp" ? -1 : 1)) event.preventDefault()
       return
     }
-    if (event.key !== "Enter" || event.nativeEvent.isComposing) return
+    if (event.key !== "Enter") return
     event.preventDefault()
     edit(textarea, newBullet(text, start, end))
   }
