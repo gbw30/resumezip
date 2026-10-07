@@ -4,6 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
+import DownloadFailed from "@/components/site/DownloadFailed"
 import { downloadResume } from "@/lib/typst/compile"
 import { templateById } from "@/lib/templates"
 import { RESUME_TAGS } from "./CreateResumeModal"
@@ -27,13 +28,16 @@ interface ResumeTableProps {
 
 export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [failed, setFailed] = useState<Record<string, any> | null>(null)
 
   const download = async (resume: Record<string, any>) => {
     setDownloadingId(resume.id)
     try {
       await downloadResume(resume)
+      setFailed((current) => (current?.id === resume.id ? null : current))
     } catch (error) {
       console.error("Failed to build PDF:", error)
+      setFailed(resume)
     } finally {
       setDownloadingId(null)
     }
@@ -76,8 +80,20 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
     </>
   )
 
+  // The latest copy of the resume that failed, in case it was renamed or deleted since.
+  const failedResume = failed && resumes.find((resume) => resume.id === failed.id)
+
   return (
     <>
+      {failedResume && (
+        <DownloadFailed
+          title={failedResume.resumeTitle || "Untitled resume"}
+          retrying={downloadingId === failedResume.id}
+          onRetry={() => download(failedResume)}
+          className="mb-6 max-w-[720px]"
+        />
+      )}
+
       {/* Phones: one card per resume, with its actions underneath. */}
       <ul className="border-t border-ink md:hidden">
         {resumes.map((resume) => (
