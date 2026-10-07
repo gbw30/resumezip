@@ -43,8 +43,12 @@ test("a failed download says so, and trying again downloads the PDF", async ({ p
   await page.evaluate(() => (window.brokenCompiler = true))
   const downloadPdf = page.getByRole("button", { name: "Download PDF" })
   await downloadPdf.click()
-  await expect(downloadFailed(page)).toContainText("Couldn't make your PDF.")
+  await expect(downloadFailed(page)).toContainText("Couldn't make your PDF. Something went wrong.")
   await expect(downloadPdf).toBeEnabled()
+
+  // Failing again says so.
+  await downloadFailed(page).getByRole("button", { name: "Try again" }).click()
+  await expect(downloadFailed(page)).toContainText("Still couldn't make your PDF.")
 
   await page.evaluate(() => (window.brokenCompiler = false))
   await downloads(page, downloadFailed(page).getByRole("button", { name: "Try again" }))

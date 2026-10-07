@@ -4,7 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
-import DownloadFailed from "@/components/site/DownloadFailed"
+import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
 import { downloadResume } from "@/lib/typst/compile"
 import { templateById } from "@/lib/templates"
 import { RESUME_TAGS } from "./CreateResumeModal"
@@ -27,21 +27,20 @@ interface ResumeTableProps {
 }
 
 export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
-  // Ids of the resumes downloading, and of those whose last download failed.
+  // Ids of the resumes downloading, and why each one whose last download failed did.
   const [downloading, setDownloading] = useState<string[]>([])
-  const [failed, setFailed] = useState<string[]>([])
-  const without = (id: string) => (ids: string[]) => ids.filter((other) => other !== id)
+  const [failed, setFailed] = useState<Record<string, Failure>>({})
 
   const download = async (resume: Record<string, any>) => {
     setDownloading((ids) => [...ids, resume.id])
     try {
       await downloadResume(resume)
-      setFailed(without(resume.id))
+      setFailed(({ [resume.id]: _, ...others }) => others)
     } catch (error) {
       console.error("Failed to build PDF:", error)
-      setFailed((ids) => [...without(resume.id)(ids), resume.id])
+      setFailed((all) => ({ ...all, [resume.id]: nextFailure(all[resume.id], error) }))
     } finally {
-      setDownloading(without(resume.id))
+      setDownloading((ids) => ids.filter((id) => id !== resume.id))
     }
   }
 
@@ -83,7 +82,7 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
   )
 
   // The latest copies, in case one was renamed or deleted since.
-  const failedResumes = resumes.filter((resume) => failed.includes(resume.id))
+  const failedResumes = resumes.filter((resume) => failed[resume.id])
 
   return (
     <>
@@ -91,7 +90,8 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
         <div className="mb-6 flex max-w-[720px] flex-col gap-4">
           {failedResumes.map((resume) => (
             <DownloadFailed
-              key={resume.id}
+              key={`${resume.id}-${failed[resume.id].count}`}
+              failure={failed[resume.id]}
               title={resume.resumeTitle || "Untitled resume"}
               retrying={downloading.includes(resume.id)}
               onRetry={() => download(resume)}

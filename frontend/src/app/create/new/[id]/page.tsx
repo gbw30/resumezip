@@ -10,7 +10,7 @@ import ProfileForm from "@/components/editor/ProfileForm"
 import SectionForm from "@/components/editor/SectionForm"
 import SectionNav, { WIDE_SCREEN, type ActiveSection } from "@/components/editor/SectionNav"
 import TemplatePicker from "@/components/editor/TemplatePicker"
-import DownloadFailed from "@/components/site/DownloadFailed"
+import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
 import NotSaved from "@/components/site/NotSaved"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import { uniqueTitle } from "@/lib/resumeTitles"
@@ -25,7 +25,9 @@ export default function EditorPage() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [compileError, setCompileError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
-  const [downloadFailed, setDownloadFailed] = useState(false)
+  const [failure, setFailure] = useState<Failure | null>(null)
+  // When the last download failed, so a preview made after it can clear the message.
+  const failedAt = useRef(0)
   // Small screens show the form or the preview, not both.
   const [view, setView] = useState<"edit" | "preview">("edit")
   const [typing, setTyping] = useState(false)
@@ -56,6 +58,7 @@ export default function EditorPage() {
     if (!formData.id) return
     let cancelled = false
     const timer = setTimeout(async () => {
+      const startedAt = Date.now()
       try {
         const url = await compileResumeUrl({ ...formData, sectionOrder: sections })
         if (cancelled) {
@@ -64,6 +67,8 @@ export default function EditorPage() {
         }
         setPdfUrl(url)
         setCompileError(null)
+        // PDFs work again, so an earlier failed download is no longer news.
+        if (startedAt > failedAt.current) setFailure(null)
       } catch (error) {
         if (!cancelled) setCompileError(error instanceof Error ? error.message : String(error))
       }
@@ -126,10 +131,11 @@ export default function EditorPage() {
     setDownloading(true)
     try {
       await downloadResume({ ...formData, sectionOrder: sections })
-      setDownloadFailed(false)
+      setFailure(null)
     } catch (error) {
       console.error("Error downloading resume:", error)
-      setDownloadFailed(true)
+      failedAt.current = Date.now()
+      setFailure((previous) => nextFailure(previous, error))
     } finally {
       setDownloading(false)
     }
@@ -209,8 +215,14 @@ export default function EditorPage() {
           </div>
         </div>
         <NotSaved className="border-t border-rule px-5 py-2.5 lg:px-6" />
-        {downloadFailed && (
-          <DownloadFailed retrying={downloading} onRetry={download} className="border-t border-rule px-5 py-2.5 lg:px-6" />
+        {failure && (
+          <DownloadFailed
+            key={failure.count}
+            failure={failure}
+            retrying={downloading}
+            onRetry={download}
+            className="border-t border-rule px-5 py-2.5 lg:px-6"
+          />
         )}
       </header>
 
