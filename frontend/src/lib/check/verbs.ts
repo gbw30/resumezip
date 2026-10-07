@@ -2,7 +2,7 @@
 // rules can ask for action verbs, varied ones, and the past tense for what
 // has ended. The verbs are listed in settings.ts.
 
-import { ACTION_VERBS, VERB_SYNONYMS } from "./settings"
+import { ACTION_VERBS, NOT_ACTION_VERBS, VERB_SYNONYMS } from "./settings"
 
 /** A verb at the start of a bullet. */
 export interface Verb {
@@ -43,14 +43,19 @@ function known(word: string): Verb | null {
     : { base, past: PAST_OF.get(base), tense: "present", thirdPerson: true }
 }
 
+const NOT_VERBS = new Set(NOT_ACTION_VERBS)
+
 /**
  * The verb a word is, if it is one: a listed verb in any form, or any word
- * ending in "-ed" or "-ing". British spellings ("optimise") count, and in
- * "Co-founded" the verb is after the hyphen.
+ * ending in "-ed" or "-ing", except ones that describe a person
+ * ("Experienced"). British spellings ("optimise") count, and in "Co-founded"
+ * the verb is after the hyphen.
  */
 export function verbOf(word: string): Verb | null {
-  const lower = word.toLowerCase().split("-").at(-1)!
-  if (lower.length < 2) return null
+  const whole = word.toLowerCase()
+  const lower = whole.split("-").at(-1)!
+  // "Experienced", "Detail-oriented": they describe a person.
+  if (lower.length < 2 || NOT_VERBS.has(whole) || NOT_VERBS.has(lower)) return null
   const american = lower.replace(/is(e|ed|es|ing)$/, "iz$1").replace(/ys(e|ed|es|ing)$/, "yz$1")
   const listed = known(lower) ?? known(american)
   if (listed) return listed

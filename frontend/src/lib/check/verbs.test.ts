@@ -38,6 +38,13 @@ describe("reading a verb", () => {
       expect(verbOf(word), word).toBeNull()
     }
   })
+
+  test("doesn't take words that describe a person for verbs, but keeps ones that are often verbs", () => {
+    for (const word of ["Experienced", "Skilled", "Detail-oriented", "Self-motivated", "Well-versed", "Hardworking"]) {
+      expect(verbOf(word), word).toBeNull()
+    }
+    expect(tense("Motivated")).toBe("past")
+  })
 })
 
 describe("suggesting other verbs", () => {

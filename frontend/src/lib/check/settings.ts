@@ -191,6 +191,16 @@ export const ACTION_VERBS = `
   validate validated, verify verified, visualize visualized, volunteer volunteered, win won, write wrote
 `
 
+/**
+ * Words that end like verbs but describe a person ("Experienced in Python"),
+ * so they don't count as starting with an action verb. Ones that are often
+ * verbs too, like "Motivated", aren't here.
+ */
+export const NOT_ACTION_VERBS = [
+  "experienced", "skilled", "talented", "seasoned", "dedicated", "interested", "excited", "oriented", "versed",
+  "self-motivated", "hardworking", "outstanding", "willing",
+]
+
 /** Other verbs to suggest when one starts too many bullets. */
 export const VERB_SYNONYMS: Record<string, string[]> = {
   analyze: ["assess", "evaluate", "investigate"],

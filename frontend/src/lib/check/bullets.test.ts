@@ -61,8 +61,9 @@ describe("B1 weak starts", () => {
 
 describe("B2 action verbs", () => {
   test("flags a job's bullet that doesn't start with a verb", () => {
-    expect(check("B2", resumeWith(job(["The dashboard was used by 40 teams", "Built the search index"]))).findings).toEqual([
+    expect(check("B2", resumeWith(job(["The dashboard was used by 40 teams", "Built the search index", "Experienced in Python and Go"]))).findings).toEqual([
       expect.objectContaining({ place: bulletAt(0), message: "Doesn't start with an action verb" }),
+      expect.objectContaining({ place: bulletAt(2) }),
     ])
   })
 
