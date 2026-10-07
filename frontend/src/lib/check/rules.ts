@@ -4,7 +4,8 @@
 import { BULLET_RULES } from "./bullets"
 import { CONTACT_RULES } from "./contact"
 import { DATE_RULES } from "./dates"
+import { POLISH_RULES } from "./polish"
 import type { Rule } from "./engine"
 import { SECTION_RULES } from "./sections"
 
-export const RULES: readonly Rule[] = [...CONTACT_RULES, ...SECTION_RULES, ...DATE_RULES, ...BULLET_RULES]
+export const RULES: readonly Rule[] = [...CONTACT_RULES, ...SECTION_RULES, ...DATE_RULES, ...BULLET_RULES, ...POLISH_RULES]
