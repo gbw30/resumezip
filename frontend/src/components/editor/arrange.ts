@@ -130,3 +130,11 @@ export function toggleMark(text: string, start: number, end: number, size: 1 | 2
     end: end + shift,
   }
 }
+
+/**
+ * What a screen reader's status line says next, to say `text` after `last`.
+ * The same words twice in a row change nothing on the page, so they'd only be
+ * read once, as after moving one entry to second place and then another one:
+ * a repeat ends with a no-break space, which isn't read out.
+ */
+export const nextAnnouncement = (last: string, text: string) => (last === text ? `${text}\u00a0` : text)

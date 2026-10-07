@@ -6,7 +6,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react"
 import type { Finding } from "@/lib/check/engine"
 import { LEVELS } from "@/lib/check/settings"
 import { plainText } from "@/lib/typst/resumeData"
-import { bulletLines, moveBullet, moveLine, newBullet, setLeftOutLine, toggleMark, withBullets, type Edited } from "./arrange"
+import { bulletLines, moveBullet, moveLine, newBullet, nextAnnouncement, setLeftOutLine, toggleMark, withBullets, type Edited } from "./arrange"
 import { reducedMotion, reveal, scrollerOf } from "./layout"
 
 interface FieldProps {
@@ -350,7 +350,7 @@ function ArrangedBullets({ labelId, text, onChange }: { labelId: string; text: s
                 ;[next[index], next[index + by]] = [next[index + by], next[index]]
                 setOrder(next)
                 onChange(moveBullet(text, bullet.line, by))
-                setAnnouncement(`Moved to ${index + by + 1} of ${keyed.length}`)
+                setAnnouncement((last) => nextAnnouncement(last, `Moved to ${index + by + 1} of ${keyed.length}`))
               }}
             />
           </li>

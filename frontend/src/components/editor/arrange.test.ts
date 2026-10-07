@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { bulletLines, moveBullet, moveLine, newBullet, setLeftOutLine, toggleMark, withBullets } from "./arrange"
+import { bulletLines, moveBullet, moveLine, newBullet, nextAnnouncement, setLeftOutLine, toggleMark, withBullets } from "./arrange"
 
 const text = "• Built a loom\n\n○ Fed the cat\n• Wrote the notes"
 
@@ -91,5 +91,17 @@ describe("typing bullets", () => {
     expect(toggleMark("• Built a loom\n", 0, 15, 1)).toEqual(at("• *Built a loom*\n", 3, 15))
     // With nothing selected, the marks go where the words start, ready to type in.
     expect(toggleMark("○ Fed the cat", 0, 0, 2)).toEqual(at("○ ****Fed the cat", 4, 4))
+  })
+})
+
+describe("what a move announces", () => {
+  test("a repeat of the same words still changes, so a screen reader reads it again", () => {
+    const first = nextAnnouncement("", "Moved to 2 of 3")
+    const repeat = nextAnnouncement(first, "Moved to 2 of 3")
+    expect(first).toBe("Moved to 2 of 3")
+    expect(repeat).not.toBe(first)
+    expect(repeat.trim()).toBe("Moved to 2 of 3")
+    expect(nextAnnouncement(repeat, "Moved to 2 of 3")).toBe(first)
+    expect(nextAnnouncement(repeat, "Moved to 1 of 3")).toBe("Moved to 1 of 3")
   })
 })

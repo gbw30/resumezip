@@ -5,6 +5,7 @@ import { Plus } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
 import { isLeftOut } from "@/lib/leftOut"
 import { useCheck } from "./CheckContext"
+import { nextAnnouncement } from "./arrange"
 import { BulletsField, Field, FlagNote, MoveButtons, SectionHeading, selectLine } from "./fields"
 import { reducedMotion, reveal, scrollerOf } from "./layout"
 import PaperFromLink from "./PaperFromLink"
@@ -214,7 +215,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
     next.splice(to, 0, ...next.splice(from, 1))
     save(next)
     setConfirmingId(null)
-    setAnnouncement(`Moved to ${to + 1} of ${current.length}`)
+    setAnnouncement((last) => nextAnnouncement(last, `Moved to ${to + 1} of ${current.length}`))
   }
 
   /** Leaves an entry out of the PDF, or puts it back. An entry that's in has no `leftOut` at all. */
