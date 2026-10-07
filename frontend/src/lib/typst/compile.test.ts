@@ -5,6 +5,8 @@ import type { CompileRequest, CompileResponse, PdfError, WorkerMessage } from ".
 // means it never does) and how long it takes.
 class FakeWorker {
   static made: FakeWorker[] = []
+  /** Every request any worker was sent. */
+  static received: CompileRequest[] = []
   static answer: (request: CompileRequest) => CompileResponse | undefined = () => undefined
   static delay: (request: CompileRequest) => number = () => 10
   onmessage: ((event: { data: WorkerMessage }) => void) | null = null
@@ -16,6 +18,7 @@ class FakeWorker {
   }
 
   postMessage(request: CompileRequest) {
+    FakeWorker.received.push(request)
     const response = FakeWorker.answer(request)
     if (response) setTimeout(() => this.send(response), FakeWorker.delay(request))
   }
@@ -35,21 +38,25 @@ const silent = () => undefined
 const resume = { resumeTitle: "Test resume" }
 
 let compileResume: typeof import("./compile").compileResume
+let compilePreview: typeof import("./compile").compilePreview
+let printedOf: typeof import("./compile").printedOf
 
 beforeEach(async () => {
   vi.useFakeTimers()
   vi.stubGlobal("Worker", FakeWorker)
   FakeWorker.made = []
+  FakeWorker.received = []
   FakeWorker.answer = makesPdf
   FakeWorker.delay = () => 10
   // A fresh module each time, so no worker carries over.
   vi.resetModules()
-  ;({ compileResume } = await import("./compile"))
+  ;({ compileResume, compilePreview, printedOf } = await import("./compile"))
 })
 
 afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 // A compile that can be checked without waiting for it, as { value } or { error }.
@@ -232,4 +239,80 @@ test("a request that can't be sent fails alone, and doesn't restart the worker l
 
   await vi.advanceTimersByTimeAsync(60_000)
   expect(FakeWorker.made[0].terminated).toBe(false)
+})
+
+// A resume printing `name`, as a preview request.
+const printing = (name: string) => printedOf({ profileSection: { fullName: name } })
+const namesReceived = () => FakeWorker.received.map((request) => request.data.profile.name)
+
+test("renaming a resume doesn't change what it prints", () => {
+  const resume = { resumeTitle: "Old name", profileSection: { fullName: "Ada Lovelace" } }
+  expect(printedOf({ ...resume, resumeTitle: "New name" })).toEqual(printedOf(resume))
+  expect(printedOf({ ...resume, profileSection: { fullName: "Ada King" } })).not.toEqual(printedOf(resume))
+})
+
+test("while previews keep coming, one compiles and only the newest waits", async () => {
+  FakeWorker.delay = () => 100
+  const previews = ["A", "Ad", "Ada", "Ada L", "Ada Lo"].map((name) => track(compilePreview(printing(name))))
+  await vi.advanceTimersByTimeAsync(0)
+  expect(previews.slice(1, 4).map((preview) => preview.error?.name)).toEqual(["Superseded", "Superseded", "Superseded"])
+
+  await vi.advanceTimersByTimeAsync(200)
+  expect(previews[0].value).toMatch(/^blob:/)
+  expect(previews[4].value).toMatch(/^blob:/)
+  // The first, then the latest. The ones in between were never compiled.
+  expect(namesReceived()).toEqual(["A", "Ada Lo"])
+})
+
+test("downloads are never replaced by previews", async () => {
+  FakeWorker.delay = () => 100
+  const first = track(compilePreview(printing("A")))
+  const download = track(compileResume({ profileSection: { fullName: "Download" } }))
+  const replaced = track(compilePreview(printing("Ad")))
+  const latest = track(compilePreview(printing("Ada")))
+  await vi.advanceTimersByTimeAsync(300)
+  expect(download.value).toEqual(PDF)
+  expect(replaced.error?.name).toBe("Superseded")
+  expect([first.value, latest.value]).toEqual([expect.stringMatching(/^blob:/), expect.stringMatching(/^blob:/)])
+  expect(namesReceived()).toEqual(["A", "Download", "Ada"])
+})
+
+test("a stuck worker fails the waiting preview too", async () => {
+  await loadCompiler()
+  FakeWorker.answer = silent
+  const running = track(compilePreview(printing("A")))
+  const waiting = track(compilePreview(printing("Ad")))
+  await vi.advanceTimersByTimeAsync(20_000)
+  expect([running.error?.failure, waiting.error?.failure]).toEqual(["crash", "crash"])
+  // After the PDF that loaded the compiler, only the running one was sent.
+  expect(namesReceived()).toEqual(["", "A"])
+})
+
+test("a preview withdrawn while it waits is never compiled", async () => {
+  FakeWorker.delay = () => 100
+  const running = track(compilePreview(printing("A")))
+  const wanted = new AbortController()
+  const withdrawn = track(compilePreview(printing("Ad"), wanted.signal))
+  wanted.abort()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(withdrawn.error?.name).toBe("Superseded")
+
+  await vi.advanceTimersByTimeAsync(200)
+  expect(running.value).toMatch(/^blob:/)
+  expect(namesReceived()).toEqual(["A"])
+})
+
+test("a preview whose PDF can't be turned into a link still settles", async () => {
+  vi.spyOn(URL, "createObjectURL").mockImplementation(() => {
+    throw new Error("out of memory")
+  })
+  const preview = track(compilePreview(printing("A")))
+  await vi.advanceTimersByTimeAsync(10)
+  expect(preview.error?.message).toBe("out of memory")
+
+  // The next preview isn't held up.
+  vi.restoreAllMocks()
+  const next = track(compilePreview(printing("Ad")))
+  await vi.advanceTimersByTimeAsync(10)
+  expect(next.value).toMatch(/^blob:/)
 })

@@ -4,10 +4,20 @@
 import { toAttachment } from "@/lib/resumeFile"
 import { templateIdOf, toTemplateData, type TemplateData, type TemplateId } from "./resumeData"
 
-export interface CompileRequest {
-  id: number
+/** What a resume prints: its template and the data the template reads. Renaming a resume doesn't change it. */
+export interface Printed {
   template: TemplateId
   data: TemplateData
+}
+
+/** What a resume, in the editor's format, prints. */
+export const printedOf = (resume: Record<string, any>): Printed => ({
+  template: templateIdOf(resume.selectedTemplate),
+  data: toTemplateData(resume),
+})
+
+export interface CompileRequest extends Printed {
+  id: number
   /** A copy of the resume to attach to the PDF (see lib/resumeFile.ts). */
   attachment?: string
 }
@@ -26,6 +36,14 @@ export class PdfError extends Error {
     readonly failure: PdfFailure,
   ) {
     super(message)
+  }
+}
+
+/** A preview replaced by a newer one, or withdrawn, before it started, so it was never compiled. */
+export class Superseded extends Error {
+  constructor() {
+    super("This preview was no longer needed")
+    this.name = "Superseded"
   }
 }
 
@@ -67,6 +85,8 @@ function watch() {
 function restart(error: PdfError) {
   for (const { reject } of pending.values()) reject(error)
   pending.clear()
+  previewWaiting?.reject(error)
+  previewWaiting = null
   watch()
   worker?.terminate()
   worker = null
@@ -110,12 +130,11 @@ interface CompileOptions {
 
 /** Compiles a resume, in the editor's format, to PDF bytes. */
 export function compileResume(resume: Record<string, any>, { attach = false }: CompileOptions = {}): Promise<Uint8Array> {
-  const request: CompileRequest = {
-    id: nextId++,
-    template: templateIdOf(resume.selectedTemplate),
-    data: toTemplateData(resume),
-    attachment: attach ? toAttachment(resume) : undefined,
-  }
+  return send(printedOf(resume), attach ? toAttachment(resume) : undefined)
+}
+
+function send(printed: Printed, attachment?: string): Promise<Uint8Array> {
+  const request: CompileRequest = { id: nextId++, ...printed, attachment }
   return new Promise((resolve, reject) => {
     getWorker().postMessage(request)
     pending.set(request.id, { resolve, reject })
@@ -125,15 +144,55 @@ export function compileResume(resume: Record<string, any>, { attach = false }: C
   })
 }
 
-/** Compiles a resume and returns an object URL for the PDF. Revoke it when done. */
-export async function compileResumeUrl(resume: Record<string, any>, options?: CompileOptions): Promise<string> {
-  const pdf = await compileResume(resume, options)
-  return URL.createObjectURL(new Blob([pdf as BlobPart], { type: "application/pdf" }))
+const toUrl = (pdf: Uint8Array) => URL.createObjectURL(new Blob([pdf as BlobPart], { type: "application/pdf" }))
+
+// Previews compile one at a time. While one runs, only the newest waits: an
+// older one waiting is settled at once, as its result would be thrown away.
+// Downloads don't wait here, so they're never replaced.
+let previewRunning = false
+let previewWaiting: { printed: Printed; resolve: (url: string) => void; reject: (error: Error) => void } | null = null
+
+/**
+ * Compiles a preview and returns an object URL for the PDF. Revoke it when
+ * done. Rejects with Superseded if a newer preview replaces it, or `signal`
+ * withdraws it, before it starts.
+ */
+export function compilePreview(printed: Printed, signal?: AbortSignal): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new Superseded())
+    previewWaiting?.reject(new Superseded())
+    const entry = { printed, resolve, reject }
+    previewWaiting = entry
+    signal?.addEventListener(
+      "abort",
+      () => {
+        if (previewWaiting !== entry) return
+        previewWaiting = null
+        reject(new Superseded())
+      },
+      { once: true },
+    )
+    if (!previewRunning) startNextPreview()
+  })
+}
+
+function startNextPreview() {
+  const next = previewWaiting
+  previewWaiting = null
+  if (!next) return
+  previewRunning = true
+  send(next.printed)
+    .then(toUrl)
+    .then(next.resolve, next.reject)
+    .finally(() => {
+      previewRunning = false
+      startNextPreview()
+    })
 }
 
 /** Compiles a resume and saves it as "<title>.pdf", with the resume attached. */
 export async function downloadResume(resume: Record<string, any>): Promise<void> {
-  const url = await compileResumeUrl(resume, { attach: true })
+  const url = toUrl(await compileResume(resume, { attach: true }))
   const link = document.createElement("a")
   link.href = url
   link.download = `${resume.resumeTitle?.trim() || "resume"}.pdf`

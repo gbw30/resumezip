@@ -14,9 +14,15 @@ import DownloadFailed, { nextFailure, type Failure } from "@/components/site/Dow
 import NotSaved from "@/components/site/NotSaved"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import { uniqueTitle } from "@/lib/resumeTitles"
-import { compileResumeUrl, downloadResume } from "@/lib/typst/compile"
+import { compilePreview, downloadResume, printedOf, Superseded } from "@/lib/typst/compile"
 
 const pad = (n: number) => String(n).padStart(2, "0")
+
+// After a change, the preview waits about as long as a compile takes before
+// compiling: fast computers update quickly, and slow phones don't compile
+// for every pause in typing.
+const MIN_WAIT_MS = 150
+const MAX_WAIT_MS = 400
 
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -30,6 +36,8 @@ export default function EditorPage() {
   const [view, setView] = useState<"edit" | "preview">("edit")
   const [typing, setTyping] = useState(false)
   const editScroll = useRef(0)
+  // How long the last preview took.
+  const compileMs = useRef(MIN_WAIT_MS)
   const headerRef = useRef<HTMLElement>(null)
   const mainRef = useRef<HTMLElement>(null)
 
@@ -51,28 +59,37 @@ export default function EditorPage() {
     if (formData.id) document.title = `${tabTitle} · resumezip`
   }, [formData.id, tabTitle])
 
-  // Re-render the preview in the browser shortly after the resume changes.
+  // What the preview shows. Changes that don't print, such as renaming the
+  // resume, leave it as it was, so they don't recompile.
+  const printed = useMemo(() => JSON.stringify(printedOf({ ...formData, sectionOrder: sections })), [formData, sections])
+
+  // Re-render the preview in the browser shortly after what it shows changes.
   useEffect(() => {
     if (!formData.id) return
-    let cancelled = false
+    // Aborted once this preview is no longer wanted: withdrawn if it's still
+    // waiting to compile, and its result thrown away if it isn't.
+    const wanted = new AbortController()
+    const wait = Math.min(MAX_WAIT_MS, Math.max(MIN_WAIT_MS, compileMs.current))
     const timer = setTimeout(async () => {
+      const startedAt = performance.now()
       try {
-        const url = await compileResumeUrl({ ...formData, sectionOrder: sections })
-        if (cancelled) {
+        const url = await compilePreview(JSON.parse(printed), wanted.signal)
+        compileMs.current = performance.now() - startedAt
+        if (wanted.signal.aborted) {
           URL.revokeObjectURL(url)
           return
         }
         setPdfUrl(url)
         setCompileError(null)
       } catch (error) {
-        if (!cancelled) setCompileError(error instanceof Error ? error.message : String(error))
+        if (!wanted.signal.aborted && !(error instanceof Superseded)) setCompileError(error instanceof Error ? error.message : String(error))
       }
-    }, 400)
+    }, wait)
     return () => {
-      cancelled = true
+      wanted.abort()
       clearTimeout(timer)
     }
-  }, [formData, sections])
+  }, [formData.id, printed])
 
   // Free each preview PDF once a newer one replaces it.
   useEffect(() => {

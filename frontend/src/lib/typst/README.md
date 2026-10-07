@@ -10,7 +10,8 @@ server to build a PDF.
   and fonts download (each bit that arrives counts, so slow connections finish),
   20 s once it has loaded, or at once if the compiler breaks. The worker also
   checks in as each slow step starts (building the compiler, each compile), so
-  the limit applies to one step at a time. Failures say why
+  the limit applies to one step at a time. Previews compile one at a time:
+  while one runs, only the newest waits, and downloads never wait behind them. Failures say why
   (`PdfFailure`), so the page can say what to do.
 - `typst.worker.ts` loads the WebAssembly compiler, fonts and templates once and
   compiles each request. Downloads also attach a copy of the resume to the PDF
