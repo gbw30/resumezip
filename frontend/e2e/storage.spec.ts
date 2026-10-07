@@ -8,6 +8,10 @@ declare global {
     storageFull?: boolean
     /** The keys saved to localStorage, noted by a test. */
     saves?: string[]
+    /** How many times the page asked the browser to keep its data, counted by a test. */
+    persistRequests?: number
+    /** How many times the page checked whether the person let it keep its data, counted by a test. */
+    permissionChecks?: number
   }
 }
 
@@ -250,4 +254,50 @@ test("two tabs editing different resumes at once keep both edits", async ({ page
 
   expect(errors).toEqual([])
   expect(otherErrors).toEqual([])
+})
+
+test("the browser is asked to keep saved resumes once there is one, and only once a page", async ({ page }) => {
+  const errors = pageErrors(page)
+  // Counts the requests instead of asking the real browser, and the
+  // permission checks, after which the page decides whether to ask.
+  await page.addInitScript(() => {
+    window.persistRequests = 0
+    window.permissionChecks = 0
+    Object.defineProperty(navigator, "storage", {
+      value: {
+        persisted: async () => false,
+        persist: async () => {
+          window.persistRequests = (window.persistRequests ?? 0) + 1
+          return false
+        },
+      },
+    })
+    Object.defineProperty(navigator, "permissions", {
+      value: {
+        query: async () => {
+          window.permissionChecks = (window.permissionChecks ?? 0) + 1
+          return { state: "prompt" }
+        },
+      },
+    })
+  })
+  const requests = () => page.evaluate(() => window.persistRequests)
+  await page.goto("/create/dashboard")
+  await expect(page.getByText("No resumes yet")).toBeVisible()
+  expect(await requests()).toBe(0)
+
+  await startWriting(page)
+  await expect.poll(requests).toBe(1)
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await expect(page.getByRole("region", { name: "Live preview" }).getByText(/Ada Lovelace/i).first()).toBeVisible()
+  expect(await requests()).toBe(1)
+  // After a no, it waits a week before asking again.
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("storage-persist-asked"))).not.toBeNull()
+  await page.reload()
+  await expect(page.getByLabel("Full name")).toHaveValue("Ada Lovelace")
+  // Once it has checked, it has decided.
+  await expect.poll(() => page.evaluate(() => window.permissionChecks)).toBe(1)
+  expect(await requests()).toBe(0)
+
+  expect(errors).toEqual([])
 })

@@ -1,5 +1,6 @@
 "use client";
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { keepSavedData } from "@/lib/keepSavedData"
 import type { ResumeContent } from "@/lib/resumeFile"
 import { createResumeStore, INITIAL_STATE, type Resume, type ResumeState } from "@/lib/resumeStore"
 import { getStorage } from "@/lib/resumeStorage"
@@ -66,6 +67,17 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
       store.flush();
     };
   }, [store]);
+
+  // Once there's a resume, ask the browser not to delete it to make room;
+  // once a page is enough.
+  const hasResumes = Object.keys(state.resumes).length > 0;
+  const askedToKeep = useRef(false);
+  useEffect(() => {
+    const storage = getStorage();
+    if (!hasResumes || !storage || askedToKeep.current) return;
+    askedToKeep.current = true;
+    void keepSavedData(storage);
+  }, [hasResumes]);
 
   const actions = useMemo<ResumeActions>(
     () => ({

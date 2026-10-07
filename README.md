@@ -53,7 +53,7 @@
 
 resumezip is a [Next.js](https://nextjs.org) app with no server of its own.
 
-- Resumes live in your browser's local storage.
+- Resumes live in your browser's local storage. resumezip asks the browser to keep them rather than clear them to free up space, but Safari still deletes a site's data after seven days of Safari use without a visit. That's the cost of having no accounts and no server: in Safari, keep your downloaded PDF, since it opens again as an editable resume.
 - PDFs are made with [Typst](https://typst.app), running in the browser as WebAssembly through [typst.ts](https://github.com/Myriad-Dreamin/typst.ts), in a Web Worker so typing stays smooth.
 - The preview and opening PDFs use [pdf.js](https://mozilla.github.io/pdf.js/). Word files are read with [mammoth](https://github.com/mwilliamson/mammoth.js).
 - Each downloaded PDF has a copy of its resume attached, which is how it opens again for editing.
