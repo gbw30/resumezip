@@ -39,10 +39,10 @@ export class PdfError extends Error {
   }
 }
 
-/** A preview that a newer one replaced before it started, so it was never compiled. */
+/** A preview replaced by a newer one, or withdrawn, before it started, so it was never compiled. */
 export class Superseded extends Error {
   constructor() {
-    super("A newer preview replaced this one")
+    super("This preview was no longer needed")
     this.name = "Superseded"
   }
 }
@@ -154,12 +154,24 @@ let previewWaiting: { printed: Printed; resolve: (url: string) => void; reject: 
 
 /**
  * Compiles a preview and returns an object URL for the PDF. Revoke it when
- * done. Rejects with Superseded if a newer preview replaces it before it starts.
+ * done. Rejects with Superseded if a newer preview replaces it, or `signal`
+ * withdraws it, before it starts.
  */
-export function compilePreview(printed: Printed): Promise<string> {
+export function compilePreview(printed: Printed, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new Superseded())
     previewWaiting?.reject(new Superseded())
-    previewWaiting = { printed, resolve, reject }
+    const entry = { printed, resolve, reject }
+    previewWaiting = entry
+    signal?.addEventListener(
+      "abort",
+      () => {
+        if (previewWaiting !== entry) return
+        previewWaiting = null
+        reject(new Superseded())
+      },
+      { once: true },
+    )
     if (!previewRunning) startNextPreview()
   })
 }
@@ -170,7 +182,8 @@ function startNextPreview() {
   if (!next) return
   previewRunning = true
   send(next.printed)
-    .then((pdf) => next.resolve(toUrl(pdf)), next.reject)
+    .then(toUrl)
+    .then(next.resolve, next.reject)
     .finally(() => {
       previewRunning = false
       startNextPreview()

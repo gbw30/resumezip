@@ -66,25 +66,27 @@ export default function EditorPage() {
   // Re-render the preview in the browser shortly after what it shows changes.
   useEffect(() => {
     if (!formData.id) return
-    let cancelled = false
+    // Aborted once this preview is no longer wanted: withdrawn if it's still
+    // waiting to compile, and its result thrown away if it isn't.
+    const wanted = new AbortController()
     const wait = Math.min(MAX_WAIT_MS, Math.max(MIN_WAIT_MS, compileMs.current))
     const timer = setTimeout(async () => {
       const startedAt = performance.now()
       try {
-        const url = await compilePreview(JSON.parse(printed))
+        const url = await compilePreview(JSON.parse(printed), wanted.signal)
         compileMs.current = performance.now() - startedAt
-        if (cancelled) {
+        if (wanted.signal.aborted) {
           URL.revokeObjectURL(url)
           return
         }
         setPdfUrl(url)
         setCompileError(null)
       } catch (error) {
-        if (!cancelled && !(error instanceof Superseded)) setCompileError(error instanceof Error ? error.message : String(error))
+        if (!wanted.signal.aborted && !(error instanceof Superseded)) setCompileError(error instanceof Error ? error.message : String(error))
       }
     }, wait)
     return () => {
-      cancelled = true
+      wanted.abort()
       clearTimeout(timer)
     }
   }, [formData.id, printed])

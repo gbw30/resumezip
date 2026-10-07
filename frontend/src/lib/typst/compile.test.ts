@@ -56,6 +56,7 @@ beforeEach(async () => {
 afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 // A compile that can be checked without waiting for it, as { value } or { error }.
@@ -285,4 +286,33 @@ test("a stuck worker fails the waiting preview too", async () => {
   expect([running.error?.failure, waiting.error?.failure]).toEqual(["crash", "crash"])
   // After the PDF that loaded the compiler, only the running one was sent.
   expect(namesReceived()).toEqual(["", "A"])
+})
+
+test("a preview withdrawn while it waits is never compiled", async () => {
+  FakeWorker.delay = () => 100
+  const running = track(compilePreview(printing("A")))
+  const wanted = new AbortController()
+  const withdrawn = track(compilePreview(printing("Ad"), wanted.signal))
+  wanted.abort()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(withdrawn.error?.name).toBe("Superseded")
+
+  await vi.advanceTimersByTimeAsync(200)
+  expect(running.value).toMatch(/^blob:/)
+  expect(namesReceived()).toEqual(["A"])
+})
+
+test("a preview whose PDF can't be turned into a link still settles", async () => {
+  vi.spyOn(URL, "createObjectURL").mockImplementation(() => {
+    throw new Error("out of memory")
+  })
+  const preview = track(compilePreview(printing("A")))
+  await vi.advanceTimersByTimeAsync(10)
+  expect(preview.error?.message).toBe("out of memory")
+
+  // The next preview isn't held up.
+  vi.restoreAllMocks()
+  const next = track(compilePreview(printing("Ad")))
+  await vi.advanceTimersByTimeAsync(10)
+  expect(next.value).toMatch(/^blob:/)
 })
