@@ -58,8 +58,10 @@ describe("the font files", () => {
       actual[file] = await builder.getFontInfo(bytesOf(file))
       lines.push(`  ${JSON.stringify(file)}: ${JSON.stringify(actual[file])}`)
     }
-    if (process.env.UPDATE_FONT_INFO) writeFileSync(path.join(FONTS, "info.json"), `{\n${lines.join(",\n")}\n}\n`)
-    expect(FONT_INFO).toEqual(actual)
+    const file = path.join(FONTS, "info.json")
+    if (process.env.UPDATE_FONT_INFO) writeFileSync(file, `{\n${lines.join(",\n")}\n}\n`)
+    // Read afresh, so a file just written is the one checked.
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(actual)
   })
 
   test("each template's font is the one its text is set in, and one of the files", () => {
@@ -95,8 +97,13 @@ describe("printing with only the fonts a resume needs", () => {
     compiler.mapShadow("/resume.json", new TextEncoder().encode(JSON.stringify(data)))
     const { result, diagnostics } = await compiler.compile({ mainFilePath: `/${template}.typ`, format: CompileFormatEnum.pdf, diagnostics: "unix" })
     if (!result) throw new Error(diagnostics?.join("\n"))
-    // The time it was made, which is all that differs between two PDFs of the same resume.
-    return Buffer.from(result).toString("latin1").replace(/D:\d{14}Z|\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/g, (date) => date.replace(/\d/g, "0"))
+    // When it was made, and the ID Typst makes from that, are all that
+    // differ between two PDFs of the same resume.
+    return Buffer.from(result)
+      .toString("latin1")
+      .replace(/D:\d{14}Z|\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/g, (date) => date.replace(/\d/g, "0"))
+      .replace(/<xmpMM:(Instance|Document)ID>[^<]*/g, "<xmpMM:$1ID>")
+      .replace(/\/ID \[\([^)]*\) \([^)]*\)\]/g, "/ID []")
   }
 
   const samples = readdirSync(path.join(TYPST, "preview-samples")).map((file) =>
