@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs"
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs"
 import { pageErrors, seriousAccessibilityProblems } from "./helpers"
 
@@ -305,6 +305,39 @@ test("the text box shows every bullet after arranging, and a deleted entry's mod
   await expect(page.getByRole("button", { name: "Edit entry 3" })).toHaveCount(0)
   await page.getByRole("button", { name: "Edit entry 1" }).click()
   await expect(page.locator('[data-field="workDescription"]').first().getByRole("textbox", { name: BULLETS })).toHaveValue("• Filed the reports")
+
+  expect(errors).toEqual([])
+})
+
+test("on a narrower screen, a moved entry's buttons stay in sight, clear of the bars pinned over the page", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+  // Narrower than the split view, the form shows on its own, under the pinned section tabs.
+  await page.setViewportSize({ width: 1024, height: 768 })
+  // Not under a bar pinned to the top or bottom of the window, and on screen.
+  const inSight = (button: Locator) =>
+    button.evaluate((element) => {
+      let top = 0
+      let bottom = window.innerHeight
+      for (const bar of document.querySelectorAll<HTMLElement>("[data-covers]")) {
+        const box = bar.getBoundingClientRect()
+        if (!["sticky", "fixed"].includes(getComputedStyle(bar).position) || !box.height) continue
+        if (bar.dataset.covers === "top") top = Math.max(top, box.bottom)
+        else bottom = Math.min(bottom, box.top)
+      }
+      const box = element.getBoundingClientRect()
+      return box.top >= top && box.bottom <= bottom
+    })
+
+  // Entry 2 moves up past entry 1, which is open and taller than the window, so its heading jumps up the page.
+  const up = page.getByRole("button", { name: "Move entry 2 up" })
+  await up.evaluate((element) => element.scrollIntoView({ block: "center" }))
+  await up.focus()
+  await expect.poll(() => inSight(up)).toBe(true)
+  await page.keyboard.press("Enter")
+  const moved = page.getByRole("button", { name: "Move entry 1 up" })
+  await expect(moved).toBeFocused()
+  await expect.poll(() => inSight(moved)).toBe(true)
 
   expect(errors).toEqual([])
 })
