@@ -11,6 +11,19 @@ export const ATTACHMENT_NAME = "resumezip.json"
 const FORMAT = "resumezip"
 const VERSION = 1
 
+/**
+ * The most an attachment can hold and still be opened: characters of text,
+ * and entries in all sections together. Far more than any resume needs (a
+ * browser only lets a site save about half as many characters), but a file
+ * from anyone can't tie up the page. A bigger one isn't opened at all,
+ * rather than opened with parts cut off.
+ */
+export const MAX_LENGTH = 10_000_000
+export const MAX_ENTRIES = 10_000
+
+/** An attachment with more than MAX_LENGTH characters or MAX_ENTRIES entries. */
+export class TooLongError extends Error {}
+
 /** A resume in the editor's format, without the name and tag it has in this browser. */
 export type ResumeContent = Record<string, any>
 
@@ -22,21 +35,34 @@ export function toAttachment(resume: Record<string, any>): string {
   return JSON.stringify({ format: FORMAT, version: VERSION, resume: cleanResume(resume) })
 }
 
-/** Reads an attachment back, or returns null if the text isn't one. */
+/**
+ * Reads an attachment back, or returns null if the text isn't one. Throws a
+ * TooLongError if it's too big to open (see MAX_LENGTH).
+ */
 export function fromAttachment(text: string): ResumeContent | null {
+  if (text.length > MAX_LENGTH) throw new TooLongError()
+  let file
   try {
-    const file = JSON.parse(text)
-    if (file?.format !== FORMAT || typeof file.version !== "number" || file.version > VERSION) return null
-    return cleanResume(file.resume)
+    file = JSON.parse(text)
   } catch {
     return null
   }
+  if (file?.format !== FORMAT || typeof file.version !== "number" || file.version > VERSION) return null
+  if (entryCount(file.resume) > MAX_ENTRIES) throw new TooLongError()
+  return cleanResume(file.resume)
 }
 
 const object = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
 
-const string = (value: unknown, max = 10_000) => (typeof value === "string" ? value.slice(0, max) : "")
+const string = (value: unknown) => (typeof value === "string" ? value : "")
+
+/** How many entries a resume's sections have together. */
+const entryCount = (resume: unknown) =>
+  SECTION_NAMES.reduce((count, name) => {
+    const entries = object(resume)[SECTIONS[name].dataKey]
+    return count + (Array.isArray(entries) ? entries.length : 0)
+  }, 0)
 
 // Older resumes stored bullets as a list; the editor uses one "• " line each.
 const bulletText = (value: unknown) =>
@@ -45,12 +71,12 @@ const bulletText = (value: unknown) =>
         .filter((line): line is string => typeof line === "string" && line.trim() !== "")
         .map((line) => `• ${line.trim().replace(/^•\s*/, "")}`)
         .join("\n")
-        .slice(0, 10_000)
     : string(value)
 
 /**
  * Keeps only the fields the editor knows, as strings, with entries numbered
- * 1..n. Files can come from anywhere, so nothing else is trusted.
+ * 1..n. Files can come from anywhere, so nothing else is trusted. Nothing is
+ * cut short: what the editor can hold, an attachment can too.
  */
 export function cleanResume(input: unknown): ResumeContent {
   const resume = object(input)
@@ -67,9 +93,9 @@ export function cleanResume(input: unknown): ResumeContent {
     headings: Object.fromEntries(
       SECTION_NAMES.map((name) => SECTIONS[name].headingKey)
         .filter((key) => string(headings[key]).trim() !== "")
-        .map((key) => [key, string(headings[key], 200)]),
+        .map((key) => [key, string(headings[key])]),
     ),
-    profileSection: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, string(profile[field.key], 500)])),
+    profileSection: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, string(profile[field.key])])),
   }
 
   for (const name of SECTION_NAMES) {
@@ -77,7 +103,7 @@ export function cleanResume(input: unknown): ResumeContent {
     if (choice && choice.options.some((option) => option.value === resume[choice.key])) {
       clean[choice.key] = resume[choice.key]
     }
-    const entries = Array.isArray(resume[dataKey]) ? (resume[dataKey] as unknown[]).slice(0, 100) : []
+    const entries = Array.isArray(resume[dataKey]) ? (resume[dataKey] as unknown[]) : []
     clean[dataKey] = entries.map((entry, index) => ({
       id: index + 1,
       ...Object.fromEntries(
