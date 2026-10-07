@@ -14,9 +14,32 @@ export interface CompileRequest {
 
 export type CompileResponse = { id: number; pdf: Uint8Array } | { id: number; error: string }
 
+// How long a PDF can take before the worker is taken to be stuck. The first
+// one waits for the compiler (~7 MB) and fonts to download, so it gets longer.
+const FIRST_PDF_MS = 90_000
+const PDF_MS = 20_000
+
 let worker: Worker | null = null
+// Whether the current worker has made a PDF, so its compiler is loaded.
+let started = false
 let nextId = 0
-const pending = new Map<number, { resolve: (pdf: Uint8Array) => void; reject: (error: Error) => void }>()
+const pending = new Map<
+  number,
+  { resolve: (pdf: Uint8Array) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
+>()
+
+// Fails everything in flight and drops the worker, so the next request starts
+// a fresh one.
+function restart(error: Error) {
+  for (const { reject, timer } of pending.values()) {
+    clearTimeout(timer)
+    reject(error)
+  }
+  pending.clear()
+  worker?.terminate()
+  worker = null
+  started = false
+}
 
 function getWorker(): Worker {
   if (worker) return worker
@@ -24,18 +47,16 @@ function getWorker(): Worker {
   worker = new Worker(new URL("./typst.worker.ts", import.meta.url))
   worker.onmessage = ({ data }: MessageEvent<CompileResponse>) => {
     const request = pending.get(data.id)
+    if (!request) return
     pending.delete(data.id)
-    if ("pdf" in data) request?.resolve(data.pdf)
-    else request?.reject(new Error(data.error))
+    clearTimeout(request.timer)
+    if ("pdf" in data) {
+      started = true
+      request.resolve(data.pdf)
+    } else request.reject(new Error(data.error))
   }
-  worker.onerror = (event) => {
-    // The worker itself broke: fail everything in flight and start a fresh
-    // worker on the next request.
-    for (const { reject } of pending.values()) reject(new Error(event.message || "The Typst worker failed"))
-    pending.clear()
-    worker?.terminate()
-    worker = null
-  }
+  // The worker itself broke.
+  worker.onerror = (event) => restart(new Error(event.message || "The Typst worker failed"))
   return worker
 }
 
@@ -53,8 +74,11 @@ export function compileResume(resume: Record<string, any>, { attach = false }: C
     attachment: attach ? toAttachment(resume) : undefined,
   }
   return new Promise((resolve, reject) => {
-    pending.set(request.id, { resolve, reject })
-    getWorker().postMessage(request)
+    const target = getWorker()
+    // A stuck worker can't hang a download forever.
+    const timer = setTimeout(() => restart(new Error("Making the PDF took too long")), started ? PDF_MS : FIRST_PDF_MS)
+    pending.set(request.id, { resolve, reject, timer })
+    target.postMessage(request)
   })
 }
 
