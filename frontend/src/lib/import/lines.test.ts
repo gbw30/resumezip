@@ -112,10 +112,18 @@ describe("reading a Word file", () => {
     expect(convertToHtml).not.toHaveBeenCalled()
   })
 
+  test("one with something else before the zip is measured all the same", async () => {
+    vi.mocked(convertToHtml).mockClear()
+    const prefixed = (zip: Buffer) => Buffer.concat([Buffer.from("Something else first. "), zip])
+    expect(unzippedXmlSize(bytes(prefixed(wordFile(["Mara Lin"]))))).toBe(unzippedXmlSize(bytes(wordFile(["Mara Lin"]))))
+    await expect(linesFromDocx(bytes(prefixed(wordFile(["Mara Lin"], { padding: MAX_WORD_XML_BYTES }))))).rejects.toThrow(TooMuchTextError)
+    expect(convertToHtml).not.toHaveBeenCalled()
+  })
+
   test("a damaged zip is left to mammoth, which can't read it", async () => {
     const file = wordFile(["Mara Lin"])
-    // Says the directory starts past the end of the file.
-    file.writeUInt32LE(file.length, file.length - 22 + 16)
+    // Says the directory is bigger than the whole file.
+    file.writeUInt32LE(file.length, file.length - 22 + 12)
     expect(unzippedXmlSize(bytes(file))).toBeNull()
     await expect(linesFromDocx(bytes(file))).rejects.toThrow(UnreadableWordFileError)
   })

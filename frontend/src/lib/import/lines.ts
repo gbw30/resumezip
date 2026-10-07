@@ -486,7 +486,11 @@ export function unzippedXmlSize(data: ArrayBuffer): number | null {
     if (view.getUint32(end, true) !== 0x06054b50) continue
     // A ZIP64 file's directory is found from another record, just before this one.
     if (end >= 20 && view.getUint32(end - 20, true) === 0x07064b50) return Infinity
-    let at = view.getUint32(end + 16, true)
+    // The directory sits just before this record. It's found from its size,
+    // not the place it's given at, which counts from where the zip starts: a
+    // file can have something else before that, and mammoth's unzipper allows for it.
+    let at = end - view.getUint32(end + 12, true)
+    if (at < 0) return null
     let total = 0
     for (let count = view.getUint16(end + 10, true); count > 0; count--) {
       if (at + 46 > view.byteLength || view.getUint32(at, true) !== 0x02014b50) return null
