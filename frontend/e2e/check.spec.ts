@@ -10,13 +10,6 @@ async function newResume(page: Page) {
   await expect(page).toHaveURL(/\/create\/new\//)
 }
 
-/**
- * Waits for the preview's first page. Safari reports leaving the editor while
- * it still downloads its PDF compiler as an error, so reloads wait for this.
- */
-const previewShown = (page: Page) =>
-  expect(page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page").first()).toBeVisible()
-
 test("the left bar switches between writing and checking, and remembers which", async ({ page }) => {
   const errors = pageErrors(page)
   await newResume(page)
@@ -51,12 +44,15 @@ test("the left bar switches between writing and checking, and remembers which", 
     await expect(tab).toHaveAttribute("aria-selected", "true")
   }
 
-  // The mode stays after a reload, until it's switched back.
-  await previewShown(page)
+  // The mode stays after a reload, until it's switched back. Each reload
+  // waits for the preview, so the PDF compiler's download isn't cut off,
+  // which Safari logs as an error.
+  const preview = page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()
+  await expect(preview).toBeVisible()
   await page.reload()
   await expect(check).toHaveAttribute("aria-selected", "true")
   await write.click()
-  await previewShown(page)
+  await expect(preview).toBeVisible()
   await page.reload()
   await expect(write).toHaveAttribute("aria-selected", "true")
   await expect(sections).toBeVisible()
