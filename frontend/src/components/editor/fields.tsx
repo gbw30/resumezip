@@ -121,15 +121,22 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
     const textarea = textareaRef.current
     if (!textarea) return
     let width = textarea.clientWidth
+    let frame = 0
     const observer = new ResizeObserver(() => {
       const next = textarea.clientWidth
       // Hidden while the preview shows on small screens: nothing to fit until it's back.
       if (!next || next === width) return
       width = next
-      fitHeight(textarea)
+      // On the next frame: changing the box's height while it's being
+      // measured would make the browser report a ResizeObserver loop.
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => fitHeight(textarea))
     })
     observer.observe(textarea)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(frame)
+    }
   }, [])
 
   // Adds or removes a mark around the selected words, ** for bold or * for italic, keeping them selected.
