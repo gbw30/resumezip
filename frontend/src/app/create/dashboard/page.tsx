@@ -15,6 +15,7 @@ import PageIntro from "@/components/site/PageIntro"
 import SiteFooter from "@/components/site/SiteFooter"
 import SiteHeader from "@/components/site/SiteHeader"
 import type { OpenedFile } from "@/lib/import/open"
+import { hasLeftOut } from "@/lib/leftOut"
 import { loadCompiler, savingData } from "@/lib/typst/compile"
 
 // Only loaded when someone opens a file that isn't a resumezip PDF.
@@ -283,6 +284,7 @@ export default function DashboardPage() {
           existingTitle={opening.existing.resumeTitle}
           existingEdited={opening.existing.updatedAt}
           fileEdited={opening.file.resume.updatedAt}
+          existingLeftOut={hasLeftOut(opening.existing)}
           onCancel={closeOpening}
           onKeepBoth={() => edit(importResume(opening.file.resume, opening.file.title, { keepId: false }))}
           onReplace={() => {

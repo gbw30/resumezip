@@ -28,7 +28,8 @@ npm run test:browser   # after a build; see below
 - `src/lib/typst/` builds PDFs in a Web Worker. Its README covers adding a
   template.
 - `src/lib/resumeFile.ts`: every downloaded PDF carries its resume, so the PDF
-  is the user's save file and opens again exactly.
+  is the user's save file and opens again exactly. Entries and bullets left out
+  of the PDF (`src/lib/leftOut.ts`) aren't in it, and stay only in the browser.
 - `src/lib/import/` opens PDF and Word files and sorts them into the editor's
   fields. Its README explains how.
 - `src/lib/check/` is the resume checker: fixed rules that say what to fix on

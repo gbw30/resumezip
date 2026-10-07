@@ -49,27 +49,30 @@ interface ConflictDialogProps {
   existingTitle: string
   existingEdited: unknown
   fileEdited: unknown
+  /** Whether the resume in this browser has something left out of the PDF, which the PDF doesn't hold. */
+  existingLeftOut: boolean
   onCancel: () => void
   onKeepBoth: () => void
   onReplace: () => void
 }
 
 /** A resumezip PDF of a resume that's already in this browser, but different. */
-export function ConflictDialog({ existingTitle, existingEdited, fileEdited, onCancel, onKeepBoth, onReplace }: ConflictDialogProps) {
+export function ConflictDialog({ existingTitle, existingEdited, fileEdited, existingLeftOut, onCancel, onKeepBoth, onReplace }: ConflictDialogProps) {
   return (
     <Modal title="You already have this resume" onClose={onCancel}>
       <p className="mt-4 text-[15px] leading-relaxed text-ink-2">
         &ldquo;{existingTitle || "Untitled resume"}&rdquo; is in this browser, last edited {formatWhen(existingEdited)}. The PDF is
         from {formatWhen(fileEdited)}.
+        {existingLeftOut && " What you left out of the PDF isn't in the file, so replacing deletes it."}
       </p>
       <div className="mt-7 flex flex-wrap justify-end gap-2">
         <button type="button" onClick={onCancel} className={quiet}>
           Cancel
         </button>
-        <button type="button" onClick={onKeepBoth} className={secondary}>
+        <button type="button" onClick={onKeepBoth} className={existingLeftOut ? primary : secondary}>
           Keep both
         </button>
-        <button type="button" onClick={onReplace} className={primary}>
+        <button type="button" onClick={onReplace} className={existingLeftOut ? secondary : primary}>
           Replace with the PDF
         </button>
       </div>
