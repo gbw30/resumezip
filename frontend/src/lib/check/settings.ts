@@ -45,3 +45,40 @@ export const MAX_WORDS = 500
 
 /** Longer than this isn't a word, so "Add word" ignores it. */
 export const MAX_WORD_LENGTH = 60
+
+// Contact & personal details (C1–C10).
+
+/** A phone number has at least this many digits; a leading "+" country code is fine. */
+export const MIN_PHONE_DIGITS = 10
+
+/**
+ * The end of a LinkedIn link LinkedIn made up, rather than one the person
+ * chose: a hyphen, then at least this many letters and digits, with a digit
+ * among them ("jake-ryan-8a7b6c123").
+ */
+export const LINKEDIN_RANDOM_ENDING = 6
+
+/** Words that make a street address, after a house number: "12 Elm St". */
+export const STREET_WORDS = [
+  "St", "Street", "Ave", "Avenue", "Rd", "Road", "Blvd", "Boulevard", "Dr", "Drive", "Ln", "Lane", "Way",
+  "Ct", "Court", "Pl", "Place", "Pkwy", "Parkway", "Hwy", "Highway", "Ter", "Terrace", "Cir", "Circle",
+]
+
+/**
+ * Personal details to leave off, and how they're usually written. Nationality,
+ * citizenship and clearance are never flagged: roles that need a security
+ * clearance ask for them.
+ */
+export const PERSONAL_DETAILS = [
+  {
+    name: "date of birth",
+    pattern: /\b(date of birth|birth ?date|D\.?O\.?B\b)|\bborn\s+((on|in)\s+)?(\d|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d)/i,
+  },
+  { name: "age", pattern: /\bage\s*:\s*\d|\b\d{2}\s*(years|yrs)\.?\s*old\b|\byears of age\b/i },
+  { name: "gender", pattern: /\b(gender|sex)\s*:/i },
+  { name: "marital status", pattern: /\bmarital status\b|\b(married|divorced|widowed)\b/i },
+] as const
+
+/** A Social Security number, as it's usually written. */
+export const SSN = /\b\d{3}-\d{2}-\d{4}\b/
+
