@@ -82,7 +82,8 @@ test("the checker asks for a name and an entry first, then scores the resume and
   await check.click()
   await expect(waiting).toBeHidden()
   await expect(score.getByText(/^\d+$/)).toBeVisible()
-  await expect(score).toContainText("out of 100")
+  // Screen readers are told the score as it changes.
+  await expect(score.locator("[aria-live=polite]")).toContainText(/^\d+\s*\/ 100\s*out of 100$/)
 
   // A category with nothing to fix is folded, says how many checks passed,
   // and opens from the keyboard to list them, with what the templates guarantee.

@@ -90,12 +90,17 @@ export function checkingCategories(
 export type KeptScores = Map<CategoryId, CategoryScore>
 
 /**
- * Keeps the points of each category that isn't being checked, once the
- * resume can be scored: before it has a name and an entry, most rules don't
- * apply, which would look like a category with nothing to score.
+ * Keeps the points of each category that isn't being checked, while the
+ * resume can be scored. Before it has a name and an entry most rules don't
+ * apply, which would look like a category with nothing to score, and once it
+ * loses them the points it had are let go, so they aren't shown again when
+ * it gets them back before it has been checked anew.
  */
 export function keepScores(kept: KeptScores, now: Score, checking: ReadonlyMap<CategoryId, unknown>): void {
-  if (now.total === null) return
+  if (now.total === null) {
+    kept.clear()
+    return
+  }
   for (const category of now.categories) if (!checking.has(category.id)) kept.set(category.id, category)
 }
 

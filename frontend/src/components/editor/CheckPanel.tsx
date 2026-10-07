@@ -132,7 +132,8 @@ function ScoreHeader({ total }: { total: number | "checking" | null }) {
         <h2 id={id} className="label-mono text-ink-2">
           Resume score
         </h2>
-        <p className="flex items-baseline gap-1 text-ink" aria-busy={total === "checking" || undefined}>
+        {/* Said aloud when it changes, once the checks under way are done. */}
+        <p className="flex items-baseline gap-1 text-ink" aria-live="polite" aria-atomic="true" aria-busy={total === "checking" || undefined}>
           {typeof total === "number" ? (
             <>
               <span className="text-[32px] font-medium leading-none tabular-nums">{total}</span>

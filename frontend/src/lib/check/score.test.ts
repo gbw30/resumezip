@@ -148,6 +148,17 @@ describe("while checks are under way", () => {
     const now = scoreWith([rule("C1", "contact", "fix", passes), waitingForPdf])
     expect(shownScore(now, kept, new Map([["length", "pdf"]] as const)).total).toBe("checking")
   })
+
+  test("points are let go when the resume can't be scored any more, so they don't come back unchecked", () => {
+    const kept: KeptScores = new Map()
+    keepScores(kept, scoreWith([rule("C1", "contact", "fix", passes), rule("L5", "length", "look", passes)]), new Map())
+    expect(kept.get("length")!.earned).toBe(10)
+    // The name is deleted, then typed again while the new PDF is being read.
+    keepScores(kept, scoreWith([rule("L5", "length", "look", passes)], { profileSection: {} }), new Map())
+    expect(kept.size).toBe(0)
+    const now = scoreWith([rule("C1", "contact", "fix", passes), waitingForPdf])
+    expect(shownScore(now, kept, new Map([["length", "pdf"]] as const)).total).toBe("checking")
+  })
 })
 
 describe("on real resumes", () => {
