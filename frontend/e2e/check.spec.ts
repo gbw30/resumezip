@@ -55,6 +55,36 @@ test("the left bar switches between writing and checking, and remembers which", 
   expect(errors).toEqual([])
 })
 
+test("the checker asks for a name and an entry first, then lists what passed", async ({ page }) => {
+  const errors = pageErrors(page)
+  await newResume(page)
+  const write = page.getByRole("tab", { name: "Write" })
+  const check = page.getByRole("tab", { name: /^Check/ })
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+
+  await check.click()
+  const waiting = panel.getByText("Add your name and one entry to check this resume.")
+  await expect(waiting).toBeVisible()
+
+  // The form stays beside the checker, so the name can be typed straight in.
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await write.click()
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Company").fill("Analytical Engines")
+  await check.click()
+  await expect(waiting).toBeHidden()
+
+  // What the templates guarantee is listed with the passed checks, folded.
+  const guaranteed = panel.getByText("Real text that can be selected and copied")
+  await expect(guaranteed).toBeHidden()
+  await panel.getByText(/^\d+ passed$/).click()
+  await expect(guaranteed).toBeVisible()
+  expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
+
+  expect(errors).toEqual([])
+})
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
 

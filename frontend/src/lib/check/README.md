@@ -16,7 +16,13 @@ sent anywhere.
   and words they added.
 - `settings.ts` holds the categories and their points, the levels, and limits.
   Word lists and thresholds go there too, so tuning is a change to one file.
+- `labels.ts` says where a finding is in a few words ("Experience → Google ·
+  bullet 2"), and whether there's enough of a resume to check yet.
 - `components/editor/useResumeCheck.ts` checks the open resume as it changes.
+  `CheckContext.tsx` shares that with the left bar's Check panel
+  (`CheckPanel.tsx`) and the forms: choosing a finding opens its section and
+  entry, puts the cursor in its field (or selects its bullet), and shows what's
+  wrong and why under it until it's fixed.
 
 ## Writing a rule
 
