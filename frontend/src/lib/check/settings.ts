@@ -349,3 +349,16 @@ export const ODD_SYMBOLS =
 /** Symbols that look like ODD_SYMBOLS but come through fine, as in a product's name. */
 export const FINE_SYMBOLS = ["©", "®", "™"]
 
+// Length & layout (L1–L5).
+
+/** This many lines or fewer on the last page is a spill-over. */
+export const SPILL_LINES = 5
+
+/** A bullet whose last line has this many words or fewer leaves a gap. */
+export const SHORT_LAST_LINE = 4
+
+/** A bullet that runs this many lines or more is hard to skim. */
+export const LONG_BULLET_LINES = 3
+
+/** A one-page resume should fill at least this share of the page. */
+export const MIN_PAGE_FULL = 0.75
