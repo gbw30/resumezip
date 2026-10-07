@@ -13,6 +13,7 @@ import SectionForm from "@/components/editor/SectionForm"
 import { WIDE_SCREEN } from "@/components/editor/layout"
 import SectionNav, { type ActiveSection } from "@/components/editor/SectionNav"
 import TemplatePicker from "@/components/editor/TemplatePicker"
+import { useKeepFormPlace } from "@/components/editor/useKeepFormPlace"
 import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
 import NotSaved from "@/components/site/NotSaved"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
@@ -47,6 +48,9 @@ export default function EditorPage() {
   useEffect(() => {
     if (id) setCurrentResumeId(id)
   }, [id, setCurrentResumeId])
+
+  // Resizing across the wide-screen width keeps the form where it was scrolled to.
+  useKeepFormPlace(mainRef, loaded && Boolean(resumes[id]))
 
   // The saved order, plus any sections missing from older resumes.
   const sections = useMemo<SectionName[]>(() => {

@@ -5,6 +5,7 @@ import { Plus } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
 import { useCheck } from "./CheckContext"
 import { BulletsField, Field, FlagNote, SectionHeading, selectLine } from "./fields"
+import { uncovered } from "./layout"
 import { FIELD_SPAN, type ChoiceDef, type SectionDef } from "./sections"
 
 type Entry = { id: number; [field: string]: any }
@@ -27,20 +28,6 @@ function scrollerOf(element: HTMLElement): HTMLElement {
     if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) return node
   }
   return document.scrollingElement as HTMLElement
-}
-
-/** The part of the window that the editor's pinned bars (on small screens) leave uncovered. */
-function uncovered() {
-  let top = 0
-  let bottom = window.innerHeight
-  for (const bar of document.querySelectorAll<HTMLElement>("[data-covers]")) {
-    const { position } = getComputedStyle(bar)
-    const box = bar.getBoundingClientRect()
-    if ((position !== "sticky" && position !== "fixed") || !box.height) continue
-    if (bar.dataset.covers === "top") top = Math.max(top, box.bottom)
-    else bottom = Math.min(bottom, box.top)
-  }
-  return { top, bottom }
 }
 
 /** Moves the cursor to what the checker points at (one bullet, if `line` is given) and scrolls it into view. */
