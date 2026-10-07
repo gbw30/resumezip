@@ -315,15 +315,13 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
  */
 function ArrangedBullets({ labelId, text, onChange }: { labelId: string; text: string; onChange: (value: string) => void }) {
   const bullets = bulletLines(text)
-  // Bullets have no ids, so each is known by its words (and which time they
-  // come up, for repeats), which don't change while they're arranged. So
-  // React moves a bullet's row with it, and the focus goes along.
-  const seen = new Map<string, number>()
-  const keyed = bullets.map((bullet) => {
-    const count = (seen.get(bullet.words) ?? 0) + 1
-    seen.set(bullet.words, count)
-    return { ...bullet, key: `${count}:${bullet.words}` }
-  })
+  // Bullets have no ids, so each gets a key here that moves with it, even
+  // past a bullet with the same words. So React moves a bullet's row with it,
+  // and the focus goes along. If the bullets change some other way (another
+  // tab), they're keyed afresh.
+  const [order, setOrder] = useState(() => bullets.map((_, index) => index))
+  const keys = order.length === bullets.length ? order : bullets.map((_, index) => index)
+  const keyed = bullets.map((bullet, index) => ({ ...bullet, key: keys[index] }))
   const [announcement, setAnnouncement] = useState("")
 
   return (
@@ -347,6 +345,9 @@ function ArrangedBullets({ labelId, text, onChange }: { labelId: string; text: s
               first={index === 0}
               last={index === keyed.length - 1}
               onMove={(by) => {
+                const next = [...keys]
+                ;[next[index], next[index + by]] = [next[index + by], next[index]]
+                setOrder(next)
                 onChange(moveBullet(text, bullet.line, by))
                 setAnnouncement(`Moved to ${index + by + 1} of ${keyed.length}`)
               }}
