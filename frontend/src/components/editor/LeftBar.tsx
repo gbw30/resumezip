@@ -5,6 +5,7 @@ import { useId, useRef, useState } from "react"
 import { getStorage } from "@/lib/resumeStorage"
 import { useCheck } from "./CheckContext"
 import CheckPanel from "./CheckPanel"
+import { WIDE_SCREEN } from "./SectionNav"
 
 /** What the left bar shows: the sections to write in, or what the checker found. */
 export type Mode = "write" | "check"
@@ -50,11 +51,20 @@ export default function LeftBar({ hidden, children }: LeftBarProps) {
   const { report } = useCheck()
   const id = useId()
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const bar = useRef<HTMLElement>(null)
   const open = report.findings.length
 
   const choose = (next: Mode) => {
     setMode(next)
     saveMode(next)
+    // On small screens the bar stops being pinned in Check mode, so if the
+    // page was scrolled down the form, go back up to show what was found.
+    if (next === "check" && !window.matchMedia(WIDE_SCREEN).matches) {
+      requestAnimationFrame(() => {
+        const top = bar.current?.getBoundingClientRect().top ?? 0
+        if (top < 0) window.scrollTo({ top: window.scrollY + top })
+      })
+    }
   }
 
   // Arrow keys, Home and End move between the two (WAI-ARIA tabs pattern).
@@ -75,6 +85,7 @@ export default function LeftBar({ hidden, children }: LeftBarProps) {
 
   return (
     <aside
+      ref={bar}
       data-covers="top"
       className={`shrink-0 border-b border-rule bg-paper lg:static lg:block lg:w-[248px] lg:overflow-y-auto lg:border-b-0 lg:border-r lg:px-4 lg:py-7 ${
         mode === "write" ? "sticky top-0 z-20" : ""

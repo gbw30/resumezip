@@ -114,4 +114,20 @@ test.describe("on a phone", () => {
     expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
     expect(errors).toEqual([])
   })
+
+  test("tapping Check far down the form goes back up to what was found", async ({ page }) => {
+    const errors = pageErrors(page)
+    await newResume(page)
+    const check = page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ })
+
+    // The switch stays pinned while the form scrolls under it.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100)
+    await expect(check).toBeInViewport()
+
+    await check.tap()
+    await expect(page.getByRole("tabpanel", { name: /^Check/ })).toBeInViewport()
+    await expect(check).toBeInViewport()
+    expect(errors).toEqual([])
+  })
 })
