@@ -10,6 +10,8 @@ declare global {
     saves?: string[]
     /** How many times the page asked the browser to keep its data, counted by a test. */
     persistRequests?: number
+    /** How many times the page checked whether the person let it keep its data, counted by a test. */
+    permissionChecks?: number
   }
 }
 
@@ -256,15 +258,25 @@ test("two tabs editing different resumes at once keep both edits", async ({ page
 
 test("the browser is asked to keep saved resumes once there is one, and only once a page", async ({ page }) => {
   const errors = pageErrors(page)
-  // Counts the requests instead of asking the real browser.
+  // Counts the requests instead of asking the real browser, and the
+  // permission checks, after which the page decides whether to ask.
   await page.addInitScript(() => {
     window.persistRequests = 0
+    window.permissionChecks = 0
     Object.defineProperty(navigator, "storage", {
       value: {
         persisted: async () => false,
         persist: async () => {
           window.persistRequests = (window.persistRequests ?? 0) + 1
           return false
+        },
+      },
+    })
+    Object.defineProperty(navigator, "permissions", {
+      value: {
+        query: async () => {
+          window.permissionChecks = (window.permissionChecks ?? 0) + 1
+          return { state: "prompt" }
         },
       },
     })
@@ -283,6 +295,8 @@ test("the browser is asked to keep saved resumes once there is one, and only onc
   await expect.poll(() => page.evaluate(() => localStorage.getItem("storage-persist-asked"))).not.toBeNull()
   await page.reload()
   await expect(page.getByLabel("Full name")).toHaveValue("Ada Lovelace")
+  // Once it has checked, it has decided.
+  await expect.poll(() => page.evaluate(() => window.permissionChecks)).toBe(1)
   expect(await requests()).toBe(0)
 
   expect(errors).toEqual([])

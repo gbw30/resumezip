@@ -6,7 +6,7 @@
 // the Home Screen; Firefox asks the person. So resumezip only asks once
 // there's a resume worth keeping, and not again for a while after a no.
 
-/** Where the time of the last request the browser said no to is saved. */
+/** Where the time of the last request is saved. */
 export const ASKED_KEY = "storage-persist-asked"
 
 /** How long to wait before asking again after a no, in milliseconds. */
@@ -19,7 +19,8 @@ type Permissions = Pick<globalThis.Permissions, "query">
  * Asks the browser to keep what's saved in `storage` (localStorage) instead
  * of deleting it to make room, unless it already does, the person has said
  * no, or it said no in the last week. Resolves to whether it keeps it now.
- * Never rejects.
+ * Never rejects, and doesn't ask when it can't note that it asked (as when
+ * storage is full), so Firefox can't ask the person on every page.
  */
 export async function keepSavedData(
   storage: Storage,
@@ -34,9 +35,9 @@ export async function keepSavedData(
     if ((await permissionState(permissions)) === "denied") return false
     const asked = Number(storage.getItem(ASKED_KEY))
     if (asked && now >= asked && now - asked < ASK_AGAIN_AFTER) return false
-    if (await manager.persist()) return true
+    // Throws, so nothing is asked, when this can't be saved.
     storage.setItem(ASKED_KEY, String(now))
-    return false
+    return await manager.persist()
   } catch {
     // Storage can't be read or written any more; resumes still save as before.
     return false

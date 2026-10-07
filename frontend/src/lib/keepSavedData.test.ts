@@ -33,12 +33,14 @@ describe("asking the browser to keep saved resumes", () => {
   })
 
   test("waits a week after a no before asking again", async () => {
+    const week = 7 * 24 * 60 * 60 * 1000
+    expect(ASK_AGAIN_AFTER).toBe(week)
     const storage = memoryStorage()
     const browser = manager()
     await keepSavedData(storage, browser, permissions("prompt"), NOW)
-    await keepSavedData(storage, browser, permissions("prompt"), NOW + ASK_AGAIN_AFTER - 1)
+    await keepSavedData(storage, browser, permissions("prompt"), NOW + week - 1)
     expect(browser.persist).toHaveBeenCalledOnce()
-    await keepSavedData(storage, browser, permissions("prompt"), NOW + ASK_AGAIN_AFTER)
+    await keepSavedData(storage, browser, permissions("prompt"), NOW + week)
     expect(browser.persist).toHaveBeenCalledTimes(2)
   })
 
@@ -53,20 +55,30 @@ describe("asking the browser to keep saved resumes", () => {
     const browser = manager({ answer: true })
     const unknown = { query: vi.fn(async () => Promise.reject(new TypeError("Unknown permission"))) }
     expect(await keepSavedData(memoryStorage(), browser, unknown, NOW)).toBe(true)
-    expect(await keepSavedData(memoryStorage(), manager({ answer: true }), undefined, NOW)).toBe(true)
+    expect(browser.persist).toHaveBeenCalledOnce()
+    const withoutPermissions = manager({ answer: true })
+    expect(await keepSavedData(memoryStorage(), withoutPermissions, undefined, NOW)).toBe(true)
+    expect(withoutPermissions.persist).toHaveBeenCalledOnce()
   })
 
   test("does nothing in browsers without it", async () => {
     expect(await keepSavedData(memoryStorage(), undefined, undefined, NOW)).toBe(false)
   })
 
-  test("never rejects", async () => {
-    const broken = { persisted: vi.fn(async () => Promise.reject(new Error("broken"))), persist: vi.fn() }
-    expect(await keepSavedData(memoryStorage(), broken, permissions("prompt"), NOW)).toBe(false)
+  test("doesn't ask when it can't note that it asked, so Firefox can't ask on every page", async () => {
     const full = memoryStorage()
     full.setItem = () => {
       throw new DOMException("Quota exceeded", "QuotaExceededError")
     }
-    expect(await keepSavedData(full, manager(), permissions("prompt"), NOW)).toBe(false)
+    const browser = manager({ answer: true })
+    expect(await keepSavedData(full, browser, permissions("prompt"), NOW)).toBe(false)
+    expect(browser.persist).not.toHaveBeenCalled()
+  })
+
+  test("never rejects", async () => {
+    const broken = { persisted: vi.fn(async () => Promise.reject(new Error("broken"))), persist: vi.fn() }
+    expect(await keepSavedData(memoryStorage(), broken, permissions("prompt"), NOW)).toBe(false)
+    const refusing = { persisted: vi.fn(async () => false), persist: vi.fn(async () => Promise.reject(new Error("refused"))) }
+    expect(await keepSavedData(memoryStorage(), refusing, permissions("prompt"), NOW)).toBe(false)
   })
 })
