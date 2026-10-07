@@ -55,8 +55,8 @@ export function describePlace(view: ResumeView, place: Place): string {
       const entry = entryAt(view, place.section, place.entry)
       const label = `${titleOf(view, place.section)} → ${entryName(entry, place.entry)}`
       if (place.line !== undefined) {
-        const bullet = entry?.bullets.findIndex((bullet) => bullet.field === place.field && bullet.line === place.line) ?? -1
-        return bullet >= 0 ? `${label} · bullet ${bullet + 1}` : label
+        const bullet = entry?.bullets.find((bullet) => bullet.field === place.field && bullet.line === place.line)
+        return bullet ? `${label} · bullet ${bullet.number}` : label
       }
       const field = SECTIONS[place.section].fields.find((field) => field.key === place.field)
       return field ? `${label} · ${field.label}` : label

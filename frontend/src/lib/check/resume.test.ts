@@ -40,8 +40,8 @@ describe("reading a resume for the checks", () => {
 
   test("reads bullets one at a time, with the line each is on, without the bullet or bold and italic marks", () => {
     expect(viewOf(ada).sections.Work[0].bullets).toEqual([
-      { field: "workDescription", line: 0, raw: "**Built** a *faster* loom", text: "Built a faster loom" },
-      { field: "workDescription", line: 3, raw: "Wrote the notes", text: "Wrote the notes" },
+      { field: "workDescription", line: 0, number: 1, raw: "**Built** a *faster* loom", text: "Built a faster loom" },
+      { field: "workDescription", line: 3, number: 2, raw: "Wrote the notes", text: "Wrote the notes" },
     ])
   })
 
@@ -172,9 +172,20 @@ describe("what the person left out", () => {
     expect(placeExists(view, { kind: "entry", section: "Work", entry: 1, field: "workDescription", line: 2 })).toBe(true)
     expect(placeExists(view, { kind: "entry", section: "Work", entry: 0 })).toBe(false)
     expect(placeExists(view, { kind: "entry", section: "Work", entry: 1, field: "workDescription", line: 1 })).toBe(false)
+    // Numbered as the editor numbers them, left-out bullets included.
     expect(describePlace(view, { kind: "entry", section: "Work", entry: 1, field: "workDescription", line: 2 })).toBe(
-      "Experience → Analytical Engines · bullet 2",
+      "Experience → Analytical Engines · bullet 3",
     )
+  })
+
+  test("leaves out a section's renamed title when nothing in the section is printed", () => {
+    const renamed = viewOf({ ...tailored, headings: { work: "Jobs & mgmt" } })
+    expect(textsOf(renamed).some((found) => found.place.kind === "heading")).toBe(true)
+    const allLeftOut = viewOf({
+      headings: { work: "Jobs & mgmt" },
+      workExperienceSection: tailored.workExperienceSection.map((entry) => ({ ...entry, leftOut: true })),
+    })
+    expect(textsOf(allLeftOut).some((found) => found.place.kind === "heading")).toBe(false)
   })
 
   test("isn't flagged by the rules", () => {

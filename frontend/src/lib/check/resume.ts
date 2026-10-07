@@ -24,6 +24,8 @@ export interface Bullet {
   field: string
   /** Its line in that field, counting from 0 and blank lines included, which is where the editor finds it. */
   line: number
+  /** Which bullet it is in that field, from 1, counting left-out ones too, as the editor does. */
+  number: number
   /** As typed, without the "• " in front. */
   raw: string
   /** Its words as printed, without bold and italic marks. */
@@ -64,17 +66,21 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "")
 
 // Older resumes saved bullets as a list; the editor types them one "• " line each.
-// Left-out lines are blanked rather than dropped, so the rest keep their line numbers.
-const linesOf = (value: unknown): string[] =>
-  (Array.isArray(value) ? value : typeof value === "string" ? value.split("\n") : []).map((line) =>
-    typeof line === "string" && !isLeftOutLine(line) ? line : "",
-  )
+const allLinesOf = (value: unknown): string[] =>
+  (Array.isArray(value) ? value : typeof value === "string" ? value.split("\n") : []).map((line) => (typeof line === "string" ? line : ""))
 
-const bulletsOf = (field: string, value: unknown): Bullet[] =>
-  linesOf(value).flatMap((line, index) => {
-    const raw = line.trim().replace(/^•\s*/, "")
-    return raw ? [{ field, line: index, raw, text: plainText(raw).trim() }] : []
+// Left-out lines are blanked rather than dropped, so the rest keep their line numbers.
+const linesOf = (value: unknown): string[] => allLinesOf(value).map((line) => (isLeftOutLine(line) ? "" : line))
+
+const bulletsOf = (field: string, value: unknown): Bullet[] => {
+  let number = 0
+  return allLinesOf(value).flatMap((line, index) => {
+    const raw = line.trim().replace(/^[•○]\s*/, "")
+    if (!raw) return []
+    number++
+    return isLeftOutLine(line) ? [] : [{ field, line: index, number, raw, text: plainText(raw).trim() }]
   })
+}
 
 /** Reads a resume, as the editor saves it, for the checks. */
 export function viewOf(resume: Record<string, any>): ResumeView {
@@ -128,7 +134,9 @@ export function textsOf(view: ResumeView): { place: Place; text: string }[] {
     if (value) texts.push({ place: { kind: "profile", field: field.key }, text: value })
   }
   for (const section of view.order) {
-    if (view.headings[section]) texts.push({ place: { kind: "heading", section }, text: view.headings[section] })
+    // A section with nothing printed in it isn't printed at all, title and all.
+    const printed = view.sections[section].some((entry) => !entry.blank)
+    if (view.headings[section] && printed) texts.push({ place: { kind: "heading", section }, text: view.headings[section] })
     for (const entry of view.sections[section]) {
       for (const field of SECTIONS[section].fields) {
         const place = { kind: "entry", section, entry: entry.index, field: field.key } as const
