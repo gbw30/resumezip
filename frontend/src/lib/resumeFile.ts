@@ -11,6 +11,9 @@ export const ATTACHMENT_NAME = "resumezip.json"
 const FORMAT = "resumezip"
 const VERSION = 1
 
+/** How every attachment starts, since toAttachment writes the format first. */
+const START = `{"format":"${FORMAT}"`
+
 /**
  * The most an attachment can hold and still be opened: characters of text,
  * and entries in all sections together. Far more than any resume needs (a
@@ -37,10 +40,14 @@ export function toAttachment(resume: Record<string, any>): string {
 
 /**
  * Reads an attachment back, or returns null if the text isn't one. Throws a
- * TooLongError if it's too big to open (see MAX_LENGTH).
+ * TooLongError if it's one too big to open (see MAX_LENGTH).
  */
 export function fromAttachment(text: string): ResumeContent | null {
-  if (text.length > MAX_LENGTH) throw new TooLongError()
+  // Told apart by how it starts, so that a long file isn't read in full.
+  if (text.length > MAX_LENGTH) {
+    if (text.startsWith(START)) throw new TooLongError()
+    return null
+  }
   let file
   try {
     file = JSON.parse(text)

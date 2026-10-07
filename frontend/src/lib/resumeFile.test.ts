@@ -74,6 +74,9 @@ describe("the attachment in a downloaded PDF", () => {
     expect(fromAttachment("not json")).toBeNull()
     expect(fromAttachment(JSON.stringify({ format: "something-else", version: 1, resume: {} }))).toBeNull()
     expect(fromAttachment(JSON.stringify({ format: "resumezip", version: 2, resume: {} }))).toBeNull()
+    // Not even one too long to open, so the PDF is read like any other.
+    expect(fromAttachment(JSON.stringify({ format: "something-else", notes: "x".repeat(MAX_LENGTH) }))).toBeNull()
+    expect(fromAttachment("x".repeat(MAX_LENGTH + 1))).toBeNull()
   })
 })
 
