@@ -83,7 +83,7 @@ describe("R3 entries read as typed", () => {
   test("flags a value the entry doesn't have at all", () => {
     const missing = { ...found, sections: [{ name: "Work" as const, entries: [{ fields: { workRole: "Software Engineer II", companyName: "Stripe", workStartDate: "Jan 2024" }, lines: [] }] }] }
     expect(check("R3", jake, reading([], missing)).findings).toEqual([
-      expect.objectContaining({ place: { kind: "entry", section: "Work", entry: 0, field: "workEndDate" }, message: "Hiring software doesn't read the end with this entry" }),
+      expect.objectContaining({ place: { kind: "entry", section: "Work", entry: 0, field: "workEndDate" }, message: "Hiring software may not read the end with this entry" }),
     ])
   })
 
@@ -113,6 +113,17 @@ describe("R3 entries read as typed", () => {
     ])
     expect(unread("Staff Engineer")).toEqual([
       { message: "Hiring software may not read the role with this entry", suggestion: expect.stringContaining("dismiss this") },
+    ])
+
+    // A date written the usual way has nothing to change; one written another way does.
+    const noStart = (workStartDate: string) => {
+      const resume = { ...jake, workExperienceSection: [{ ...jake.workExperienceSection[0], workStartDate }] }
+      const missing = { ...found, sections: [{ name: "Work" as const, entries: [{ fields: { workRole: "Software Engineer II", companyName: "Stripe", workEndDate: "Present" }, lines: [] }] }] }
+      return check("R3", resume, reading([], missing)).findings.map(({ message, suggestion }) => ({ message, suggestion }))
+    }
+    expect(noStart("Jan 2024")).toEqual([{ message: "Hiring software may not read the start with this entry", suggestion: expect.stringContaining("dismiss this") }])
+    expect(noStart("Q1 of 2024")).toEqual([
+      { message: "Hiring software doesn't read the start with this entry", suggestion: "Write it the usual way, like “Jan 2024”, “2024” or “Present”." },
     ])
   })
 
@@ -144,6 +155,20 @@ describe("R4 text the reader can't place", () => {
     const text = `${degree} Ann Arbor, MI`
     const pdf = reading([line(text)], { ...found, unplaced: [{ heading: "Education", lines: [0], text: [text] }] })
     expect(check("R4", resume, pdf).findings.map(({ place }) => place)).toEqual([{ kind: "entry", section: "Education", entry: 0, field: "degree" }])
+  })
+
+  test("points a line at a field in the section it was found under, before a longer one elsewhere", () => {
+    const resume = {
+      ...jake,
+      profileSection: { ...jake.profileSection, location: "San Francisco Bay Area, California" },
+      educationSection: [{ id: 1, schoolName: "Stanford University", schoolLocation: "Stanford, California" }],
+    }
+    // Both the profile's location and the school's place are on the line; it's under Education.
+    const text = "Stanford, California · San Francisco Bay Area, California"
+    const pdf = reading([line(text)], { ...found, unplaced: [{ heading: "Education", lines: [0], text: [text] }] })
+    expect(check("R4", resume, pdf).findings.map(({ place }) => place)).toEqual([
+      { kind: "entry", section: "Education", entry: 0, field: "schoolLocation" },
+    ])
   })
 
   test("points a line at the field in the section it was found under, before the same text elsewhere", () => {

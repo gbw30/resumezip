@@ -7,6 +7,7 @@ import { BULLET_CHARS } from "@/lib/import/lines"
 import type { PdfReading, Problem, Rule } from "./engine"
 import type { Place } from "./places"
 import { comparable, wordsOf } from "./pdf"
+import { readDate, readDateRange } from "./readDate"
 import { textsOf } from "./resume"
 import { FINE_SYMBOLS, ODD_SYMBOLS } from "./settings"
 import { bulletsIn } from "./text"
@@ -106,22 +107,19 @@ const SPLITS = /[,|•·;]|\s[-–—]\s/
 /** Why a value may not be read with its entry, from what's in it, and what to do. */
 function entryAdvice(section: SectionName, field: string, value: string): Pick<Problem, "message" | "suggestion"> {
   const label = labelOf(section, field)
+  const unread = (suggestion: string) => ({ message: `Hiring software doesn't read the ${label} with this entry`, suggestion })
   if (field.endsWith("Date")) {
-    return { message: `Hiring software doesn't read the ${label} with this entry`, suggestion: "Write it the usual way, like “Jan 2024”, “2024” or “Present”." }
-  }
-  if (HAS_DATE.test(value)) {
-    return { message: `Hiring software doesn't read the ${label} with this entry`, suggestion: "Move the date to the entry's date fields." }
-  }
-  if (SPLITS.test(value)) {
-    return {
-      message: `Hiring software doesn't read the ${label} with this entry`,
-      suggestion: "Keep it to one thing: hiring software can split it at a comma or a dash. Move the rest to another field or a bullet.",
-    }
+    // A date written the usual way has nothing to change.
+    if (!readDate(value) && !readDateRange(value)) return unread("Write it the usual way, like “Jan 2024”, “2024” or “Present”.")
+  } else if (HAS_DATE.test(value)) {
+    return unread("Move the date to the entry's date fields.")
+  } else if (SPLITS.test(value)) {
+    return unread("Keep it to one thing: hiring software can split it at a comma or a dash. Move the rest to another field or a bullet.")
   }
   // Nothing in it that's known to trip hiring software up.
   return {
     message: `Hiring software may not read the ${label} with this entry`,
-    suggestion: "Nothing in it looks wrong. A shorter one is read more surely; if it's right as it is, dismiss this.",
+    suggestion: "Nothing in it looks wrong, so most hiring software should still read it. If it looks right in the preview, dismiss this.",
   }
 }
 
@@ -187,9 +185,10 @@ function fieldOf(texts: { place: Place; text: string; section: SectionName | nul
   if (whole.length > 0) return whole.reduce((best, next) => (inSection(next.section) > inSection(best.section) ? next : best)).place
   const parts = texts.filter(({ text }) => text.length >= MIN_MATCH && line.includes(text))
   if (parts.length === 0) return undefined
-  return parts.reduce((best, next) =>
-    next.text.length > best.text.length || (next.text.length === best.text.length && inSection(next.section) > inSection(best.section)) ? next : best,
-  ).place
+  return parts.reduce((best, next) => {
+    const nearer = inSection(next.section) - inSection(best.section)
+    return nearer > 0 || (nearer === 0 && next.text.length > best.text.length) ? next : best
+  }).place
 }
 
 const unplaced: Rule = {
