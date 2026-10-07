@@ -285,9 +285,16 @@ describe("changedPaths", () => {
     expect(changedPaths("headings", {}, { Work: "Experience" })).toEqual(["headings.Work"])
   })
 
+  test("counts an object field that wasn't there as empty", () => {
+    expect(changedPaths("profileSection", undefined, { fullName: "Ada" })).toEqual(["profileSection.fullName"])
+    expect(changedPaths("headings", null, { Work: "Experience" })).toEqual(["headings.Work"])
+  })
+
   test("names the whole field otherwise", () => {
     expect(changedPaths("workExperienceSection", [], [{ companyName: "Acme" }])).toEqual(["workExperienceSection"])
-    expect(changedPaths("profileSection", undefined, { fullName: "Ada" })).toEqual(["profileSection"])
+    expect(changedPaths("workExperienceSection", undefined, [{ companyName: "Acme" }])).toEqual(["workExperienceSection"])
+    expect(changedPaths("profileSection", "Ada", { fullName: "Ada" })).toEqual(["profileSection"])
+    expect(changedPaths("profileSection", { fullName: "Ada" }, undefined)).toEqual(["profileSection"])
   })
 })
 

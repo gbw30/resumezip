@@ -78,6 +78,13 @@ describe("what the checker saves on a resume", () => {
     expect(changed).toEqual(new Set([`${CHECK_FIELD}.dismissed`]))
     expect(mergeResume(theirs, ours, changed)[CHECK_FIELD]).toEqual({ dismissed: ["B1|a|b"], words: ["Kubernetes"] })
   })
+
+  test("from two tabs keeps both the first time, before anything was saved", () => {
+    const ours = { ...sample, [CHECK_FIELD]: changeCheck(sample, (state) => dismiss(state, suggestion("B1|a|b"))) }
+    const theirs = { ...sample, [CHECK_FIELD]: changeCheck(sample, (state) => addWord(state, "Kubernetes")) }
+    const changed = new Set(changedPaths(CHECK_FIELD, sample[CHECK_FIELD], ours[CHECK_FIELD]))
+    expect(mergeResume(theirs, ours, changed)[CHECK_FIELD]).toEqual({ dismissed: ["B1|a|b"], words: ["Kubernetes"] })
+  })
 })
 
 describe("dismissing and restoring", () => {
