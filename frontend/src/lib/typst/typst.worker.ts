@@ -2,7 +2,7 @@
 // thread so the editor stays responsive. Talk to it through compile.ts.
 
 import { CompileFormatEnum, createTypstCompiler, type TypstCompiler } from "@myriaddreamin/typst.ts/compiler"
-import { loadFonts } from "@myriaddreamin/typst.ts/options.init"
+import { disableDefaultFontAssets, loadFonts, type BeforeBuildFn } from "@myriaddreamin/typst.ts/options.init"
 import { ATTACHMENT_NAME } from "@/lib/resumeFile"
 import common from "./templates/common.typ"
 import ian from "./templates/ian.typ"
@@ -74,8 +74,8 @@ function reportProgress(now = false) {
 }
 
 // fetch, reporting progress as the body arrives.
-async function fetchReporting(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const response = await fetch(input, init)
+async function fetchReporting(url: string): Promise<Response> {
+  const response = await fetch(url)
   if (!response.body) return response
   const body = response.body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
@@ -96,15 +96,28 @@ async function compilerModule(): Promise<WebAssembly.Module | Response> {
   } catch {
     // Fall through to the bundled copy.
   }
-  return fetchReporting(new URL("@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm", import.meta.url))
+  return fetchReporting(new URL("@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm", import.meta.url).href)
+}
+
+async function fetchFont(url: string): Promise<Uint8Array> {
+  const response = await fetchReporting(url)
+  if (!response.ok) throw new Error(`${url} answered ${response.status}`)
+  return new Uint8Array(await response.arrayBuffer())
 }
 
 async function createCompiler(): Promise<TypstCompiler> {
+  // The fonts download alongside the compiler rather than after it. If the
+  // compiler fails first, nothing waits for the fonts, so their failing too
+  // is caught here rather than reported as unhandled.
+  const fonts = Promise.all(FONTS.map(fetchFont))
+  fonts.catch(() => {})
+  const addFonts: BeforeBuildFn = async (mark, context) => loadFonts(await fonts, { assets: false })(mark, context)
   const instance = createTypstCompiler()
   await instance.init({
     getModule: compilerModule,
-    // Building the compiler comes next.
-    beforeBuild: [loadFonts(FONTS, { assets: false, fetcher: fetchReporting }), async () => reportProgress(true)],
+    // Typst's own fonts would otherwise download too, as addFonts isn't
+    // one of typst.ts's font loaders. Building the compiler comes last.
+    beforeBuild: [disableDefaultFontAssets(), addFonts, async () => reportProgress(true)],
   })
   for (const [path, source] of Object.entries(SOURCES)) instance.addSource(path, source)
   return instance
