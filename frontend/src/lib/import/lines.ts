@@ -3,6 +3,7 @@
 // what's pushed to the right edge. parse.ts sorts the lines into fields.
 
 import type { PDFDocumentProxy } from "pdfjs-dist"
+import { MAX_CHARACTERS, MAX_WORD_XML_BYTES, TooMuchTextError } from "./limits"
 
 /** A stretch of text in one style; `start` and `end` index into its part's text. */
 export interface Run {
@@ -213,10 +214,12 @@ function findGutter(items: Item[], width: number): number | null {
 /**
  * Reads every page's text, with its styles and links. pdf.js does the reading
  * in a worker of its own; sorting the text into lines (`linesFromPages`) is
- * plain work that can run in another.
+ * plain work that can run in another. Stops as soon as there's more text than
+ * a resume would have.
  */
 export async function readPdf(doc: PDFDocumentProxy): Promise<PdfPage[]> {
   const pages: PdfPage[] = []
+  let characters = 0
 
   for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
     const page = await doc.getPage(pageNumber)
@@ -246,8 +249,10 @@ export async function readPdf(doc: PDFDocumentProxy): Promise<PdfPage[]> {
       if (!("str" in item) || item.str.trim() === "") continue
       const [a, b, c, d, e, f] = item.transform as number[]
       if (Math.abs(b) > Math.abs(a)) continue // rotated, like a vertical label in a sidebar
+      const text = item.str.replace(/[\u200B-\u200D\uFEFF\u00AD]/g, "")
+      characters += text.length
       items.push({
-        text: item.str.replace(/[\u200B-\u200D\uFEFF\u00AD]/g, ""),
+        text,
         x: e - x0,
         right: e - x0 + item.width,
         baseline: f - y0,
@@ -255,6 +260,8 @@ export async function readPdf(doc: PDFDocumentProxy): Promise<PdfPage[]> {
         ...styleOf(item.fontName),
       })
     }
+    // Before the next page is read.
+    if (characters > MAX_CHARACTERS) throw new TooMuchTextError()
 
     const annotations = (await page.getAnnotations()) as { subtype?: string; url?: string; unsafeUrl?: string; rect?: number[] }[]
     const links = annotations
@@ -452,12 +459,49 @@ export function linesFromHtml(html: string): Line[] {
   return lines
 }
 
-type ConvertToHtml = (input: { arrayBuffer: ArrayBuffer } | { buffer: Uint8Array }) => Promise<{ value: string }>
+/**
+ * How big a Word file's XML (its text, styles and lists) is once unzipped, as
+ * the zip's directory says. Null when there's no directory to read, which
+ * leaves mammoth to say whether it's a Word file at all, or when a size is
+ * only given elsewhere (ZIP64), which a resume never needs.
+ */
+export function unzippedXmlSize(data: ArrayBuffer): number | null {
+  const view = new DataView(data)
+  // The directory's end record closes the file, followed by a comment of up to 64 KB.
+  const last = view.byteLength - 22
+  for (let end = last; end >= Math.max(0, last - 0xffff); end--) {
+    if (view.getUint32(end, true) !== 0x06054b50) continue
+    let at = view.getUint32(end + 16, true)
+    let total = 0
+    for (let count = view.getUint16(end + 10, true); count > 0; count--) {
+      if (at + 46 > view.byteLength || view.getUint32(at, true) !== 0x02014b50) return null
+      const size = view.getUint32(at + 24, true)
+      const nameLength = view.getUint16(at + 28, true)
+      if (size === 0xffffffff || at + 46 + nameLength > view.byteLength) return null
+      const name = new TextDecoder().decode(new Uint8Array(data, at + 46, nameLength))
+      if (/\.(?:xml|rels)$/i.test(name)) total += size
+      at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true)
+    }
+    return total
+  }
+  return null
+}
+
+interface Mammoth {
+  convertToHtml: (input: { arrayBuffer: ArrayBuffer; buffer: ArrayBuffer }, options: { convertImage: unknown }) => Promise<{ value: string }>
+  images: { imgElement: (attributes: () => { src: string }) => unknown }
+}
 
 /** Reads a Word (.docx) file. mammoth is only downloaded when one is opened. */
-export async function linesFromDocx(input: { arrayBuffer: ArrayBuffer } | { buffer: Uint8Array }): Promise<Line[]> {
-  const mammoth = (await import("mammoth")) as unknown as { convertToHtml?: ConvertToHtml; default?: { convertToHtml: ConvertToHtml } }
-  const convertToHtml = mammoth.convertToHtml ?? mammoth.default!.convertToHtml
-  const { value } = await convertToHtml(input)
+export async function linesFromDocx(data: ArrayBuffer): Promise<Line[]> {
+  if ((unzippedXmlSize(data) ?? 0) > MAX_WORD_XML_BYTES) throw new TooMuchTextError()
+  const loaded = (await import("mammoth")) as unknown as Partial<Mammoth> & { default?: Mammoth }
+  const mammoth = loaded.convertToHtml ? (loaded as Mammoth) : loaded.default!
+  const { value } = await mammoth.convertToHtml(
+    // Browsers get mammoth's browser build, which reads `arrayBuffer`; tests in Node get the one that reads `buffer`.
+    { arrayBuffer: data, buffer: data },
+    // Pictures aren't read, since only text is kept. By default mammoth copies each into the HTML.
+    { convertImage: mammoth.images.imgElement(() => ({ src: "" })) },
+  )
   return linesFromHtml(value)
 }
