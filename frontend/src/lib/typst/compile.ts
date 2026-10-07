@@ -162,12 +162,12 @@ function getWorker(): Worker {
 /**
  * Starts loading the compiler, if nothing has yet, so the first PDF doesn't
  * wait for it to download, along with the fonts of `template`, the one
- * likely to print first (the default if not given). Later PDFs use the
- * worker this starts. It never throws: if the worker can't start (a browser
- * can block it), the first PDF fails and says why.
+ * likely to print next (the default if not given). Later PDFs use the
+ * worker this starts. Once it's loading, a different template's fonts start
+ * downloading too. It never throws: if the worker can't start (a browser can
+ * block it), the first PDF fails and says why.
  */
 export function loadCompiler(template?: TemplateId) {
-  if (worker) return
   try {
     getWorker().postMessage({ load: true, template } satisfies WorkerRequest)
   } catch {

@@ -336,8 +336,11 @@ test("the compiler can start loading before the first PDF, which then uses the s
   loadAhead("resumeworded")
   loadAhead("jake")
   expect(FakeWorker.made).toHaveLength(1)
-  // With the fonts of the template asked for first.
-  expect(FakeWorker.made[0].loadRequests).toEqual([{ load: true, template: "resumeworded" }])
+  // With the fonts of each template asked for.
+  expect(FakeWorker.made[0].loadRequests).toEqual([
+    { load: true, template: "resumeworded" },
+    { load: true, template: "jake" },
+  ])
   await vi.advanceTimersByTimeAsync(10)
   expect(compilerStatus()).toEqual({ loaded: false, downloaded: 0.5 })
   await vi.advanceTimersByTimeAsync(20)
