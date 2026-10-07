@@ -191,7 +191,7 @@ export default function EditorPage() {
               <span className="label-mono hidden shrink-0 text-ink-2 xl:inline">Saved in this browser</span>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <TemplatePicker value={formData.selectedTemplate} onChange={(template) => updateFormData("selectedTemplate", template)} />
             <button
               type="button"
@@ -204,7 +204,10 @@ export default function EditorPage() {
               ) : (
                 <Download className="h-4 w-4" aria-hidden="true" />
               )}
-              Download PDF
+              {/* Just "PDF" on phones, so it fits beside the template picker. */}
+              <span>
+                <span className="max-sm:sr-only">Download </span>PDF
+              </span>
             </button>
           </div>
         </div>
