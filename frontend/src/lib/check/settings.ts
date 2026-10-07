@@ -309,6 +309,12 @@ export const NUMBER_UNITS = [
   "miles", "kg", "lbs", "degrees",
 ]
 
+/** Words before a number that make it a label rather than a count: "version 2", "phase 3". */
+export const NUMBER_LABELS = [
+  "version", "v", "release", "phase", "level", "tier", "step", "round", "part", "grade", "stage", "gen", "generation",
+  "series", "chapter",
+]
+
 /** Shorthand and slang, and the word to write instead. */
 export const SHORTHAND: [string, string][] = [
   ["w/o", "without"], ["w/", "with"], ["b/c", "because"], ["mgmt", "management"], ["mgr", "manager"],

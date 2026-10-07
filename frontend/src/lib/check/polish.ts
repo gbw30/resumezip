@@ -5,7 +5,7 @@ import type { SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
 import type { Place } from "./places"
 import { textsOf, type ResumeView } from "./resume"
-import { ACRONYMS, DEGREE_ABBREVIATIONS, LOWERCASE_NAMES, NUMBER_UNITS, SHORTHAND, US_STATES } from "./settings"
+import { ACRONYMS, DEGREE_ABBREVIATIONS, LOWERCASE_NAMES, NUMBER_LABELS, NUMBER_UNITS, SHORTHAND, US_STATES } from "./settings"
 import { bulletsIn, escaped, firstWord, mostCommon, type PlacedBullet } from "./text"
 
 const capitalized = (word: string) => word[0].toUpperCase() + word.slice(1).toLowerCase()
@@ -240,19 +240,37 @@ const shorthand: Rule = {
 const WORDS_FOR = ["two", "three", "four", "five", "six", "seven", "eight", "nine"]
 // Before a counted thing ("5 engineers"), but not a unit or a size ("9 ms", "4 million").
 const COUNTED = String.raw`(?= (?!(?:${NUMBER_UNITS.join("|")})\b)\p{Ll})`
+const DIGIT = new RegExp(String.raw`(?<![\p{L}\p{N}$€£.,/-])[2-9]${COUNTED}`, "gu")
+const LABELS = new Set(NUMBER_LABELS)
+
+// A digit counting something ("Led 3 engineers"), but not a version or a
+// label: not after a name in the sentence ("Python 2", "iOS 7"), or after a
+// word like "version" or "phase".
+function digitCount(text: string): string | undefined {
+  for (const found of text.matchAll(DIGIT)) {
+    const before = text.slice(0, found.index).trimEnd()
+    const word = before.match(/[\p{L}\p{N}.-]+$/u)?.[0] ?? ""
+    const first = !/\s/.test(before.trim())
+    const name = /\p{Lu}/u.test(word.slice(1)) || (/^\p{Lu}/u.test(word) && !first)
+    if (!name && !LABELS.has(word.toLowerCase())) return found[0]
+  }
+}
+
+const WORD_COUNT = new RegExp(String.raw`\b(?:${WORDS_FOR.join("|")})\b${COUNTED}`, "iu")
+
 // A count from 2 to 9, written as a digit or a word, and a percentage written
 // with "%" or "percent".
 const NUMBER_WAYS = [
   {
-    digit: new RegExp(String.raw`(?<![\p{L}\p{N}$€£.,/-])[2-9]${COUNTED}`, "u"),
-    word: new RegExp(String.raw`\b(?:${WORDS_FOR.join("|")})\b${COUNTED}`, "iu"),
+    digit: digitCount,
+    word: (text: string) => WORD_COUNT.exec(text)?.[0],
     asWord: (digit: string) => WORDS_FOR[Number(digit) - 2],
     asDigit: (word: string) => String(WORDS_FOR.indexOf(word.toLowerCase()) + 2),
     elsewhere: { digit: "digits", word: "words" },
   },
   {
-    digit: /\p{N}[\p{N}.,]*\s*%/u,
-    word: /\p{N}[\p{N}.,]*\s*percent\b/iu,
+    digit: (text: string) => /\p{N}[\p{N}.,]*\s*%/u.exec(text)?.[0],
+    word: (text: string) => /\p{N}[\p{N}.,]*\s*percent\b/iu.exec(text)?.[0],
     asWord: (digit: string) => digit.replace(/\s*%/, " percent"),
     asDigit: (word: string) => word.replace(/\s*percent/i, "%"),
     elsewhere: { digit: "“%”", word: "“percent”" },
@@ -273,8 +291,8 @@ const numbersOneWay: Rule = {
     for (const ways of NUMBER_WAYS) {
       // Each bullet that has one way and not the other.
       const written = bullets.flatMap((placed): (PlacedBullet & { way: "digit" | "word"; found: string })[] => {
-        const digit = ways.digit.exec(placed.bullet.text)?.[0]
-        const word = ways.word.exec(placed.bullet.text)?.[0]
+        const digit = ways.digit(placed.bullet.text)
+        const word = ways.word(placed.bullet.text)
         if (digit && !word) return [{ ...placed, way: "digit", found: digit }]
         return word && !digit ? [{ ...placed, way: "word", found: word }] : []
       })
