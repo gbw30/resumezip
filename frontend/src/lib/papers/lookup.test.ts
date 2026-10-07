@@ -24,6 +24,13 @@ const status = (code: number) => new Response("", { status: code })
 const hanging = (async (_url: string, init: RequestInit) =>
   new Promise<Response>((_, reject) => init.signal!.addEventListener("abort", () => reject(init.signal!.reason)))) as unknown as typeof fetch
 
+// A service that answers at once, then never finishes sending its record, until the request is stopped.
+const stalling = (async (_url: string, init: RequestInit) =>
+  new Response(
+    new ReadableStream({ start: (body) => init.signal!.addEventListener("abort", () => body.error(init.signal!.reason)) }),
+    { status: 200 },
+  )) as unknown as typeof fetch
+
 afterEach(() => {
   vi.useRealTimers()
 })
@@ -76,6 +83,15 @@ describe("looking up a paper", () => {
     })
   })
 
+  test("an answer without a paper's record isn't a paper", async () => {
+    expect(await lookUp({ doi: "10.1/x" }, undefined, fakeFetch(json({ status: "ok" })).fetcher)).toEqual({ found: false, reason: "not-found" })
+    expect(await lookUp({ doi: "10.1/x" }, undefined, fakeFetch(json({ message: { title: [] } })).fetcher)).toEqual({
+      found: false,
+      reason: "not-found",
+    })
+    expect(await lookUp({ doi: "10.1/x" }, undefined, fakeFetch(status(404), json(null)).fetcher)).toEqual({ found: false, reason: "not-found" })
+  })
+
   test("a lookup gives up when there's no answer in time", async () => {
     vi.useFakeTimers()
     const lookup = lookUp({ doi: "10.1/x" }, undefined, hanging)
@@ -90,5 +106,18 @@ describe("looking up a paper", () => {
     await expect(lookup).rejects.toThrow()
     // And one that's already stopped doesn't start.
     await expect(lookUp({ doi: "10.1/x" }, stop.signal, hanging)).rejects.toThrow()
+  })
+
+  test("an answer that stalls halfway still gives up in time, or can be stopped", async () => {
+    vi.useFakeTimers()
+    const lookup = lookUp({ doi: "10.1/x" }, undefined, stalling)
+    await vi.advanceTimersByTimeAsync(LOOKUP_TIMEOUT_MS)
+    expect(await lookup).toEqual({ found: false, reason: "unreachable" })
+
+    const stop = new AbortController()
+    const stopped = lookUp({ doi: "10.1/x" }, stop.signal, stalling)
+    await vi.advanceTimersByTimeAsync(10)
+    stop.abort()
+    await expect(stopped).rejects.toThrow()
   })
 })
