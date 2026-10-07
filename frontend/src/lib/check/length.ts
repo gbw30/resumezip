@@ -25,7 +25,15 @@ const pages: Rule = {
       checked: 1,
       problems:
         count > 1
-          ? [{ place: { kind: "page", page: 2 }, message: `${plural(count, "page")}`, suggestion: "Cut what matters least to fit one page." }]
+          ? [
+              {
+                place: { kind: "page", page: 2 },
+                message: `${plural(count, "page")}`,
+                // The page count, so a dismissal ends if the resume grows another page.
+                text: plural(count, "page"),
+                suggestion: "Cut what matters least to fit one page.",
+              },
+            ]
           : [],
     }
   },
