@@ -32,6 +32,7 @@ beforeEach(async () => {
           getAttachments: async () => ({ [ATTACHMENT_NAME]: { content: new TextEncoder().encode(attachment) } }),
           destroy: async () => {},
         }),
+        destroy: async () => {},
       }),
     }
   })

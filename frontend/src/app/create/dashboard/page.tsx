@@ -35,8 +35,17 @@ export default function DashboardPage() {
   const [opening, setOpening] = useState<Opening | null>(null)
   const [dragging, setDragging] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
-  // Each file opened gets a number, so a cancelled one can't reappear when it finishes reading.
-  const attempt = useRef(0)
+  // The file being read. Cancelling (or opening another file) stops it, and
+  // means it can't reappear if it was just finishing.
+  const reading = useRef<AbortController | null>(null)
+  // Leaving the page stops it too.
+  useEffect(
+    () => () => {
+      reading.current?.abort()
+      reading.current = null
+    },
+    [],
+  )
 
   const sorted = useMemo(
     () =>
@@ -57,20 +66,24 @@ export default function DashboardPage() {
   }
 
   const closeOpening = () => {
-    attempt.current++
+    reading.current?.abort()
+    reading.current = null
     setOpening(null)
   }
 
   const openFile = async (file: File) => {
-    const current = ++attempt.current
+    reading.current?.abort()
+    const current = new AbortController()
+    reading.current = current
     setOpening({ step: "reading", fileName: file.name })
     try {
       const { openResumeFile } = await import("@/lib/import/open")
-      const opened = await openResumeFile(file)
-      if (current !== attempt.current) {
+      const opened = await openResumeFile(file, { signal: current.signal })
+      if (current !== reading.current) {
         if (opened.kind === "parsed") void opened.pdf?.doc.destroy()
         return
       }
+      reading.current = null
       if (opened.kind === "parsed") {
         setOpening({ step: "review", file: opened })
         return
@@ -81,7 +94,8 @@ export default function DashboardPage() {
       else if (existing.updatedAt === opened.resume.updatedAt) edit(existing.id)
       else setOpening({ step: "conflict", file: opened, existing })
     } catch (error) {
-      if (current !== attempt.current) return
+      if (current !== reading.current) return
+      reading.current = null
       const { OpenFileError } = await import("@/lib/import/open")
       if (!(error instanceof OpenFileError)) console.error("Couldn't open file:", error)
       setOpening({

@@ -11,6 +11,8 @@ export const MAX_CHARACTERS = 200_000
 export const MAX_LINES = 5_000
 /** A Word file's text once unzipped, checked before it's converted, since a small file can unzip to a lot. */
 export const MAX_WORD_XML_BYTES = 10 * 1024 * 1024
+/** Reading a file from start to finish, downloads included. */
+export const TIME_LIMIT_MS = 60_000
 
 /** A file with more text than the limits above allow. */
 export class TooMuchTextError extends Error {}

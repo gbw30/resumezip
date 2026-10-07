@@ -1,12 +1,12 @@
 // Opens a resume file someone picked or dropped, entirely in the browser. A
 // PDF that resumezip made carries its resume (see lib/resumeFile.ts) and is
 // restored exactly; anything else is read and sorted into fields by parse.ts,
-// in a worker (read.ts). Reading stops at the limits in limits.ts, and shuts
-// down whatever it started.
+// in a worker (read.ts). Reading stops at the limits in limits.ts, when it's
+// cancelled or when it runs out of time, and shuts down whatever it started.
 
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { ATTACHMENT_NAME, fromAttachment, MAX_ENTRIES, MAX_LENGTH, TooLongError, type ResumeContent } from "@/lib/resumeFile"
-import { MAX_BYTES, MAX_PAGES, TooMuchTextError } from "./limits"
+import { MAX_BYTES, MAX_PAGES, TIME_LIMIT_MS, TooMuchTextError } from "./limits"
 import { readPdf, type Line, type PageSize, type PdfPage } from "./lines"
 import type { ParsedResume } from "./parse"
 import type { ReadRequest, ReadResult } from "./read"
@@ -51,14 +51,28 @@ function kindOf(file: File): "pdf" | "docx" | null {
   return null
 }
 
-/** Reads in a worker of its own, which is ended once it answers. */
-function readInWorker(request: ReadRequest): Promise<ReadResult> {
+/** Waits for `promise`, or stops waiting as soon as `signal` aborts. */
+function until<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
+    const stop = () => reject(signal.reason)
+    signal.addEventListener("abort", stop, { once: true })
+    if (signal.aborted) stop()
+    promise.then(resolve, reject).finally(() => signal.removeEventListener("abort", stop))
+  })
+}
+
+/** Reads in a worker of its own, which is ended once it answers, or as soon as `signal` aborts. */
+function readInWorker(request: ReadRequest, signal: AbortSignal): Promise<ReadResult> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason)
     const worker = new Worker(new URL("./import.worker.ts", import.meta.url))
     const end = (settle: () => void) => {
       worker.terminate()
+      signal.removeEventListener("abort", stop)
       settle()
     }
+    const stop = () => end(() => reject(signal.reason))
+    signal.addEventListener("abort", stop, { once: true })
     worker.onmessage = ({ data }: MessageEvent<ReadResult>) => end(() => resolve(data))
     worker.onerror = (event) => end(() => reject(new Error(event.message || "The import worker failed")))
     worker.onmessageerror = () => end(() => reject(new Error("The import worker's answer couldn't be read")))
@@ -84,8 +98,8 @@ function found(result: ReadResult, noText: string): ParsedResume {
 }
 
 /** The resume a resumezip PDF carries, or null for a PDF from anywhere else. */
-async function attachedResume(doc: PDFDocumentProxy): Promise<ResumeContent | null> {
-  const attachments = (await doc.getAttachments().catch(() => null)) as Record<string, { content: Uint8Array }> | null
+async function attachedResume(doc: PDFDocumentProxy, signal: AbortSignal): Promise<ResumeContent | null> {
+  const attachments = (await until(doc.getAttachments().catch(() => null), signal)) as Record<string, { content: Uint8Array }> | null
   const attached = attachments?.[ATTACHMENT_NAME]
   try {
     return attached ? fromAttachment(new TextDecoder().decode(attached.content)) : null
@@ -98,22 +112,27 @@ async function attachedResume(doc: PDFDocumentProxy): Promise<ResumeContent | nu
   }
 }
 
-async function openPdf(data: ArrayBuffer, title: string, fileName: string): Promise<OpenedFile> {
-  const { getDocument } = await loadPdfjs()
-  let doc: PDFDocumentProxy
-  try {
-    doc = await getDocument({ data: new Uint8Array(data), isEvalSupported: false, fontExtraProperties: true }).promise
-  } catch (error) {
-    throw new OpenFileError(
-      (error as { name?: string })?.name === "PasswordException"
-        ? "This PDF is password-protected. Remove the password, then open it here."
-        : "This file isn't a PDF we can read.",
-    )
-  }
-
+async function openPdf(data: ArrayBuffer, title: string, fileName: string, signal: AbortSignal): Promise<OpenedFile> {
+  const { getDocument } = await until(loadPdfjs(), signal)
+  const task = getDocument({ data: new Uint8Array(data), isEvalSupported: false, fontExtraProperties: true })
+  // Closing the document ends pdf.js's worker, which stops whatever it's reading.
+  const close = () => void task.destroy().catch(() => {})
+  signal.addEventListener("abort", close, { once: true })
   let shown = false
   try {
-    const resume = await attachedResume(doc)
+    let doc: PDFDocumentProxy
+    try {
+      doc = await until(task.promise, signal)
+    } catch (error) {
+      signal.throwIfAborted()
+      throw new OpenFileError(
+        (error as { name?: string })?.name === "PasswordException"
+          ? "This PDF is password-protected. Remove the password, then open it here."
+          : "This file isn't a PDF we can read.",
+      )
+    }
+
+    const resume = await attachedResume(doc, signal)
     if (resume) return { kind: "resumezip", resume, title }
 
     if (doc.numPages > MAX_PAGES) {
@@ -121,32 +140,52 @@ async function openPdf(data: ArrayBuffer, title: string, fileName: string): Prom
     }
     let pages: PdfPage[]
     try {
-      pages = await readPdf(doc)
+      pages = await until(readPdf(doc, signal), signal)
     } catch (error) {
       throw error instanceof TooMuchTextError ? new OpenFileError(TOO_MUCH_TEXT) : error
     }
-    const result = await readInWorker({ kind: "pdf", pages })
+    const result = await readInWorker({ kind: "pdf", pages }, signal)
     const parsed = found(result, "This PDF has no text we can read. It's probably a scan or a picture of a resume.")
     shown = true
     return { kind: "parsed", parsed, lines: parsed.lines, title, fileName, pdf: { doc, pages: pages.map(({ width, height }) => ({ width, height })) } }
   } finally {
+    signal.removeEventListener("abort", close)
     // The review shows the PDF, and closes it when it's done.
-    if (!shown) await doc.destroy()
+    if (!shown) close()
   }
 }
 
-async function openWordFile(data: ArrayBuffer, title: string, fileName: string): Promise<OpenedFile> {
-  const parsed = found(await readInWorker({ kind: "docx", data }), "This Word file has no text in it.")
+async function openWordFile(data: ArrayBuffer, title: string, fileName: string, signal: AbortSignal): Promise<OpenedFile> {
+  const parsed = found(await readInWorker({ kind: "docx", data }, signal), "This Word file has no text in it.")
   return { kind: "parsed", parsed, lines: parsed.lines, title, fileName }
 }
 
-export async function openResumeFile(file: File): Promise<OpenedFile> {
+/**
+ * Opens a file. Aborting `signal` (Cancel) stops reading straight away, and
+ * the promise rejects with its reason.
+ */
+export async function openResumeFile(file: File, { signal }: { signal?: AbortSignal } = {}): Promise<OpenedFile> {
   const kind = kindOf(file)
   if (!kind) {
     throw new OpenFileError(/\.doc$/i.test(file.name) ? "That's an older Word file. Save it as .docx or PDF, then open it here." : "Open a PDF or a Word (.docx) file.")
   }
   if (file.size > MAX_BYTES) throw new OpenFileError("That file is too big to be a resume.")
   const title = file.name.replace(/\.(pdf|docx)$/i, "").trim() || "Imported resume"
-  const data = await file.arrayBuffer()
-  return kind === "docx" ? openWordFile(data, title, file.name) : openPdf(data, title, file.name)
+
+  // Stops on Cancel, or once time runs out.
+  const reading = new AbortController()
+  const cancel = () => reading.abort(signal?.reason)
+  signal?.addEventListener("abort", cancel, { once: true })
+  if (signal?.aborted) cancel()
+  const timer = setTimeout(
+    () => reading.abort(new OpenFileError("This file took too long to read. Try a PDF or Word copy of just your resume.")),
+    TIME_LIMIT_MS,
+  )
+  try {
+    const data = await until(file.arrayBuffer(), reading.signal)
+    return kind === "docx" ? await openWordFile(data, title, file.name, reading.signal) : await openPdf(data, title, file.name, reading.signal)
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener("abort", cancel)
+  }
 }

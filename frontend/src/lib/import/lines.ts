@@ -215,13 +215,14 @@ function findGutter(items: Item[], width: number): number | null {
  * Reads every page's text, with its styles and links. pdf.js does the reading
  * in a worker of its own; sorting the text into lines (`linesFromPages`) is
  * plain work that can run in another. Stops as soon as there's more text than
- * a resume would have.
+ * a resume would have, or when `signal` aborts.
  */
-export async function readPdf(doc: PDFDocumentProxy): Promise<PdfPage[]> {
+export async function readPdf(doc: PDFDocumentProxy, signal?: AbortSignal): Promise<PdfPage[]> {
   const pages: PdfPage[] = []
   let characters = 0
 
   for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
+    signal?.throwIfAborted()
     const page = await doc.getPage(pageNumber)
     const [x0, y0, x1, y1] = page.view
 
