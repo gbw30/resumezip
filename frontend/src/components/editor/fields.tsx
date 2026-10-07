@@ -3,6 +3,8 @@
 import type React from "react"
 import { useId, useLayoutEffect, useRef, useState } from "react"
 import { Pencil } from "lucide-react"
+import type { Finding } from "@/lib/check/engine"
+import { LEVELS } from "@/lib/check/settings"
 
 interface FieldProps {
   label: string
@@ -11,22 +13,69 @@ interface FieldProps {
   type?: string
   className?: string
   onChange: (value: string) => void
+  /** The field's key, so the checker can find it on the page. */
+  name?: string
+  /** What the checker found here, while the person is fixing it. */
+  flag?: Finding | null
+}
+
+/**
+ * What the checker found where the person is fixing it, and why it matters.
+ * It says how sure the checker is in words, so the field's color isn't the
+ * only sign.
+ */
+export function FlagNote({ id, finding }: { id?: string; finding: Finding }) {
+  return (
+    <div
+      id={id}
+      className={`flex flex-col gap-0.5 border-l-2 pl-3 text-[13px] leading-normal ${
+        finding.level === "fix" ? "border-[#b42318]" : "border-accent"
+      }`}
+    >
+      <p className="text-ink">
+        <span className="font-medium">{LEVELS[finding.level].name}:</span> {finding.message}
+      </p>
+      <p className="text-ink-2">{finding.why}</p>
+      {finding.suggestion && <p className="text-ink-2">{finding.suggestion}</p>}
+    </div>
+  )
 }
 
 /** A labelled, underlined text input. */
-export function Field({ label, value, placeholder, type = "text", className = "", onChange }: FieldProps) {
+export function Field({ label, value, placeholder, type = "text", className = "", onChange, name, flag }: FieldProps) {
+  const noteId = useId()
   return (
-    <label className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
-      <span className="label-mono text-ink-2">{label}</span>
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full min-w-0 border-0 border-b border-rule-strong bg-transparent py-2 text-base text-ink outline-none transition-colors placeholder:text-ink-2/50 focus:border-accent focus-visible:outline-none"
-      />
-    </label>
+    <div data-field={name} className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
+      <label className="flex min-w-0 flex-col gap-1.5">
+        <span className="label-mono text-ink-2">{label}</span>
+        <input
+          type={type}
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+          aria-describedby={flag ? noteId : undefined}
+          aria-invalid={flag?.level === "fix" || undefined}
+          className={`w-full min-w-0 border-0 bg-transparent py-2 text-base text-ink outline-none transition-colors placeholder:text-ink-2/50 focus-visible:outline-none ${
+            !flag
+              ? "border-b border-rule-strong focus:border-accent"
+              : flag.level === "fix"
+                ? "border-b-2 border-[#b42318]"
+                : "border-b-2 border-accent"
+          }`}
+        />
+      </label>
+      {flag && <FlagNote id={noteId} finding={flag} />}
+    </div>
   )
+}
+
+/** Selects a line's words in a bullets textarea, after its "• ", to point at one bullet. */
+export function selectLine(textarea: HTMLTextAreaElement, line: number) {
+  const lines = textarea.value.split("\n")
+  if (line < 0 || line >= lines.length) return
+  const start = lines.slice(0, line).reduce((total, text) => total + text.length + 1, 0)
+  const bullet = lines[line].match(/^•\s*/)?.[0].length ?? 0
+  textarea.setSelectionRange(start + bullet, start + lines[line].length)
 }
 
 // Every non-empty line starts with "• " so the textarea reads like the PDF.
@@ -48,10 +97,11 @@ const shortcut = (key: string) => (/Mac|iPhone|iPad/.test(navigator.platform) ? 
  * A textarea for bullet points: one per line, and Enter starts a new bullet.
  * **Bold**, *italic* and ***both*** print that way; ⌘B and ⌘I add or remove the marks.
  */
-export function BulletsField({ label, value, placeholder, className = "", onChange }: FieldProps) {
+export function BulletsField({ label, value, placeholder, className = "", onChange, name, flag }: FieldProps) {
   const text = withBullets(value)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const hintId = useId()
+  const noteId = useId()
 
   // Grow to fit the text instead of scrolling inside the box.
   useLayoutEffect(() => {
@@ -104,20 +154,28 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
   }
 
   return (
-    <div className={`flex min-w-0 flex-col gap-2 ${className}`}>
+    <div data-field={name} className={`flex min-w-0 flex-col gap-2 ${className}`}>
       <label className="flex flex-col gap-2">
         <span className="label-mono text-ink-2">{label}</span>
         <textarea
           ref={textareaRef}
-          aria-describedby={hintId}
+          aria-describedby={flag ? `${hintId} ${noteId}` : hintId}
+          aria-invalid={flag?.level === "fix" || undefined}
           value={text}
           placeholder={placeholder ? `• ${placeholder}` : undefined}
           rows={4}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
-          className="w-full resize-none overflow-hidden rounded-[4px] border border-rule bg-sheet px-3.5 py-3 text-[15px] leading-[1.7] text-ink outline-none transition-colors placeholder:text-ink-2/50 focus:border-accent focus-visible:outline-none"
+          className={`w-full resize-none overflow-hidden rounded-[4px] border bg-sheet px-3.5 py-3 text-[15px] leading-[1.7] text-ink outline-none transition-colors placeholder:text-ink-2/50 focus-visible:outline-none ${
+            !flag
+              ? "border-rule focus:border-accent"
+              : flag.level === "fix"
+                ? "border-[#b42318] ring-1 ring-[#b42318]"
+                : "border-accent ring-1 ring-accent"
+          }`}
         />
       </label>
+      {flag && <FlagNote id={noteId} finding={flag} />}
       <span id={hintId} className="text-[13px] leading-normal text-ink-2">
         {window.matchMedia("(pointer: coarse)").matches ? (
           // No keyboard shortcuts on a touch screen, so show the marks to type.
@@ -141,10 +199,12 @@ interface SectionHeadingProps {
   title: string
   /** When given, the title can be renamed. */
   onRename?: (title: string) => void
+  /** What the checker found about the section or its title, while the person is fixing it. */
+  flag?: Finding | null
 }
 
 /** The big serif title at the top of each section, optionally renameable. */
-export function SectionHeading({ position, title, onRename }: SectionHeadingProps) {
+export function SectionHeading({ position, title, onRename, flag }: SectionHeadingProps) {
   const [draft, setDraft] = useState<string | null>(null)
 
   const save = () => {
@@ -184,6 +244,7 @@ export function SectionHeading({ position, title, onRename }: SectionHeadingProp
           className="w-full border-0 border-b-[1.5px] border-accent bg-transparent font-serif text-[40px] leading-[1.1] tracking-[-0.02em] outline-none focus-visible:outline-none"
         />
       )}
+      {flag && <FlagNote finding={flag} />}
     </div>
   )
 }
