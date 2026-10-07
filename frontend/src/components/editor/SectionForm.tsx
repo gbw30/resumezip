@@ -6,6 +6,7 @@ import { useResumeContext } from "@/context/ResumeContext"
 import { useCheck } from "./CheckContext"
 import { BulletsField, Field, FlagNote, SectionHeading, selectLine } from "./fields"
 import { uncovered } from "./layout"
+import PaperFromLink from "./PaperFromLink"
 import { FIELD_SPAN, type ChoiceDef, type SectionDef } from "./sections"
 
 type Entry = { id: number; [field: string]: any }
@@ -54,6 +55,8 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   const entries: Entry[] = Array.isArray(formData[section.dataKey]) ? formData[section.dataKey] : []
   const latest = useRef(entries)
   latest.current = entries
+  const owner = useRef("")
+  owner.current = formData.profileSection?.fullName ?? ""
 
   // One entry is open at a time; the rest collapse to a one-line summary.
   const [openId, setOpenId] = useState<number | null>(entries[0]?.id ?? null)
@@ -163,12 +166,19 @@ export default function SectionForm({ section, position }: SectionFormProps) {
     if (id !== null) requestAnimationFrame(() => focusFirstField(id))
   }
 
-  const add = () => {
-    const id = entries.length > 0 ? Math.max(...entries.map((entry) => entry.id)) + 1 : 1
+  /**
+   * Adds entries at the end and opens the first. It builds on the latest
+   * entries, so nothing typed while a paper was being looked up is lost.
+   * `show` brings the opened entry into view and puts the cursor in it.
+   */
+  const addEntries = (values: Record<string, string>[], show = true) => {
+    const current = latest.current
+    const id = current.length > 0 ? Math.max(...current.map((entry) => entry.id)) + 1 : 1
     const blank = Object.fromEntries(section.fields.map((field) => [field.key, ""]))
-    save([...entries, { ...blank, id } as Entry])
+    save([...current, ...values.map((value, index) => ({ ...blank, ...value, id: id + index }) as Entry)])
     setConfirmingId(null)
     setOpenId(id)
+    if (!show) return
     // Once it has slid open, bring it into view.
     setTimeout(
       () => {
@@ -179,6 +189,8 @@ export default function SectionForm({ section, position }: SectionFormProps) {
       reducedMotion() ? 0 : SLIDE_MS,
     )
   }
+
+  const add = () => addEntries([{}])
 
   // Ids are renumbered so they stay 1..n, as the stored data always has been.
   const remove = (id: number) => {
@@ -202,6 +214,18 @@ export default function SectionForm({ section, position }: SectionFormProps) {
 
   const title = formData.headings?.[section.headingKey] || section.title
   const quiet = "py-2 text-sm text-ink-2 transition-colors hover:text-ink"
+
+  const addButtonElement = (
+    <button
+      ref={addButton}
+      type="button"
+      onClick={add}
+      className="inline-flex h-10 items-center gap-2 self-start rounded-[4px] border border-rule-strong px-3.5 text-sm text-ink transition-colors hover:border-ink"
+    >
+      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+      {section.addLabel}
+    </button>
+  )
 
   return (
     <div className="flex flex-col gap-8">
@@ -231,7 +255,10 @@ export default function SectionForm({ section, position }: SectionFormProps) {
           {entries.map((entry, index) => {
             const isOpen = entry.id === openId
             const confirming = entry.id === confirmingId
-            const summary = section.summary.map((key) => entry[key]?.trim()).filter(Boolean).join(", ")
+            // Its first filled field stands in when the usual ones are empty, like a paper's link added by hand.
+            const summary =
+              section.summary.map((key) => entry[key]?.trim()).filter(Boolean).join(", ") ||
+              section.fields.map((field) => entry[field.key]?.trim()).find(Boolean)
             const name = `entry ${index + 1}`
 
             return (
@@ -367,15 +394,13 @@ export default function SectionForm({ section, position }: SectionFormProps) {
         </div>
       )}
 
-      <button
-        ref={addButton}
-        type="button"
-        onClick={add}
-        className="inline-flex h-10 items-center gap-2 self-start rounded-[4px] border border-rule-strong px-3.5 text-sm text-ink transition-colors hover:border-ink"
-      >
-        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-        {section.addLabel}
-      </button>
+      {section.fromPaperLink ? (
+        <PaperFromLink entries={() => latest.current} owner={() => owner.current} onAdd={addEntries}>
+          {addButtonElement}
+        </PaperFromLink>
+      ) : (
+        addButtonElement
+      )}
     </div>
   )
 }

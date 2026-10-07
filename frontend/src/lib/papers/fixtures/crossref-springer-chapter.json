@@ -1,0 +1,75 @@
+{
+  "status": "ok",
+  "message-type": "work",
+  "message-version": "1.0.0",
+  "message": {
+    "DOI": "10.1007/978-3-030-58452-8_13",
+    "type": "book-chapter",
+    "title": [
+      "End-to-End Object Detection with Transformers"
+    ],
+    "subtitle": [],
+    "author": [
+      {
+        "given": "Nicolas",
+        "family": "Carion",
+        "sequence": "first"
+      },
+      {
+        "given": "Francisco",
+        "family": "Massa",
+        "sequence": "additional"
+      },
+      {
+        "given": "Gabriel",
+        "family": "Synnaeve",
+        "sequence": "additional"
+      },
+      {
+        "given": "Nicolas",
+        "family": "Usunier",
+        "sequence": "additional"
+      },
+      {
+        "given": "Alexander",
+        "family": "Kirillov",
+        "sequence": "additional"
+      },
+      {
+        "given": "Sergey",
+        "family": "Zagoruyko",
+        "sequence": "additional"
+      }
+    ],
+    "container-title": [
+      "Lecture Notes in Computer Science",
+      "Computer Vision – ECCV 2020"
+    ],
+    "short-container-title": [],
+    "publisher": "Springer International Publishing",
+    "page": "213-229",
+    "issued": {
+      "date-parts": [
+        [
+          2020
+        ]
+      ]
+    },
+    "published-print": {
+      "date-parts": [
+        [
+          2020
+        ]
+      ]
+    },
+    "published-online": {
+      "date-parts": [
+        [
+          2020,
+          11,
+          3
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "status": "ok",
+  "message-type": "work",
+  "message-version": "1.0.0",
+  "message": {
+    "DOI": "10.1038/s41467-026-68527-9",
+    "type": "journal-article",
+    "title": [
+      "Atmospheric deposition enhances marine methane production and emissions from global oceans"
+    ],
+    "subtitle": [],
+    "author": [
+      {
+        "given": "Guang-Chao",
+        "family": "Zhuang",
+        "sequence": "first"
+      },
+      {
+        "given": "Shi-Hai",
+        "family": "Mao",
+        "sequence": "additional"
+      },
+      {
+        "given": "Hong-Hai",
+        "family": "Zhang",
+        "sequence": "additional"
+      },
+      {
+        "given": "Menggong",
+        "family": "Li",
+        "sequence": "additional"
+      },
+      {
+        "given": "Wei-Lei",
+        "family": "Wang",
+        "sequence": "additional"
+      },
+      {
+        "given": "Yuan-Zhe",
+        "family": "Ni",
+        "sequence": "additional"
+      },
+      {
+        "given": "Zhen",
+        "family": "Zhou",
+        "sequence": "additional"
+      },
+      {
+        "given": "Xu-Xu",
+        "family": "Gao",
+        "sequence": "additional"
+      },
+      {
+        "given": "Ke-Yu",
+        "family": "Lu",
+        "sequence": "additional"
+      },
+      {
+        "given": "Xi-Ting",
+        "family": "Liu",
+        "sequence": "additional"
+      },
+      {
+        "given": "Jin",
+        "family": "Sun",
+        "sequence": "additional"
+      },
+      {
+        "given": "Xiao-Hua",
+        "family": "Zhang",
+        "sequence": "additional"
+      },
+      {
+        "given": "Samantha B.",
+        "family": "Joye",
+        "sequence": "additional"
+      },
+      {
+        "given": "Marshall W.",
+        "family": "Bowles",
+        "sequence": "additional"
+      },
+      {
+        "given": "Gui-Peng",
+        "family": "Yang",
+        "sequence": "additional"
+      }
+    ],
+    "container-title": [
+      "Nature Communications"
+    ],
+    "short-container-title": [
+      "Nat Commun"
+    ],
+    "publisher": "Springer Science and Business Media LLC",
+    "volume": "17",
+    "issue": "1",
+    "article-number": "1811",
+    "issued": {
+      "date-parts": [
+        [
+          2026,
+          1,
+          21
+        ]
+      ]
+    },
+    "published-online": {
+      "date-parts": [
+        [
+          2026,
+          1,
+          21
+        ]
+      ]
+    }
+  }
+}
