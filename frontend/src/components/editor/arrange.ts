@@ -17,9 +17,10 @@ const wordsOf = (line: string) => line.trim().replace(/^[•○]\s*/, "")
 /**
  * The text as the text box shows it: every non-empty line starts with "• ",
  * so it reads like the PDF, or "○ " for a bullet that's left out. A bullet
- * set in from the left counts the same, so "  ○ Fed the cat" stays left out.
- * Otherwise only a missing space after the bullet is added, so nothing moves
- * under the cursor while typing.
+ * set in from the left, or followed by a tab (as lists pasted from Word
+ * are), counts the same, so "  ○ Fed the cat" and "○\tFed the cat" stay left
+ * out. Otherwise only a missing space after the bullet is added, so nothing
+ * moves under the cursor while typing.
  */
 export function withBullets(text: string): string {
   return text
@@ -29,7 +30,8 @@ export function withBullets(text: string): string {
       const unindented = /^\s+[•○]/.test(line) ? line.trimStart() : line
       if (unindented === "•" || unindented === "○") return unindented
       if (/^[•○]([^\s]|$)/.test(unindented)) return unindented.replace(/^([•○])/, "$1 ")
-      return /^[•○] /.test(unindented) ? unindented : `• ${unindented}`
+      // A bullet with any space after it is kept as typed.
+      return /^[•○]/.test(unindented) ? unindented : `• ${unindented}`
     })
     .join("\n")
 }

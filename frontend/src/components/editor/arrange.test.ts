@@ -17,6 +17,14 @@ describe("the text box", () => {
   test("leaves the spaces typed after a bullet alone, so nothing moves under the cursor", () => {
     expect(withBullets("•  Two spaces")).toBe("•  Two spaces")
   })
+
+  test("counts a bullet followed by a tab or another kind of space, as pasted lists have, the same", () => {
+    expect(withBullets("○\tFed the cat\n•\tBuilt a loom\n○\u00A0Wrote the notes")).toBe("○\tFed the cat\n•\tBuilt a loom\n○\u00A0Wrote the notes")
+    expect(bulletLines(withBullets("○\tFed the cat\n•\tBuilt a loom"))).toEqual([
+      { line: 0, words: "Fed the cat", leftOut: true },
+      { line: 1, words: "Built a loom", leftOut: false },
+    ])
+  })
 })
 
 describe("arranging bullets", () => {
