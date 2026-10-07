@@ -348,9 +348,9 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                       }`}
                     >
                       <div className="-mx-1 min-h-0 overflow-hidden px-1" inert={!isOpen}>
-                        <div className="grid grid-cols-2 gap-x-7 gap-y-6 pb-1 pt-5 sm:grid-cols-4">
+                        <div className="grid grid-cols-2 gap-x-7 gap-y-6 pb-1 pt-5 @lg:grid-cols-4">
                           {flagAt(index) && (
-                            <div className="col-span-2 sm:col-span-4">
+                            <div className="col-span-2 @lg:col-span-4">
                               <FlagNote finding={flagAt(index)!} />
                             </div>
                           )}

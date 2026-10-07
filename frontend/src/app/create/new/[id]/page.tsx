@@ -261,7 +261,8 @@ export default function EditorPage() {
               view === "preview" ? "hidden" : ""
             }`}
           >
-            <div className="mx-auto max-w-[640px]">
+            {/* A container, so the fields fit the form's own width rather than the window's. */}
+            <div className="@container mx-auto max-w-[640px]">
               {active === "Profile" ? (
                 <ProfileForm position={position(1)} />
               ) : (
