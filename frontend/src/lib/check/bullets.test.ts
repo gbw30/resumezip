@@ -116,7 +116,8 @@ describe("B5 buzzwords and vague words", () => {
   })
 
   test("doesn't flag technical words that look like them", () => {
-    expect(check("B5", resumeWith(job(["Used dynamic programming to cut costs", "Built an Internet of Things gateway", "Led a variety show"]))).status).toBe("passed")
+    const bullets = ["Used dynamic programming to cut costs", "Built an Internet of Things gateway", "Led a variety show", "Made the build faster and more reliable"]
+    expect(check("B5", resumeWith(job(bullets))).status).toBe("passed")
   })
 })
 

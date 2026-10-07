@@ -229,7 +229,7 @@ export const BUZZWORDS = [
 ]
 
 /** Vague words that stand in for saying which or how many. */
-export const VAGUE_WORDS = ["various", "numerous", "a variety of", "etc.", "etc", "and so on", "and more"]
+export const VAGUE_WORDS = ["various", "numerous", "a variety of", "etc.", "etc", "and so on"]
 
 /** Words that count as a number in a bullet, as digits do. */
 export const NUMBER_WORDS = [
