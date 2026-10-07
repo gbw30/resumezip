@@ -18,6 +18,12 @@ import { compilePreview, downloadResume, printedOf, Superseded } from "@/lib/typ
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
+// After a change, the preview waits about as long as a compile takes before
+// compiling: fast computers update quickly, and slow phones don't compile
+// for every pause in typing.
+const MIN_WAIT_MS = 150
+const MAX_WAIT_MS = 400
+
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>()
   const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus } = useResumeContext()
@@ -30,6 +36,8 @@ export default function EditorPage() {
   const [view, setView] = useState<"edit" | "preview">("edit")
   const [typing, setTyping] = useState(false)
   const editScroll = useRef(0)
+  // How long the last preview took.
+  const compileMs = useRef(MIN_WAIT_MS)
   const headerRef = useRef<HTMLElement>(null)
   const mainRef = useRef<HTMLElement>(null)
 
@@ -59,9 +67,12 @@ export default function EditorPage() {
   useEffect(() => {
     if (!formData.id) return
     let cancelled = false
+    const wait = Math.min(MAX_WAIT_MS, Math.max(MIN_WAIT_MS, compileMs.current))
     const timer = setTimeout(async () => {
+      const startedAt = performance.now()
       try {
         const url = await compilePreview(JSON.parse(printed))
+        compileMs.current = performance.now() - startedAt
         if (cancelled) {
           URL.revokeObjectURL(url)
           return
@@ -71,7 +82,7 @@ export default function EditorPage() {
       } catch (error) {
         if (!cancelled && !(error instanceof Superseded)) setCompileError(error instanceof Error ? error.message : String(error))
       }
-    }, 400)
+    }, wait)
     return () => {
       cancelled = true
       clearTimeout(timer)
