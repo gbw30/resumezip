@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import { Plus } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
-import { BulletsField, Field, SectionHeading } from "./fields"
+import { useCheck } from "./CheckContext"
+import { BulletsField, Field, FlagNote, SectionHeading, selectLine } from "./fields"
 import { FIELD_SPAN, type ChoiceDef, type SectionDef } from "./sections"
 
 type Entry = { id: number; [field: string]: any }
@@ -42,6 +43,14 @@ function uncovered() {
   return { top, bottom }
 }
 
+/** Moves the cursor to what the checker points at (one bullet, if `line` is given) and scrolls it into view. */
+function pointAt(target: HTMLElement | null | undefined, line?: number, view: HTMLElement | null | undefined = target) {
+  if (!target) return
+  target.focus({ preventScroll: true })
+  if (line !== undefined && target instanceof HTMLTextAreaElement) selectLine(target, line)
+  view?.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" })
+}
+
 /** Scrolls just enough to show the top of an opened entry: its heading and first fields. */
 function reveal(element: HTMLElement, scroller: HTMLElement, reduced: boolean) {
   const box = element.getBoundingClientRect()
@@ -68,6 +77,48 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   const elements = useRef(new Map<number, HTMLElement>())
   const addButton = useRef<HTMLButtonElement>(null)
   const cancelButton = useRef<HTMLButtonElement>(null)
+  const heading = useRef<HTMLDivElement>(null)
+  const opened = useRef(openId)
+  opened.current = openId
+
+  // What the checker points at in this section, while the person fixes it.
+  const { target, pending, claim } = useCheck()
+  const place = target?.finding.place
+  const here = place && place.kind !== "profile" && place.kind !== "page" && place.section === section.name ? place : null
+  const flagAt = (index: number, field?: string) =>
+    here?.kind === "entry" && here.entry === index && here.field === field ? target!.finding : null
+
+  // When the person chooses a finding here, open its entry, then move to its
+  // field once the entry has slid open: just once, not each time it's shown.
+  useEffect(() => {
+    const place = target?.finding.place
+    if (!target || !place || place.kind === "profile" || place.kind === "page" || place.section !== section.name) return
+    if (!pending(target.request)) return
+    const entry = place.kind === "entry" ? latest.current[place.entry] : undefined
+    if (place.kind === "entry" && !entry) return
+    const sliding = entry !== undefined && entry.id !== opened.current && !reducedMotion()
+    if (entry) {
+      setConfirmingId(null)
+      setOpenId(entry.id)
+      setShownId(entry.id)
+    }
+    const timer = setTimeout(
+      () => {
+        if (!claim(target.request)) return
+        if (place.kind === "heading") {
+          pointAt(heading.current?.querySelector<HTMLElement>('button[aria-label="Rename section"]'), undefined, heading.current)
+        } else if (place.kind === "section") {
+          pointAt(addButton.current, undefined, heading.current)
+        } else if (entry) {
+          const fields = elements.current.get(entry.id)
+          const selector = place.field ? `[data-field="${place.field}"] :is(input, textarea)` : "input, textarea"
+          pointAt(fields?.querySelector<HTMLElement>(selector), place.line)
+        }
+      },
+      sliding ? SLIDE_MS : 0,
+    )
+    return () => clearTimeout(timer)
+  }, [target, pending, claim, section.name])
 
   // Asking to confirm a delete moves focus to Cancel, so Escape or Enter backs out.
   useEffect(() => {
@@ -167,11 +218,14 @@ export default function SectionForm({ section, position }: SectionFormProps) {
 
   return (
     <div className="flex flex-col gap-8">
-      <SectionHeading
-        position={position}
-        title={title}
-        onRename={(name) => updateFormData("headings", { ...formData.headings, [section.headingKey]: name })}
-      />
+      <div ref={heading}>
+        <SectionHeading
+          position={position}
+          title={title}
+          onRename={(name) => updateFormData("headings", { ...formData.headings, [section.headingKey]: name })}
+          flag={here?.kind === "heading" || here?.kind === "section" ? target!.finding : null}
+        />
+      </div>
 
       {section.choice && (
         <SectionChoice
@@ -295,16 +349,23 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                     >
                       <div className="-mx-1 min-h-0 overflow-hidden px-1" inert={!isOpen}>
                         <div className="grid grid-cols-2 gap-x-7 gap-y-6 pb-1 pt-5 sm:grid-cols-4">
+                          {flagAt(index) && (
+                            <div className="col-span-2 sm:col-span-4">
+                              <FlagNote finding={flagAt(index)!} />
+                            </div>
+                          )}
                           {section.fields.map((field) => {
                             const Input = field.type === "bullets" ? BulletsField : Field
                             return (
                               <Input
                                 key={field.key}
+                                name={field.key}
                                 label={field.label}
                                 placeholder={field.placeholder}
                                 value={entry[field.key] ?? ""}
                                 onChange={(value) => update(entry.id, field.key, value)}
                                 className={FIELD_SPAN[field.size]}
+                                flag={flagAt(index, field.key)}
                               />
                             )
                           })}

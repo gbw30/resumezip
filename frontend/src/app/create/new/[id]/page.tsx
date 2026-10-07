@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import { ArrowLeft, Download, Eye, Loader2, PencilLine } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
+import { CheckProvider } from "@/components/editor/CheckContext"
 import LeftBar from "@/components/editor/LeftBar"
 import PdfPreview from "@/components/editor/PdfPreview"
 import ProfileForm from "@/components/editor/ProfileForm"
@@ -225,38 +226,41 @@ export default function EditorPage() {
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <LeftBar hidden={view === "preview"}>
-          <SectionNav
-            sections={sections}
-            active={active}
-            onSelect={select}
-            onReorder={(order) => updateFormData("sectionOrder", order)}
-          />
-        </LeftBar>
+        {/* The left bar and the forms share what the checker found. */}
+        <CheckProvider onSelect={select}>
+          <LeftBar hidden={view === "preview"}>
+            <SectionNav
+              sections={sections}
+              active={active}
+              onSelect={select}
+              onReorder={(order) => updateFormData("sectionOrder", order)}
+            />
+          </LeftBar>
 
-        <main
-          ref={mainRef}
-          className={`min-w-0 flex-1 px-5 pb-28 pt-9 sm:px-10 lg:block lg:overflow-y-auto lg:px-12 lg:pb-16 ${
-            view === "preview" ? "hidden" : ""
-          }`}
-        >
-          <div className="mx-auto max-w-[640px]">
-            {active === "Profile" ? (
-              <ProfileForm position={position(1)} />
-            ) : (
-              <SectionForm key={active} section={SECTIONS[active]} position={position(sections.indexOf(active) + 2)} />
-            )}
-          </div>
-        </main>
+          <main
+            ref={mainRef}
+            className={`min-w-0 flex-1 px-5 pb-28 pt-9 sm:px-10 lg:block lg:overflow-y-auto lg:px-12 lg:pb-16 ${
+              view === "preview" ? "hidden" : ""
+            }`}
+          >
+            <div className="mx-auto max-w-[640px]">
+              {active === "Profile" ? (
+                <ProfileForm position={position(1)} />
+              ) : (
+                <SectionForm key={active} section={SECTIONS[active]} position={position(sections.indexOf(active) + 2)} />
+              )}
+            </div>
+          </main>
 
-        <section
-          aria-label="Live preview"
-          className={`min-w-0 flex-col bg-desk pb-20 lg:flex lg:w-[46%] lg:overflow-hidden lg:pb-0 ${
-            view === "preview" ? "flex max-lg:flex-1" : "hidden"
-          }`}
-        >
-          <PdfPreview pdfUrl={pdfUrl} error={compileError} />
-        </section>
+          <section
+            aria-label="Live preview"
+            className={`min-w-0 flex-col bg-desk pb-20 lg:flex lg:w-[46%] lg:overflow-hidden lg:pb-0 ${
+              view === "preview" ? "flex max-lg:flex-1" : "hidden"
+            }`}
+          >
+            <PdfPreview pdfUrl={pdfUrl} error={compileError} />
+          </section>
+        </CheckProvider>
       </div>
 
       <div
