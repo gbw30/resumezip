@@ -28,7 +28,7 @@
   --animate-print-sweep: print-sweep 1.8s ease-in-out infinite;
   @keyframes print-sweep {
     from {
-      top: 0%;
+      transform: translateY(0%);
       opacity: 0;
     }
     15%,
@@ -36,7 +36,7 @@
       opacity: 1;
     }
     to {
-      top: 100%;
+      transform: translateY(100%);
       opacity: 0;
     }
   }

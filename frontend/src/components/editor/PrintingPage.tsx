@@ -118,13 +118,16 @@ export default function PrintingPage({ width, leaving = false }: PrintingPagePro
             }}
           />
         ))}
+        {/* The line rides at the top of a layer the page's size, which is moved
+            rather than the line itself, so the browser needn't lay the page out
+            again as it goes. */}
         <span
           aria-hidden="true"
-          className={`absolute inset-x-[5%] h-px bg-accent/70 shadow-[0_0_10px_2px_rgba(46,91,230,0.25)] motion-reduce:hidden ${
-            following ? "transition-[top] duration-200 ease-out" : "animate-print-sweep"
-          }`}
-          style={following ? { top: percent(head, PAGE.height) } : { animationDelay: `${BARS.length * 10}ms` }}
-        />
+          className={`absolute inset-0 motion-reduce:hidden ${following ? "transition-transform duration-200 ease-out" : "animate-print-sweep"}`}
+          style={following ? { transform: `translateY(${percent(head, PAGE.height)})` } : { animationDelay: `${BARS.length * 10}ms` }}
+        >
+          <span className="absolute inset-x-[5%] top-0 h-px bg-accent/70 shadow-[0_0_10px_2px_rgba(46,91,230,0.25)]" />
+        </span>
         {following && explain && (
           <div className="absolute inset-x-0 top-[38%] flex justify-center px-5">
             {/* The figure changes often, so it's given as a value rather than read out each time. */}
