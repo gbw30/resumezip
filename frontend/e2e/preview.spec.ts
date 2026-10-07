@@ -1,6 +1,13 @@
 import { expect, test, type Locator } from "@playwright/test"
 import { pageErrors } from "./helpers"
 
+declare global {
+  interface Window {
+    /** How many resumes the page has sent to the compiler, counted by a test. */
+    compiles?: number
+  }
+}
+
 // The preview is drawn on a canvas, with an invisible copy of its text laid
 // over it so it can be selected (components/editor/PdfPreview.tsx).
 
@@ -56,6 +63,36 @@ test("selecting and copying text in the preview", async ({ page }) => {
   expect(copied.text).toMatch(/Ada Lovelace/i)
   expect(copied.text).toContain("Effingham, Illinois")
   expect(copied.text).toContain("ada@example.com")
+
+  expect(errors).toEqual([])
+})
+
+test("renaming doesn't rebuild the preview, and fast typing ends on the latest text", async ({ page }) => {
+  const errors = pageErrors(page)
+  await page.addInitScript(() => {
+    window.compiles = 0
+    const send = Worker.prototype.postMessage
+    Worker.prototype.postMessage = function (message: any, options?: any) {
+      if (message?.template !== undefined) window.compiles = (window.compiles ?? 0) + 1
+      return send.call(this, message, options)
+    }
+  })
+  await page.goto("/")
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page).toHaveURL(/\/create\/new\//)
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  const preview = page.getByRole("region", { name: "Live preview" })
+  await expect(preview.getByText(/Ada Lovelace/i).first()).toBeVisible()
+
+  // The resume's name isn't printed, so renaming compiles nothing.
+  const compiles = await page.evaluate(() => window.compiles)
+  await page.getByLabel("Resume name").fill("Ada's resume")
+  await page.waitForTimeout(1_000)
+  expect(await page.evaluate(() => window.compiles)).toBe(compiles)
+
+  // Typing quickly ends on what was typed last.
+  await page.getByLabel("Email").pressSequentially("ada@example.com", { delay: 20 })
+  await expect(preview.getByText("ada@example.com").first()).toBeVisible()
 
   expect(errors).toEqual([])
 })
