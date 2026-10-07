@@ -362,3 +362,124 @@ export const LONG_BULLET_LINES = 3
 
 /** A one-page resume should fill at least this share of the page. */
 export const MIN_PAGE_FULL = 0.75
+
+// Spelling & grammar (G1–G7). The grammar checker is Harper (harper.js), which
+// runs in the browser; see grammar.ts.
+
+/**
+ * Fields that name things: people, companies, schools, groups, places,
+ * projects and skills. Their words count as spelled right everywhere on the
+ * resume, and they aren't checked for spelling themselves, but for the
+ * skills (SKILL_FIELDS).
+ */
+export const NAME_FIELDS = [
+  "fullName", "location", "companyName", "workLocation", "schoolName", "schoolLocation", "involvement", "skillName",
+  "skillDetails", "projectName", "techStack", "publicationAuthors", "publicationVenue", "volunteerOrg",
+  "volunteerLocation", "leadershipOrg", "leadershipLocation", "awardOrg",
+]
+
+/**
+ * Fields that list skills: names the grammar checker mostly doesn't know
+ * ("Redux", "Kanban"), and words it does ("Communication"). G1 checks them
+ * for slips in typing those words (MIN_SKILL_SLIP), and in tech names.
+ */
+export const SKILL_FIELDS = ["skillName", "skillDetails", "techStack"]
+
+/**
+ * Tech names as their makers write them (G6), checked in any field. Names
+ * that are also everyday words ("React", "Swift", "Excel", "Go") aren't here,
+ * since "react" or "excel" in a bullet is usually the word.
+ */
+export const TECH_NAMES = [
+  "JavaScript", "TypeScript", "GitHub", "GitLab", "Bitbucket", "PostgreSQL", "MySQL", "SQLite", "MongoDB", "DynamoDB",
+  "NoSQL", "GraphQL", "gRPC", "Node.js", "Next.js", "Vue.js", "Nuxt.js", "Express.js", "jQuery", "iOS", "macOS",
+  "iPadOS", "watchOS", "LinkedIn", "YouTube", "PowerPoint", "OpenAI", "ChatGPT", "TensorFlow", "PyTorch", "NumPy",
+  "SciPy", "LaTeX", "MATLAB", "BigQuery", "PowerShell", "WordPress", "HubSpot", "Salesforce", "Kubernetes", "OAuth",
+  "FastAPI", "CircleCI", "Jupyter", "AutoCAD", "SolidWorks", "Photoshop", "QuickBooks", "Xcode", "IntelliJ",
+  "PyCharm", "WebSocket", "WebSockets", "Firebase", "Supabase", "Heroku", "Netlify", "Vercel", "Figma", "Jira",
+  "Airtable", "Webflow", "Shopify", "Databricks", "Hadoop", "Kafka", "Elasticsearch", "Kotlin", "Docker",
+  "Terraform", "Ansible", "Jenkins", "Linux", "Ubuntu", "Arduino", "Django", "Golang", "Haskell",
+  "HTML", "CSS", "SQL", "AWS", "GCP", "JSON", "YAML", "XML", "PHP", "DevOps", "Tableau", "Python", "Java",
+]
+
+/**
+ * Tech and work words that aren't in the dictionary but are spelled right
+ * (G1). Names with capitals inside ("DuckDB", "eBPF"), words with digits and
+ * words in capitals are never taken for typos anyway.
+ */
+export const TECH_WORDS = [
+  "async", "autograd", "autograder", "autoscaling", "backend", "backends", "backtest", "backtester", "backtesting",
+  "changelog", "chatbot", "chatbots", "codebase", "codebases", "config", "configs", "cron", "dashboarding", "dataset",
+  "datasets", "debugger", "dedupe", "devops", "e-commerce", "ecommerce", "edtech", "embeddings", "failover",
+  "fintech", "frontend", "frontends", "fullstack", "geospatial", "hackathon", "hackathons", "healthtech", "linter",
+  "malloc", "microservice", "microservices", "middleware", "monorepo", "onboarding", "pipelining", "preprocessing",
+  "proptech", "quant", "refactor", "refactored", "refactoring", "repo", "repos", "runtime", "runtimes", "sharding",
+  "startup", "startups", "tokenizer", "toolchain", "upskilling", "webhook", "webhooks", "ms", "ns",
+  // Names one slip from a tech name above, which aren't slips of it (G1, G6).
+  "openapi", "graphiql", "mssql", "mysqli", "youtuber", "youtubers",
+]
+
+/** Other words resumes use that aren't in the dictionary (G1): Latin honors, and kinds of work. */
+export const RESUME_WORDS = ["cum", "laude", "magna", "summa", "externship", "externships"]
+
+/** Words that are right twice in a row (G2): "what it had had". */
+export const FINE_TWICE = ["had", "that"]
+
+/**
+ * Harper's rules behind each of our rules, by Harper's names for them. Any
+ * other rule Harper has falls under G7, unless it's turned off below.
+ */
+export const GRAMMAR_RULES = {
+  /** G1: words that aren't in the dictionary, or two words run together. */
+  typos: ["SpellCheck", "SplitWords"],
+  /** G2: "the the". */
+  repeated: ["RepeatedWords"],
+  /** G3: "a API", "an user". */
+  aAn: ["AnA"],
+  /** G4: its/it's, their/there, then/than, lose/loose. */
+  mixUps: ["ItsContraction", "ItsPossessive", "TheirToThere", "TheirToTheyre", "ThereToTheir", "TheyreToTheir", "ThenThan", "ToLoseTooLoose"],
+}
+
+/**
+ * Harper rules that are wrong for resumes, so they're off: "roadmap" isn't
+ * "road map", "ms" doesn't need spelling out, and tech names' capitals are
+ * G6's.
+ */
+export const GRAMMAR_RULES_OFF = ["RoadMap", "CompoundNouns", "ExpandTimeShorthands", "ExpandMemoryShorthands", "OrthographicConsistency"]
+
+/**
+ * Kinds of Harper findings that are about style rather than mistakes, which
+ * G7 leaves out. Resumes are written in fragments, so long "sentences" and
+ * missing commas aren't mistakes there; capitals are P5's and G6's.
+ */
+export const GRAMMAR_KINDS_OFF = ["Readability", "Style", "Enhancement", "Formatting", "Punctuation", "Regionalism", "Capitalization", "Redundancy"]
+
+/**
+ * "loose" where "lose" is meant (G4), which Harper doesn't catch on its own:
+ * "never loose data". Harper finds "to loose" itself.
+ */
+export const LOOSE_FOR_LOSE = /\b(?:not|never|will|would|could|can|might|don't|didn't|won't|wouldn't|can't|couldn't)\s+(loose)\b/gi
+
+/**
+ * Words that start what was led, after "lead" as a verb (G5): "and lead the
+ * migration", "and lead 4 engineers", "and lead weekly reviews". Without one,
+ * "lead" may be the metal or a sales lead ("arsenic and lead", "conversion
+ * and lead quality").
+ */
+export const LEAD_OBJECTS = [
+  "the", "a", "an", "my", "our", "their", "his", "her", "its", "this", "that", "these", "those", "two", "three",
+  "four", "five", "six", "seven", "eight", "nine", "ten", "twelve", "twenty", "dozens", "several", "multiple", "many",
+  "all", "both", "each", "every", "over", "daily", "weekly", "biweekly", "monthly", "quarterly", "annual", "yearly",
+  "new", "key", "cross-functional", "company-wide", "global", "remote", "senior", "junior",
+]
+
+/** Tech names this long or longer are checked for slips ("TypeScirpt"): shorter ones are too close to other words ("CSS" and "CSV"). */
+export const MIN_TECH_SLIP = 6
+
+/**
+ * In the skills, a word the grammar checker doesn't know is a typo when it's
+ * this long or longer, and a slip in typing a word it offers ("Comunication").
+ * Shorter names are too often a word with a letter changed: "Magento" and
+ * "Magenta", "Redux" and "Redox".
+ */
+export const MIN_SKILL_SLIP = 8

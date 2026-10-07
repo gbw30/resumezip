@@ -2,23 +2,25 @@
 
 import { useCallback, useDeferredValue, useMemo, useRef } from "react"
 import { useResumeContext } from "@/context/ResumeContext"
-import { runChecks, type Finding, type PdfReading } from "@/lib/check/engine"
+import { runChecks, type Finding, type GrammarReading, type PdfReading } from "@/lib/check/engine"
 import { addWord, CHECK_FIELD, changeCheck, dismiss, restore, type CheckState } from "@/lib/check/state"
 import { hasLeftOut } from "@/lib/leftOut"
 
 /**
  * Checks the open resume as it changes. The checks run on a deferred copy of
  * it, so what's typed shows first and the findings follow. PDF rules run once
- * `pdf` (the latest preview, as the resume reader read it) is given.
+ * `pdf` (the latest preview, as the resume reader read it) is given, and
+ * grammar rules once `grammar` (what the grammar checker found in each piece
+ * of text) is.
  */
-export function useResumeCheck(pdf?: PdfReading) {
+export function useResumeCheck(pdf?: PdfReading, grammar?: GrammarReading) {
   const { formData, updateFormData } = useResumeContext()
   // `pdf` is of the resume as it is now, so the two are deferred together:
   // the PDF rules never compare a resume with a PDF of another version, and a
   // keystroke doesn't run the checks again on the old resume before the new.
-  const latestInput = useMemo(() => ({ resume: formData, pdf }), [formData, pdf])
+  const latestInput = useMemo(() => ({ resume: formData, pdf, grammar }), [formData, pdf, grammar])
   const input = useDeferredValue(latestInput)
-  const report = useMemo(() => runChecks(input.resume, { pdf: input.pdf }), [input])
+  const report = useMemo(() => runChecks(input.resume, { pdf: input.pdf, grammar: input.grammar }), [input])
 
   // Changes start from the resume as it is now, not as last checked.
   const latest = useRef({ formData, report })

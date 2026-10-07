@@ -33,6 +33,29 @@ sent anywhere.
   and the import worker from one reading to the next, and remembers the last
   few readings, so a preview it has read before, as after an undo, isn't read
   again.
+- `grammar.ts` checks spelling and grammar with [Harper](https://github.com/Automattic/harper),
+  an open-source grammar checker that runs in the browser, in a worker
+  (`grammar.worker.ts`). It loads once Check has been opened: about 6.7 MB,
+  from jsDelivr, checked against its hash, or the app's own copy if that
+  fails, as the PDF engine does; a download that stalls is given up. Nothing
+  typed is sent anywhere. Each piece of text is checked once, while the page
+  is idle, and what was found is remembered by the text, so typing only sends
+  the field that changed. A worker that fails is ended, and the next check
+  starts a new one. `harper.ts` runs Harper and turns off its rules that are
+  wrong for resumes. Harper reads the text in the browser's English
+  (`dialect.ts`), but a word counts as spelled right if any English Harper
+  knows spells it that way (American, British, Australian, Canadian or
+  Indian), since a resume is written for where the job is: "colour",
+  "color" and "lakh" all pass. Each kind of English costs a few megabytes.
+- `spelling.ts` has the spelling and grammar rules (G1–G7). Harper finds
+  typos; the rules decide which count. The resume's own names, companies,
+  schools, places and skills, the words added with "Add word", and the tech
+  words, degrees and verbs in `settings.ts` are spelled right, and so are
+  names with capitals inside ("DuckDB"), words with digits, and initials,
+  unless they're one slip from a tech name ("TypeScirpt"). The skills are
+  mostly names Harper doesn't know ("Redux", "Kanban"), so there G1 counts
+  only a slip in typing a word Harper offers ("Comunication") or a tech name,
+  and the grammar rules leave them alone.
 - `places.ts` says where a finding is, so the editor can open it.
 - `state.ts` keeps what the person told the checker: findings they dismissed
   and words they added.
@@ -79,6 +102,11 @@ const realEmail: Rule = {
 - **Plain words.** A message is a few words; `why` is one line.
 - **PDF rules** (`reads: "pdf"`) also get `pdf`, the latest preview as the
   resume reader in `lib/import` read it, and wait until it's been read.
+- **Grammar rules** (`reads: "grammar"`) also get `grammar`, what Harper found
+  in each piece of text, by the text, and wait until Harper has loaded. A text
+  that isn't in it yet hasn't been checked, and is skipped until it has; the
+  rule says so with `partial`, so its dismissals are kept, and it isn't listed
+  as passed, until it has looked at everything.
 - **A rule that breaks** is logged and left out, and the others carry on.
 
 ## Levels, dismissing and added words

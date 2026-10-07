@@ -3,7 +3,7 @@
 
 import type { SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
-import type { Place } from "./places"
+import { fieldOf, LINK_FIELDS, type Place } from "./places"
 import { textsOf, type ResumeView } from "./resume"
 import {
   ACRONYMS,
@@ -20,10 +20,6 @@ import { bulletsIn, escaped, firstWord, mostCommon, type PlacedBullet } from "./
 import { verbOf } from "./verbs"
 
 const capitalized = (word: string) => word[0].toUpperCase() + word.slice(1).toLowerCase()
-
-// Fields that hold a link or an email, where dots and commas don't need spaces.
-const LINK_FIELDS = new Set(["email", "linkedin", "profileGithub", "personalWebsite", "projectGithub", "additionalLink", "publicationLink"])
-const fieldOf = (place: Place) => (place.kind === "profile" || place.kind === "entry" ? place.field : undefined)
 
 const endings: Rule = {
   id: "P1",

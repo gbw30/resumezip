@@ -234,3 +234,11 @@ export function datesOf(entry: Entry): EntryDates {
   }
   return found
 }
+
+/** Whether an entry ended before `today`. One that's still going ("Present"), or has no end date, hasn't. */
+export function hasEnded(entry: Entry, today: Date): boolean {
+  const end = datesOf(entry).end?.date
+  if (end === undefined || end.present) return false
+  const now: ResumeDate = { present: false, year: today.getFullYear(), month: today.getMonth() + 1, style: { kind: "number" }, shortYear: false }
+  return compareDates(latestOf(end), now) < 0
+}
