@@ -157,7 +157,21 @@ interface Item {
   size: number
   bold: boolean
   italic: boolean
-  column: number
+}
+
+/** A link on a page, in the same coordinates as the page's text. */
+interface Link {
+  url: string
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+/** A page's text and links as pdf.js read them, before they're sorted into lines. */
+export interface PdfPage extends PageSize {
+  items: Item[]
+  links: Link[]
 }
 
 /** Text in a column starts at the same place on most lines; right-aligned dates don't. */
@@ -196,17 +210,17 @@ function findGutter(items: Item[], width: number): number | null {
   return ok ? gutter : null
 }
 
-/** Reads every page's text, in reading order. */
-export async function linesFromPdf(doc: PDFDocumentProxy): Promise<{ lines: Line[]; pages: PageSize[] }> {
-  const lines: Line[] = []
-  const pages: PageSize[] = []
+/**
+ * Reads every page's text, with its styles and links. pdf.js does the reading
+ * in a worker of its own; sorting the text into lines (`linesFromPages`) is
+ * plain work that can run in another.
+ */
+export async function readPdf(doc: PDFDocumentProxy): Promise<PdfPage[]> {
+  const pages: PdfPage[] = []
 
   for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
     const page = await doc.getPage(pageNumber)
     const [x0, y0, x1, y1] = page.view
-    const width = x1 - x0
-    const height = y1 - y0
-    pages.push({ width, height })
 
     const content = await page.getTextContent()
     // Font names (like "Calibri-Bold") are only available once the page's fonts are loaded.
@@ -239,10 +253,31 @@ export async function linesFromPdf(doc: PDFDocumentProxy): Promise<{ lines: Line
         baseline: f - y0,
         size: Math.hypot(c, d) || item.height || 10,
         ...styleOf(item.fontName),
-        column: 0,
       })
     }
 
+    const annotations = (await page.getAnnotations()) as { subtype?: string; url?: string; unsafeUrl?: string; rect?: number[] }[]
+    const links = annotations
+      .filter((note) => note.subtype === "Link" && (note.url || note.unsafeUrl) && note.rect?.length === 4)
+      .map((note) => {
+        const [lx0, ly0, lx1, ly1] = note.rect!
+        return { url: cleanLink(String(note.url || note.unsafeUrl)), x0: lx0 - x0, y0: ly0 - y0, x1: lx1 - x0, y1: ly1 - y0 }
+      })
+
+    pages.push({ width: x1 - x0, height: y1 - y0, items, links })
+  }
+
+  return pages
+}
+
+/** Sorts pages' text into lines, in reading order. */
+export function linesFromPages(pages: PdfPage[]): Line[] {
+  const lines: Line[] = []
+
+  pages.forEach((page, index) => {
+    const pageNumber = index + 1
+    const { width, height, links } = page
+    const items = page.items.map((item) => ({ ...item, column: 0 }))
     const gutter = findGutter(items, width)
     if (gutter !== null) {
       for (const item of items) item.column = item.right <= gutter + 1 ? 1 : item.x >= gutter - 1 ? 2 : 0
@@ -251,7 +286,7 @@ export async function linesFromPdf(doc: PDFDocumentProxy): Promise<{ lines: Line
     // Top to bottom (text spanning the columns first, then each column),
     // grouping text that shares a baseline into a line.
     items.sort((p, q) => p.column - q.column || q.baseline - p.baseline || p.x - q.x)
-    const groups: Item[][] = []
+    const groups: (typeof items)[] = []
     for (const item of items) {
       const group = groups[groups.length - 1]
       const anchor = group?.[0]
@@ -262,14 +297,6 @@ export async function linesFromPdf(doc: PDFDocumentProxy): Promise<{ lines: Line
       if (sameLine) group.push(item)
       else groups.push([item])
     }
-
-    const annotations = (await page.getAnnotations()) as { subtype?: string; url?: string; unsafeUrl?: string; rect?: number[] }[]
-    const links = annotations
-      .filter((note) => note.subtype === "Link" && (note.url || note.unsafeUrl) && note.rect?.length === 4)
-      .map((note) => {
-        const [lx0, ly0, lx1, ly1] = note.rect!
-        return { url: cleanLink(String(note.url || note.unsafeUrl)), x0: lx0 - x0, y0: ly0 - y0, x1: lx1 - x0, y1: ly1 - y0 }
-      })
 
     for (const group of groups) {
       group.sort((p, q) => p.x - q.x)
@@ -317,9 +344,9 @@ export async function linesFromPdf(doc: PDFDocumentProxy): Promise<{ lines: Line
       const line = toLine(parts, size, lineLinks, { page: pageNumber, box, x: textX })
       if (line) lines.push(line)
     }
-  }
+  })
 
-  return { lines, pages }
+  return lines
 }
 
 // ---------------------------------------------------------------- Word

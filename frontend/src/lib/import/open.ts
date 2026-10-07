@@ -4,7 +4,7 @@
 
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { ATTACHMENT_NAME, fromAttachment, MAX_ENTRIES, MAX_LENGTH, TooLongError, type ResumeContent } from "@/lib/resumeFile"
-import { linesFromDocx, linesFromPdf, type Line, type PageSize } from "./lines"
+import { linesFromDocx, linesFromPages, readPdf, type Line, type PageSize } from "./lines"
 import { parseResume, type ParsedResume } from "./parse"
 
 export type OpenedFile =
@@ -98,11 +98,12 @@ export async function openResumeFile(file: File): Promise<OpenedFile> {
     return { kind: "resumezip", resume, title }
   }
 
-  const { lines, pages } = await linesFromPdf(doc)
+  const pages = await readPdf(doc)
+  const lines = linesFromPages(pages)
   if (lines.length === 0) {
     await doc.destroy()
     throw new OpenFileError("This PDF has no text we can read. It's probably a scan or a picture of a resume.")
   }
   const parsed = parseResume(lines)
-  return { kind: "parsed", parsed, lines: parsed.lines, title, fileName: file.name, pdf: { doc, pages } }
+  return { kind: "parsed", parsed, lines: parsed.lines, title, fileName: file.name, pdf: { doc, pages: pages.map(({ width, height }) => ({ width, height })) } }
 }
