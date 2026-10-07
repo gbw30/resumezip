@@ -26,8 +26,6 @@ export default function EditorPage() {
   const [compileError, setCompileError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [failure, setFailure] = useState<Failure | null>(null)
-  // When the last download failed, so a preview made after it can clear the message.
-  const failedAt = useRef(0)
   // Small screens show the form or the preview, not both.
   const [view, setView] = useState<"edit" | "preview">("edit")
   const [typing, setTyping] = useState(false)
@@ -58,7 +56,6 @@ export default function EditorPage() {
     if (!formData.id) return
     let cancelled = false
     const timer = setTimeout(async () => {
-      const startedAt = Date.now()
       try {
         const url = await compileResumeUrl({ ...formData, sectionOrder: sections })
         if (cancelled) {
@@ -67,8 +64,6 @@ export default function EditorPage() {
         }
         setPdfUrl(url)
         setCompileError(null)
-        // PDFs work again, so an earlier failed download is no longer news.
-        if (startedAt > failedAt.current) setFailure(null)
       } catch (error) {
         if (!cancelled) setCompileError(error instanceof Error ? error.message : String(error))
       }
@@ -134,7 +129,6 @@ export default function EditorPage() {
       setFailure(null)
     } catch (error) {
       console.error("Error downloading resume:", error)
-      failedAt.current = Date.now()
       setFailure((previous) => nextFailure(previous, error))
     } finally {
       setDownloading(false)
