@@ -2,8 +2,9 @@
 // thread so the editor stays responsive. Talk to it through compile.ts.
 
 import { CompileFormatEnum, createTypstCompiler, type TypstCompiler } from "@myriaddreamin/typst.ts/compiler"
-import { disableDefaultFontAssets, loadFonts, type BeforeBuildFn } from "@myriaddreamin/typst.ts/options.init"
+import { loadFonts } from "@myriaddreamin/typst.ts/options.init"
 import { ATTACHMENT_NAME } from "@/lib/resumeFile"
+import { templateById } from "@/lib/templates"
 import common from "./templates/common.typ"
 import ian from "./templates/ian.typ"
 import jake from "./templates/jake.typ"
@@ -13,6 +14,7 @@ import referme from "./templates/referme.typ"
 import resumeworded from "./templates/resumeworded.typ"
 import type { CompileRequest, CompileResponse, WorkerMessage, WorkerRequest } from "./compile"
 import { COMPILER_CDN_URL, COMPILER_INTEGRITY, COMPILER_SIZE, compileChecked } from "./compilerSource"
+import { FONT_URLS, fontsFor, lazyFonts } from "./fontFiles"
 
 const SOURCES: Record<string, string> = {
   "/common.typ": common,
@@ -23,30 +25,6 @@ const SOURCES: Record<string, string> = {
   "/referme.typ": referme,
   "/resumeworded.typ": resumeworded,
 }
-
-// Templates can only use these fonts: Typst's default CDN-hosted fonts are
-// disabled so everything is served by this app. They're bundled, so each is
-// served under a name with its content's hash that browsers keep for good;
-// a changed font gets a new name. The bundler only finds paths written out
-// in full, so each one is.
-const FONTS = [
-  new URL("./fonts/NewCM10-Regular.otf", import.meta.url),
-  new URL("./fonts/NewCM10-Bold.otf", import.meta.url),
-  new URL("./fonts/NewCM10-Italic.otf", import.meta.url),
-  new URL("./fonts/NewCM10-BoldItalic.otf", import.meta.url),
-  new URL("./fonts/Lato-Regular.ttf", import.meta.url),
-  new URL("./fonts/Lato-Bold.ttf", import.meta.url),
-  new URL("./fonts/Lato-Italic.ttf", import.meta.url),
-  new URL("./fonts/Lato-BoldItalic.ttf", import.meta.url),
-  new URL("./fonts/texgyreheros-regular.otf", import.meta.url),
-  new URL("./fonts/texgyreheros-bold.otf", import.meta.url),
-  new URL("./fonts/texgyreheros-italic.otf", import.meta.url),
-  new URL("./fonts/texgyreheros-bolditalic.otf", import.meta.url),
-  new URL("./fonts/EBGaramond-Regular.ttf", import.meta.url),
-  new URL("./fonts/EBGaramond-Bold.ttf", import.meta.url),
-  new URL("./fonts/EBGaramond-Italic.ttf", import.meta.url),
-  new URL("./fonts/EBGaramond-BoldItalic.ttf", import.meta.url),
-].map((url) => url.href)
 
 // Downloads wrap the template in a file that also attaches a copy of the
 // resume, so templates don't need to know about it. Checked to leave every
@@ -114,25 +92,61 @@ async function compilerModule(): Promise<WebAssembly.Module | Response> {
   )
 }
 
-async function fetchFont(url: string): Promise<Uint8Array> {
-  const response = await fetchReporting(url)
-  if (!response.ok) throw new Error(`${url} answered ${response.status}`)
-  return new Uint8Array(await response.arrayBuffer())
+// The font files downloaded so far, by name, and the downloads under way.
+const fontData = new Map<string, Uint8Array>()
+const fontDownloads = new Map<string, Promise<void>>()
+
+// Downloads the font files that aren't here yet, alongside whatever else is
+// downloading. A file that fails is tried again next time.
+function fetchFonts(files: string[]): Promise<void> {
+  const downloads = files.map((file) => {
+    let download = fontDownloads.get(file)
+    if (!download) {
+      download = fetchReporting(FONT_URLS[file]).then(async (response) => {
+        if (!response.ok) throw new Error(`${FONT_URLS[file]} answered ${response.status}`)
+        fontData.set(file, new Uint8Array(await response.arrayBuffer()))
+      })
+      download.catch(() => fontDownloads.delete(file))
+      fontDownloads.set(file, download)
+    }
+    return download
+  })
+  return Promise.all(downloads).then(() => undefined)
 }
 
+// A font's data, when Typst prints with it. The fonts a resume needs are
+// downloaded before it's compiled (see fontsFor), so this is only a backstop:
+// a font that isn't here is downloaded now, synchronously, which workers
+// allow. If that fails too, Typst takes the font as missing and prints those
+// characters with another, until the page is reloaded.
+function fontBytes(file: string): Uint8Array {
+  const data = fontData.get(file)
+  if (data) return data
+  reportProgress(true)
+  const request = new XMLHttpRequest()
+  request.open("GET", FONT_URLS[file], false)
+  request.responseType = "arraybuffer"
+  try {
+    request.send()
+  } catch {
+    return new Uint8Array()
+  }
+  if (request.status !== 200) return new Uint8Array()
+  const bytes = new Uint8Array(request.response as ArrayBuffer)
+  fontData.set(file, bytes)
+  return bytes
+}
+
+// Downloads the fonts a template's PDFs need, before the first is compiled.
+const fetchFontsOf = (template: string | undefined, text = "") => fetchFonts(fontsFor(templateById(template).font, text))
+
 async function createCompiler(): Promise<TypstCompiler> {
-  // The fonts download alongside the compiler rather than after it. If the
-  // compiler fails first, nothing waits for the fonts, so their failing too
-  // is caught here rather than reported as unhandled.
-  const fonts = Promise.all(FONTS.map(fetchFont))
-  fonts.catch(() => {})
-  const addFonts: BeforeBuildFn = async (mark, context) => loadFonts(await fonts, { assets: false })(mark, context)
   const instance = createTypstCompiler()
   await instance.init({
     getModule: compilerModule,
-    // Typst's own fonts would otherwise download too, as addFonts isn't
-    // one of typst.ts's font loaders. Building the compiler comes last.
-    beforeBuild: [disableDefaultFontAssets(), addFonts, async () => reportProgress(true)],
+    // Every font is known from the start, and read only when it's printed
+    // with (see fontFiles.ts). Building the compiler comes next.
+    beforeBuild: [loadFonts(lazyFonts(fontBytes), { assets: false }), async () => reportProgress(true)],
   })
   for (const [path, source] of Object.entries(SOURCES)) instance.addSource(path, source)
   return instance
@@ -155,21 +169,27 @@ function getCompiler(): Promise<TypstCompiler> {
 }
 
 addEventListener("message", ({ data: request }: MessageEvent<WorkerRequest>) => {
-  // Loading ahead of the first PDF. If it fails, that PDF tries again.
-  if ("load" in request) getCompiler().catch(() => {})
-  else void compile(request)
+  // Loading ahead of the first PDF, with the fonts its template needs. If
+  // either fails, that PDF tries again.
+  if ("load" in request) {
+    getCompiler().catch(() => {})
+    fetchFontsOf(request.template).catch(() => {})
+  } else void compile(request)
 })
 
 async function compile({ id, template, data, attachment }: CompileRequest) {
   let response: CompileResponse
   let typst: TypstCompiler | undefined
   try {
-    typst = await getCompiler()
+    const json = JSON.stringify(data)
+    // The fonts download alongside the compiler, or before compiling when
+    // the template or the text needs ones that aren't here yet.
+    ;[typst] = await Promise.all([getCompiler(), fetchFontsOf(template, json)])
     // Compiling comes next.
     reportProgress(true)
     // Nothing is awaited between writing the data and compiling it, so
     // concurrent requests can't see each other's data.
-    typst.mapShadow("/resume.json", new TextEncoder().encode(JSON.stringify(data)))
+    typst.mapShadow("/resume.json", new TextEncoder().encode(json))
     if (attachment !== undefined) {
       typst.mapShadow(`/${ATTACHMENT_NAME}`, new TextEncoder().encode(attachment))
       typst.addSource("/download.typ", withAttachment(template))

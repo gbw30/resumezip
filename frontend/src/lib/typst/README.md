@@ -17,9 +17,12 @@ server to build a PDF.
   once, and the dashboard after a second, unless the visitor is saving data.
   `compilerStatus` says how much of the compiler has arrived, which the
   preview's stand-in page shows (`src/components/editor/PrintingPage.tsx`).
-- `typst.worker.ts` loads the WebAssembly compiler and the fonts at the same
-  time, and the templates, once, and compiles each request. Downloads also attach a copy of the resume to the PDF
+- `typst.worker.ts` loads the WebAssembly compiler and the templates once, and
+  compiles each request. Before compiling, it downloads the fonts that resume
+  needs (see [Fonts](#fonts)), alongside the compiler the first time. Downloads also attach a copy of the resume to the PDF
   (see `src/lib/resumeFile.ts` and `src/lib/import/README.md`).
+- `fontFiles.ts` lists the fonts, says which ones a resume needs, and gives
+  them to the compiler.
 - `templates/*.typ` are the resume templates (the first ones were ported from LaTeX).
   `common.typ` has the shared helpers. They are bundled as strings (see the
   `.typ` rule in `next.config.js`).
@@ -30,10 +33,12 @@ server to build a PDF.
 2. Import it in `typst.worker.ts` and add it to `SOURCES`.
 3. Add it to `TEMPLATES` in `src/lib/templates.ts` with a picture of its first
    page in `public/previews/<id>.webp` (1280 px wide, from the editor's
-   preview), made from its own sample resume in `preview-samples/<id>.json`.
+   preview), made from its own sample resume in `preview-samples/<id>.json`,
+   and its `font`: the family its `#set text(font: ...)` names, which is
+   downloaded before its first PDF. A test checks the two match.
    Every page that lists templates reads that list.
 
-Templates can only use the fonts in `fonts/`, listed in `typst.worker.ts`. They're
+Templates can only use the fonts in `fonts/`, listed in `fontFiles.ts`. They're
 bundled rather than kept in `public/`, so browsers can cache them for good: each
 is served under a name with its content's hash, which changes when the font does.
 
@@ -46,10 +51,22 @@ is served under a name with its content's hash, which changes when the font does
 | `texgyreheros-*.otf` | TeX Gyre Heros | [CTAN](https://ctan.org/pkg/tex-gyre) | GUST Font License |
 | `EBGaramond-*.ttf` | EB Garamond | [EBGaramond12](https://github.com/octaviopardo/EBGaramond12) | SIL Open Font License 1.1 |
 
-The editor downloads every font when it starts, so all but Lato are trimmed
-copies: Latin (with Vietnamese), Greek, Cyrillic, punctuation, currency and
-common symbols, keeping kerning, ligatures, accents and small caps, without
-hinting. That halves their size. Each trimmed font says so in its description
+The compiler knows every font from the start, from what `fonts/info.json` says
+about each (its family, style, which characters it has and a hash of the
+file), but only reads a font when it prints with it. So a resume downloads its
+template's family, and, for any character that family lacks, every font that
+has it: Typst picks one of those for that character, just as it would with
+every font loaded, so resumes print exactly as they would with all of them.
+`fontFiles.test.ts` prints each template's sample, and text in many scripts,
+both ways to check. After adding or changing a font, write `info.json` again:
+
+```bash
+UPDATE_FONT_INFO=1 npx vitest run src/lib/typst/fontFiles.test.ts
+```
+
+All but Lato are trimmed copies: Latin (with Vietnamese), Greek, Cyrillic,
+punctuation, currency and common symbols, keeping kerning, ligatures, accents
+and small caps, without hinting. That halves their size. Each trimmed font says so in its description
 (name ID 10), as the GUST Font License asks. Lato is left as it was, because
 its license reserves the name "Lato" for unmodified copies.
 

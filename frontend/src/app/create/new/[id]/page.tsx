@@ -19,6 +19,7 @@ import NotSaved from "@/components/site/NotSaved"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import { uniqueTitle } from "@/lib/resumeTitles"
 import { compilePreview, downloadResume, loadCompiler, printedOf, Superseded } from "@/lib/typst/compile"
+import { templateIdOf } from "@/lib/typst/resumeData"
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
@@ -27,12 +28,18 @@ const pad = (n: number) => String(n).padStart(2, "0")
 // for every pause in typing.
 const MIN_WAIT_MS = 150
 const MAX_WAIT_MS = 400
+// How long a replaced preview PDF is kept before it's freed.
+const PDF_KEPT_MS = 10_000
 
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>()
   const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus } = useResumeContext()
   const [active, setActive] = useState<ActiveSection>("Profile")
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  // What the preview on screen prints, for the checker to know when it's
+  // current, and what the resume printed when a preview last failed to build.
+  const [pdfPrinted, setPdfPrinted] = useState("")
+  const [unbuilt, setUnbuilt] = useState<string | null>(null)
   const [compileError, setCompileError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [failure, setFailure] = useState<Failure | null>(null)
@@ -55,11 +62,13 @@ export default function EditorPage() {
   // Resizing across the wide-screen width keeps the form where it was scrolled to.
   useKeepFormPlace(mainRef, found)
 
-  // The PDF compiler starts loading as soon as the resume is found, before
-  // the first preview asks for it. A resume that isn't here doesn't need it.
+  // The PDF compiler starts loading as soon as the resume is found, with its
+  // template's fonts, before the first preview asks for it. A resume that
+  // isn't here doesn't need it.
+  const template = templateIdOf(formData.selectedTemplate)
   useEffect(() => {
-    if (found) loadCompiler()
-  }, [found])
+    if (found) loadCompiler(template)
+  }, [found, template])
 
   // The saved order, plus any sections missing from older resumes.
   const sections = useMemo<SectionName[]>(() => {
@@ -78,6 +87,7 @@ export default function EditorPage() {
   // What the preview shows. Changes that don't print, such as renaming the
   // resume, leave it as it was, so they don't recompile.
   const printed = useMemo(() => JSON.stringify(printedOf({ ...formData, sectionOrder: sections })), [formData, sections])
+  const preview = useMemo(() => (pdfUrl ? { url: pdfUrl, printed: pdfPrinted } : null), [pdfUrl, pdfPrinted])
 
   // Re-render the preview in the browser shortly after what it shows changes.
   useEffect(() => {
@@ -96,9 +106,13 @@ export default function EditorPage() {
           return
         }
         setPdfUrl(url)
+        setPdfPrinted(printed)
         setCompileError(null)
       } catch (error) {
-        if (!wanted.signal.aborted && !(error instanceof Superseded)) setCompileError(error instanceof Error ? error.message : String(error))
+        if (!wanted.signal.aborted && !(error instanceof Superseded)) {
+          setCompileError(error instanceof Error ? error.message : String(error))
+          setUnbuilt(printed)
+        }
       }
     }, wait)
     return () => {
@@ -107,10 +121,14 @@ export default function EditorPage() {
     }
   }, [formData.id, printed])
 
-  // Free each preview PDF once a newer one replaces it.
+  // Free each preview PDF a while after a newer one replaces it. The
+  // preview may only just have started reading it, and pdf.js fails, and
+  // throws, if it's freed before the preview lets go of it.
   useEffect(() => {
     if (!pdfUrl) return
-    return () => URL.revokeObjectURL(pdfUrl)
+    return () => {
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), PDF_KEPT_MS)
+    }
   }, [pdfUrl])
 
   // The Edit / Preview switch steps aside while a touch screen's keyboard is
@@ -263,7 +281,7 @@ export default function EditorPage() {
 
       <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
         {/* The left bar and the forms share what the checker found. */}
-        <CheckProvider onSelect={select}>
+        <CheckProvider onSelect={select} preview={preview} printed={printed} unbuilt={unbuilt}>
           <LeftBar hidden={view === "preview"}>
             <SectionNav
               sections={sections}

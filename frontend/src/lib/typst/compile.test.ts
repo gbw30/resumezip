@@ -14,8 +14,8 @@ class FakeWorker {
   onmessage: ((event: { data: WorkerMessage }) => void) | null = null
   onerror: ((event: { message: string }) => void) | null = null
   terminated = false
-  /** How many times it was asked to start loading the compiler. */
-  loadRequests = 0
+  /** The requests to start loading the compiler. */
+  loadRequests: Extract<WorkerRequest, { load: true }>[] = []
 
   constructor() {
     FakeWorker.made.push(this)
@@ -23,7 +23,7 @@ class FakeWorker {
 
   postMessage(request: WorkerRequest) {
     if ("load" in request) {
-      this.loadRequests++
+      this.loadRequests.push(request)
       FakeWorker.loading.forEach((message, index) => setTimeout(() => this.send(message), (index + 1) * 10))
       return
     }
@@ -333,10 +333,14 @@ test("a preview whose PDF can't be turned into a link still settles", async () =
 
 test("the compiler can start loading before the first PDF, which then uses the same worker", async () => {
   FakeWorker.loading = [{ progress: true, downloaded: 0.5 }, { progress: true, downloaded: 1 }, { ready: true }]
-  loadAhead()
-  loadAhead()
+  loadAhead("resumeworded")
+  loadAhead("jake")
   expect(FakeWorker.made).toHaveLength(1)
-  expect(FakeWorker.made[0].loadRequests).toBe(1)
+  // With the fonts of each template asked for.
+  expect(FakeWorker.made[0].loadRequests).toEqual([
+    { load: true, template: "resumeworded" },
+    { load: true, template: "jake" },
+  ])
   await vi.advanceTimersByTimeAsync(10)
   expect(compilerStatus()).toEqual({ loaded: false, downloaded: 0.5 })
   await vi.advanceTimersByTimeAsync(20)

@@ -14,7 +14,10 @@ import { hasLeftOut } from "@/lib/leftOut"
 export function useResumeCheck(pdf?: PdfReading) {
   const { formData, updateFormData } = useResumeContext()
   const resume = useDeferredValue(formData)
-  const report = useMemo(() => runChecks(resume, { pdf }), [resume, pdf])
+  // `pdf` is of the resume as it is now, so while the deferred copy is behind,
+  // the PDF rules wait rather than compare it with a newer PDF.
+  const current = resume === formData
+  const report = useMemo(() => runChecks(resume, { pdf: current ? pdf : undefined }), [resume, pdf, current])
 
   // Changes start from the resume as it is now, not as last checked.
   const latest = useRef({ formData, report })
