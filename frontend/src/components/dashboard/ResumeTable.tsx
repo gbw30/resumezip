@@ -27,19 +27,21 @@ interface ResumeTableProps {
 }
 
 export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
-  const [downloadingId, setDownloadingId] = useState<string | null>(null)
-  const [failed, setFailed] = useState<Record<string, any> | null>(null)
+  // Ids of the resumes downloading, and of those whose last download failed.
+  const [downloading, setDownloading] = useState<string[]>([])
+  const [failed, setFailed] = useState<string[]>([])
+  const without = (id: string) => (ids: string[]) => ids.filter((other) => other !== id)
 
   const download = async (resume: Record<string, any>) => {
-    setDownloadingId(resume.id)
+    setDownloading((ids) => [...ids, resume.id])
     try {
       await downloadResume(resume)
-      setFailed((current) => (current?.id === resume.id ? null : current))
+      setFailed(without(resume.id))
     } catch (error) {
       console.error("Failed to build PDF:", error)
-      setFailed(resume)
+      setFailed((ids) => [...without(resume.id)(ids), resume.id])
     } finally {
-      setDownloadingId(null)
+      setDownloading(without(resume.id))
     }
   }
 
@@ -64,10 +66,10 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
       <button
         type="button"
         onClick={() => download(resume)}
-        disabled={downloadingId === resume.id}
+        disabled={downloading.includes(resume.id)}
         className="inline-flex items-center gap-1.5 px-2 py-2.5 text-sm text-ink-2 hover:text-ink disabled:cursor-wait"
       >
-        {downloadingId === resume.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        {downloading.includes(resume.id) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
         Download
       </button>
       <button
@@ -80,18 +82,22 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
     </>
   )
 
-  // The latest copy of the resume that failed, in case it was renamed or deleted since.
-  const failedResume = failed && resumes.find((resume) => resume.id === failed.id)
+  // The latest copies, in case one was renamed or deleted since.
+  const failedResumes = resumes.filter((resume) => failed.includes(resume.id))
 
   return (
     <>
-      {failedResume && (
-        <DownloadFailed
-          title={failedResume.resumeTitle || "Untitled resume"}
-          retrying={downloadingId === failedResume.id}
-          onRetry={() => download(failedResume)}
-          className="mb-6 max-w-[720px]"
-        />
+      {failedResumes.length > 0 && (
+        <div className="mb-6 flex max-w-[720px] flex-col gap-4">
+          {failedResumes.map((resume) => (
+            <DownloadFailed
+              key={resume.id}
+              title={resume.resumeTitle || "Untitled resume"}
+              retrying={downloading.includes(resume.id)}
+              onRetry={() => download(resume)}
+            />
+          ))}
+        </div>
       )}
 
       {/* Phones: one card per resume, with its actions underneath. */}
