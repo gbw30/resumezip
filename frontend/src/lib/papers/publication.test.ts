@@ -61,6 +61,10 @@ describe("a paper's record as the editor's fields", () => {
       publicationAuthors: "D. W. Jackson, J. W. Simecka, T. Romeo",
       publicationVenue: "Journal of Bacteriology",
     })
+    // A tag split by another goes too, but escaped brackets are the title's own.
+    expect(publicationOf({ title: "Sparse <i<b>>Attention</i> for &lt;10 GB" }, { doi: "10.1/x" }, "").publicationTitle).toBe(
+      "Sparse Attention for <10 GB",
+    )
   })
 
   test("a bioRxiv preprint", () => {

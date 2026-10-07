@@ -30,11 +30,21 @@ function entity(match: string, name: string) {
   return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match
 }
 
+const TAG = /<\/?[a-z][\w:.-]*(?:\s[^<>]*)?\/?>/gi
+
+// Tags are removed until none are left, so one split by another ("<i<b>>") goes too.
+function withoutTags(value: string) {
+  for (let previous = ""; value !== previous; ) {
+    previous = value
+    value = value.replace(TAG, "")
+  }
+  return value
+}
+
 // Crossref marks up some titles ("<i>Escherichia coli</i>"), escapes "&" as
 // "&amp;", and keeps the line breaks of the XML it came from.
 const clean = (value: string) =>
-  value
-    .replace(/<\/?[a-z][\w:.-]*(?:\s[^<>]*)?\/?>/gi, "")
+  withoutTags(value)
     .replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, entity)
     .replace(/\s+/g, " ")
     .replace(/ ([:;,])/g, "$1")
