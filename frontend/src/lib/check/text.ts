@@ -44,3 +44,18 @@ export function mostCommon<T>(values: T[]): T | undefined {
 
 /** Text to match as it's written, in a regular expression. */
 export const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")
+
+/**
+ * Whether two words are one slip apart: a letter added, dropped or changed,
+ * or two side by side swapped ("TypeScirpt" for "TypeScript").
+ */
+export function oneSlipApart(a: string, b: string): boolean {
+  if (a === b || Math.abs(a.length - b.length) > 1) return false
+  let i = 0
+  while (i < a.length && i < b.length && a[i] === b[i]) i++
+  if (a.length !== b.length) {
+    const [longer, shorter] = a.length > b.length ? [a, b] : [b, a]
+    return longer.slice(i + 1) === shorter.slice(i)
+  }
+  return a.slice(i + 1) === b.slice(i + 1) || (a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2))
+}

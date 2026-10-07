@@ -5,6 +5,7 @@ import type { DialectName } from "./dialect"
 import { viewOf } from "./resume"
 import { RULES } from "./rules"
 import { grammarTexts, isTypo, SPELLING_RULES } from "./spelling"
+import { oneSlipApart } from "./text"
 import { addWord, CHECK_FIELD, readCheckState } from "./state"
 import { readingOf } from "./testHarper"
 
@@ -70,6 +71,17 @@ describe("G1 typos", () => {
     // In any English the browser reads.
     expect((await check("G1", resume, { dialect: "british" })).status).toBe("passed")
     expect((await check("G1", resumeWith([job(["Optimized the honors program at the center"])]), { dialect: "british" })).status).toBe("passed")
+  })
+
+  test("a slip in a tech name is a typo, though it has capitals inside", async () => {
+    const result = await check("G1", resumeWith([job(["Wrote services in TypeScirpt and Javascritp"])]))
+    expect(result.findings.map((finding) => [finding.text, finding.suggestion])).toEqual([
+      ["TypeScirpt", "Try “TypeScript”. If it's spelled right, add the word."],
+      ["Javascritp", "Try “JavaScript”. If it's spelled right, add the word."],
+    ])
+    // Not other names a slip away from one, or short ones like CSV and PhD.
+    const others = resumeWith([job(["Documented the OpenAPI spec and the MSSQL schema in GraphiQL", "Exported CSV files for the PhD program"])])
+    expect((await check("G1", others)).status).toBe("passed")
   })
 
   test("a word misspelled in every English is still a typo", async () => {
@@ -140,8 +152,9 @@ describe("G2–G4", () => {
 
 describe("G5 lead for led", () => {
   test("finds “lead” joined to what was done", async () => {
-    const result = await check("G5", resumeWith([job(["Designed and lead the migration to Postgres", "Planned, lead and shipped the launch", "Hired and lead 4 engineers"], { workEndDate: "Dec 2024" })]))
-    expect(result.messages).toEqual(["“lead” should be “led” here", "“lead” should be “led” here", "“lead” should be “led” here"])
+    const bullets = ["Designed and lead the migration to Postgres", "Planned, lead and shipped the launch", "Hired and lead 4 engineers", "Managed budgets and lead quarterly reviews"]
+    const result = await check("G5", resumeWith([job(bullets, { workEndDate: "Dec 2024" })]))
+    expect(result.messages).toEqual(Array(4).fill("“lead” should be “led” here"))
     expect(result.findings[0].place).toEqual(bulletAt(0))
   })
 
@@ -168,6 +181,13 @@ describe("G6 tech names", () => {
     ])
   })
 
+  test("points out a slip in a tech name in the skills, which nothing else checks", async () => {
+    const resume = resumeWith([job(["Built dashboards"])], {
+      skillsSection: [{ id: 1, skillName: "Tools", skillDetails: "Tableu, Kubernets, Python, Lean Six Sigma, Grafana" }],
+    })
+    expect((await check("G6", resume)).messages).toEqual(["“Tableu” may be “Tableau”", "“Kubernets” may be “Kubernetes”"])
+  })
+
   test("leaves links and handles alone", async () => {
     const resume = resumeWith([job(["Open-sourced it at github.com/jake/cache", "Posted updates as @github"])], { profileSection: { fullName: "Jake Ryan", profileGithub: "github.com/jake" } })
     expect((await check("G6", resume)).status).toBe("passed")
@@ -188,4 +208,9 @@ test("few false typos on the template samples", async () => {
   }
   // A product's name.
   expect(fixes).toEqual(["Powerwall"])
+})
+
+test("two words are one slip apart when a letter is added, dropped, changed or swapped with its neighbour", () => {
+  expect([["typescirpt", "typescript"], ["tableu", "tableau"], ["kubernets", "kubernetes"], ["pythn", "python"], ["jaba", "java"]].every(([a, b]) => oneSlipApart(a, b))).toBe(true)
+  expect([["python", "python"], ["typescript", "javascript"], ["ab", "abcd"], ["abcd", "badc"]].some(([a, b]) => oneSlipApart(a, b))).toBe(false)
 })

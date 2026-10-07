@@ -17,6 +17,7 @@ import {
   LEAD_OBJECTS,
   LOOSE_FOR_LOSE,
   LOWERCASE_NAMES,
+  MIN_TECH_SLIP,
   NAME_FIELDS,
   NUMBER_UNITS,
   RESUME_WORDS,
@@ -25,7 +26,7 @@ import {
   TECH_WORDS,
   US_STATES,
 } from "./settings"
-import { bulletsIn, firstWord } from "./text"
+import { bulletsIn, firstWord, oneSlipApart } from "./text"
 import { thirdPersonOf, verbOf } from "./verbs"
 
 // Fields that aren't words, so spelling and grammar skip them: links, emails,
@@ -115,6 +116,20 @@ export function isTypo(word: string, known: ReadonlySet<string>): boolean {
   return !known.has(lower) && !known.has(lower.replace(/\.$/, ""))
 }
 
+// Tech names long enough to tell a slip in them from another word, in lower case.
+const TECH_SLIPS = TECH_NAMES.filter((name) => name.length >= MIN_TECH_SLIP).map((name) => [name.toLowerCase(), name] as const)
+
+/**
+ * The tech name a word is one slip from, if it is: "TypeScript" for
+ * "TypeScirpt". The name itself, however it's written, is G6's, and a word
+ * that's known isn't a slip.
+ */
+function slipOfTechName(word: string, isKnown: (word: string) => boolean): string | undefined {
+  const lower = word.toLowerCase()
+  if (lower.length < MIN_TECH_SLIP || /\p{N}/u.test(lower) || TECH.has(lower) || isKnown(lower)) return undefined
+  return TECH_SLIPS.find(([name]) => oneSlipApart(lower, name))?.[1]
+}
+
 // The texts the grammar checker has read so far, with what it found, and
 // whether some it hasn't read yet.
 function linted(resume: ResumeView, grammar: GrammarReading) {
@@ -163,8 +178,11 @@ const KINDS_OFF = new Set(GRAMMAR_KINDS_OFF)
 const typos = grammarRule(
   { id: "G1", category: "spelling", level: "fix", title: "No typos", why: "A typo is one of the first things a recruiter notices." },
   (lint, _text, known) => {
-    if (!GRAMMAR_RULES.typos.includes(lint.rule) || !isTypo(lint.text, known())) return []
-    const instead = lint.suggestions[0]
+    if (!GRAMMAR_RULES.typos.includes(lint.rule)) return []
+    // A slip in a tech name ("TypeScirpt") is a typo, though capitals inside make it look like a name.
+    const name = slipOfTechName(lint.text, (word) => known().has(word))
+    if (!name && !isTypo(lint.text, known())) return []
+    const instead = name ?? lint.suggestions[0]
     return [
       {
         text: lint.text,
@@ -262,6 +280,10 @@ const TECH = new Map(TECH_NAMES.flatMap((name) => [[name.toLowerCase(), name], [
 // A name, as written: letters and digits, with dots, "+", "#" and hyphens inside.
 const NAME_TOKEN = /[\p{L}\p{N}+#][\p{L}\p{N}.+#-]*[\p{L}\p{N}+#]|[\p{L}\p{N}]/gu
 
+// Fields that list skills. The grammar checker doesn't read them, as they're
+// mostly names, so G6 points out a slip in a tech name there.
+const SKILL_FIELDS = new Set(["skillName", "skillDetails", "techStack"])
+
 const techNames: Rule = {
   id: "G6",
   category: "spelling",
@@ -269,20 +291,25 @@ const techNames: Rule = {
   reads: "form",
   title: "Tech names written the way their makers write them",
   why: "“Javascript” or “Github” suggests you don't use them much.",
-  check: ({ resume }) => {
+  check: ({ resume, words }) => {
     const texts = textsOf(resume).filter(({ place }) => !NOT_WORDS.has(fieldOf(place) ?? ""))
     if (texts.length === 0) return null
+    // Not the resume's own names: the skills are among them.
+    const added = new Set([...words].flatMap(wordsIn))
+    const isKnown = (word: string) => ALWAYS_KNOWN.has(word) || added.has(word)
     return {
       checked: texts.length,
       problems: texts.flatMap(({ place, text }) =>
         [...text.matchAll(NAME_TOKEN)].flatMap((match) => {
           const token = match[0]
-          const name = TECH.get(token.toLowerCase())
           // Part of a handle or a link: "@github", "github/acme".
           const before = text[match.index - 1] ?? ""
           const after = text[match.index + token.length] ?? ""
-          if (!name || name === token || /[@/]/.test(before) || /[@/]/.test(after)) return []
-          return [{ place, text: token, message: `“${token}” is written “${name}”` }]
+          if (/[@/]/.test(before) || /[@/]/.test(after)) return []
+          const name = TECH.get(token.toLowerCase())
+          if (name) return name === token ? [] : [{ place, text: token, message: `“${token}” is written “${name}”` }]
+          const slip = SKILL_FIELDS.has(fieldOf(place) ?? "") ? slipOfTechName(token, isKnown) : undefined
+          return slip ? [{ place, text: token, message: `“${token}” may be “${slip}”` }] : []
         }),
       ),
     }

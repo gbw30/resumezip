@@ -5,6 +5,7 @@ import { Dialect, type Lint, type Linter } from "harper.js"
 import type { DialectName } from "./dialect"
 import type { GrammarLint } from "./engine"
 import { GRAMMAR_RULES_OFF } from "./settings"
+import { oneSlipApart } from "./text"
 
 export const HARPER_VERSION = "2.10.0"
 
@@ -49,22 +50,13 @@ function stemsOf(word: string): string[] {
   return STEMS.flatMap(([ending, replacements]) => (ending.test(lower) ? replacements.map((replacement) => lower.replace(ending, replacement)) : []))
 }
 
-// Whether two words are one letter apart: one added, dropped or changed.
-function oneApart(a: string, b: string): boolean {
-  if (Math.abs(a.length - b.length) > 1 || a === b) return false
-  let i = 0
-  while (i < a.length && a[i] === b[i]) i++
-  const [longer, shorter] = a.length >= b.length ? [a, b] : [b, a]
-  return longer.slice(i + 1) === shorter.slice(i + (a.length === b.length ? 1 : 0))
-}
-
 // Whether Harper's suggestions hold the same word spelled another way, one
-// letter apart with the same ending: "occurring" for "occuring". Then the
-// word is a misspelling, though the word it's built on ("occur") isn't.
+// slip apart with the same ending: "occurring" for "occuring". Then the word
+// is a misspelling, though the word it's built on ("occur") isn't.
 const misspeltForm = (word: string, suggestions: string[]) =>
   suggestions.some((suggestion) => {
     const lower = suggestion.toLowerCase()
-    return oneApart(lower, word.toLowerCase()) && lower.slice(-2) === word.toLowerCase().slice(-2)
+    return oneSlipApart(lower, word.toLowerCase()) && lower.slice(-2) === word.toLowerCase().slice(-2)
   })
 
 /**

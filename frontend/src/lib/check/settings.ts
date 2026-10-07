@@ -407,6 +407,8 @@ export const TECH_WORDS = [
   "malloc", "microservice", "microservices", "middleware", "monorepo", "onboarding", "pipelining", "preprocessing",
   "proptech", "quant", "refactor", "refactored", "refactoring", "repo", "repos", "runtime", "runtimes", "sharding",
   "startup", "startups", "tokenizer", "toolchain", "upskilling", "webhook", "webhooks", "ms", "ns",
+  // Names one slip from a tech name above, which aren't slips of it (G1, G6).
+  "openapi", "graphiql", "mssql", "mysqli", "youtuber", "youtubers",
 ]
 
 /** Other words resumes use that aren't in the dictionary (G1): Latin honors, and kinds of work. */
@@ -452,11 +454,16 @@ export const LOOSE_FOR_LOSE = /\b(?:not|never|will|would|could|can|might|don't|d
 
 /**
  * Words that start what was led, after "lead" as a verb (G5): "and lead the
- * migration", "and lead 4 engineers". Without one, "lead" may be the metal or
- * a sales lead ("arsenic and lead", "conversion and lead quality").
+ * migration", "and lead 4 engineers", "and lead weekly reviews". Without one,
+ * "lead" may be the metal or a sales lead ("arsenic and lead", "conversion
+ * and lead quality").
  */
 export const LEAD_OBJECTS = [
   "the", "a", "an", "my", "our", "their", "his", "her", "its", "this", "that", "these", "those", "two", "three",
   "four", "five", "six", "seven", "eight", "nine", "ten", "twelve", "twenty", "dozens", "several", "multiple", "many",
-  "all", "both", "each", "every",
+  "all", "both", "each", "every", "over", "daily", "weekly", "biweekly", "monthly", "quarterly", "annual", "yearly",
+  "new", "key", "cross-functional", "company-wide", "global", "remote", "senior", "junior",
 ]
+
+/** Tech names this long or longer are checked for slips ("TypeScirpt"): shorter ones are too close to other words ("CSS" and "CSV"). */
+export const MIN_TECH_SLIP = 6
