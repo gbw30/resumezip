@@ -26,7 +26,7 @@ export interface GrammarLint {
   kind: string
   /** The text it's about, as written. */
   text: string
-  /** Where that text starts in the whole, counting characters (code points). */
+  /** Where that text starts in the whole, as JavaScript counts (in UTF-16 code units). */
   start: number
   /** Harper's own description. */
   message: string
@@ -76,6 +76,12 @@ export interface Outcome {
    * them dismissed counts as passing.
    */
   credit?: number
+  /**
+   * Set when it couldn't look at everything yet, as when the grammar checker
+   * hasn't checked some of the text: what it found stands, but the rest may
+   * hold more.
+   */
+  partial?: boolean
 }
 
 interface RuleInfo {
@@ -134,6 +140,8 @@ export interface RuleResult {
   credit: number
   /** What it found, dismissed or not. */
   findings: Finding[]
+  /** It couldn't look at everything yet (`Outcome.partial`). */
+  partial?: boolean
 }
 
 export interface Report {
@@ -252,5 +260,5 @@ function judge(rule: Rule, outcome: Outcome, view: ResumeView, dismissed: Readon
       : outcome.credit !== undefined
         ? clamp(outcome.credit)
         : clamp((checked - open) / checked)
-  return { rule, status: open > 0 ? "failed" : "passed", checked, credit, findings }
+  return { rule, status: open > 0 ? "failed" : "passed", checked, credit, findings, ...(outcome.partial && { partial: true }) }
 }

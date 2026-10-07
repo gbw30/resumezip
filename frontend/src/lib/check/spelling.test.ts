@@ -58,6 +58,28 @@ describe("G1 typos", () => {
     expect((await check("G1", resume)).status).toBe("passed")
   })
 
+  test("knows each part of a dotted name, Latin honors, and the English of every country", async () => {
+    const resume = resumeWith(
+      [job(["Built REST APIs with Node.js, Express.js and Nuxt.js", "Modelled the centre's colour scheme and travelled to 40 sites", "Raised ₹2 crore from 3 lakh donors"])],
+      {
+        educationSection: [{ id: 1, schoolName: "Harvard University", degree: "Ph.D. in Biology, summa cum laude", schoolEndDate: "May 2024" }],
+        awardsSection: [{ id: 1, awardName: "Magna Cum Laude", awardDate: "2020" }],
+      },
+    )
+    expect((await check("G1", resume)).status).toBe("passed")
+    // In any English the browser reads.
+    expect((await check("G1", resume, { dialect: "british" })).status).toBe("passed")
+    expect((await check("G1", resumeWith([job(["Optimized the honors program at the center"])]), { dialect: "british" })).status).toBe("passed")
+  })
+
+  test("a word misspelled in every English is still a typo", async () => {
+    expect((await check("G1", resumeWith([job(["Controled the budget", "Identifys and simplifys workflows"])]))).findings.map((finding) => finding.text)).toEqual([
+      "Controled",
+      "Identifys",
+      "simplifys",
+    ])
+  })
+
   test("doesn't check names, links and emails", async () => {
     const resume = resumeWith([job(["Built a search index"], { companyName: "Gogle" })])
     expect((await check("G1", resume)).status).toBe("passed")
@@ -77,28 +99,37 @@ describe("G1 typos", () => {
     expect(isTypo("Flurbo's", new Set(["flurbo"]))).toBe(false)
   })
 
-  test("British English, when the browser reads it", async () => {
-    const resume = resumeWith([job(["Optimised the honours programme"])])
-    expect((await check("G1", resume)).status).toBe("failed")
-    expect((await check("G1", resume, { dialect: "british" })).status).toBe("passed")
+  test("while some text hasn't been checked, it says it hasn't looked at everything", () => {
+    const resume = resumeWith([job(["Recieved the team award", "Built a search index"])])
+    const grammar = new Map([["Recieved the team award", [{ rule: "SpellCheck", kind: "Spelling", text: "Recieved", start: 0, message: "", suggestions: ["Received"] }]]])
+    const report = runChecks(resume, { rules: SPELLING_RULES.filter((rule) => rule.id === "G1"), grammar, today: TODAY })
+    expect(report.results[0]).toEqual(expect.objectContaining({ status: "failed", checked: 1, partial: true }))
   })
 })
 
 describe("G2–G4", () => {
-  test("G2 finds a word written twice", async () => {
+  test("G2 finds a word written twice, but not a name or a word that can be", async () => {
     expect((await check("G2", resumeWith([job(["Built the the search index"])]))).messages).toEqual(["“the” twice in a row"])
+    expect((await check("G2", resumeWith([job(["Opened the Walla Walla branch", "Doubled what it had had in sales"])]))).status).toBe("passed")
   })
 
   test("G3 finds the wrong “a” or “an”", async () => {
-    expect((await check("G3", resumeWith([job(["Built a HTTP server", "Hired an university student"])]))).messages).toEqual([
+    expect((await check("G3", resumeWith([job(["Built a HTTP server", "Hired an university student", "😀😀 Shipped a app"])]))).messages).toEqual([
       "“a HTTP” should be “an HTTP”",
       "“an university” should be “a university”",
+      "“a app” should be “an app”",
     ])
+  })
+
+  test("G3 leaves “an” before an acronym said letter by letter", async () => {
+    expect((await check("G3", resumeWith([job(["Ran an SEO audit", "Wrote an FAQ page"])]))).status).toBe("passed")
   })
 
   test("G4 finds mixed-up words, and “loose” for “lose”", async () => {
     const resume = resumeWith([job(["Made the build faster then before", "Wrote it's docs", "Backed up data so users never loose work"])])
     expect((await check("G4", resume)).messages).toEqual(["“then” should be “than” here", "“it's” should be “its” here", "“loose” should be “lose” here"])
+    // Once, when Harper finds it too.
+    expect((await check("G4", resumeWith([job(["Tried not to loose the data"])]))).messages).toEqual(["“to loose” should be “to lose” here"])
   })
 
   test("well-written bullets pass", async () => {
@@ -109,8 +140,8 @@ describe("G2–G4", () => {
 
 describe("G5 lead for led", () => {
   test("finds “lead” joined to what was done", async () => {
-    const result = await check("G5", resumeWith([job(["Designed and lead the migration to Postgres", "Planned, lead and shipped the launch"], { workEndDate: "Dec 2024" })]))
-    expect(result.messages).toEqual(["“lead” should be “led” here", "“lead” should be “led” here"])
+    const result = await check("G5", resumeWith([job(["Designed and lead the migration to Postgres", "Planned, lead and shipped the launch", "Hired and lead 4 engineers"], { workEndDate: "Dec 2024" })]))
+    expect(result.messages).toEqual(["“lead” should be “led” here", "“lead” should be “led” here", "“lead” should be “led” here"])
     expect(result.findings[0].place).toEqual(bulletAt(0))
   })
 
@@ -119,8 +150,9 @@ describe("G5 lead for led", () => {
     expect((await check("G5", resumeWith([job(["Design and lead code reviews"])]))).status).toBe("skipped")
   })
 
-  test("not “lead” as a noun", async () => {
-    expect((await check("G5", resumeWith([job(["Built dashboards and lead generation tools"], { workEndDate: "2023" })]))).status).toBe("passed")
+  test("not “lead” as the metal or a sales lead", async () => {
+    const bullets = ["Built dashboards and lead generation tools", "Tested soil samples for arsenic and lead", "Measured mercury, lead, and cadmium", "Improved conversion and lead quality"]
+    expect((await check("G5", resumeWith([job(bullets, { workEndDate: "2023" })]))).status).toBe("passed")
   })
 })
 
@@ -154,6 +186,6 @@ test("few false typos on the template samples", async () => {
     const report = runChecks(resume, { rules: SPELLING_RULES, grammar, today: TODAY })
     fixes.push(...report.findings.filter((finding) => finding.level === "fix").map((finding) => finding.text))
   }
-  // A British spelling, read as American, and a product's name.
-  expect(fixes).toEqual(["Honours", "Powerwall"])
+  // A product's name.
+  expect(fixes).toEqual(["Powerwall"])
 })

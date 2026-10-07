@@ -44,7 +44,8 @@ const STEMS: [RegExp, string[]][] = [
 
 function stemsOf(word: string): string[] {
   const lower = word.toLowerCase()
-  if (lower.length < 5) return []
+  // "verifys" isn't built on "verify": that's "verifies".
+  if (lower.length < 5 || /[^aeiou]ys$/.test(lower)) return []
   return STEMS.flatMap(([ending, replacements]) => (ending.test(lower) ? replacements.map((replacement) => lower.replace(ending, replacement)) : []))
 }
 
@@ -67,20 +68,34 @@ const misspeltForm = (word: string, suggestions: string[]) =>
   })
 
 /**
- * Checks pieces of text, each on its own. Harper's dictionary leaves out
- * some forms of words it knows, as "prototyped", so a word it flags is let
- * through when a word it's built on is spelled right, unless Harper offers
- * the same form spelled another way ("occurring" for "occuring").
+ * Checks pieces of text, each on its own, with `linter`. A word it flags is
+ * let through when one of `others`, the other kinds of English, spells it
+ * that way ("colour", "travelled", "lakh"), since a resume is written for
+ * where the job is, not where the browser is. Harper's dictionary also leaves
+ * out some forms of words it knows, as "prototyped", so a word is let through
+ * when a word it's built on is spelled right, unless Harper offers the same
+ * form spelled another way ("occurring" for "occuring").
  */
-export async function lintTexts(linter: Linter, texts: readonly string[]): Promise<GrammarLint[][]> {
-  const spelledRight = new Map<string, boolean>()
-  const isSpelledRight = async (word: string) => {
-    if (!spelledRight.has(word)) {
-      const organized = await linter.organizedLints(word, { language: "plaintext" })
-      spelledRight.set(word, !organized.SpellCheck?.length)
+export async function lintTexts(linter: Linter, texts: readonly string[], others: readonly Linter[] = []): Promise<GrammarLint[][]> {
+  const spelledRight = new Map<Linter, Map<string, boolean>>()
+  const isSpelledRight = async (word: string, by = linter) => {
+    const known = spelledRight.get(by) ?? new Map<string, boolean>()
+    spelledRight.set(by, known)
+    if (!known.has(word)) {
+      const organized = await by.organizedLints(word, { language: "plaintext" })
+      known.set(word, !organized.SpellCheck?.length)
       for (const lint of Object.values(organized).flat()) lint.free()
     }
-    return spelledRight.get(word)!
+    return known.get(word)!
+  }
+  // Whether one of the words is spelled right, and whether another English spells a word that way.
+  const anySpelledRight = async (words: string[]) => {
+    for (const word of words) if (await isSpelledRight(word)) return true
+    return false
+  }
+  const otherEnglishHas = async (word: string) => {
+    for (const other of others) if (await isSpelledRight(word, other)) return true
+    return false
   }
   const results: GrammarLint[][] = []
   for (const text of texts) {
@@ -90,10 +105,9 @@ export async function lintTexts(linter: Linter, texts: readonly string[]): Promi
       for (const lint of lints) {
         const read = readLint(rule, lint)
         lint.free()
-        if (rule === "SpellCheck" && !misspeltForm(read.text, read.suggestions)) {
-          let built = false
-          for (const stem of stemsOf(read.text)) if (!built && (await isSpelledRight(stem))) built = true
-          if (built) continue
+        if (rule === "SpellCheck") {
+          if (await otherEnglishHas(read.text)) continue
+          if (!misspeltForm(read.text, read.suggestions) && (await anySpelledRight(stemsOf(read.text)))) continue
         }
         found.push(read)
       }

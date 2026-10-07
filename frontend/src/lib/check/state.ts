@@ -68,8 +68,12 @@ export function dismiss(state: CheckState, finding: Finding, report?: Report): C
   if (finding.level !== "look" || state.dismissed.includes(finding.key)) return state
   let kept = state.dismissed
   if (report) {
-    // Rules that waited or broke didn't look, so their dismissals stay.
-    const ran = new Set(report.results.filter((result) => result.status === "passed" || result.status === "failed").map((result) => result.rule.id))
+    // Rules that waited or broke didn't look, and ones that looked at part of
+    // the resume may not have seen what a dismissal is about, so their
+    // dismissals stay.
+    const ran = new Set(
+      report.results.filter((result) => (result.status === "passed" || result.status === "failed") && !result.partial).map((result) => result.rule.id),
+    )
     // What's still found counts, dismissed or not: the report can be from
     // before the last dismissal, while the checker catches up.
     const current = new Set([...report.findings, ...report.dismissed].map((found) => found.key))

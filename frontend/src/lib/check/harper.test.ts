@@ -57,7 +57,19 @@ describe("checking text with Harper", () => {
     expect(lints.map((found) => found.map((lint) => lint.rule))).toEqual([["SpellCheck"], [], ["RepeatedWords"]])
   })
 
-  test("British English knows its own spellings", async () => {
-    expect((await harperLints(["Optimised the honours programme"], "british"))[0]).toEqual([])
+  test("lets through a word spelled right in any English, whichever it reads", async () => {
+    expect((await harperLints(["Optimised the honours programme at the centre, and travelled"]))[0]).toEqual([])
+    expect((await harperLints(["Optimized the honors program at the center, and traveled"], "british"))[0]).toEqual([])
+    expect((await harperLints(["Raised 3 lakh rupees"]))[0]).toEqual([])
+    expect(await rulesIn("Controled the budget")).toEqual(["SpellCheck Controled"])
+  })
+
+  test("doesn't take a misspelled -ies form for one built on its word", async () => {
+    expect(await rulesIn("Identifys and simplifys workflows")).toEqual(["SpellCheck Identifys", "SpellCheck simplifys"])
+  })
+
+  test("says where each finding starts as JavaScript counts", async () => {
+    const [[lint]] = await harperLints(["😀😀 Shipped a app"])
+    expect(lint).toEqual(expect.objectContaining({ rule: "AnA", text: "a", start: "😀😀 Shipped ".length }))
   })
 })

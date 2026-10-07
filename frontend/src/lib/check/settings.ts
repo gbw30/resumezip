@@ -366,13 +366,6 @@ export const MIN_PAGE_FULL = 0.75
 // Spelling & grammar (G1–G7). The grammar checker is Harper (harper.js), which
 // runs in the browser; see grammar.ts.
 
-/** Fields that aren't words, so spelling and grammar skip them: links, emails, phone numbers, dates and GPAs. */
-export const NOT_WORDS_FIELDS = [
-  "email", "phoneNumber", "linkedin", "profileGithub", "personalWebsite", "projectGithub", "additionalLink", "projectLinks",
-  "publicationLink", "gpa", "workStartDate", "workEndDate", "schoolStartDate", "schoolEndDate", "projectDate",
-  "publicationDate", "volunteerStartDate", "volunteerEndDate", "leadershipStartDate", "leadershipEndDate", "awardDate",
-]
-
 /**
  * Fields that name things: people, companies, schools, groups, places,
  * projects and skills. Their words count as spelled right everywhere on the
@@ -416,6 +409,12 @@ export const TECH_WORDS = [
   "startup", "startups", "tokenizer", "toolchain", "upskilling", "webhook", "webhooks", "ms", "ns",
 ]
 
+/** Other words resumes use that aren't in the dictionary (G1): Latin honors, and kinds of work. */
+export const RESUME_WORDS = ["cum", "laude", "magna", "summa", "externship", "externships"]
+
+/** Words that are right twice in a row (G2): "what it had had". */
+export const FINE_TWICE = ["had", "that"]
+
 /**
  * Harper's rules behind each of our rules, by Harper's names for them. Any
  * other rule Harper has falls under G7, unless it's turned off below.
@@ -445,14 +444,19 @@ export const GRAMMAR_RULES_OFF = ["RoadMap", "CompoundNouns", "ExpandTimeShortha
  */
 export const GRAMMAR_KINDS_OFF = ["Readability", "Style", "Enhancement", "Formatting", "Punctuation", "Regionalism", "Capitalization", "Redundancy"]
 
-/** "loose" where "lose" is meant (G4), which Harper doesn't catch on its own: "never loose data". */
-export const LOOSE_FOR_LOSE = /\b(?:not|never|to|will|would|could|can|might|don't|didn't|won't|wouldn't|can't|couldn't)\s+(loose)\b/gi
+/**
+ * "loose" where "lose" is meant (G4), which Harper doesn't catch on its own:
+ * "never loose data". Harper finds "to loose" itself.
+ */
+export const LOOSE_FOR_LOSE = /\b(?:not|never|will|would|could|can|might|don't|didn't|won't|wouldn't|can't|couldn't)\s+(loose)\b/gi
 
-/** Words after "lead" that make it a noun or an adjective, not the verb (G5): "lead generation", "lead engineer". */
-export const LEAD_AS_NOUN = [
-  "generation", "generations", "gen", "engineer", "engineers", "developer", "developers", "designer", "designers",
-  "author", "investigator", "researcher", "analyst", "analysts", "role", "roles", "time", "times", "magnet",
-  "magnets", "scoring", "score", "scores", "qualification", "nurturing", "list", "lists", "contact", "contacts",
-  "exposure", "poisoning", "paint", "pipes", "singer", "guitarist", "organizer", "instructor", "tutor", "mentor",
-  "counselor", "volunteer", "volunteers", "consultant", "architect", "manager", "position",
+/**
+ * Words that start what was led, after "lead" as a verb (G5): "and lead the
+ * migration", "and lead 4 engineers". Without one, "lead" may be the metal or
+ * a sales lead ("arsenic and lead", "conversion and lead quality").
+ */
+export const LEAD_OBJECTS = [
+  "the", "a", "an", "my", "our", "their", "his", "her", "its", "this", "that", "these", "those", "two", "three",
+  "four", "five", "six", "seven", "eight", "nine", "ten", "twelve", "twenty", "dozens", "several", "multiple", "many",
+  "all", "both", "each", "every",
 ]

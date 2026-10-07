@@ -18,6 +18,12 @@ export type Place =
   // The PDF as a whole, or one of its pages (from 1).
   | { kind: "page"; page?: number }
 
+/** The field a place is in: a profile field, or one of an entry's. */
+export const fieldOf = (place: Place) => (place.kind === "profile" || place.kind === "entry" ? place.field : undefined)
+
+/** Fields that hold a link or an email address rather than words. */
+export const LINK_FIELDS: ReadonlySet<string> = new Set(["email", "linkedin", "profileGithub", "personalWebsite", "projectGithub", "additionalLink", "publicationLink"])
+
 /** Whether a place is on this resume, so the editor can open it. `pages` is how many the PDF has. */
 export function placeExists(view: ResumeView, place: Place, pages = 0): boolean {
   switch (place.kind) {

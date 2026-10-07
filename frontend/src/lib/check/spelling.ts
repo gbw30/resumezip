@@ -4,63 +4,80 @@
 // own, and read the form.
 
 import type { GrammarLint, GrammarReading, Problem, Rule } from "./engine"
-import type { Place } from "./places"
-import { hasEnded } from "./readDate"
+import { fieldOf, LINK_FIELDS, type Place } from "./places"
+import { DATE_FIELDS, hasEnded } from "./readDate"
 import { textsOf, type ResumeView } from "./resume"
 import {
   ACRONYMS,
   ACTION_VERBS,
   DEGREE_ABBREVIATIONS,
+  FINE_TWICE,
   GRAMMAR_KINDS_OFF,
   GRAMMAR_RULES,
-  LEAD_AS_NOUN,
+  LEAD_OBJECTS,
   LOOSE_FOR_LOSE,
   LOWERCASE_NAMES,
   NAME_FIELDS,
-  NOT_WORDS_FIELDS,
   NUMBER_UNITS,
+  RESUME_WORDS,
   SHORTHAND,
   TECH_NAMES,
   TECH_WORDS,
   US_STATES,
 } from "./settings"
-import { bulletsIn, escaped, firstWord } from "./text"
+import { bulletsIn, firstWord } from "./text"
 import { thirdPersonOf, verbOf } from "./verbs"
 
-const NOT_WORDS = new Set(NOT_WORDS_FIELDS)
+// Fields that aren't words, so spelling and grammar skip them: links, emails,
+// phone numbers, dates and GPAs.
+const NOT_WORDS = new Set([
+  ...LINK_FIELDS,
+  ...Object.values(DATE_FIELDS).flatMap((fields) => ("single" in fields ? [fields.single] : [fields.start, fields.end])),
+  "phoneNumber",
+  "gpa",
+])
 const NAMES = new Set(NAME_FIELDS)
-
-const fieldOf = (place: Place) => (place.kind === "profile" || place.kind === "entry" ? place.field : undefined)
 
 /**
  * The typed text the grammar checker reads: every field and bullet except
  * links, dates and the like, and the names the resume gives things.
  */
 export function grammarTexts(view: ResumeView): { place: Place; text: string }[] {
-  return textsOf(view).filter(({ place }) => {
-    const field = fieldOf(place)
-    return field === undefined || (!NOT_WORDS.has(field) && !NAMES.has(field))
-  })
+  // Each rule asks, and so does the editor, so it's worked out once a check.
+  let texts = textsFor.get(view)
+  if (!texts) {
+    texts = textsOf(view).filter(({ place }) => {
+      const field = fieldOf(place)
+      return field === undefined || (!NOT_WORDS.has(field) && !NAMES.has(field))
+    })
+    textsFor.set(view, texts)
+  }
+  return texts
 }
+
+const textsFor = new WeakMap<ResumeView, { place: Place; text: string }[]>()
 
 // A word, with the dots, hyphens and symbols names have: "Node.js", "C++", "B.S.".
 const WORD = /[\p{L}\p{N}][\p{L}\p{N}'’.+#&-]*/gu
 
+// Each word whole and in its pieces, as the grammar checker reads them: it
+// splits "Node.js" into "Node" and "js", and "Ph.D." into "Ph" and "D".
 const wordsIn = (text: string) =>
   (text.match(WORD) ?? []).flatMap((word) => {
     const whole = word.replace(/['’]s$/, "").replace(/[.'’-]+$/, "").toLowerCase()
-    return [whole, ...whole.split(/[-/]/)]
+    return [whole, ...whole.split(/[-/.]/)]
   })
 
 // Words that are spelled right without being in the dictionary: tech names
-// and words, acronyms, degrees, places, units, shorthand (P6's), and every
-// form of the action verbs.
+// and words, Latin honors, acronyms, degrees, places, units, shorthand (P6's),
+// and every form of the action verbs.
 const ALWAYS_KNOWN: ReadonlySet<string> = new Set(
   [
     ...TECH_NAMES,
     // As G6 knows them without their dots ("nodejs"), so they're G6's, not typos.
     ...TECH_NAMES.map((name) => name.replace(/\./g, "")),
     ...TECH_WORDS,
+    ...RESUME_WORDS,
     ...ACRONYMS,
     ...LOWERCASE_NAMES,
     ...DEGREE_ABBREVIATIONS.flat(),
@@ -98,44 +115,43 @@ export function isTypo(word: string, known: ReadonlySet<string>): boolean {
   return !known.has(lower) && !known.has(lower.replace(/\.$/, ""))
 }
 
-// The texts the grammar checker has read so far, with what it found.
+// The texts the grammar checker has read so far, with what it found, and
+// whether some it hasn't read yet.
 function linted(resume: ResumeView, grammar: GrammarReading) {
-  return grammarTexts(resume).flatMap(({ place, text }) => {
+  const texts = grammarTexts(resume)
+  const read = texts.flatMap(({ place, text }) => {
     const lints = grammar.get(text)
     return lints ? [{ place, text, lints }] : []
   })
+  return { read, partial: read.length < texts.length }
 }
 
 const quoted = (text: string) => text.replace(/`([^`]*)`/g, "“$1”")
 
 // What comes after a lint in its text: "API" after the "a" in "a API".
-function wordAfter(text: string, lint: GrammarLint): string {
-  const after = Array.from(text)
-    .slice(lint.start + Array.from(lint.text).length)
-    .join("")
-  return after.match(/^\s+([^\s,;.]+)/)?.[1] ?? ""
-}
+const wordAfter = (text: string, lint: GrammarLint) => text.slice(lint.start + lint.text.length).match(/^\s+([^\s,;.]+)/)?.[1] ?? ""
 
 // A rule over what Harper found: `problemsOf` says what each lint means for
 // it, if anything, and `alsoIn` finds more in a text on its own.
 function grammarRule(
   info: Omit<Extract<Rule, { reads: "grammar" }>, "reads" | "check">,
   problemsOf: (lint: GrammarLint, text: string, known: () => ReadonlySet<string>) => Omit<Problem, "place">[],
-  alsoIn: (text: string) => Omit<Problem, "place">[] = () => [],
+  alsoIn: (text: string, lints: readonly GrammarLint[]) => Omit<Problem, "place">[] = () => [],
 ): Rule {
   return {
     ...info,
     reads: "grammar",
     check: ({ resume, grammar, words }) => {
-      const read = linted(resume, grammar)
+      const { read, partial } = linted(resume, grammar)
       if (read.length === 0) return null
       let known: ReadonlySet<string> | undefined
       const knownNow = () => (known ??= knownWords(resume, words))
       return {
         checked: read.length,
         problems: read.flatMap(({ place, text, lints }) =>
-          [...lints.flatMap((lint) => problemsOf(lint, text, knownNow)), ...alsoIn(text)].map((problem) => ({ place, ...problem })),
+          [...lints.flatMap((lint) => problemsOf(lint, text, knownNow)), ...alsoIn(text, lints)].map((problem) => ({ place, ...problem })),
         ),
+        ...(partial && { partial }),
       }
     },
   }
@@ -162,10 +178,15 @@ const typos = grammarRule(
 const repeated = grammarRule(
   { id: "G2", category: "spelling", level: "fix", title: "No word written twice in a row", why: "It reads as a slip, and was easy to miss while editing." },
   (lint) => {
-    if (!GRAMMAR_RULES.repeated.includes(lint.rule)) return []
-    return [{ text: lint.text, message: `“${lint.text.split(/\s+/)[0]}” twice in a row`, suggestion: "Delete one." }]
+    const words = lint.text.split(/\s+/)
+    // A name ("Walla Walla", "Bora Bora"), or a word that can be right twice ("had had").
+    if (!GRAMMAR_RULES.repeated.includes(lint.rule) || words.every((word) => /^\p{Lu}/u.test(word)) || FINE_TWICE.includes(words[0].toLowerCase())) return []
+    return [{ text: lint.text, message: `“${words[0]}” twice in a row`, suggestion: "Delete one." }]
   },
 )
+
+// An acronym starting with a letter whose name starts with a vowel sound: "F" is "eff", "S" is "ess".
+const LETTER_BY_LETTER = /^[AEFHILMNORSX][A-Z0-9]*$/
 
 const aAn = grammarRule(
   { id: "G3", category: "spelling", level: "fix", title: "“A” and “an” used right", why: "“An” goes before a vowel sound, “a” before the rest: “an API”, “a user”." },
@@ -173,6 +194,9 @@ const aAn = grammarRule(
     const instead = lint.suggestions[0]
     if (!GRAMMAR_RULES.aAn.includes(lint.rule) || !instead) return []
     const next = wordAfter(text, lint)
+    // Before an acronym said letter by letter from one with a vowel sound
+    // ("an SEO audit", "an FAQ"), "an" is right; Harper can take it for a word.
+    if (instead.toLowerCase() === "a" && LETTER_BY_LETTER.test(next)) return []
     return [{ text: `${lint.text} ${next}`.trim(), message: next ? `“${lint.text} ${next}” should be “${instead} ${next}”` : `Should be “${instead}”` }]
   },
 )
@@ -184,14 +208,30 @@ const mixUps = grammarRule(
     if (!GRAMMAR_RULES.mixUps.includes(lint.rule) || !instead) return []
     return [{ text: lint.text, message: `“${lint.text}” should be “${instead}” here` }]
   },
-  // "loose" where "lose" is meant, which Harper doesn't find on its own.
-  (text) => [...text.matchAll(LOOSE_FOR_LOSE)].map((match) => ({ text: match[1], message: `“${match[1]}” should be “lose” here` })),
+  // "loose" where "lose" is meant, which Harper doesn't find on its own,
+  // unless it already has.
+  (text, lints) =>
+    [...text.matchAll(LOOSE_FOR_LOSE)].flatMap((match) => {
+      const at = match.index + match[0].length - match[1].length
+      const found = lints.some((lint) => GRAMMAR_RULES.mixUps.includes(lint.rule) && lint.start <= at && at < lint.start + lint.text.length)
+      return found ? [] : [{ text: match[1], message: `“${match[1]}” should be “lose” here` }]
+    }),
 )
 
-// "lead" after "and", "then" or a comma, joined to what came before:
-// "Designed and lead the migration". A noun after it makes it a noun
-// ("and lead generation").
-const LEAD = new RegExp(String.raw`(?:\band|\bthen|,)\s+(lead)\b(?!\s+(?:${LEAD_AS_NOUN.map(escaped).join("|")})\b)`, "gi")
+// "lead" after "and", "then" or a comma, joined to what came before.
+const LEAD = /(?:\band|\bthen|,)\s+(lead)\b/gi
+const OBJECTS = new Set(LEAD_OBJECTS)
+
+// Whether a "lead" is the verb: what was led follows it ("and lead the
+// migration", "and lead 4 engineers"), or another verb in the past does
+// ("Planned, lead and shipped"). Otherwise it may be the metal or a sales
+// lead: "arsenic and lead", "conversion and lead quality".
+function leadIsVerb(after: string): boolean {
+  const next = after.match(/^\s+([\p{L}\p{N}'’-]+)/u)?.[1].toLowerCase()
+  if (next && (OBJECTS.has(next) || /^\p{N}/u.test(next))) return true
+  const verb = after.match(/^\s*,?\s*(?:and\s+|,\s*)([\p{L}'’-]+)/u)?.[1]
+  return verb !== undefined && verbOf(verb)?.tense === "past"
+}
 
 const ledNotLead: Rule = {
   id: "G5",
@@ -207,7 +247,9 @@ const ledNotLead: Rule = {
     return {
       checked: past.length,
       problems: past.flatMap(({ place, bullet }) =>
-        [...bullet.text.matchAll(LEAD)].map(() => ({ place, text: "lead", message: "“lead” should be “led” here", suggestion: "The past tense of “lead” is “led”." })),
+        [...bullet.text.matchAll(LEAD)]
+          .filter((match) => leadIsVerb(bullet.text.slice(match.index + match[0].length)))
+          .map(() => ({ place, text: "lead", message: "“lead” should be “led” here", suggestion: "The past tense of “lead” is “led”." })),
       ),
     }
   },

@@ -22,9 +22,10 @@ function linterFor(dialect: DialectName): Promise<LocalLinter> {
   return linter
 }
 
-/** What Harper finds in each text. */
+/** What Harper finds in each text, reading it as `dialect`, with the other kinds of English to check words against, as the worker does. */
 export async function harperLints(texts: string[], dialect: DialectName = "american"): Promise<GrammarLint[][]> {
-  return lintTexts(await linterFor(dialect), texts)
+  const others = (Object.keys(DIALECTS) as DialectName[]).filter((other) => other !== dialect)
+  return lintTexts(await linterFor(dialect), texts, await Promise.all(others.map(linterFor)))
 }
 
 /** A grammar reading of the given texts, as the editor builds one. */

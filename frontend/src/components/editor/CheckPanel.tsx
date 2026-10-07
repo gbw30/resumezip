@@ -44,7 +44,8 @@ export default function CheckPanel() {
   const checkingGrammar = waitingFor("grammar") || grammar !== "ready"
   const waiting = waitingFor("pdf") || checkingGrammar
   const passed = [
-    ...report.results.filter((result) => result.status === "passed").map((result) => result.rule.title),
+    // A rule that hasn't looked at everything yet hasn't passed yet.
+    ...report.results.filter((result) => result.status === "passed" && !result.partial).map((result) => result.rule.title),
     ...report.automatic,
   ]
   return (

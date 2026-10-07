@@ -4,7 +4,7 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import path from "node:path"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
-import { COMPILER_FILE, COMPILER_INTEGRITY, COMPILER_PACKAGE, COMPILER_SIZE, COMPILER_VERSION, compileChecked } from "./compilerSource"
+import { COMPILER_FILE, COMPILER_INTEGRITY, COMPILER_PACKAGE, COMPILER_SIZE, COMPILER_VERSION, compileChecked, downloadChecked } from "./compilerSource"
 
 // After updating the compiler package, update COMPILER_VERSION, COMPILER_INTEGRITY and COMPILER_SIZE to match.
 test("the compiler loaded from jsDelivr is the installed one", () => {
@@ -57,6 +57,14 @@ describe("downloading the compiler", () => {
 
   test("gives up when the download stops partway", async () => {
     await expect(compileChecked(`${base}/stops`, integrity, IDLE_MS)).rejects.toThrow("Nothing arrived")
+  })
+
+  test("downloads a whole file the same way, for the grammar checker", async () => {
+    expect(Buffer.from(await downloadChecked(`${base}/slow`, integrity, IDLE_MS)).equals(wasm)).toBe(true)
+    const other = `sha384-${createHash("sha384").update("something else").digest("base64")}`
+    await expect(downloadChecked(`${base}/whole`, other, IDLE_MS)).rejects.toThrow("isn't the expected file")
+    await expect(downloadChecked(`${base}/stops`, integrity, IDLE_MS)).rejects.toThrow("Nothing arrived")
+    await expect(downloadChecked(`${base}/silent`, integrity, IDLE_MS)).rejects.toThrow("Nothing arrived")
   })
 
   test("waits for a slow download that keeps sending, saying how much has arrived", async () => {
