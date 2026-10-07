@@ -2,7 +2,8 @@
 // group of rules lives in a file of its own and is listed here.
 
 import { CONTACT_RULES } from "./contact"
+import { DATE_RULES } from "./dates"
 import type { Rule } from "./engine"
 import { SECTION_RULES } from "./sections"
 
-export const RULES: readonly Rule[] = [...CONTACT_RULES, ...SECTION_RULES]
+export const RULES: readonly Rule[] = [...CONTACT_RULES, ...SECTION_RULES, ...DATE_RULES]
