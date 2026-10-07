@@ -16,7 +16,10 @@ export const isLeftOutLine = (line: unknown) => typeof line === "string" && line
 export const isLeftOut = (entry: unknown) =>
   typeof entry === "object" && entry !== null && (entry as { leftOut?: unknown }).leftOut === true
 
-// A bullet field without its left-out lines. Older resumes kept bullets as a list.
+// A bullet field's lines. Older resumes kept bullets as a list.
+const linesOf = (value: unknown): unknown[] => (Array.isArray(value) ? value : typeof value === "string" ? value.split("\n") : [])
+
+// A bullet field without its left-out lines.
 const printedBullets = (value: unknown) =>
   Array.isArray(value)
     ? value.filter((line) => !isLeftOutLine(line))
@@ -26,6 +29,21 @@ const printedBullets = (value: unknown) =>
           .filter((line) => !isLeftOutLine(line))
           .join("\n")
       : value
+
+/** Whether anything in the resume is left out: an entry, or a bullet. */
+export function hasLeftOut(resume: Record<string, any>): boolean {
+  return Object.values(SECTIONS).some(
+    ({ dataKey, fields }) =>
+      Array.isArray(resume[dataKey]) &&
+      resume[dataKey].some(
+        (entry: unknown) =>
+          isLeftOut(entry) ||
+          (typeof entry === "object" &&
+            entry !== null &&
+            fields.some((field) => field.type === "bullets" && linesOf((entry as Record<string, unknown>)[field.key]).some(isLeftOutLine))),
+      ),
+  )
+}
 
 /**
  * The resume as it's printed: without left-out entries and bullets. It's

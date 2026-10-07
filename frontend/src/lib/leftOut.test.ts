@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { isLeftOutLine, printedResume } from "./leftOut"
+import { hasLeftOut, isLeftOutLine, printedResume } from "./leftOut"
 
 const tailored = {
   resumeTitle: "For the bank",
@@ -40,5 +40,19 @@ describe("what's printed", () => {
   test("knows a left-out bullet by the ○ it starts with, and nothing else", () => {
     expect(["○ Fed the cat", "  ○ Fed the cat", "○"].map(isLeftOutLine)).toEqual([true, true, true])
     expect(["• Fed the cat", "• ○ marks the spot", "Fed the cat ○", ""].map(isLeftOutLine)).toEqual([false, false, false, false])
+  })
+})
+
+describe("whether anything is left out", () => {
+  test("counts a left-out entry or bullet, in a list or in text", () => {
+    expect(hasLeftOut(tailored)).toBe(true)
+    expect(hasLeftOut({ workExperienceSection: [{ id: 1, workDescription: "• Built a loom\n○ Fed the cat" }] })).toBe(true)
+    expect(hasLeftOut({ workExperienceSection: [{ id: 1, workDescription: ["Checked sums", "○ Sharpened pencils"] }] })).toBe(true)
+    expect(hasLeftOut({ projectsSection: [{ id: 1, leftOut: true }] })).toBe(true)
+  })
+
+  test("is nothing on a resume without any, whatever else starts with ○", () => {
+    expect(hasLeftOut({})).toBe(false)
+    expect(hasLeftOut({ profileSection: { fullName: "○ Ada" }, workExperienceSection: [{ id: 1, workRole: "○ Engineer", workDescription: "• Built a loom" }] })).toBe(false)
   })
 })
