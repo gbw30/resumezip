@@ -1,4 +1,4 @@
-// Compiles resumes to PDF in the browser. The Typst compiler (and its ~7 MB
+// Compiles resumes to PDF in the browser. The Typst compiler (and its large
 // WebAssembly download) is only loaded the first time a resume is compiled.
 
 import { toAttachment } from "@/lib/resumeFile"
@@ -12,68 +12,92 @@ export interface CompileRequest {
   attachment?: string
 }
 
-export type CompileResponse =
-  | { id: number; pdf: Uint8Array }
-  /** `loaded`: the compiler had loaded, so the error is in the resume or a template. */
-  | { id: number; error: string; loaded: boolean }
+/**
+ * Why a PDF couldn't be made, which decides what the user is told to do:
+ * - `connection`: the compiler or its fonts couldn't be downloaded, or stopped arriving.
+ * - `resume`: Typst couldn't lay out this resume with its template.
+ * - `crash`: the compiler broke or got stuck. The next request gets a fresh one.
+ */
+export type PdfFailure = "connection" | "resume" | "crash"
 
-// How long a PDF can take before the worker is taken to be stuck. The first
-// one waits for the compiler (~7 MB) and fonts to download, so it gets longer.
-const FIRST_PDF_MS = 90_000
-const PDF_MS = 20_000
+export class PdfError extends Error {
+  constructor(
+    message: string,
+    readonly failure: PdfFailure,
+  ) {
+    super(message)
+  }
+}
+
+/** Why making a PDF failed, from what compileResume threw. */
+export const failureOf = (error: unknown): PdfFailure => (error instanceof PdfError ? error.failure : "crash")
+
+export type CompileResponse = { id: number; pdf: Uint8Array } | { id: number; error: string; failure: PdfFailure }
+
+/** What the worker sends: an answer, or word that more of the compiler or a font has downloaded. */
+export type WorkerMessage = CompileResponse | { progress: true }
+
+// The worker is taken to be stuck when it has work and goes this long without
+// sending anything. While the compiler downloads, each bit that arrives
+// counts, so a slow connection keeps going and a stalled one gives up. Time
+// spent waiting behind other requests doesn't count against any of them.
+const LOADING_MS = 30_000
+const COMPILING_MS = 20_000
 
 let worker: Worker | null = null
 // Whether the current worker's compiler has loaded.
-let started = false
+let loaded = false
+let watchdog: ReturnType<typeof setTimeout> | undefined
 let nextId = 0
-const pending = new Map<
-  number,
-  { resolve: (pdf: Uint8Array) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
->()
+const pending = new Map<number, { resolve: (pdf: Uint8Array) => void; reject: (error: Error) => void }>()
 
-// Gives up on the worker if a request isn't answered in time.
-const deadline = (ms: number) => setTimeout(() => restart(new Error("Making the PDF took too long")), ms)
-
-// The compiler has loaded, so requests already waiting get the shorter time too.
-function markStarted() {
-  if (started) return
-  started = true
-  for (const request of pending.values()) {
-    clearTimeout(request.timer)
-    request.timer = deadline(PDF_MS)
-  }
+// Waits afresh for the worker's next sign of life, while it has work.
+function watch() {
+  clearTimeout(watchdog)
+  watchdog = undefined
+  if (pending.size === 0) return
+  watchdog = setTimeout(
+    () => restart(new PdfError("Making the PDF took too long", loaded ? "crash" : "connection")),
+    loaded ? COMPILING_MS : LOADING_MS,
+  )
 }
 
 // Fails everything in flight and drops the worker, so the next request starts
 // a fresh one.
-function restart(error: Error) {
-  for (const { reject, timer } of pending.values()) {
-    clearTimeout(timer)
-    reject(error)
-  }
+function restart(error: PdfError) {
+  for (const { reject } of pending.values()) reject(error)
   pending.clear()
+  watch()
   worker?.terminate()
   worker = null
-  started = false
+  loaded = false
 }
 
 function getWorker(): Worker {
   if (worker) return worker
 
   const created = new Worker(new URL("./typst.worker.ts", import.meta.url))
-  created.onmessage = ({ data }: MessageEvent<CompileResponse>) => {
-    const request = pending.get(data.id)
-    if (!request) return
-    pending.delete(data.id)
-    clearTimeout(request.timer)
-    if ("pdf" in data || data.loaded) markStarted()
-    if ("pdf" in data) request.resolve(data.pdf)
-    else request.reject(new Error(data.error))
+  // Messages and errors from a worker that was already replaced are left
+  // alone, so they can't touch the new one.
+  created.onmessage = ({ data }: MessageEvent<WorkerMessage>) => {
+    if (worker !== created) return
+    if ("id" in data) {
+      const request = pending.get(data.id)
+      pending.delete(data.id)
+      if ("pdf" in data) {
+        loaded = true
+        request?.resolve(data.pdf)
+      } else {
+        if (data.failure === "resume") loaded = true
+        request?.reject(new PdfError(data.error, data.failure))
+        // A broken compiler can't be trusted with the rest.
+        if (data.failure === "crash") return restart(new PdfError(data.error, "crash"))
+      }
+    }
+    watch()
   }
-  // The worker itself broke. An error from a worker that was already
-  // replaced is left alone, so it can't take down the new one.
   created.onerror = (event) => {
-    if (worker === created) restart(new Error(event.message || "The Typst worker failed"))
+    if (worker === created) restart(new PdfError(event.message || "The Typst worker failed", "crash"))
   }
   worker = created
   return created
@@ -93,10 +117,11 @@ export function compileResume(resume: Record<string, any>, { attach = false }: C
     attachment: attach ? toAttachment(resume) : undefined,
   }
   return new Promise((resolve, reject) => {
-    const target = getWorker()
-    // A stuck worker can't hang a download forever.
-    pending.set(request.id, { resolve, reject, timer: deadline(started ? PDF_MS : FIRST_PDF_MS) })
-    target.postMessage(request)
+    getWorker().postMessage(request)
+    pending.set(request.id, { resolve, reject })
+    // A stuck worker can't hang a download forever. A wait that's already
+    // running is kept, so new requests can't keep a stuck worker going.
+    if (watchdog === undefined) watch()
   })
 }
 
