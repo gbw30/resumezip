@@ -31,8 +31,11 @@ type CheckValue = ReturnType<typeof useResumeCheck> & {
   claim: (request: number) => boolean
   /** Starts reading the preview for the PDF rules, as Check is opened. */
   watchPdf: () => void
-  /** Where the PDF rules stand: "reading" the current preview, "read", or "unreadable". */
-  pdf: "reading" | "read" | "unreadable"
+  /**
+   * Where the PDF rules stand: "reading" the current preview, "read",
+   * "unreadable", or "unbuilt" when the preview itself couldn't be made.
+   */
+  pdf: "reading" | "read" | "unreadable" | "unbuilt"
 }
 
 /** The preview on screen: its PDF, and what it prints (`printedOf` as JSON). */
@@ -74,6 +77,8 @@ interface CheckProviderProps {
   preview: Preview | null
   /** What the resume prints now; a preview of anything else is out of date. */
   printed: string
+  /** What the resume printed when its preview last failed to build. */
+  unbuilt: string | null
   children: React.ReactNode
 }
 
@@ -83,7 +88,7 @@ interface CheckProviderProps {
  * opened, each new preview is read for the PDF rules, while the page is idle;
  * they wait while the preview is behind what's been typed.
  */
-export function CheckProvider({ onSelect, preview, printed, children }: CheckProviderProps) {
+export function CheckProvider({ onSelect, preview, printed, unbuilt, children }: CheckProviderProps) {
   const [watching, setWatching] = useState(false)
   // The latest preview as read, and what it prints; null if it couldn't be read.
   const [read, setRead] = useState<{ printed: string; pdf: PdfReading | null } | null>(null)
@@ -106,7 +111,7 @@ export function CheckProvider({ onSelect, preview, printed, children }: CheckPro
   }, [watching, preview])
 
   const current = read?.printed === printed ? read : null
-  const pdf: CheckValue["pdf"] = !current ? "reading" : current.pdf ? "read" : "unreadable"
+  const pdf: CheckValue["pdf"] = current ? (current.pdf ? "read" : "unreadable") : unbuilt === printed ? "unbuilt" : "reading"
   const check = useResumeCheck(current?.pdf ?? undefined)
   const [chosen, setChosen] = useState<Target | null>(null)
   const claimed = useRef(0)

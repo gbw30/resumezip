@@ -36,8 +36,10 @@ export default function EditorPage() {
   const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus } = useResumeContext()
   const [active, setActive] = useState<ActiveSection>("Profile")
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  // What the preview on screen prints, for the checker to know when it's current.
+  // What the preview on screen prints, for the checker to know when it's
+  // current, and what the resume printed when a preview last failed to build.
   const [pdfPrinted, setPdfPrinted] = useState("")
+  const [unbuilt, setUnbuilt] = useState<string | null>(null)
   const [compileError, setCompileError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [failure, setFailure] = useState<Failure | null>(null)
@@ -107,7 +109,10 @@ export default function EditorPage() {
         setPdfPrinted(printed)
         setCompileError(null)
       } catch (error) {
-        if (!wanted.signal.aborted && !(error instanceof Superseded)) setCompileError(error instanceof Error ? error.message : String(error))
+        if (!wanted.signal.aborted && !(error instanceof Superseded)) {
+          setCompileError(error instanceof Error ? error.message : String(error))
+          setUnbuilt(printed)
+        }
       }
     }, wait)
     return () => {
@@ -274,7 +279,7 @@ export default function EditorPage() {
 
       <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
         {/* The left bar and the forms share what the checker found. */}
-        <CheckProvider onSelect={select} preview={preview} printed={printed}>
+        <CheckProvider onSelect={select} preview={preview} printed={printed} unbuilt={unbuilt}>
           <LeftBar hidden={view === "preview"}>
             <SectionNav
               sections={sections}

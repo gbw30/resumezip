@@ -44,7 +44,11 @@ export default function CheckPanel() {
       {/* The PDF rules wait for the preview, so "Nothing to fix" waits for them. */}
       {waiting ? (
         <p role="status" className="px-2 text-sm text-ink-2">
-          {pdf === "unreadable" ? "The PDF couldn't be read, so the checks on it are left out." : "Checking the PDF…"}
+          {pdf === "unbuilt"
+            ? "The preview couldn't be built, so the checks on the PDF are left out."
+            : pdf === "unreadable"
+              ? "The PDF couldn't be read, so the checks on it are left out."
+              : "Checking the PDF…"}
         </p>
       ) : (
         report.findings.length === 0 && <p className="px-2 text-sm text-ink-2">Nothing to fix.</p>

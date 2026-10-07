@@ -158,6 +158,30 @@ test("with Check open, the PDF is read too: a bullet that runs three lines is fl
   expect(errors).toEqual([])
 })
 
+test("when the preview can't be built, the checker says its PDF checks are left out", async ({ page }) => {
+  const errors = pageErrors(page)
+  // The compiler's worker fails each resume it's given, as in download.spec.ts.
+  await page.addInitScript(() => {
+    const RealWorker = window.Worker
+    window.Worker = class extends RealWorker {
+      postMessage(message: any, options?: any) {
+        if (message?.template === undefined) return super.postMessage(message, options)
+        setTimeout(() => this.onerror?.call(this, new ErrorEvent("error", { message: "Typst crashed" })))
+      }
+    }
+  })
+  await newResume(page)
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Company").fill("Analytical Engines")
+
+  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+  await expect(panel.getByRole("status")).toHaveText("The preview couldn't be built, so the checks on the PDF are left out.")
+  expect(errors).toEqual([])
+})
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
 
