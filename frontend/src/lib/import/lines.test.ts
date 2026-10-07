@@ -3,7 +3,7 @@ import { convertToHtml } from "mammoth"
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs"
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { MAX_CHARACTERS, MAX_PAGES, MAX_WORD_XML_BYTES, TooMuchTextError } from "./limits"
-import { cleanLink, linesFromDocx, linesFromPages, readPdf, unzippedXmlSize } from "./lines"
+import { cleanLink, linesFromDocx, linesFromPages, readPdf, UnreadableWordFileError, unzippedXmlSize } from "./lines"
 import { textPdf, wordFile } from "./testFiles"
 
 // mammoth as it is, with its converter watched.
@@ -13,6 +13,22 @@ vi.mock("mammoth", async (importOriginal) => {
 })
 
 const bytes = (buffer: Buffer) => new Uint8Array(buffer).buffer
+
+/** A zip whose directory keeps `name`'s unzipped size elsewhere, as ZIP64 does: there, it says 0xFFFFFFFF. */
+function sizeKeptElsewhere(zip: Buffer, name: string): Buffer {
+  const copy = Buffer.from(zip)
+  for (let at = copy.indexOf("PK\x01\x02", 0, "latin1"); at >= 0; at = copy.indexOf("PK\x01\x02", at + 4, "latin1")) {
+    if (copy.toString("latin1", at + 46, at + 46 + copy.readUInt16LE(at + 28)) === name) copy.writeUInt32LE(0xffffffff, at + 24)
+  }
+  return copy
+}
+
+/** A zip marked as ZIP64 by the record a ZIP64 file has just before its directory's end. */
+function zip64(zip: Buffer): Buffer {
+  const locator = Buffer.alloc(20)
+  locator.writeUInt32LE(0x07064b50)
+  return Buffer.concat([zip.subarray(0, -22), locator, zip.subarray(-22)])
+}
 
 async function withPdf(pdf: Buffer, check: (doc: PDFDocumentProxy) => Promise<void>) {
   const doc = (await getDocument({ data: new Uint8Array(pdf), isEvalSupported: false, fontExtraProperties: true }).promise) as unknown as PDFDocumentProxy
@@ -85,6 +101,23 @@ describe("reading a Word file", () => {
     vi.mocked(convertToHtml).mockClear()
     await expect(linesFromDocx(bytes(wordFile(["Mara Lin"], { padding: MAX_WORD_XML_BYTES })))).rejects.toThrow(TooMuchTextError)
     expect(convertToHtml).not.toHaveBeenCalled()
+  })
+
+  test("one whose zip keeps the size elsewhere (ZIP64) isn't converted either", async () => {
+    vi.mocked(convertToHtml).mockClear()
+    for (const file of [sizeKeptElsewhere(wordFile(["Mara Lin"]), "word/document.xml"), zip64(wordFile(["Mara Lin"]))]) {
+      expect(unzippedXmlSize(bytes(file))).toBe(Infinity)
+      await expect(linesFromDocx(bytes(file))).rejects.toThrow(TooMuchTextError)
+    }
+    expect(convertToHtml).not.toHaveBeenCalled()
+  })
+
+  test("a damaged zip is left to mammoth, which can't read it", async () => {
+    const file = wordFile(["Mara Lin"])
+    // Says the directory starts past the end of the file.
+    file.writeUInt32LE(file.length, file.length - 22 + 16)
+    expect(unzippedXmlSize(bytes(file))).toBeNull()
+    await expect(linesFromDocx(bytes(file))).rejects.toThrow(UnreadableWordFileError)
   })
 
   test("its paragraphs become lines", async () => {

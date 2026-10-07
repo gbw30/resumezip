@@ -43,7 +43,9 @@ far beyond a real resume, which is a page or two and under 10,000 characters.
 | Time | 1 minute | from start to finish, downloads included |
 
 pdf.js leaves out text that runs off the page, so only tiny print can fit enough
-on 20 pages to reach the text limit. Pictures in Word files aren't read at all.
+on 20 pages to reach the text limit. Pictures in Word files aren't read at all,
+and one whose zip keeps its sizes elsewhere (ZIP64, for files over 4 GB) counts
+as too much text.
 
 ## How parse.ts reads a resume
 

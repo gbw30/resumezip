@@ -473,9 +473,10 @@ export function linesFromHtml(html: string): Line[] {
 
 /**
  * How big a Word file's XML (its text, styles and lists) is once unzipped, as
- * the zip's directory says. Null when there's no directory to read, which
- * leaves mammoth to say whether it's a Word file at all, or when a size is
- * only given elsewhere (ZIP64), which a resume never needs.
+ * the zip's directory says. Infinity when the zip says it's too big for the
+ * usual place and keeps it elsewhere (ZIP64, for files over 4 GB), which no
+ * resume needs. Null when there's no directory to read, which leaves mammoth
+ * to say whether it's a Word file at all.
  */
 export function unzippedXmlSize(data: ArrayBuffer): number | null {
   const view = new DataView(data)
@@ -483,15 +484,21 @@ export function unzippedXmlSize(data: ArrayBuffer): number | null {
   const last = view.byteLength - 22
   for (let end = last; end >= Math.max(0, last - 0xffff); end--) {
     if (view.getUint32(end, true) !== 0x06054b50) continue
+    // A ZIP64 file's directory is found from another record, just before this one.
+    if (end >= 20 && view.getUint32(end - 20, true) === 0x07064b50) return Infinity
     let at = view.getUint32(end + 16, true)
     let total = 0
     for (let count = view.getUint16(end + 10, true); count > 0; count--) {
       if (at + 46 > view.byteLength || view.getUint32(at, true) !== 0x02014b50) return null
       const size = view.getUint32(at + 24, true)
       const nameLength = view.getUint16(at + 28, true)
-      if (size === 0xffffffff || at + 46 + nameLength > view.byteLength) return null
+      if (at + 46 + nameLength > view.byteLength) return null
       const name = new TextDecoder().decode(new Uint8Array(data, at + 46, nameLength))
-      if (/\.(?:xml|rels)$/i.test(name)) total += size
+      if (/\.(?:xml|rels)$/i.test(name)) {
+        // The real size is kept elsewhere (ZIP64).
+        if (size === 0xffffffff) return Infinity
+        total += size
+      }
       at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true)
     }
     return total
