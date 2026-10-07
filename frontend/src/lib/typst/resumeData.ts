@@ -4,6 +4,7 @@
 // plain JSON strings, which Typst never evaluates as markup, so no escaping
 // is needed.
 
+import { printedResume } from "@/lib/leftOut"
 import { templateById, type TemplateId } from "@/lib/templates"
 
 export type { TemplateId }
@@ -182,7 +183,9 @@ export function sectionOrder(value: unknown): string[] {
   return [...saved, ...DEFAULT_SECTION_ORDER.filter((name) => !saved.includes(name))]
 }
 
-export function toTemplateData(resume: Record<string, any>): TemplateData {
+export function toTemplateData(saved: Record<string, any>): TemplateData {
+  // What the person left out isn't printed.
+  const resume = printedResume(saved)
   const profile = resume.profileSection ?? {}
   const headings = resume.headings ?? {}
   // Project links are printed as text, unless the user chose to link each project's name.

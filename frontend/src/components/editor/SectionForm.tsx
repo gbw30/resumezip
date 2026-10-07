@@ -3,13 +3,16 @@
 import { useEffect, useRef, useState } from "react"
 import { Plus } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
+import { isLeftOut } from "@/lib/leftOut"
 import { useCheck } from "./CheckContext"
-import { BulletsField, Field, FlagNote, SectionHeading, selectLine } from "./fields"
-import { uncovered } from "./layout"
+import { nextAnnouncement } from "./arrange"
+import { BulletsField, Field, FlagNote, MoveButtons, SectionHeading, selectLine } from "./fields"
+import { reducedMotion, reveal, scrollerOf } from "./layout"
 import PaperFromLink from "./PaperFromLink"
 import { FIELD_SPAN, type ChoiceDef, type SectionDef } from "./sections"
 
-type Entry = { id: number; [field: string]: any }
+// `leftOut` is set on entries left out of the PDF (see lib/leftOut.ts).
+type Entry = { id: number; leftOut?: true; [field: string]: any }
 
 interface SectionFormProps {
   section: SectionDef
@@ -20,16 +23,10 @@ interface SectionFormProps {
 // How long an entry takes to slide open, closed or away (matches duration-300).
 const SLIDE_MS = 300
 
-const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
-
-/** The element that scrolls the editor: its pane on wide screens, the page on small ones. */
-function scrollerOf(element: HTMLElement): HTMLElement {
-  for (let node = element.parentElement; node; node = node.parentElement) {
-    const { overflowY } = getComputedStyle(node)
-    if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) return node
-  }
-  return document.scrollingElement as HTMLElement
-}
+// Where a field is typed in: not the Include boxes in an entry's heading, or
+// in a bullets field being arranged.
+const TYPED = ':is(input:not([type="checkbox"]), textarea)'
+const FIRST_FIELD = `[data-field] ${TYPED}`
 
 /** Moves the cursor to what the checker points at (one bullet, if `line` is given) and scrolls it into view. */
 function pointAt(target: HTMLElement | null | undefined, line?: number, view: HTMLElement | null | undefined = target) {
@@ -37,16 +34,6 @@ function pointAt(target: HTMLElement | null | undefined, line?: number, view: HT
   target.focus({ preventScroll: true })
   if (line !== undefined && target instanceof HTMLTextAreaElement) selectLine(target, line)
   view?.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" })
-}
-
-/** Scrolls just enough to show the top of an opened entry: its heading and first fields. */
-function reveal(element: HTMLElement, scroller: HTMLElement, reduced: boolean) {
-  const box = element.getBoundingClientRect()
-  const view = scroller === document.scrollingElement ? uncovered() : scroller.getBoundingClientRect()
-  const below = box.top + Math.min(box.height, 260) - view.bottom
-  const above = view.top - box.top
-  const by = above > 0 ? -above - 16 : below > 0 ? below + 16 : 0
-  if (by) scroller.scrollBy({ top: by, behavior: reduced ? "auto" : "smooth" })
 }
 
 /** The form for one list section (education, experience, ...): its title and entries. */
@@ -70,6 +57,8 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   const heading = useRef<HTMLDivElement>(null)
   const opened = useRef(openId)
   opened.current = openId
+  // Said to screen readers when an entry moves.
+  const [announcement, setAnnouncement] = useState("")
 
   // What the checker points at in this section, while the person fixes it.
   const { target, pending, claim } = useCheck()
@@ -101,7 +90,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
           pointAt(addButton.current, undefined, heading.current)
         } else if (entry) {
           const fields = elements.current.get(entry.id)
-          const selector = place.field ? `[data-field="${place.field}"] :is(input, textarea)` : "input, textarea"
+          const selector = place.field ? `[data-field="${place.field}"] ${TYPED}` : FIRST_FIELD
           pointAt(fields?.querySelector<HTMLElement>(selector), place.line)
         }
       },
@@ -130,7 +119,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   /** Puts the cursor in an entry's first field, except on touch screens where it would pop up the keyboard. */
   const focusFirstField = (id: number) => {
     if (!window.matchMedia("(pointer: fine)").matches) return
-    elements.current.get(id)?.querySelector<HTMLElement>("input, textarea")?.focus({ preventScroll: true })
+    elements.current.get(id)?.querySelector<HTMLElement>(FIRST_FIELD)?.focus({ preventScroll: true })
   }
 
   /**
@@ -192,12 +181,13 @@ export default function SectionForm({ section, position }: SectionFormProps) {
 
   const add = () => addEntries([{}])
 
-  // Ids are renumbered so they stay 1..n, as the stored data always has been.
+  // The others keep their ids, so React doesn't give the next entry what was
+  // the deleted one's: its place in the slide, or a bullets field's mode.
   const remove = (id: number) => {
     const hadFocus = elements.current.get(id)?.contains(document.activeElement) ?? false
-    save(latest.current.filter((entry) => entry.id !== id).map((entry, i) => ({ ...entry, id: i + 1 })))
+    save(latest.current.filter((entry) => entry.id !== id))
     setRemovingId(null)
-    setOpenId((current) => (current === null || current === id ? null : current > id ? current - 1 : current))
+    setOpenId((current) => (current === id ? null : current))
     if (hadFocus) addButton.current?.focus({ preventScroll: true })
   }
 
@@ -211,6 +201,32 @@ export default function SectionForm({ section, position }: SectionFormProps) {
 
   const update = (id: number, key: string, value: string) =>
     save(entries.map((entry) => (entry.id === id ? { ...entry, [key]: value } : entry)))
+
+  /**
+   * Moves an entry up or down one place. Its id stays the same, so it stays
+   * open if it was, and React keeps the focus on the button that moved it.
+   */
+  const move = (id: number, by: -1 | 1) => {
+    const current = latest.current
+    const from = current.findIndex((entry) => entry.id === id)
+    const to = from + by
+    if (from < 0 || to < 0 || to >= current.length) return
+    const next = [...current]
+    next.splice(to, 0, ...next.splice(from, 1))
+    save(next)
+    setConfirmingId(null)
+    setAnnouncement((last) => nextAnnouncement(last, `Moved to ${to + 1} of ${current.length}`))
+  }
+
+  /** Leaves an entry out of the PDF, or puts it back. An entry that's in has no `leftOut` at all. */
+  const setLeftOut = (id: number, leftOut: boolean) =>
+    save(
+      latest.current.map((entry) => {
+        if (entry.id !== id) return entry
+        const { leftOut: _, ...rest } = entry
+        return leftOut ? { ...rest, leftOut: true } : rest
+      }),
+    )
 
   const title = formData.headings?.[section.headingKey] || section.title
   const quiet = "py-2 text-sm text-ink-2 transition-colors hover:text-ink"
@@ -260,6 +276,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
               section.summary.map((key) => entry[key]?.trim()).filter(Boolean).join(", ") ||
               section.fields.map((field) => entry[field.key]?.trim()).find(Boolean)
             const name = `entry ${index + 1}`
+            const leftOut = isLeftOut(entry)
 
             return (
               <div
@@ -279,9 +296,12 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex min-w-0 flex-col gap-1">
-                        <span className="label-mono text-ink-2">Entry {index + 1}</span>
+                        <span className="label-mono text-ink-2">
+                          Entry {index + 1}
+                          {leftOut && " · Left out"}
+                        </span>
                         {!isOpen && (
-                          <span className={`truncate text-[15px] ${summary ? "text-ink" : "text-ink-2"}`}>
+                          <span className={`truncate text-[15px] ${summary && !leftOut ? "text-ink" : "text-ink-2"}`}>
                             {summary || "Empty entry"}
                           </span>
                         )}
@@ -296,6 +316,27 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                           }
                         }}
                       >
+                        {!confirming && (
+                          <>
+                            <MoveButtons
+                              key="move"
+                              name={name}
+                              first={index === 0}
+                              last={index === entries.length - 1}
+                              onMove={(by) => move(entry.id, by)}
+                            />
+                            <label key="include" className="flex cursor-pointer items-center gap-2 py-2 text-sm text-ink-2">
+                              <input
+                                type="checkbox"
+                                checked={!leftOut}
+                                onChange={(event) => setLeftOut(entry.id, !event.target.checked)}
+                                aria-label={`Include ${name} in the PDF`}
+                                className="h-4 w-4 accent-accent"
+                              />
+                              Include
+                            </label>
+                          </>
+                        )}
                         {!isOpen ? (
                           <button
                             key="edit"
@@ -363,6 +404,11 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                     >
                       <div className="-mx-1 min-h-0 overflow-hidden px-1" inert={!isOpen}>
                         <div className="grid grid-cols-2 gap-x-7 gap-y-6 pb-1 pt-5 @lg:grid-cols-4">
+                          {leftOut && (
+                            <p className="col-span-2 text-[13px] leading-normal text-ink-2 @lg:col-span-4">
+                              Left out of the PDF, and of the copy of the resume inside it. It stays here, in this browser.
+                            </p>
+                          )}
                           {flagAt(index) && (
                             <div className="col-span-2 @lg:col-span-4">
                               <FlagNote finding={flagAt(index)!} />
@@ -370,6 +416,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                           )}
                           {section.fields.map((field) => {
                             const Input = field.type === "bullets" ? BulletsField : Field
+                            const flag = flagAt(index, field.key)
                             return (
                               <Input
                                 key={field.key}
@@ -379,7 +426,8 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                                 value={entry[field.key] ?? ""}
                                 onChange={(value) => update(entry.id, field.key, value)}
                                 className={FIELD_SPAN[field.size]}
-                                flag={flagAt(index, field.key)}
+                                flag={flag}
+                                request={flag ? target!.request : undefined}
                               />
                             )
                           })}
@@ -393,6 +441,10 @@ export default function SectionForm({ section, position }: SectionFormProps) {
           })}
         </div>
       )}
+
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
 
       {section.fromPaperLink ? (
         <PaperFromLink entries={() => latest.current} owner={() => owner.current} onAdd={addEntries}>

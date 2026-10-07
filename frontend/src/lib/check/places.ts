@@ -3,7 +3,7 @@
 // PDF's pages. Also how a finding is told apart from others, for dismissing it.
 
 import { PROFILE_FIELDS, SECTIONS, type SectionName } from "@/components/editor/sections"
-import type { ResumeView } from "./resume"
+import { entryAt, type ResumeView } from "./resume"
 
 export type Place =
   // A profile field, like "email".
@@ -28,7 +28,7 @@ export function placeExists(view: ResumeView, place: Place, pages = 0): boolean 
       return Object.hasOwn(SECTIONS, place.section)
     case "entry": {
       if (!Object.hasOwn(SECTIONS, place.section)) return false
-      const entry = view.sections[place.section][place.entry]
+      const entry = entryAt(view, place.section, place.entry)
       if (!entry) return false
       if (place.field === undefined) return place.line === undefined
       const field = SECTIONS[place.section].fields.find((field) => field.key === place.field)
@@ -56,7 +56,7 @@ export function textAt(view: ResumeView, place: Place): string {
     case "page":
       return ""
     case "entry": {
-      const entry = view.sections[place.section]?.[place.entry]
+      const entry = entryAt(view, place.section, place.entry)
       if (!entry) return ""
       if (place.line !== undefined) {
         return entry.bullets.find((bullet) => bullet.field === place.field && bullet.line === place.line)?.raw ?? ""

@@ -73,3 +73,23 @@ describe("section order", () => {
     expect(toTemplateData({ sectionOrder: [] }).order).toEqual(SECTION_NAMES)
   })
 })
+
+describe("what the person left out", () => {
+  const words = (bullets: { text: string }[][]) => bullets.map((bullet) => bullet.map((run) => run.text).join(""))
+
+  test("isn't printed", () => {
+    const data = toTemplateData({
+      workExperienceSection: [
+        { id: 1, companyName: "Acme", workDescription: "• Built a loom\n○ Fed the cat" },
+        { id: 2, companyName: "Initech", leftOut: true },
+      ],
+    })
+    expect(data.work.map((job) => job.company)).toEqual(["Acme"])
+    expect(words(data.work[0].bullets)).toEqual(["Built a loom"])
+  })
+
+  test("leaves a section with nothing to print, which the templates leave out, title and all", () => {
+    const data = toTemplateData({ skillsSection: [{ id: 1, skillName: "Languages", leftOut: true }] })
+    expect(data.skills).toEqual([])
+  })
+})

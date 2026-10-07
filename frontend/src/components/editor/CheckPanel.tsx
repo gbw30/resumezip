@@ -3,10 +3,12 @@
 import type React from "react"
 import { useId } from "react"
 import { Check } from "lucide-react"
+import { useResumeContext } from "@/context/ResumeContext"
 import type { Finding } from "@/lib/check/engine"
 import { describePlace, hasEnoughToCheck } from "@/lib/check/labels"
 import type { ResumeView } from "@/lib/check/resume"
 import { LEVELS, type Level } from "@/lib/check/settings"
+import { hasLeftOut } from "@/lib/leftOut"
 import { useCheck } from "./CheckContext"
 
 // A typo can't be dismissed, but its word can be added so it isn't flagged
@@ -22,13 +24,17 @@ const quiet = "text-[13px] text-ink-2 underline-offset-4 transition-colors hover
  */
 export default function CheckPanel() {
   const { report, restore, pdf } = useCheck()
+  const { formData } = useResumeContext()
   // The resume as last checked, so places are named as the findings saw them.
   const view = report.view
 
   if (!hasEnoughToCheck(view)) {
     return (
       <p className="px-5 py-4 text-sm leading-relaxed text-ink-2 xl:px-2 xl:py-0">
-        Add your name and one entry to check this resume.
+        {/* The checker reads only what's printed, so entries that are all left out don't count. */}
+        {view.profile.fullName && hasLeftOut(formData)
+          ? "Include an entry in the PDF to check this resume."
+          : "Add your name and one entry to check this resume."}
       </p>
     )
   }

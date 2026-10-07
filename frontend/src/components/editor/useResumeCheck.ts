@@ -4,6 +4,7 @@ import { useCallback, useDeferredValue, useMemo, useRef } from "react"
 import { useResumeContext } from "@/context/ResumeContext"
 import { runChecks, type Finding, type PdfReading } from "@/lib/check/engine"
 import { addWord, CHECK_FIELD, changeCheck, dismiss, restore, type CheckState } from "@/lib/check/state"
+import { hasLeftOut } from "@/lib/leftOut"
 
 /**
  * Checks the open resume as it changes. The checks run on a deferred copy of
@@ -31,8 +32,17 @@ export function useResumeCheck(pdf?: PdfReading) {
 
   return {
     report,
-    /** Dismisses a suggestion on this resume; fixes can't be dismissed. */
-    dismiss: useCallback((finding: Finding) => change((state) => dismiss(state, finding, latest.current.report)), [change]),
+    /**
+     * Dismisses a suggestion on this resume; fixes can't be dismissed. Old
+     * dismissals are tidied away only while nothing is left out of the PDF:
+     * the checker doesn't see what's left out, so it would drop dismissals
+     * that are needed again once it's put back.
+     */
+    dismiss: useCallback(
+      (finding: Finding) =>
+        change((state) => dismiss(state, finding, hasLeftOut(latest.current.formData) ? undefined : latest.current.report)),
+      [change],
+    ),
     /** Brings a dismissed finding back. */
     restore: useCallback((finding: Finding) => change((state) => restore(state, finding.key)), [change]),
     /** Adds a word, so it isn't flagged as a typo on this resume. */

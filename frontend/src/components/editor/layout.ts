@@ -23,3 +23,27 @@ export function uncovered() {
   }
   return { top, bottom }
 }
+
+export const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+/** The element that scrolls the editor: its pane on wide screens, the page on small ones. */
+export function scrollerOf(element: HTMLElement): HTMLElement {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node)
+    if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) return node
+  }
+  return document.scrollingElement as HTMLElement
+}
+
+/**
+ * Scrolls just enough to show an element clear of the pinned bars, or the top
+ * of a tall one, like an opened entry's heading and first fields.
+ */
+export function reveal(element: HTMLElement, scroller: HTMLElement, reduced: boolean) {
+  const box = element.getBoundingClientRect()
+  const view = scroller === document.scrollingElement ? uncovered() : scroller.getBoundingClientRect()
+  const below = box.top + Math.min(box.height, 260) - view.bottom
+  const above = view.top - box.top
+  const by = above > 0 ? -above - 16 : below > 0 ? below + 16 : 0
+  if (by) scroller.scrollBy({ top: by, behavior: reduced ? "auto" : "smooth" })
+}
