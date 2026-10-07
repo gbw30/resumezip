@@ -28,6 +28,8 @@ const pad = (n: number) => String(n).padStart(2, "0")
 // for every pause in typing.
 const MIN_WAIT_MS = 150
 const MAX_WAIT_MS = 400
+// How long a replaced preview PDF is kept before it's freed.
+const PDF_KEPT_MS = 10_000
 
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -110,10 +112,14 @@ export default function EditorPage() {
     }
   }, [formData.id, printed])
 
-  // Free each preview PDF once a newer one replaces it.
+  // Free each preview PDF a while after a newer one replaces it. The
+  // preview may only just have started reading it, and pdf.js fails, and
+  // throws, if it's freed before the preview lets go of it.
   useEffect(() => {
     if (!pdfUrl) return
-    return () => URL.revokeObjectURL(pdfUrl)
+    return () => {
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), PDF_KEPT_MS)
+    }
   }, [pdfUrl])
 
   // The Edit / Preview switch steps aside while a touch screen's keyboard is
