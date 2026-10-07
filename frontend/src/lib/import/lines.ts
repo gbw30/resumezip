@@ -504,16 +504,27 @@ interface Mammoth {
   images: { imgElement: (attributes: () => { src: string }) => unknown }
 }
 
-/** Reads a Word (.docx) file. mammoth is only downloaded when one is opened. */
+/** A file mammoth couldn't read as a Word file. */
+export class UnreadableWordFileError extends Error {}
+
+/**
+ * Reads a Word (.docx) file. mammoth is only downloaded when one is opened;
+ * a failed download is thrown as it is, since it's no fault of the file.
+ */
 export async function linesFromDocx(data: ArrayBuffer): Promise<Line[]> {
   if ((unzippedXmlSize(data) ?? 0) > MAX_WORD_XML_BYTES) throw new TooMuchTextError()
   const loaded = (await import("mammoth")) as unknown as Partial<Mammoth> & { default?: Mammoth }
   const mammoth = loaded.convertToHtml ? (loaded as Mammoth) : loaded.default!
-  const { value } = await mammoth.convertToHtml(
-    // Browsers get mammoth's browser build, which reads `arrayBuffer`; tests in Node get the one that reads `buffer`.
-    { arrayBuffer: data, buffer: data },
-    // Pictures aren't read, since only text is kept. By default mammoth copies each into the HTML.
-    { convertImage: mammoth.images.imgElement(() => ({ src: "" })) },
-  )
-  return linesFromHtml(value)
+  let html: string
+  try {
+    ;({ value: html } = await mammoth.convertToHtml(
+      // Browsers get mammoth's browser build, which reads `arrayBuffer`; tests in Node get the one that reads `buffer`.
+      { arrayBuffer: data, buffer: data },
+      // Pictures aren't read, since only text is kept. By default mammoth copies each into the HTML.
+      { convertImage: mammoth.images.imgElement(() => ({ src: "" })) },
+    ))
+  } catch (error) {
+    throw new UnreadableWordFileError("mammoth couldn't read the file", { cause: error })
+  }
+  return linesFromHtml(html)
 }

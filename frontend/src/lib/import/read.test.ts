@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { MAX_LINES } from "./limits"
 import { readFile } from "./read"
 import { wordFile } from "./testFiles"
@@ -18,6 +18,19 @@ describe("the import worker", () => {
 
   test("finds no text on a page with none", async () => {
     await expect(readFile({ kind: "pdf", pages: [{ width: 612, height: 792, items: [], links: [] }] })).resolves.toEqual({ problem: "no text" })
+  })
+
+  test("doesn't blame the file when mammoth fails to download", async () => {
+    vi.resetModules()
+    vi.doMock("mammoth", () => {
+      throw new TypeError("Failed to fetch dynamically imported module")
+    })
+    try {
+      const { readFile: readWithoutMammoth } = await import("./read")
+      await expect(readWithoutMammoth(docx(["Mara Lin"]))).resolves.toEqual({ failed: expect.any(String) })
+    } finally {
+      vi.doUnmock("mammoth")
+    }
   })
 
   test("says when a Word file can't be read", async () => {
