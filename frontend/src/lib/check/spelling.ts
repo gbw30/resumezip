@@ -17,16 +17,18 @@ import {
   LEAD_OBJECTS,
   LOOSE_FOR_LOSE,
   LOWERCASE_NAMES,
+  MIN_SKILL_SLIP,
   MIN_TECH_SLIP,
   NAME_FIELDS,
   NUMBER_UNITS,
   RESUME_WORDS,
   SHORTHAND,
+  SKILL_FIELDS,
   TECH_NAMES,
   TECH_WORDS,
   US_STATES,
 } from "./settings"
-import { bulletsIn, firstWord, oneSlipApart } from "./text"
+import { bulletsIn, firstWord, oneSlipApart, typedSlip } from "./text"
 import { thirdPersonOf, verbOf } from "./verbs"
 
 // Fields that aren't words, so spelling and grammar skip them: links, emails,
@@ -38,10 +40,12 @@ const NOT_WORDS = new Set([
   "gpa",
 ])
 const NAMES = new Set(NAME_FIELDS)
+const SKILLS = new Set(SKILL_FIELDS)
 
 /**
  * The typed text the grammar checker reads: every field and bullet except
- * links, dates and the like, and the names the resume gives things.
+ * links, dates and the like, and the names the resume gives things, but for
+ * the skills.
  */
 export function grammarTexts(view: ResumeView): { place: Place; text: string }[] {
   // Each rule asks, and so does the editor, so it's worked out once a check.
@@ -49,7 +53,7 @@ export function grammarTexts(view: ResumeView): { place: Place; text: string }[]
   if (!texts) {
     texts = textsOf(view).filter(({ place }) => {
       const field = fieldOf(place)
-      return field === undefined || (!NOT_WORDS.has(field) && !NAMES.has(field))
+      return field === undefined || (!NOT_WORDS.has(field) && (!NAMES.has(field) || SKILLS.has(field)))
     })
     textsFor.set(view, texts)
   }
@@ -92,12 +96,17 @@ const ALWAYS_KNOWN: ReadonlySet<string> = new Set(
   ].flatMap(wordsIn),
 )
 
-/** The words this resume counts as spelled right: its own names, the words added with "Add word", and ALWAYS_KNOWN. */
-export function knownWords(view: ResumeView, added: ReadonlySet<string>): ReadonlySet<string> {
+/**
+ * The words this resume counts as spelled right: its own names, the words
+ * added with "Add word", and ALWAYS_KNOWN. Without `skills`, the skills'
+ * words aren't among them, so the skills themselves can be checked.
+ */
+export function knownWords(view: ResumeView, added: ReadonlySet<string>, skills = true): ReadonlySet<string> {
+  const isName = (field: string) => NAMES.has(field) && (skills || !SKILLS.has(field))
   const names = [
-    ...Object.entries(view.profile).filter(([field]) => NAMES.has(field)).map(([, value]) => value),
+    ...Object.entries(view.profile).filter(([field]) => isName(field)).map(([, value]) => value),
     ...Object.values(view.sections).flatMap((entries) =>
-      entries.flatMap((entry) => Object.entries(entry.values).filter(([field]) => NAMES.has(field)).map(([, value]) => value)),
+      entries.flatMap((entry) => Object.entries(entry.values).filter(([field]) => isName(field)).map(([, value]) => value)),
     ),
   ]
   return new Set([...ALWAYS_KNOWN, ...names.flatMap(wordsIn), ...[...added].flatMap(wordsIn)])
@@ -131,9 +140,9 @@ function slipOfTechName(word: string, isKnown: (word: string) => boolean): strin
 }
 
 // The texts the grammar checker has read so far, with what it found, and
-// whether some it hasn't read yet.
-function linted(resume: ResumeView, grammar: GrammarReading) {
-  const texts = grammarTexts(resume)
+// whether some it hasn't read yet; the skills too, with `skills`.
+function linted(resume: ResumeView, grammar: GrammarReading, skills: boolean) {
+  const texts = grammarTexts(resume).filter(({ place }) => skills || !SKILLS.has(fieldOf(place) ?? ""))
   const read = texts.flatMap(({ place, text }) => {
     const lints = grammar.get(text)
     return lints ? [{ place, text, lints }] : []
@@ -147,25 +156,34 @@ const quoted = (text: string) => text.replace(/`([^`]*)`/g, "“$1”")
 const wordAfter = (text: string, lint: GrammarLint) => text.slice(lint.start + lint.text.length).match(/^\s+([^\s,;.]+)/)?.[1] ?? ""
 
 // A rule over what Harper found: `problemsOf` says what each lint means for
-// it, if anything, and `alsoIn` finds more in a text on its own.
+// it, if anything, and `alsoIn` finds more in a text on its own. The skills
+// are lists, not sentences, so only a rule that `readsSkills` gets them.
 function grammarRule(
   info: Omit<Extract<Rule, { reads: "grammar" }>, "reads" | "check">,
-  problemsOf: (lint: GrammarLint, text: string, known: () => ReadonlySet<string>) => Omit<Problem, "place">[],
-  alsoIn: (text: string, lints: readonly GrammarLint[]) => Omit<Problem, "place">[] = () => [],
+  problemsOf: (lint: GrammarLint, text: string, known: () => ReadonlySet<string>, inSkills: boolean) => Omit<Problem, "place">[],
+  {
+    alsoIn = () => [],
+    readsSkills = false,
+  }: { alsoIn?: (text: string, lints: readonly GrammarLint[]) => Omit<Problem, "place">[]; readsSkills?: boolean } = {},
 ): Rule {
   return {
     ...info,
     reads: "grammar",
     check: ({ resume, grammar, words }) => {
-      const { read, partial } = linted(resume, grammar)
+      const { read, partial } = linted(resume, grammar, readsSkills)
       if (read.length === 0) return null
       let known: ReadonlySet<string> | undefined
+      let knownBeside: ReadonlySet<string> | undefined
       const knownNow = () => (known ??= knownWords(resume, words))
+      // In the skills, their own words aren't known, or nothing there would be checked.
+      const knownBesideSkills = () => (knownBeside ??= knownWords(resume, words, false))
       return {
         checked: read.length,
-        problems: read.flatMap(({ place, text, lints }) =>
-          [...lints.flatMap((lint) => problemsOf(lint, text, knownNow)), ...alsoIn(text, lints)].map((problem) => ({ place, ...problem })),
-        ),
+        problems: read.flatMap(({ place, text, lints }) => {
+          const inSkills = SKILLS.has(fieldOf(place) ?? "")
+          const knownHere = inSkills ? knownBesideSkills : knownNow
+          return [...lints.flatMap((lint) => problemsOf(lint, text, knownHere, inSkills)), ...alsoIn(text, lints)].map((problem) => ({ place, ...problem }))
+        }),
         ...(partial && { partial }),
       }
     },
@@ -177,12 +195,15 @@ const KINDS_OFF = new Set(GRAMMAR_KINDS_OFF)
 
 const typos = grammarRule(
   { id: "G1", category: "spelling", level: "fix", title: "No typos", why: "A typo is one of the first things a recruiter notices." },
-  (lint, _text, known) => {
+  (lint, _text, known, inSkills) => {
     if (!GRAMMAR_RULES.typos.includes(lint.rule)) return []
     // A slip in a tech name ("TypeScirpt") is a typo, though capitals inside make it look like a name.
     const name = slipOfTechName(lint.text, (word) => known().has(word))
     if (!name && !isTypo(lint.text, known())) return []
-    const instead = name ?? lint.suggestions[0]
+    // The skills are mostly names Harper doesn't know ("Redux", "Kanban"), so
+    // there a word is only a typo when it's a slip in typing one it offers.
+    const instead = name ?? (inSkills ? slipInSkills(lint) : lint.suggestions[0])
+    if (inSkills && !instead) return []
     return [
       {
         text: lint.text,
@@ -191,7 +212,13 @@ const typos = grammarRule(
       },
     ]
   },
+  { readsSkills: true },
 )
+
+// The word Harper offers that a word in the skills is a slip in typing, if
+// it's long enough to tell from a name: "Communication" for "Comunication".
+const slipInSkills = (lint: GrammarLint) =>
+  lint.text.length >= MIN_SKILL_SLIP ? lint.suggestions.find((suggestion) => typedSlip(lint.text, suggestion)) : undefined
 
 const repeated = grammarRule(
   { id: "G2", category: "spelling", level: "fix", title: "No word written twice in a row", why: "It reads as a slip, and was easy to miss while editing." },
@@ -226,14 +253,16 @@ const mixUps = grammarRule(
     if (!GRAMMAR_RULES.mixUps.includes(lint.rule) || !instead) return []
     return [{ text: lint.text, message: `“${lint.text}” should be “${instead}” here` }]
   },
-  // "loose" where "lose" is meant, which Harper doesn't find on its own,
-  // unless it already has.
-  (text, lints) =>
-    [...text.matchAll(LOOSE_FOR_LOSE)].flatMap((match) => {
-      const at = match.index + match[0].length - match[1].length
-      const found = lints.some((lint) => GRAMMAR_RULES.mixUps.includes(lint.rule) && lint.start <= at && at < lint.start + lint.text.length)
-      return found ? [] : [{ text: match[1], message: `“${match[1]}” should be “lose” here` }]
-    }),
+  {
+    // "loose" where "lose" is meant, which Harper doesn't find on its own,
+    // unless it already has.
+    alsoIn: (text, lints) =>
+      [...text.matchAll(LOOSE_FOR_LOSE)].flatMap((match) => {
+        const at = match.index + match[0].length - match[1].length
+        const found = lints.some((lint) => GRAMMAR_RULES.mixUps.includes(lint.rule) && lint.start <= at && at < lint.start + lint.text.length)
+        return found ? [] : [{ text: match[1], message: `“${match[1]}” should be “lose” here` }]
+      }),
+  },
 )
 
 // "lead" after "and", "then" or a comma, joined to what came before.
@@ -280,10 +309,6 @@ const TECH = new Map(TECH_NAMES.flatMap((name) => [[name.toLowerCase(), name], [
 // A name, as written: letters and digits, with dots, "+", "#" and hyphens inside.
 const NAME_TOKEN = /[\p{L}\p{N}+#][\p{L}\p{N}.+#-]*[\p{L}\p{N}+#]|[\p{L}\p{N}]/gu
 
-// Fields that list skills. The grammar checker doesn't read them, as they're
-// mostly names, so G6 points out a slip in a tech name there.
-const SKILL_FIELDS = new Set(["skillName", "skillDetails", "techStack"])
-
 const techNames: Rule = {
   id: "G6",
   category: "spelling",
@@ -291,25 +316,20 @@ const techNames: Rule = {
   reads: "form",
   title: "Tech names written the way their makers write them",
   why: "“Javascript” or “Github” suggests you don't use them much.",
-  check: ({ resume, words }) => {
+  check: ({ resume }) => {
     const texts = textsOf(resume).filter(({ place }) => !NOT_WORDS.has(fieldOf(place) ?? ""))
     if (texts.length === 0) return null
-    // Not the resume's own names: the skills are among them.
-    const added = new Set([...words].flatMap(wordsIn))
-    const isKnown = (word: string) => ALWAYS_KNOWN.has(word) || added.has(word)
     return {
       checked: texts.length,
       problems: texts.flatMap(({ place, text }) =>
         [...text.matchAll(NAME_TOKEN)].flatMap((match) => {
           const token = match[0]
+          const name = TECH.get(token.toLowerCase())
           // Part of a handle or a link: "@github", "github/acme".
           const before = text[match.index - 1] ?? ""
           const after = text[match.index + token.length] ?? ""
-          if (/[@/]/.test(before) || /[@/]/.test(after)) return []
-          const name = TECH.get(token.toLowerCase())
-          if (name) return name === token ? [] : [{ place, text: token, message: `“${token}” is written “${name}”` }]
-          const slip = SKILL_FIELDS.has(fieldOf(place) ?? "") ? slipOfTechName(token, isKnown) : undefined
-          return slip ? [{ place, text: token, message: `“${token}” may be “${slip}”` }] : []
+          if (!name || name === token || /[@/]/.test(before) || /[@/]/.test(after)) return []
+          return [{ place, text: token, message: `“${token}” is written “${name}”` }]
         }),
       ),
     }

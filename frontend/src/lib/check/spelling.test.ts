@@ -5,7 +5,7 @@ import type { DialectName } from "./dialect"
 import { viewOf } from "./resume"
 import { RULES } from "./rules"
 import { grammarTexts, isTypo, SPELLING_RULES } from "./spelling"
-import { oneSlipApart } from "./text"
+import { oneSlipApart, typedSlip } from "./text"
 import { addWord, CHECK_FIELD, readCheckState } from "./state"
 import { readingOf } from "./testHarper"
 
@@ -82,6 +82,25 @@ describe("G1 typos", () => {
     // Not other names a slip away from one, or short ones like CSV and PhD.
     const others = resumeWith([job(["Documented the OpenAPI spec and the MSSQL schema in GraphiQL", "Exported CSV files for the PhD program"])])
     expect((await check("G1", others)).status).toBe("passed")
+  })
+
+  test("finds slips in the skills, but doesn't take the names there for typos", async () => {
+    const resume = resumeWith([job(["Moved the Kanban board to Redux and Okta"])], {
+      skillsSection: [
+        { id: 1, skillName: "Langauges", skillDetails: "Python, Redux, Kanban, Canva, Okta, Mathematica, Benchling, Magento, Tableu" },
+        { id: 2, skillName: "Soft Skills", skillDetails: "Comunication, Teamwrok, Marketting, Adaptibility" },
+      ],
+      projectsSection: [{ id: 1, projectName: "Shelf", techStack: "Zustand, Vitest, Kubernets" }],
+    })
+    expect((await check("G1", resume)).findings.map((finding) => [finding.text, finding.suggestion])).toEqual([
+      ["Langauges", "Try “Languages”. If it's spelled right, add the word."],
+      ["Tableu", "Try “Tableau”. If it's spelled right, add the word."],
+      ["Comunication", "Try “Communication”. If it's spelled right, add the word."],
+      ["Teamwrok", "Try “Teamwork”. If it's spelled right, add the word."],
+      ["Marketting", "Try “Marketing”. If it's spelled right, add the word."],
+      ["Adaptibility", "Try “Adaptability”. If it's spelled right, add the word."],
+      ["Kubernets", "Try “Kubernetes”. If it's spelled right, add the word."],
+    ])
   })
 
   test("a word misspelled in every English is still a typo", async () => {
@@ -181,13 +200,6 @@ describe("G6 tech names", () => {
     ])
   })
 
-  test("points out a slip in a tech name in the skills, which nothing else checks", async () => {
-    const resume = resumeWith([job(["Built dashboards"])], {
-      skillsSection: [{ id: 1, skillName: "Tools", skillDetails: "Tableu, Kubernets, Python, Lean Six Sigma, Grafana" }],
-    })
-    expect((await check("G6", resume)).messages).toEqual(["“Tableu” may be “Tableau”", "“Kubernets” may be “Kubernetes”"])
-  })
-
   test("leaves links and handles alone", async () => {
     const resume = resumeWith([job(["Open-sourced it at github.com/jake/cache", "Posted updates as @github"])], { profileSection: { fullName: "Jake Ryan", profileGithub: "github.com/jake" } })
     expect((await check("G6", resume)).status).toBe("passed")
@@ -208,6 +220,14 @@ test("few false typos on the template samples", async () => {
   }
   // A product's name.
   expect(fixes).toEqual(["Powerwall"])
+})
+
+test("a slip in typing a word leaves a letter out from inside it, swaps two, doubles one, or changes a vowel", () => {
+  const slips = [["Comunication", "Communication"], ["Teamwrok", "Teamwork"], ["Marketting", "Marketing"], ["Adaptibility", "Adaptability"], ["Programing", "Programming"]]
+  expect(slips.filter(([typed, right]) => !typedSlip(typed, right))).toEqual([])
+  // Not how names are made from words, nor a word with an apostrophe.
+  const names = [["Canva", "Canvas"], ["Mathematica", "Mathematical"], ["Benchling", "Benching"], ["Kanban", "Kansan"], ["Postgress", "Postgres's"]]
+  expect(names.filter(([typed, right]) => typedSlip(typed, right))).toEqual([])
 })
 
 test("two words are one slip apart when a letter is added, dropped, changed or swapped with its neighbour", () => {

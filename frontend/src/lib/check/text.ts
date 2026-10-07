@@ -59,3 +59,23 @@ export function oneSlipApart(a: string, b: string): boolean {
   }
   return a.slice(i + 1) === b.slice(i + 1) || (a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2))
 }
+
+const VOWEL = /[aeiouy]/
+
+/**
+ * Whether `typed` reads as `right` with a slip of the keys: a letter left out
+ * from inside it ("Comunication"), two side by side swapped ("Teamwrok"), a
+ * letter doubled ("Marketting"), or a vowel for another ("Adaptibility").
+ * Names made from words differ from them in other ways: "Canva" and
+ * "Canvas", "Benchling" and "Benching", "Kanban" and "Kansan".
+ */
+export function typedSlip(typed: string, right: string): boolean {
+  const a = typed.toLowerCase()
+  const b = right.toLowerCase()
+  if (!/^\p{L}+$/u.test(b) || !oneSlipApart(a, b)) return false
+  let i = 0
+  while (a[i] === b[i]) i++
+  if (b.length > a.length) return i > 0 && i < a.length
+  if (a.length > b.length) return a[i] === a[i - 1] || a[i] === a[i + 1]
+  return (a[i] === b[i + 1] && a[i + 1] === b[i]) || (VOWEL.test(a[i]) && VOWEL.test(b[i]))
+}

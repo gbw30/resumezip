@@ -52,9 +52,10 @@ sent anywhere.
   schools, places and skills, the words added with "Add word", and the tech
   words, degrees and verbs in `settings.ts` are spelled right, and so are
   names with capitals inside ("DuckDB"), words with digits, and initials,
-  unless they're one slip from a tech name ("TypeScirpt"). The skills fields
-  are names, so Harper doesn't read them; G6 points out a slip in a tech name
-  there instead.
+  unless they're one slip from a tech name ("TypeScirpt"). The skills are
+  mostly names Harper doesn't know ("Redux", "Kanban"), so there G1 counts
+  only a slip in typing a word Harper offers ("Comunication") or a tech name,
+  and the grammar rules leave them alone.
 - `places.ts` says where a finding is, so the editor can open it.
 - `state.ts` keeps what the person told the checker: findings they dismissed
   and words they added.

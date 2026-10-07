@@ -369,13 +369,21 @@ export const MIN_PAGE_FULL = 0.75
 /**
  * Fields that name things: people, companies, schools, groups, places,
  * projects and skills. Their words count as spelled right everywhere on the
- * resume, and they aren't checked for spelling themselves.
+ * resume, and they aren't checked for spelling themselves, but for the
+ * skills (SKILL_FIELDS).
  */
 export const NAME_FIELDS = [
   "fullName", "location", "companyName", "workLocation", "schoolName", "schoolLocation", "involvement", "skillName",
   "skillDetails", "projectName", "techStack", "publicationAuthors", "publicationVenue", "volunteerOrg",
   "volunteerLocation", "leadershipOrg", "leadershipLocation", "awardOrg",
 ]
+
+/**
+ * Fields that list skills: names the grammar checker mostly doesn't know
+ * ("Redux", "Kanban"), and words it does ("Communication"). G1 checks them
+ * for slips in typing those words (MIN_SKILL_SLIP), and in tech names.
+ */
+export const SKILL_FIELDS = ["skillName", "skillDetails", "techStack"]
 
 /**
  * Tech names as their makers write them (G6), checked in any field. Names
@@ -467,3 +475,11 @@ export const LEAD_OBJECTS = [
 
 /** Tech names this long or longer are checked for slips ("TypeScirpt"): shorter ones are too close to other words ("CSS" and "CSV"). */
 export const MIN_TECH_SLIP = 6
+
+/**
+ * In the skills, a word the grammar checker doesn't know is a typo when it's
+ * this long or longer, and a slip in typing a word it offers ("Comunication").
+ * Shorter names are too often a word with a letter changed: "Magento" and
+ * "Magenta", "Redux" and "Redox".
+ */
+export const MIN_SKILL_SLIP = 8
