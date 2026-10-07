@@ -6,7 +6,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react"
 import type { Finding } from "@/lib/check/engine"
 import { LEVELS } from "@/lib/check/settings"
 import { plainText } from "@/lib/typst/resumeData"
-import { bulletLines, moveBullet, moveLine, setLeftOutLine, withBullets } from "./arrange"
+import { bulletLines, moveBullet, moveLine, newBullet, setLeftOutLine, toggleMark, withBullets, type Edited } from "./arrange"
 
 interface FieldProps {
   label: string
@@ -149,10 +149,16 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
     if (flag) setArranging(false)
   }, [flag])
 
-  // Grow to fit the text instead of scrolling inside the box.
+  // Where the cursor goes once the box shows the text it was just given.
+  const selection = useRef<[number, number] | null>(null)
+
+  // Grow to fit the text instead of scrolling inside the box, and put the cursor where it goes.
   useLayoutEffect(() => {
     const textarea = textareaRef.current
-    if (textarea) fitHeight(textarea)
+    if (!textarea) return
+    fitHeight(textarea)
+    if (selection.current) textarea.setSelectionRange(...selection.current)
+    selection.current = null
   }, [text])
 
   // A narrower box wraps onto more lines, so fit again when the width changes:
@@ -179,28 +185,14 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
     }
   }, [])
 
-  // Adds or removes a mark around the selected words, ** for bold or * for italic, keeping them selected.
-  const toggleMark = (textarea: HTMLTextAreaElement, size: 1 | 2) => {
-    let { selectionStart: start, selectionEnd: end } = textarea
-    while (start < end && /\s/.test(text[start])) start++
-    while (end > start && /\s/.test(text[end - 1])) end--
-    // Asterisks already around the words: one for italic, two for bold, three for both.
-    let before = 0
-    while (before < 3 && text[start - 1 - before] === "*") before++
-    let after = 0
-    while (after < 3 && text[end + after] === "*") after++
-    const marks = Math.min(before, after)
-    const marked = size === 2 ? marks >= 2 : marks === 1 || marks === 3
-    const stars = "*".repeat(size)
-    const next = marked
-      ? text.slice(0, start - size) + text.slice(start, end) + text.slice(end + size)
-      : text.slice(0, start) + stars + text.slice(start, end) + stars + text.slice(end)
+  // Gives the box new text, with the cursor (or a selection) where it says.
+  const edit = (textarea: HTMLTextAreaElement, { text: next, start, end }: Edited) => {
+    if (next === text) {
+      textarea.setSelectionRange(start, end)
+      return
+    }
+    selection.current = [start, end]
     onChange(next)
-    const shift = marked ? -size : size
-    requestAnimationFrame(() => {
-      textarea.selectionStart = start + shift
-      textarea.selectionEnd = end + shift
-    })
   }
 
   // Moves the line the cursor is on, keeping the cursor where it was in it.
@@ -218,26 +210,22 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
   }
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const textarea = event.currentTarget
+    const { selectionStart: start, selectionEnd: end } = textarea
     const key = event.key.toLowerCase()
     if ((event.metaKey || event.ctrlKey) && !event.altKey && (key === "b" || key === "i")) {
       event.preventDefault()
-      toggleMark(event.currentTarget, key === "b" ? 2 : 1)
+      edit(textarea, toggleMark(text, start, end, key === "b" ? 2 : 1))
       return
     }
     if (event.altKey && !event.metaKey && !event.ctrlKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
       event.preventDefault()
-      moveCursorLine(event.currentTarget, event.key === "ArrowUp" ? -1 : 1)
+      moveCursorLine(textarea, event.key === "ArrowUp" ? -1 : 1)
       return
     }
     if (event.key !== "Enter" || event.nativeEvent.isComposing) return
     event.preventDefault()
-    const textarea = event.currentTarget
-    const { selectionStart: start, selectionEnd: end } = textarea
-    const insert = text[start - 1] === "\n" ? "" : "\n• "
-    onChange(text.slice(0, start) + insert + text.slice(end))
-    requestAnimationFrame(() => {
-      textarea.selectionStart = textarea.selectionEnd = start + insert.length
-    })
+    edit(textarea, newBullet(text, start, end))
   }
 
   return (

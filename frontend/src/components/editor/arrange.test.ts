@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { bulletLines, moveBullet, moveLine, setLeftOutLine, withBullets } from "./arrange"
+import { bulletLines, moveBullet, moveLine, newBullet, setLeftOutLine, toggleMark, withBullets } from "./arrange"
 
 const text = "• Built a loom\n\n○ Fed the cat\n• Wrote the notes"
 
@@ -55,5 +55,41 @@ describe("arranging bullets", () => {
     expect(setLeftOutLine("• Built a **loom**", 0, true)).toBe("○ Built a **loom**")
     expect(setLeftOutLine(text, 2, false)).toBe("• Built a loom\n\n• Fed the cat\n• Wrote the notes")
     expect(setLeftOutLine(text, 1, true)).toBe(text)
+  })
+})
+
+describe("typing bullets", () => {
+  const at = (text: string, start: number, end = start) => ({ text, start, end })
+
+  test("Enter keeps the words after the cursor in their bullet, so no half of a left-out one is printed", () => {
+    expect(newBullet("○ Fed the cat and the dog", 13)).toEqual(at("○ Fed the cat\n○ and the dog", 16))
+    expect(newBullet("• Built a loom and a mill", 14)).toEqual(at("• Built a loom\n• and a mill", 17))
+    // A selection goes, as typing over it would.
+    expect(newBullet("○ Fed the cat and the dog", 13, 17)).toEqual(at("○ Fed the cat\n○ the dog", 16))
+  })
+
+  test("Enter at the end of a bullet starts a printed one", () => {
+    expect(newBullet("○ Fed the cat", 13)).toEqual(at("○ Fed the cat\n• ", 16))
+    expect(newBullet("• Built a loom", 14)).toEqual(at("• Built a loom\n• ", 17))
+  })
+
+  test("Enter before a left-out bullet's words keeps it left out, and the new bullet above is printed", () => {
+    expect(newBullet("○ Fed the cat", 2)).toEqual(at("• \n○ Fed the cat", 5))
+    expect(newBullet("○ Fed the cat", 1)).toEqual(at("•\n○ Fed the cat", 4))
+  })
+
+  test("Enter at the start of a line adds no line", () => {
+    expect(newBullet("○ Fed the cat", 0)).toEqual(at("○ Fed the cat", 0))
+    expect(newBullet("• Built a loom\n○ Fed the cat", 15)).toEqual(at("• Built a loom\n○ Fed the cat", 15))
+  })
+
+  test("bold and italic marks go around the words, never the bullet, so a left-out bullet stays left out", () => {
+    // As when the whole line is selected.
+    const bold = toggleMark("○ Fed the cat", 0, 13, 2)
+    expect(bold).toEqual(at("○ **Fed the cat**", 4, 15))
+    expect(toggleMark(bold.text, bold.start, bold.end, 2)).toEqual(at("○ Fed the cat", 2, 13))
+    expect(toggleMark("• Built a loom\n", 0, 15, 1)).toEqual(at("• *Built a loom*\n", 3, 15))
+    // With nothing selected, the marks go where the words start, ready to type in.
+    expect(toggleMark("○ Fed the cat", 0, 0, 2)).toEqual(at("○ ****Fed the cat", 4, 4))
   })
 })
