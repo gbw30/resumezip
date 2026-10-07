@@ -4,11 +4,14 @@ import type { Page } from "@playwright/test"
 // Safari logs these when a page is left while something is still loading in
 // the background, and the visitor never sees them: the PDF compiler or its
 // fonts, which the dashboard and editor start early, and the pages behind a
-// page's links, which Next.js fetches ahead.
-const LEFT_MID_DOWNLOAD = [
+// page's links, which Next.js fetches ahead. They're only left out while the
+// page is being left, so a load that fails on a page that stays open counts.
+const CUT_SHORT = [
   /^Fetch API cannot load \S+\.(wasm|otf|ttf) due to access control checks\.$/,
   /^Failed to fetch RSC payload for \S+\. Falling back to browser navigation\. TypeError: Load failed$/,
 ]
+// Safari can report a load cut short just before the request for the next page.
+const BEFORE_LEAVING_MS = 500
 
 /**
  * Collects the errors a page throws or logs, for a test to check at the end.
@@ -16,11 +19,35 @@ const LEFT_MID_DOWNLOAD = [
  */
 export function pageErrors(page: Page): string[] {
   const errors: string[] = []
+  // A page is being left from the request for the next one until that one's
+  // DOMContentLoaded. The first page loaded leaves nothing.
+  let loaded = page.url() !== "about:blank"
+  let leaving = false
+  // Loads cut short while the page wasn't being left, in case it's left just after.
+  let recent: { entry: string; at: number }[] = []
+  page.on("request", (request) => {
+    if (!loaded || !request.isNavigationRequest() || request.frame() !== page.mainFrame()) return
+    leaving = true
+    const now = Date.now()
+    for (const { entry, at } of recent) {
+      const index = errors.indexOf(entry)
+      if (now - at <= BEFORE_LEAVING_MS && index !== -1) errors.splice(index, 1)
+    }
+    recent = []
+  })
+  page.on("domcontentloaded", () => {
+    loaded = true
+    leaving = false
+  })
   page.on("pageerror", (error) => errors.push(error.message))
   page.on("console", (message) => {
-    if (message.type() === "error" && !LEFT_MID_DOWNLOAD.some((pattern) => pattern.test(message.text()))) {
-      errors.push(`${message.text()} (at ${message.location().url})`)
+    if (message.type() !== "error") return
+    const entry = `${message.text()} (at ${message.location().url})`
+    if (CUT_SHORT.some((pattern) => pattern.test(message.text()))) {
+      if (leaving) return
+      recent.push({ entry, at: Date.now() })
     }
+    errors.push(entry)
   })
   return errors
 }
