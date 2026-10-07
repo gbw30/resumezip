@@ -60,7 +60,7 @@ test("an ordinary compile returns the worker's PDF", async () => {
 })
 
 test("a failed compile rejects with Typst's error", async () => {
-  FakeWorker.answer = ({ id }) => ({ id, error: "unknown variable: foo" })
+  FakeWorker.answer = ({ id }) => ({ id, error: "unknown variable: foo", loaded: true })
   const { error } = (await settle(compileResume(resume), 100)) as { error: Error }
   expect(error.message).toBe("unknown variable: foo")
 })
@@ -89,6 +89,24 @@ test("once the compiler has loaded, a stalled PDF gives up after 20 s", async ()
   expect(error.message).toBe("Making the PDF took too long")
 })
 
+test("after a Typst error, the compiler has loaded, so a stalled PDF gives up after 20 s", async () => {
+  FakeWorker.answer = ({ id }) => ({ id, error: "unknown variable: foo", loaded: true })
+  await settle(compileResume(resume), 100)
+  FakeWorker.answer = () => undefined
+  const { error } = (await settle(compileResume(resume), 20_000)) as { error: Error }
+  expect(error.message).toBe("Making the PDF took too long")
+})
+
+test("requests waiting while the compiler loads get 20 s once it has", async () => {
+  // Only the first request is answered.
+  FakeWorker.answer = ({ id }) => (id === 0 ? { id, pdf: PDF } : undefined)
+  const first = compileResume(resume)
+  const second = compileResume(resume).catch((error: Error) => error.message)
+  expect(await settle(first, 10)).toEqual({ value: PDF })
+  await vi.advanceTimersByTimeAsync(20_000)
+  expect(await second).toBe("Making the PDF took too long")
+})
+
 test("a stall fails every compile in flight, and only once", async () => {
   FakeWorker.answer = () => undefined
   const results = Promise.all([compileResume(resume), compileResume(resume)].map((p) => settle(p, 0)))
@@ -110,4 +128,15 @@ test("a broken worker fails every compile in flight, and the next one starts a f
   FakeWorker.answer = makesPdf
   expect(await settle(compileResume(resume), 100)).toEqual({ value: PDF })
   expect(FakeWorker.made).toHaveLength(2)
+})
+
+test("an error from a worker that was already replaced leaves the new one alone", async () => {
+  FakeWorker.answer = () => undefined
+  await settle(compileResume(resume), 90_000)
+
+  FakeWorker.answer = makesPdf
+  const next = compileResume(resume)
+  FakeWorker.made[0].onerror?.({ message: "late error" })
+  expect(await settle(next, 100)).toEqual({ value: PDF })
+  expect(FakeWorker.made[1].terminated).toBe(false)
 })

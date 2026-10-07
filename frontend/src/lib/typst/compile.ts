@@ -12,7 +12,10 @@ export interface CompileRequest {
   attachment?: string
 }
 
-export type CompileResponse = { id: number; pdf: Uint8Array } | { id: number; error: string }
+export type CompileResponse =
+  | { id: number; pdf: Uint8Array }
+  /** `loaded`: the compiler had loaded, so the error is in the resume or a template. */
+  | { id: number; error: string; loaded: boolean }
 
 // How long a PDF can take before the worker is taken to be stuck. The first
 // one waits for the compiler (~7 MB) and fonts to download, so it gets longer.
@@ -20,13 +23,26 @@ const FIRST_PDF_MS = 90_000
 const PDF_MS = 20_000
 
 let worker: Worker | null = null
-// Whether the current worker has made a PDF, so its compiler is loaded.
+// Whether the current worker's compiler has loaded.
 let started = false
 let nextId = 0
 const pending = new Map<
   number,
   { resolve: (pdf: Uint8Array) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
 >()
+
+// Gives up on the worker if a request isn't answered in time.
+const deadline = (ms: number) => setTimeout(() => restart(new Error("Making the PDF took too long")), ms)
+
+// The compiler has loaded, so requests already waiting get the shorter time too.
+function markStarted() {
+  if (started) return
+  started = true
+  for (const request of pending.values()) {
+    clearTimeout(request.timer)
+    request.timer = deadline(PDF_MS)
+  }
+}
 
 // Fails everything in flight and drops the worker, so the next request starts
 // a fresh one.
@@ -44,20 +60,23 @@ function restart(error: Error) {
 function getWorker(): Worker {
   if (worker) return worker
 
-  worker = new Worker(new URL("./typst.worker.ts", import.meta.url))
-  worker.onmessage = ({ data }: MessageEvent<CompileResponse>) => {
+  const created = new Worker(new URL("./typst.worker.ts", import.meta.url))
+  created.onmessage = ({ data }: MessageEvent<CompileResponse>) => {
     const request = pending.get(data.id)
     if (!request) return
     pending.delete(data.id)
     clearTimeout(request.timer)
-    if ("pdf" in data) {
-      started = true
-      request.resolve(data.pdf)
-    } else request.reject(new Error(data.error))
+    if ("pdf" in data || data.loaded) markStarted()
+    if ("pdf" in data) request.resolve(data.pdf)
+    else request.reject(new Error(data.error))
   }
-  // The worker itself broke.
-  worker.onerror = (event) => restart(new Error(event.message || "The Typst worker failed"))
-  return worker
+  // The worker itself broke. An error from a worker that was already
+  // replaced is left alone, so it can't take down the new one.
+  created.onerror = (event) => {
+    if (worker === created) restart(new Error(event.message || "The Typst worker failed"))
+  }
+  worker = created
+  return created
 }
 
 interface CompileOptions {
@@ -76,8 +95,7 @@ export function compileResume(resume: Record<string, any>, { attach = false }: C
   return new Promise((resolve, reject) => {
     const target = getWorker()
     // A stuck worker can't hang a download forever.
-    const timer = setTimeout(() => restart(new Error("Making the PDF took too long")), started ? PDF_MS : FIRST_PDF_MS)
-    pending.set(request.id, { resolve, reject, timer })
+    pending.set(request.id, { resolve, reject, timer: deadline(started ? PDF_MS : FIRST_PDF_MS) })
     target.postMessage(request)
   })
 }

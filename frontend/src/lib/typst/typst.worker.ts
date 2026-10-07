@@ -94,8 +94,9 @@ function getCompiler(): Promise<TypstCompiler> {
 
 addEventListener("message", async ({ data: { id, template, data, attachment } }: MessageEvent<CompileRequest>) => {
   let response: CompileResponse
+  let typst: TypstCompiler | undefined
   try {
-    const typst = await getCompiler()
+    typst = await getCompiler()
     // Nothing is awaited between writing the data and compiling it, so
     // concurrent requests can't see each other's data.
     typst.mapShadow("/resume.json", new TextEncoder().encode(JSON.stringify(data)))
@@ -108,9 +109,9 @@ addEventListener("message", async ({ data: { id, template, data, attachment } }:
       format: CompileFormatEnum.pdf,
       diagnostics: "unix",
     })
-    response = result ? { id, pdf: result } : { id, error: diagnostics?.join("\n") || "Typst produced no output" }
+    response = result ? { id, pdf: result } : { id, error: diagnostics?.join("\n") || "Typst produced no output", loaded: true }
   } catch (error) {
-    response = { id, error: error instanceof Error ? error.message : String(error) }
+    response = { id, error: error instanceof Error ? error.message : String(error), loaded: typst !== undefined }
   }
   postMessage(response)
 })
