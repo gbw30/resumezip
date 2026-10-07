@@ -11,7 +11,7 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs"
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { cleanResume } from "@/lib/resumeFile"
 import { toTemplateData } from "@/lib/typst/resumeData"
-import { linesFromPdf } from "./lines"
+import { linesFromPages, readPdf } from "./lines"
 import { parseResume, toResumeContent } from "./parse"
 
 const TYPST = path.resolve("src/lib/typst")
@@ -89,7 +89,7 @@ async function render(resume: Record<string, unknown>): Promise<Uint8Array> {
 async function readBack(pdf: Uint8Array) {
   const doc = (await getDocument({ data: pdf, isEvalSupported: false, fontExtraProperties: true }).promise) as unknown as PDFDocumentProxy
   try {
-    const parsed = parseResume((await linesFromPdf(doc)).lines)
+    const parsed = parseResume(linesFromPages(await readPdf(doc)))
     return { parsed, resume: toResumeContent(parsed) }
   } finally {
     await doc.destroy()

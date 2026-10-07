@@ -1174,12 +1174,18 @@ export function parseResume(file: Line[]): ParsedResume {
   const body = bodySize(lines)
 
   // The right edge of each line's column, from lines on its page that start near it in a similar size.
+  const pages = new Map<number | undefined, ParseLine[]>()
   for (const line of lines) {
     if (!line.box) continue
-    const column = lines.filter(
-      (other) => other.box && other.page === line.page && Math.abs(other.left - line.left) < 60 && Math.abs(other.size - line.size) < 1.5,
-    )
-    line.margin = Math.max(...column.map((other) => other.box![2]))
+    const page = pages.get(line.page)
+    if (page) page.push(line)
+    else pages.set(line.page, [line])
+  }
+  for (const page of pages.values()) {
+    for (const line of page) {
+      const column = page.filter((other) => Math.abs(other.left - line.left) < 60 && Math.abs(other.size - line.size) < 1.5)
+      line.margin = column.reduce((edge, other) => Math.max(edge, other.box![2]), -Infinity)
+    }
   }
 
   // Headings: first the ones we know by name, then anything styled the same way.
@@ -1197,10 +1203,11 @@ export function parseResume(file: Line[]): ParsedResume {
     isAllCaps(unspace(a.text)) === isAllCaps(unspace(b.text)) &&
     Boolean(a.heading) === Boolean(b.heading)
   let knownLines = lines.filter((line) => known.has(line.index))
-  const sample = [...knownLines].sort(
-    (a, b) => knownLines.filter((other) => similar(b, other)).length - knownLines.filter((other) => similar(a, other)).length,
-  )[0]
-  if (sample && knownLines.filter((other) => similar(sample, other)).length >= 2) {
+  // The first heading with the most others like it.
+  const alike = knownLines.map((line) => knownLines.filter((other) => similar(line, other)).length)
+  const most = Math.max(...alike)
+  const sample: ParseLine | undefined = knownLines[alike.indexOf(most)]
+  if (sample && most >= 2) {
     for (const line of knownLines) if (!similar(sample, line)) known.delete(line.index)
     knownLines = knownLines.filter((line) => known.has(line.index))
   }

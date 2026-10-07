@@ -3,6 +3,8 @@
 // what's pushed to the right edge. parse.ts sorts the lines into fields.
 
 import type { PDFDocumentProxy } from "pdfjs-dist"
+import type { TextContent } from "pdfjs-dist/types/src/display/api"
+import { MAX_CHARACTERS, MAX_WORD_XML_BYTES, TooMuchTextError } from "./limits"
 
 /** A stretch of text in one style; `start` and `end` index into its part's text. */
 export interface Run {
@@ -157,7 +159,21 @@ interface Item {
   size: number
   bold: boolean
   italic: boolean
-  column: number
+}
+
+/** A link on a page, in the same coordinates as the page's text. */
+interface Link {
+  url: string
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+/** A page's text and links as pdf.js read them, before they're sorted into lines. */
+export interface PdfPage extends PageSize {
+  items: Item[]
+  links: Link[]
 }
 
 /** Text in a column starts at the same place on most lines; right-aligned dates don't. */
@@ -196,19 +212,21 @@ function findGutter(items: Item[], width: number): number | null {
   return ok ? gutter : null
 }
 
-/** Reads every page's text, in reading order. */
-export async function linesFromPdf(doc: PDFDocumentProxy): Promise<{ lines: Line[]; pages: PageSize[] }> {
-  const lines: Line[] = []
-  const pages: PageSize[] = []
+/**
+ * Reads every page's text, with its styles and links. pdf.js does the reading
+ * in a worker of its own; sorting the text into lines (`linesFromPages`) is
+ * plain work that can run in another. Stops as soon as there's more text than
+ * a resume would have, or when `signal` aborts.
+ */
+export async function readPdf(doc: PDFDocumentProxy, signal?: AbortSignal): Promise<PdfPage[]> {
+  const pages: PdfPage[] = []
+  let characters = 0
 
   for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
+    signal?.throwIfAborted()
     const page = await doc.getPage(pageNumber)
     const [x0, y0, x1, y1] = page.view
-    const width = x1 - x0
-    const height = y1 - y0
-    pages.push({ width, height })
 
-    const content = await page.getTextContent()
     // Font names (like "Calibri-Bold") are only available once the page's fonts are loaded.
     await page.getOperatorList()
     const fontStyles = new Map<string, { bold: boolean; italic: boolean }>()
@@ -227,22 +245,58 @@ export async function linesFromPdf(doc: PDFDocumentProxy): Promise<{ lines: Line
       return style
     }
 
+    // pdf.js sends a page's text a few pieces at a time, so reading stops at
+    // the first piece past the limit, even partway through a page.
     const items: Item[] = []
-    for (const item of content.items) {
-      if (!("str" in item) || item.str.trim() === "") continue
-      const [a, b, c, d, e, f] = item.transform as number[]
-      if (Math.abs(b) > Math.abs(a)) continue // rotated, like a vertical label in a sidebar
-      items.push({
-        text: item.str.replace(/[\u200B-\u200D\uFEFF\u00AD]/g, ""),
-        x: e - x0,
-        right: e - x0 + item.width,
-        baseline: f - y0,
-        size: Math.hypot(c, d) || item.height || 10,
-        ...styleOf(item.fontName),
-        column: 0,
-      })
+    const reader = (page.streamTextContent() as ReadableStream<TextContent>).getReader()
+    try {
+      for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+        for (const item of chunk.value.items) {
+          if (!("str" in item) || item.str.trim() === "") continue
+          const [a, b, c, d, e, f] = item.transform as number[]
+          if (Math.abs(b) > Math.abs(a)) continue // rotated, like a vertical label in a sidebar
+          const text = item.str.replace(/[\u200B-\u200D\uFEFF\u00AD]/g, "")
+          characters += text.length
+          if (characters > MAX_CHARACTERS) throw new TooMuchTextError()
+          items.push({
+            text,
+            x: e - x0,
+            right: e - x0 + item.width,
+            baseline: f - y0,
+            size: Math.hypot(c, d) || item.height || 10,
+            ...styleOf(item.fontName),
+          })
+        }
+      }
+    } catch (error) {
+      // pdf.js stops reading the rest of the page. It needs an Error as the
+      // reason, or it misses that the reading was stopped.
+      void reader.cancel(new Error("Stopped reading the page")).catch(() => {})
+      throw error
     }
 
+    const annotations = (await page.getAnnotations()) as { subtype?: string; url?: string; unsafeUrl?: string; rect?: number[] }[]
+    const links = annotations
+      .filter((note) => note.subtype === "Link" && (note.url || note.unsafeUrl) && note.rect?.length === 4)
+      .map((note) => {
+        const [lx0, ly0, lx1, ly1] = note.rect!
+        return { url: cleanLink(String(note.url || note.unsafeUrl)), x0: lx0 - x0, y0: ly0 - y0, x1: lx1 - x0, y1: ly1 - y0 }
+      })
+
+    pages.push({ width: x1 - x0, height: y1 - y0, items, links })
+  }
+
+  return pages
+}
+
+/** Sorts pages' text into lines, in reading order. */
+export function linesFromPages(pages: PdfPage[]): Line[] {
+  const lines: Line[] = []
+
+  pages.forEach((page, index) => {
+    const pageNumber = index + 1
+    const { width, height, links } = page
+    const items = page.items.map((item) => ({ ...item, column: 0 }))
     const gutter = findGutter(items, width)
     if (gutter !== null) {
       for (const item of items) item.column = item.right <= gutter + 1 ? 1 : item.x >= gutter - 1 ? 2 : 0
@@ -251,7 +305,7 @@ export async function linesFromPdf(doc: PDFDocumentProxy): Promise<{ lines: Line
     // Top to bottom (text spanning the columns first, then each column),
     // grouping text that shares a baseline into a line.
     items.sort((p, q) => p.column - q.column || q.baseline - p.baseline || p.x - q.x)
-    const groups: Item[][] = []
+    const groups: (typeof items)[] = []
     for (const item of items) {
       const group = groups[groups.length - 1]
       const anchor = group?.[0]
@@ -262,14 +316,6 @@ export async function linesFromPdf(doc: PDFDocumentProxy): Promise<{ lines: Line
       if (sameLine) group.push(item)
       else groups.push([item])
     }
-
-    const annotations = (await page.getAnnotations()) as { subtype?: string; url?: string; unsafeUrl?: string; rect?: number[] }[]
-    const links = annotations
-      .filter((note) => note.subtype === "Link" && (note.url || note.unsafeUrl) && note.rect?.length === 4)
-      .map((note) => {
-        const [lx0, ly0, lx1, ly1] = note.rect!
-        return { url: cleanLink(String(note.url || note.unsafeUrl)), x0: lx0 - x0, y0: ly0 - y0, x1: lx1 - x0, y1: ly1 - y0 }
-      })
 
     for (const group of groups) {
       group.sort((p, q) => p.x - q.x)
@@ -317,9 +363,9 @@ export async function linesFromPdf(doc: PDFDocumentProxy): Promise<{ lines: Line
       const line = toLine(parts, size, lineLinks, { page: pageNumber, box, x: textX })
       if (line) lines.push(line)
     }
-  }
+  })
 
-  return { lines, pages }
+  return lines
 }
 
 // ---------------------------------------------------------------- Word
@@ -425,12 +471,71 @@ export function linesFromHtml(html: string): Line[] {
   return lines
 }
 
-type ConvertToHtml = (input: { arrayBuffer: ArrayBuffer } | { buffer: Uint8Array }) => Promise<{ value: string }>
+/**
+ * How big a Word file's XML (its text, styles and lists) is once unzipped, as
+ * the zip's directory says. Infinity when the zip says it's too big for the
+ * usual place and keeps it elsewhere (ZIP64, for files over 4 GB), which no
+ * resume needs. Null when there's no directory to read, which leaves mammoth
+ * to say whether it's a Word file at all.
+ */
+export function unzippedXmlSize(data: ArrayBuffer): number | null {
+  const view = new DataView(data)
+  // The directory's end record closes the file, followed by a comment of up to 64 KB.
+  const last = view.byteLength - 22
+  for (let end = last; end >= Math.max(0, last - 0xffff); end--) {
+    if (view.getUint32(end, true) !== 0x06054b50) continue
+    // A ZIP64 file's directory is found from another record, just before this one.
+    if (end >= 20 && view.getUint32(end - 20, true) === 0x07064b50) return Infinity
+    // The directory sits just before this record. It's found from its size,
+    // not the place it's given at, which counts from where the zip starts: a
+    // file can have something else before that, and mammoth's unzipper allows for it.
+    let at = end - view.getUint32(end + 12, true)
+    if (at < 0) return null
+    let total = 0
+    for (let count = view.getUint16(end + 10, true); count > 0; count--) {
+      if (at + 46 > view.byteLength || view.getUint32(at, true) !== 0x02014b50) return null
+      const size = view.getUint32(at + 24, true)
+      const nameLength = view.getUint16(at + 28, true)
+      if (at + 46 + nameLength > view.byteLength) return null
+      const name = new TextDecoder().decode(new Uint8Array(data, at + 46, nameLength))
+      if (/\.(?:xml|rels)$/i.test(name)) {
+        // The real size is kept elsewhere (ZIP64).
+        if (size === 0xffffffff) return Infinity
+        total += size
+      }
+      at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true)
+    }
+    return total
+  }
+  return null
+}
 
-/** Reads a Word (.docx) file. mammoth is only downloaded when one is opened. */
-export async function linesFromDocx(input: { arrayBuffer: ArrayBuffer } | { buffer: Uint8Array }): Promise<Line[]> {
-  const mammoth = (await import("mammoth")) as unknown as { convertToHtml?: ConvertToHtml; default?: { convertToHtml: ConvertToHtml } }
-  const convertToHtml = mammoth.convertToHtml ?? mammoth.default!.convertToHtml
-  const { value } = await convertToHtml(input)
-  return linesFromHtml(value)
+interface Mammoth {
+  convertToHtml: (input: { arrayBuffer: ArrayBuffer; buffer: ArrayBuffer }, options: { convertImage: unknown }) => Promise<{ value: string }>
+  images: { imgElement: (attributes: () => { src: string }) => unknown }
+}
+
+/** A file mammoth couldn't read as a Word file. */
+export class UnreadableWordFileError extends Error {}
+
+/**
+ * Reads a Word (.docx) file. mammoth is only downloaded when one is opened;
+ * a failed download is thrown as it is, since it's no fault of the file.
+ */
+export async function linesFromDocx(data: ArrayBuffer): Promise<Line[]> {
+  if ((unzippedXmlSize(data) ?? 0) > MAX_WORD_XML_BYTES) throw new TooMuchTextError()
+  const loaded = (await import("mammoth")) as unknown as Partial<Mammoth> & { default?: Mammoth }
+  const mammoth = loaded.convertToHtml ? (loaded as Mammoth) : loaded.default!
+  let html: string
+  try {
+    ;({ value: html } = await mammoth.convertToHtml(
+      // Browsers get mammoth's browser build, which reads `arrayBuffer`; tests in Node get the one that reads `buffer`.
+      { arrayBuffer: data, buffer: data },
+      // Pictures aren't read, since only text is kept. By default mammoth copies each into the HTML.
+      { convertImage: mammoth.images.imgElement(() => ({ src: "" })) },
+    ))
+  } catch (error) {
+    throw new UnreadableWordFileError("mammoth couldn't read the file", { cause: error })
+  }
+  return linesFromHtml(html)
 }

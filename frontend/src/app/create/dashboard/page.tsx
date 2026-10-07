@@ -36,8 +36,17 @@ export default function DashboardPage() {
   const [opening, setOpening] = useState<Opening | null>(null)
   const [dragging, setDragging] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
-  // Each file opened gets a number, so a cancelled one can't reappear when it finishes reading.
-  const attempt = useRef(0)
+  // The file being read. Cancelling (or opening another file) stops it, and
+  // means it can't reappear if it was just finishing.
+  const reading = useRef<AbortController | null>(null)
+  // Leaving the page stops it too.
+  useEffect(
+    () => () => {
+      reading.current?.abort()
+      reading.current = null
+    },
+    [],
+  )
 
   const sorted = useMemo(
     () =>
@@ -58,20 +67,28 @@ export default function DashboardPage() {
   }
 
   const closeOpening = () => {
-    attempt.current++
+    reading.current?.abort()
+    reading.current = null
     setOpening(null)
   }
 
   const openFile = async (file: File) => {
-    const current = ++attempt.current
+    reading.current?.abort()
+    const current = new AbortController()
+    reading.current = current
     setOpening({ step: "reading", fileName: file.name })
+    // Kept once the code that reads files has loaded, so a failure can say
+    // what's wrong without waiting on anything (or loading it again).
+    let OpenFileError: typeof import("@/lib/import/open").OpenFileError | undefined
     try {
-      const { openResumeFile } = await import("@/lib/import/open")
-      const opened = await openResumeFile(file)
-      if (current !== attempt.current) {
+      const open = await import("@/lib/import/open")
+      OpenFileError = open.OpenFileError
+      const opened = await open.openResumeFile(file, { signal: current.signal })
+      if (current !== reading.current) {
         if (opened.kind === "parsed") void opened.pdf?.doc.destroy()
         return
       }
+      reading.current = null
       if (opened.kind === "parsed") {
         setOpening({ step: "review", file: opened })
         return
@@ -82,13 +99,11 @@ export default function DashboardPage() {
       else if (existing.updatedAt === opened.resume.updatedAt) edit(existing.id)
       else setOpening({ step: "conflict", file: opened, existing })
     } catch (error) {
-      if (current !== attempt.current) return
-      const { OpenFileError } = await import("@/lib/import/open")
-      if (!(error instanceof OpenFileError)) console.error("Couldn't open file:", error)
-      setOpening({
-        step: "error",
-        message: error instanceof OpenFileError ? error.message : "Something went wrong reading this file. Try a PDF or Word copy of it.",
-      })
+      if (current !== reading.current) return
+      reading.current = null
+      const problem = OpenFileError && error instanceof OpenFileError ? error.message : null
+      if (problem === null) console.error("Couldn't open file:", error)
+      setOpening({ step: "error", message: problem ?? "Something went wrong reading this file. Try a PDF or Word copy of it." })
     }
   }
 
