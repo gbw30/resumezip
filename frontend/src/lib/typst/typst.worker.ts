@@ -62,11 +62,13 @@ let compiler: Promise<TypstCompiler> | null = null
 // copy is used instead.
 const CDN_IDLE_MS = 15_000
 
-// Tells the page some of the compiler or a font arrived, at most once a
-// second, so a slow connection isn't taken for a stuck one (see compile.ts).
+// Tells the page the worker is getting on: some of the compiler or a font
+// arrived (at most once a second), or a slow step is starting (`now`). The
+// page only gives up when it hears nothing for a while (see compile.ts), so
+// this keeps a slow connection or a long step from being taken for a stuck one.
 let reportedAt = 0
-function reportProgress() {
-  if (Date.now() - reportedAt < 1_000) return
+function reportProgress(now = false) {
+  if (!now && Date.now() - reportedAt < 1_000) return
   reportedAt = Date.now()
   postMessage({ progress: true } satisfies WorkerMessage)
 }
@@ -101,7 +103,8 @@ async function createCompiler(): Promise<TypstCompiler> {
   const instance = createTypstCompiler()
   await instance.init({
     getModule: compilerModule,
-    beforeBuild: [loadFonts(FONTS, { assets: false, fetcher: fetchReporting })],
+    // Building the compiler comes next.
+    beforeBuild: [loadFonts(FONTS, { assets: false, fetcher: fetchReporting }), async () => reportProgress(true)],
   })
   for (const [path, source] of Object.entries(SOURCES)) instance.addSource(path, source)
   return instance
@@ -121,6 +124,8 @@ addEventListener("message", async ({ data: { id, template, data, attachment } }:
   let typst: TypstCompiler | undefined
   try {
     typst = await getCompiler()
+    // Compiling comes next.
+    reportProgress(true)
     // Nothing is awaited between writing the data and compiling it, so
     // concurrent requests can't see each other's data.
     typst.mapShadow("/resume.json", new TextEncoder().encode(JSON.stringify(data)))

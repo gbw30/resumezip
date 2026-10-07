@@ -101,6 +101,24 @@ test("a download that stops gives up after 30 s, and trying again starts a fresh
   expect(FakeWorker.made).toHaveLength(2)
 })
 
+test("a compiler that couldn't be downloaded is tried again in the same worker", async () => {
+  FakeWorker.answer = ({ id }) => ({ id, error: "Failed to fetch", failure: "connection" })
+  const offline = track(compileResume(resume))
+  await vi.advanceTimersByTimeAsync(10)
+  expect(offline.error?.failure).toBe("connection")
+  expect(FakeWorker.made[0].terminated).toBe(false)
+
+  // Still loading, so the next try gets the loading wait, not the 20 s one.
+  FakeWorker.answer = silent
+  const stalled = track(compileResume(resume))
+  await vi.advanceTimersByTimeAsync(20_000)
+  expect(stalled.settled).toBe(false)
+  FakeWorker.made[0].send({ id: 1, pdf: PDF })
+  await vi.advanceTimersByTimeAsync(0)
+  expect(stalled.value).toEqual(PDF)
+  expect(FakeWorker.made).toHaveLength(1)
+})
+
 test("a slow download that keeps arriving isn't given up on", async () => {
   FakeWorker.answer = silent
   const result = track(compileResume(resume))

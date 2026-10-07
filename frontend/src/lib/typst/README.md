@@ -8,7 +8,9 @@ server to build a PDF.
 - `compile.ts` is what the UI calls. It runs the compiler in a Web Worker, and
   replaces the worker if it goes quiet with work to do: 30 s while the compiler
   and fonts download (each bit that arrives counts, so slow connections finish),
-  20 s once it has loaded, or at once if the compiler breaks. Failures say why
+  20 s once it has loaded, or at once if the compiler breaks. The worker also
+  checks in as each slow step starts (building the compiler, each compile), so
+  the limit applies to one step at a time. Failures say why
   (`PdfFailure`), so the page can say what to do.
 - `typst.worker.ts` loads the WebAssembly compiler, fonts and templates once and
   compiles each request. Downloads also attach a copy of the resume to the PDF
