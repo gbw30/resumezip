@@ -64,6 +64,12 @@ describe("D2 end before start", () => {
     ])
   })
 
+  test("flags “Present” as the start of something that ended", () => {
+    expect(check("D2", withWork(job("Present", "Jan 2024"))).findings).toEqual([
+      expect.objectContaining({ place: placeOf("Work", 0, "workEndDate"), message: "Ends before it starts" }),
+    ])
+  })
+
   test("reads a range in one field too", () => {
     const resume = { ...jake, awardsSection: [{ id: 1, awardName: "Scholarship", awardDate: "2026 – 2023" }] }
     expect(check("D2", resume).findings).toEqual([expect.objectContaining({ place: placeOf("Awards", 0, "awardDate") })])
@@ -216,6 +222,10 @@ describe("D6 newest first", () => {
       ],
     }
     expect(check("D6", resume).status).toBe("passed")
+    // An entry without dates doesn't hide one out of order below it.
+    expect(check("D6", withWork(job("Jun 2023", "Aug 2023"), job("", ""), job("Jan 2025", "Present"))).findings).toEqual([
+      expect.objectContaining({ place: placeOf("Work", 2, "workEndDate"), message: "Newer than the entry above" }),
+    ])
   })
 
   test("leaves projects and awards in the order the person chose", () => {
@@ -230,5 +240,6 @@ describe("D7 apostrophe years", () => {
       expect.objectContaining({ place: placeOf("Work", 0, "workStartDate"), message: "Year written as “'21”", suggestion: "Write the whole year: “2021”." }),
       expect.objectContaining({ place: placeOf("Work", 1, "workEndDate"), message: "Year written as “’20”" }),
     ])
+    expect(check("D7", withWork(job("Jun '99", "Aug '99"))).findings[0].suggestion).toBe("Write the whole year: “1999”.")
   })
 })

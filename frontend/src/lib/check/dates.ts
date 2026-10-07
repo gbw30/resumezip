@@ -129,7 +129,7 @@ const backwards: Rule = {
   check: ({ resume }) => {
     const both = allDates(resume)
       .flat()
-      .filter((dates) => dates.start && dates.end && !dates.start.date.present)
+      .filter((dates) => dates.start && dates.end)
     if (both.length === 0) return null
     return {
       checked: both.length,
