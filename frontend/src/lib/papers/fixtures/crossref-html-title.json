@@ -1,0 +1,58 @@
+{
+  "status": "ok",
+  "message-type": "work",
+  "message-version": "1.0.0",
+  "message": {
+    "DOI": "10.1128/jb.184.12.3406-3410.2002",
+    "type": "journal-article",
+    "title": [
+      "Catabolite Repression of\n            <i>Escherichia coli</i>\n            Biofilm Formation"
+    ],
+    "subtitle": [],
+    "author": [
+      {
+        "given": "Debra W.",
+        "family": "Jackson",
+        "sequence": "first"
+      },
+      {
+        "given": "Jerry W.",
+        "family": "Simecka",
+        "sequence": "additional"
+      },
+      {
+        "given": "Tony",
+        "family": "Romeo",
+        "sequence": "additional"
+      }
+    ],
+    "container-title": [
+      "Journal of Bacteriology"
+    ],
+    "short-container-title": [
+      "J Bacteriol"
+    ],
+    "publisher": "American Society for Microbiology",
+    "volume": "184",
+    "issue": "12",
+    "page": "3406-3410",
+    "issued": {
+      "date-parts": [
+        [
+          2002,
+          6,
+          15
+        ]
+      ]
+    },
+    "published-print": {
+      "date-parts": [
+        [
+          2002,
+          6,
+          15
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "status": "ok",
+  "message-type": "work",
+  "message-version": "1.0.0",
+  "message": {
+    "DOI": "10.1145/3580305.3599572",
+    "type": "proceedings-article",
+    "title": [
+      "Towards Next-Generation Intelligent Assistants Leveraging LLM Techniques"
+    ],
+    "subtitle": [],
+    "author": [
+      {
+        "given": "Xin Luna",
+        "family": "Dong",
+        "sequence": "first"
+      },
+      {
+        "given": "Seungwhan",
+        "family": "Moon",
+        "sequence": "additional"
+      },
+      {
+        "given": "Yifan Ethan",
+        "family": "Xu",
+        "sequence": "additional"
+      },
+      {
+        "given": "Kshitiz",
+        "family": "Malik",
+        "sequence": "additional"
+      },
+      {
+        "given": "Zhou",
+        "family": "Yu",
+        "sequence": "additional"
+      }
+    ],
+    "container-title": [
+      "Proceedings of the 29th ACM SIGKDD Conference on Knowledge Discovery and Data Mining"
+    ],
+    "short-container-title": [],
+    "event": {
+      "name": "KDD '23: The 29th ACM SIGKDD Conference on Knowledge Discovery and Data Mining",
+      "location": "Long Beach CA USA",
+      "acronym": "KDD '23"
+    },
+    "publisher": "ACM",
+    "page": "5792-5793",
+    "issued": {
+      "date-parts": [
+        [
+          2023,
+          8,
+          4
+        ]
+      ]
+    },
+    "published-print": {
+      "date-parts": [
+        [
+          2023,
+          8,
+          6
+        ]
+      ]
+    },
+    "published-online": {
+      "date-parts": [
+        [
+          2023,
+          8,
+          4
+        ]
+      ]
+    }
+  }
+}

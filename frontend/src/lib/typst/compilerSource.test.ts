@@ -4,14 +4,15 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import path from "node:path"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
-import { COMPILER_FILE, COMPILER_INTEGRITY, COMPILER_PACKAGE, COMPILER_VERSION, compileChecked } from "./compilerSource"
+import { COMPILER_FILE, COMPILER_INTEGRITY, COMPILER_PACKAGE, COMPILER_SIZE, COMPILER_VERSION, compileChecked } from "./compilerSource"
 
-// After updating the compiler package, update COMPILER_VERSION and COMPILER_INTEGRITY to match.
+// After updating the compiler package, update COMPILER_VERSION, COMPILER_INTEGRITY and COMPILER_SIZE to match.
 test("the compiler loaded from jsDelivr is the installed one", () => {
   const dir = path.resolve("node_modules", COMPILER_PACKAGE)
   expect(JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")).version).toBe(COMPILER_VERSION)
-  const hash = createHash("sha384").update(readFileSync(path.join(dir, COMPILER_FILE))).digest("base64")
-  expect(COMPILER_INTEGRITY).toBe(`sha384-${hash}`)
+  const file = readFileSync(path.join(dir, COMPILER_FILE))
+  expect(COMPILER_INTEGRITY).toBe(`sha384-${createHash("sha384").update(file).digest("base64")}`)
+  expect(COMPILER_SIZE).toBe(file.length)
 })
 
 describe("downloading the compiler", () => {
@@ -58,7 +59,10 @@ describe("downloading the compiler", () => {
     await expect(compileChecked(`${base}/stops`, integrity, IDLE_MS)).rejects.toThrow("Nothing arrived")
   })
 
-  test("waits for a slow download that keeps sending", async () => {
-    expect(await compileChecked(`${base}/slow`, integrity, IDLE_MS)).toBeInstanceOf(WebAssembly.Module)
+  test("waits for a slow download that keeps sending, saying how much has arrived", async () => {
+    const arrived: number[] = []
+    expect(await compileChecked(`${base}/slow`, integrity, IDLE_MS, (bytes) => arrived.push(bytes))).toBeInstanceOf(WebAssembly.Module)
+    expect(arrived.length).toBeGreaterThan(1)
+    expect(arrived.reduce((sum, bytes) => sum + bytes, 0)).toBe(wasm.length)
   })
 })

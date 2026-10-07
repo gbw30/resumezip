@@ -33,6 +33,8 @@ export interface SectionDef {
   /** Fields shown, in order, when an entry is collapsed. */
   summary: string[]
   choice?: ChoiceDef
+  /** Entries can also be added from a paper's DOI or link. */
+  fromPaperLink?: boolean
 }
 
 /** The profile's fields, stored on the resume under `profileSection`. */
@@ -136,6 +138,7 @@ export const SECTIONS: Record<SectionName, SectionDef> = {
     headingKey: "publications",
     addLabel: "Add publication",
     summary: ["publicationTitle", "publicationVenue"],
+    fromPaperLink: true,
     fields: [
       { key: "publicationTitle", label: "Title", placeholder: "Sparse Attention for Long Documents", size: "full" },
       { key: "publicationAuthors", label: "Authors", placeholder: "J. Ryan, A. Smith", size: "lg" },
@@ -192,10 +195,15 @@ export const SECTIONS: Record<SectionName, SectionDef> = {
 
 export const SECTION_NAMES = Object.keys(SECTIONS) as SectionName[]
 
-/** Tailwind classes for a field's width in the 2-column (mobile) / 4-column grid. */
+/**
+ * Tailwind classes for a field's width in the form's grid: 2 columns, or 4
+ * once the form itself is 32rem (512px) wide. It's the form's width, not the
+ * window's, that counts, since the left bar and preview can take most of a
+ * wide window.
+ */
 export const FIELD_SPAN: Record<FieldDef["size"], string> = {
   sm: "col-span-1",
   md: "col-span-2",
-  lg: "col-span-2 sm:col-span-3",
-  full: "col-span-2 sm:col-span-4",
+  lg: "col-span-2 @lg:col-span-3",
+  full: "col-span-2 @lg:col-span-4",
 }

@@ -127,28 +127,35 @@ const plain = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").t
 const AUTHOR_SEPARATOR = /(,\s*(?:and\s+|&\s*)?|\s+(?:and|&)\s+|\s+et al\.?\s*$)/i
 
 /**
+ * Whether a name in an author list is the resume owner's. "R. Conde",
+ * "Rafael Conde" and "Conde, R." all match Rafael Conde.
+ */
+export function ownerMatcher(owner: string): (name: string) => boolean {
+  const names = plain(owner).split(/\s+/).filter(Boolean)
+  const last = names[names.length - 1]
+  return (name) => {
+    const words = plain(name).split(/[\s.,]+/).filter(Boolean)
+    if (names.length < 2) return names.length === 1 && words.length === 1 && words[0] === last
+    return words.includes(last) && words.some((word) => word !== last && word[0] === names[0][0])
+  }
+}
+
+/**
  * Splits an author list into names and separators, marking the resume
- * owner's name so it can be printed in bold. "R. Conde", "Rafael Conde" and
- * "Conde, R." all match Rafael Conde.
+ * owner's name so it can be printed in bold.
  */
 function authorPieces(value: unknown, owner: string): AuthorPiece[] {
   const authors = text(value)
   if (!authors) return []
-  const names = plain(owner).split(/\s+/).filter(Boolean)
-  const last = names[names.length - 1]
-  const isOwner = (piece: string) => {
-    const words = plain(piece).split(/[\s.,]+/).filter(Boolean)
-    if (names.length < 2) return names.length === 1 && words.length === 1 && words[0] === last
-    return words.includes(last) && words.some((word) => word !== last && word[0] === names[0][0])
-  }
+  const isOwner = ownerMatcher(owner)
   return authors
     .split(AUTHOR_SEPARATOR)
     .filter(Boolean)
     .map((piece) => ({ text: piece, me: !AUTHOR_SEPARATOR.test(piece) && isOwner(piece) }))
 }
 
-// A DOI on its own ("10.1145/3580305"), after "doi:", or as a doi.org link.
-function doiOf(link: string): string {
+/** A DOI on its own ("10.1145/3580305"), after "doi:", or as a doi.org link without its "https://". */
+export function doiOf(link: string): string {
   const doi = link.replace(/^doi:\s*/i, "").replace(/^(?:dx\.)?doi\.org\//i, "")
   return /^10\.\d{4,9}\/\S+$/.test(doi) ? doi : ""
 }

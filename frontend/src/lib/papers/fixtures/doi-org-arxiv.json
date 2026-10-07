@@ -1,0 +1,35 @@
+{
+  "DOI": "10.48550/ARXIV.2202.01037",
+  "type": "article",
+  "title": "RoboKrill : a metachronal drag-based swimmer robot",
+  "author": [
+    {
+      "given": "Sara Oliveira",
+      "family": "Santos"
+    },
+    {
+      "given": "Francisco",
+      "family": "Cuenca-Jiménez"
+    },
+    {
+      "given": "P. Antonio",
+      "family": "Gomez-Valdez"
+    },
+    {
+      "given": "Oscar",
+      "family": "Morales-Lopez"
+    },
+    {
+      "given": "Monica M.",
+      "family": "Wilhelmus"
+    }
+  ],
+  "publisher": "arXiv",
+  "issued": {
+    "date-parts": [
+      [
+        2022
+      ]
+    ]
+  }
+}

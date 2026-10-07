@@ -2,7 +2,7 @@
 // thread so the editor stays responsive. Talk to it through compile.ts.
 
 import { CompileFormatEnum, createTypstCompiler, type TypstCompiler } from "@myriaddreamin/typst.ts/compiler"
-import { loadFonts } from "@myriaddreamin/typst.ts/options.init"
+import { disableDefaultFontAssets, loadFonts, type BeforeBuildFn } from "@myriaddreamin/typst.ts/options.init"
 import { ATTACHMENT_NAME } from "@/lib/resumeFile"
 import common from "./templates/common.typ"
 import ian from "./templates/ian.typ"
@@ -11,8 +11,8 @@ import levelsfyi from "./templates/levelsfyi.typ"
 import modernjack from "./templates/modernjack.typ"
 import referme from "./templates/referme.typ"
 import resumeworded from "./templates/resumeworded.typ"
-import type { CompileRequest, CompileResponse, WorkerMessage } from "./compile"
-import { COMPILER_CDN_URL, COMPILER_INTEGRITY, compileChecked } from "./compilerSource"
+import type { CompileRequest, CompileResponse, WorkerMessage, WorkerRequest } from "./compile"
+import { COMPILER_CDN_URL, COMPILER_INTEGRITY, COMPILER_SIZE, compileChecked } from "./compilerSource"
 
 const SOURCES: Record<string, string> = {
   "/common.typ": common,
@@ -62,25 +62,35 @@ let compiler: Promise<TypstCompiler> | null = null
 // copy is used instead.
 const CDN_IDLE_MS = 15_000
 
+// How much of the compiler has arrived, in bytes.
+let compilerBytes = 0
+
 // Tells the page the worker is getting on: some of the compiler or a font
-// arrived (at most once a second), or a slow step is starting (`now`). The
-// page only gives up when it hears nothing for a while (see compile.ts), so
-// this keeps a slow connection or a long step from being taken for a stuck one.
+// arrived (at most ten times a second), or a slow step is starting (`now`).
+// The page only gives up when it hears nothing for a while (see compile.ts),
+// so this keeps a slow connection or a long step from being taken for a
+// stuck one. It also says how much of the compiler has arrived, which the
+// preview shows while it waits.
 let reportedAt = 0
 function reportProgress(now = false) {
-  if (!now && Date.now() - reportedAt < 1_000) return
+  if (!now && Date.now() - reportedAt < 100) return
   reportedAt = Date.now()
-  postMessage({ progress: true } satisfies WorkerMessage)
+  postMessage({ progress: true, downloaded: Math.min(compilerBytes / COMPILER_SIZE, 1) } satisfies WorkerMessage)
 }
 
-// fetch, reporting progress as the body arrives.
-async function fetchReporting(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const response = await fetch(input, init)
+const compilerArrived = (bytes: number) => {
+  compilerBytes += bytes
+  reportProgress()
+}
+
+// fetch, calling `onData` with the number of bytes as the body arrives.
+async function fetchReporting(url: string, onData: (bytes: number) => void = () => reportProgress()): Promise<Response> {
+  const response = await fetch(url)
   if (!response.body) return response
   const body = response.body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
-        reportProgress()
+        onData(chunk.length)
         controller.enqueue(chunk)
       },
     }),
@@ -91,20 +101,38 @@ async function fetchReporting(input: RequestInfo | URL, init?: RequestInit): Pro
 // The compiler from jsDelivr, or the app's own copy if that fails (offline,
 // blocked, stalled, or not the expected file).
 async function compilerModule(): Promise<WebAssembly.Module | Response> {
+  compilerBytes = 0
   try {
-    return await compileChecked(COMPILER_CDN_URL, COMPILER_INTEGRITY, CDN_IDLE_MS, reportProgress)
+    return await compileChecked(COMPILER_CDN_URL, COMPILER_INTEGRITY, CDN_IDLE_MS, compilerArrived)
   } catch {
-    // Fall through to the bundled copy.
+    // Fall through to the bundled copy, which starts from nothing.
+    compilerBytes = 0
   }
-  return fetchReporting(new URL("@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm", import.meta.url))
+  return fetchReporting(
+    new URL("@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm", import.meta.url).href,
+    compilerArrived,
+  )
+}
+
+async function fetchFont(url: string): Promise<Uint8Array> {
+  const response = await fetchReporting(url)
+  if (!response.ok) throw new Error(`${url} answered ${response.status}`)
+  return new Uint8Array(await response.arrayBuffer())
 }
 
 async function createCompiler(): Promise<TypstCompiler> {
+  // The fonts download alongside the compiler rather than after it. If the
+  // compiler fails first, nothing waits for the fonts, so their failing too
+  // is caught here rather than reported as unhandled.
+  const fonts = Promise.all(FONTS.map(fetchFont))
+  fonts.catch(() => {})
+  const addFonts: BeforeBuildFn = async (mark, context) => loadFonts(await fonts, { assets: false })(mark, context)
   const instance = createTypstCompiler()
   await instance.init({
     getModule: compilerModule,
-    // Building the compiler comes next.
-    beforeBuild: [loadFonts(FONTS, { assets: false, fetcher: fetchReporting }), async () => reportProgress(true)],
+    // Typst's own fonts would otherwise download too, as addFonts isn't
+    // one of typst.ts's font loaders. Building the compiler comes last.
+    beforeBuild: [disableDefaultFontAssets(), addFonts, async () => reportProgress(true)],
   })
   for (const [path, source] of Object.entries(SOURCES)) instance.addSource(path, source)
   return instance
@@ -112,14 +140,27 @@ async function createCompiler(): Promise<TypstCompiler> {
 
 function getCompiler(): Promise<TypstCompiler> {
   // Forget a failed start (e.g. a network error) so the next request retries.
-  compiler ??= createCompiler().catch((error) => {
-    compiler = null
-    throw error
-  })
+  compiler ??= createCompiler().then(
+    (instance) => {
+      postMessage({ ready: true } satisfies WorkerMessage)
+      return instance
+    },
+    (error) => {
+      compiler = null
+      postMessage({ ready: false } satisfies WorkerMessage)
+      throw error
+    },
+  )
   return compiler
 }
 
-addEventListener("message", async ({ data: { id, template, data, attachment } }: MessageEvent<CompileRequest>) => {
+addEventListener("message", ({ data: request }: MessageEvent<WorkerRequest>) => {
+  // Loading ahead of the first PDF. If it fails, that PDF tries again.
+  if ("load" in request) getCompiler().catch(() => {})
+  else void compile(request)
+})
+
+async function compile({ id, template, data, attachment }: CompileRequest) {
   let response: CompileResponse
   let typst: TypstCompiler | undefined
   try {
@@ -148,4 +189,4 @@ addEventListener("message", async ({ data: { id, template, data, attachment } }:
     response = { id, error: message, failure: typst === undefined ? "connection" : "crash" }
   }
   postMessage(response)
-})
+}
