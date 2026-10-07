@@ -178,7 +178,15 @@ describe("P7 numbers written one way", () => {
   })
 
   test("leaves versions and labels out, but counts a digit after the first word", () => {
-    const versions = ["Upgraded Python 2 to Python 3", "Supported iOS 7 and later", "Shipped version 2 of the API", "Ran phase 3 trials", "Led three engineers"]
+    const versions = [
+      "Upgraded Python 2 to Python 3",
+      "Supported iOS 7 and later",
+      "Shipped version 2 of the API",
+      "Ran phase 3 trials",
+      "Python 2 applications moved to new servers",
+      "Java 8 services retired",
+      "Led three engineers",
+    ]
     expect(check("P7", resumeWith(job(versions))).status).toBe("passed")
     expect(check("P7", resumeWith(job(["Led 3 engineers", "Ran 4 sprints", "Mentored five interns"]))).messages).toEqual(["“five” here, digits elsewhere"])
   })

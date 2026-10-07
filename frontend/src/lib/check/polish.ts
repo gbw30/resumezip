@@ -7,6 +7,7 @@ import type { Place } from "./places"
 import { textsOf, type ResumeView } from "./resume"
 import { ACRONYMS, DEGREE_ABBREVIATIONS, LOWERCASE_NAMES, NUMBER_LABELS, NUMBER_UNITS, SHORTHAND, US_STATES } from "./settings"
 import { bulletsIn, escaped, firstWord, mostCommon, type PlacedBullet } from "./text"
+import { verbOf } from "./verbs"
 
 const capitalized = (word: string) => word[0].toUpperCase() + word.slice(1).toLowerCase()
 
@@ -244,14 +245,15 @@ const DIGIT = new RegExp(String.raw`(?<![\p{L}\p{N}$€£.,/-])[2-9]${COUNTED}`,
 const LABELS = new Set(NUMBER_LABELS)
 
 // A digit counting something ("Led 3 engineers"), but not a version or a
-// label: not after a name in the sentence ("Python 2", "iOS 7"), or after a
-// word like "version" or "phase".
+// label: not after a name ("Python 2", "iOS 7", "Java 8 services"), or after
+// a word like "version" or "phase". A capitalized first word is a name unless
+// it's a verb.
 function digitCount(text: string): string | undefined {
   for (const found of text.matchAll(DIGIT)) {
     const before = text.slice(0, found.index).trimEnd()
     const word = before.match(/[\p{L}\p{N}.-]+$/u)?.[0] ?? ""
     const first = !/\s/.test(before.trim())
-    const name = /\p{Lu}/u.test(word.slice(1)) || (/^\p{Lu}/u.test(word) && !first)
+    const name = /\p{Lu}/u.test(word.slice(1)) || (/^\p{Lu}/u.test(word) && (!first || !verbOf(word)))
     if (!name && !LABELS.has(word.toLowerCase())) return found[0]
   }
 }
