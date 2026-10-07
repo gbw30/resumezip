@@ -60,16 +60,18 @@ test("the left bar switches between writing and checking, and remembers which", 
   expect(errors).toEqual([])
 })
 
-test("the checker asks for a name and an entry first, then lists what passed", async ({ page }) => {
+test("the checker asks for a name and an entry first, then scores the resume and lists its checks by category", async ({ page }) => {
   const errors = pageErrors(page)
   await newResume(page)
   const write = page.getByRole("tab", { name: "Write" })
   const check = page.getByRole("tab", { name: /^Check/ })
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
+  const score = panel.getByRole("region", { name: "Resume score" })
 
   await check.click()
   const waiting = panel.getByText("Add your name and one entry to check this resume.")
   await expect(waiting).toBeVisible()
+  await expect(score).toContainText("Not scored yet")
 
   // The form stays beside the checker, so the name can be typed straight in.
   await page.getByLabel("Full name").fill("Ada Lovelace")
@@ -79,13 +81,59 @@ test("the checker asks for a name and an entry first, then lists what passed", a
   await page.getByLabel("Company").fill("Analytical Engines")
   await check.click()
   await expect(waiting).toBeHidden()
+  await expect(score.getByText(/^\d+$/)).toBeVisible()
+  // Screen readers are told the score as it changes.
+  await expect(score.locator("[aria-live=polite]")).toContainText(/^\d+\s*\/ 100\s*out of 100$/)
 
-  // What the templates guarantee is listed with the passed checks, folded.
+  // A category with nothing to fix is folded, says how many checks passed,
+  // and opens from the keyboard to list them, with what the templates guarantee.
+  const readable = panel.getByRole("button", { name: /^Readable by hiring software, \d+ of \d+ passed$/ })
+  await expect(readable).toHaveAttribute("aria-expanded", "false")
   const guaranteed = panel.getByText("Real text that can be selected and copied")
   await expect(guaranteed).toBeHidden()
-  await panel.getByText(/^\d+ passed$/).click()
+  await readable.focus()
+  await page.keyboard.press("Enter")
+  await expect(readable).toHaveAttribute("aria-expanded", "true")
   await expect(guaranteed).toBeVisible()
+  const passed = Number((await readable.textContent())!.match(/(\d+) of/)![1])
+  const checks = page.locator(`[id="${await readable.getAttribute("aria-controls")}"]`)
+  await expect(checks.getByRole("listitem")).toHaveCount(passed)
+  await page.keyboard.press("Space")
+  await expect(readable).toHaveAttribute("aria-expanded", "false")
+  await expect(guaranteed).toBeHidden()
+
+  // How the score works says what it measures.
+  await panel.getByText("How the score works").click()
+  await expect(panel.getByText("It doesn't say whether a resume will get anyone hired.", { exact: false })).toBeVisible()
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
+
+  expect(errors).toEqual([])
+})
+
+test("the score goes up as a problem is fixed", async ({ page }) => {
+  const errors = pageErrors(page)
+  await newResume(page)
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await page.getByLabel("Email").fill("ada@example")
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Company").fill("Analytical Engines")
+  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+
+  // The contact category is open, as it has something to fix, and lists it.
+  const contact = panel.getByRole("button", { name: /^Contact & personal details, 1 to fix/ })
+  await expect(contact).toHaveAttribute("aria-expanded", "true")
+  const email = panel.getByRole("button", { name: /Not a whole email address/ })
+  await expect(email).toBeVisible()
+
+  const number = panel.getByRole("region", { name: "Resume score" }).getByText(/^\d+$/)
+  await expect(panel.getByRole("status")).toBeHidden()
+  const before = Number(await number.textContent())
+  await email.click()
+  await page.getByLabel("Email").fill("ada@example.com")
+  await expect.poll(async () => Number(await number.textContent())).toBeGreaterThan(before)
+  await expect(panel.getByRole("button", { name: /^Contact & personal details/ })).not.toHaveAccessibleName(/to fix/)
 
   expect(errors).toEqual([])
 })
