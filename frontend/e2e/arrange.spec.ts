@@ -64,14 +64,14 @@ const saved = (page: Page) => page.evaluate((key) => JSON.parse(localStorage.get
 // Waits for the preview, so the PDF compiler's download isn't cut off by a reload, which Safari logs as an error.
 const previewShown = (page: Page) => expect(preview(page).locator(".react-pdf__Page__canvas").first()).toBeVisible()
 
-async function openSection(page: Page, section: string) {
+async function openSection(page: Page, section: string, resume: { id: string } & Record<string, unknown> = RESUME) {
   await page.addInitScript(
     ({ key, value }) => {
       if (localStorage.getItem(key) === null) localStorage.setItem(key, value)
     },
-    { key: `resume:${RESUME.id}`, value: JSON.stringify(RESUME) },
+    { key: `resume:${resume.id}`, value: JSON.stringify(resume) },
   )
-  await page.goto(`/create/new/${RESUME.id}`)
+  await page.goto(`/create/new/${resume.id}`)
   await previewShown(page)
   await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: new RegExp(`^\\d+ ${section}$`) }).click()
 }
@@ -188,6 +188,57 @@ test("a section with every entry left out isn't printed, title and all", async (
 
   await page.getByRole("checkbox", { name: "Include entry 1 in the PDF" }).uncheck()
   await expect.poll(async () => /skills|python/i.test(await printed(page))).toBe(false)
+
+  expect(errors).toEqual([])
+})
+
+test("a bullet keeps the focus as it moves, even past one with the same words", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+  const field = page.locator('[data-field="workDescription"]').first()
+  await field.getByLabel(BULLETS).fill("• Led the team\n○ Led the team\n• Wrote the docs")
+  await field.getByRole("button", { name: "Arrange bullets" }).click()
+  const rows = field.getByRole("list", { name: BULLETS }).getByRole("listitem")
+
+  // The printed one moves down past the left-out copy, and the focus goes with it, so it can be moved again.
+  await rows.nth(0).getByRole("button", { name: "Move bullet 1 down" }).focus()
+  await page.keyboard.press("Enter")
+  await expect(rows.nth(1).getByRole("button", { name: "Move bullet 2 down" })).toBeFocused()
+  await expect(rows.nth(1).getByRole("checkbox")).toBeChecked()
+  await page.keyboard.press("Enter")
+  await expect(rows.nth(2).getByRole("button", { name: "Move bullet 3 down" })).toBeFocused()
+  await expect.poll(async () => (await saved(page)).workExperienceSection[0].workDescription).toBe(
+    "○ Led the team\n• Wrote the docs\n• Led the team",
+  )
+
+  expect(errors).toEqual([])
+})
+
+test("the checker skips what's left out, and opens the right entry after it", async ({ page }) => {
+  const errors = pageErrors(page)
+  const weak = (company: string) => new RegExp(`${company} · bullet 1 .*weak start`)
+  await openSection(page, "Experience", {
+    ...RESUME,
+    id: "tailored-check",
+    workExperienceSection: [
+      { id: 1, workRole: "Intern", companyName: "Initech", workDescription: "• Responsible for the reports", leftOut: true },
+      { id: 2, workRole: "Engineer", companyName: "Google", workDescription: "• Responsible for the search index\n• Cut serving costs by 30%" },
+    ],
+  })
+
+  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+  await expect(panel.getByRole("button", { name: weak("Google") })).toBeVisible()
+  await expect(panel.getByRole("button", { name: /Initech/ })).toHaveCount(0)
+
+  // The left-out entry is the first in the editor, so the finding is about the second.
+  await panel.getByRole("button", { name: weak("Google") }).click()
+  await expect(page.getByRole("button", { name: "Done editing entry 2" })).toBeVisible()
+  const box = page.locator('[data-field="workDescription"]').nth(1).getByLabel(BULLETS)
+  await expect(box).toBeFocused()
+  expect(await box.evaluate((textarea: HTMLTextAreaElement) => textarea.value.slice(textarea.selectionStart, textarea.selectionEnd))).toBe(
+    "Responsible for the search index",
+  )
 
   expect(errors).toEqual([])
 })
