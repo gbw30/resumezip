@@ -6,23 +6,27 @@ import type { PdfReading } from "./engine"
 import type { ResumeView } from "./resume"
 import { bulletsIn, type PlacedBullet } from "./text"
 
+// Text without accents or case. Upper case first, as some templates print
+// names in capitals: "Strauß" prints as "STRAUSS", and only comparing that
+// way round finds them the same. A capital ẞ doesn't change when upper-cased,
+// so a ß left at the end is spelled out too.
+const fold = (text: string) =>
+  text
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toUpperCase()
+    .toLowerCase()
+    .replace(/ß/g, "ss")
+
 /**
  * Text as compared between the PDF and the editor: letters and digits only,
  * without accents, so line breaks, hyphens, quotes and bold marks don't count.
  */
-export const comparable = (text: string) =>
-  text
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "")
+export const comparable = (text: string) => fold(text).replace(/[^\p{L}\p{N}]+/gu, "")
 
 /** A text's words, as compared between the PDF and the editor: lower case, without accents or punctuation. */
 export const wordsOf = (text: string) =>
-  text
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
+  fold(text)
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean)
 

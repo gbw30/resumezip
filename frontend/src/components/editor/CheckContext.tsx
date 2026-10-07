@@ -4,7 +4,6 @@ import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import type { Finding, PdfReading } from "@/lib/check/engine"
 import type { Place } from "@/lib/check/places"
-import { readPreview } from "@/lib/check/preview"
 import type { ActiveSection } from "./SectionNav"
 import { useResumeCheck } from "./useResumeCheck"
 
@@ -71,6 +70,10 @@ function whenIdle(callback: () => void): () => void {
   return () => clearTimeout(timer)
 }
 
+// How many previews to remember as read, by what they print, so going back
+// to one, as with undo, or a change that's put back, doesn't read it again.
+const READINGS_KEPT = 4
+
 interface CheckProviderProps {
   /** Shows a section in the form, as choosing it in the section list does. */
   onSelect: (section: ActiveSection) => void
@@ -92,12 +95,25 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, children }:
   const [watching, setWatching] = useState(false)
   // The latest preview as read, and what it prints; null if it couldn't be read.
   const [read, setRead] = useState<{ printed: string; pdf: PdfReading | null } | null>(null)
+  const readings = useRef(new Map<string, PdfReading | null>())
   useEffect(() => {
     if (!watching || !preview) return
+    const known = readings.current
+    if (known.has(preview.printed)) {
+      setRead({ printed: preview.printed, pdf: known.get(preview.printed) ?? null })
+      return
+    }
     const reading = new AbortController()
     const cancel = whenIdle(() => {
-      readPreview(preview.url, reading.signal)
-        .then((pdf) => setRead({ printed: preview.printed, pdf }))
+      // The reader only loads once Check has been opened.
+      import("@/lib/check/preview")
+        .then(({ readPreview }) => readPreview(preview.url, reading.signal))
+        .then((pdf) => {
+          known.set(preview.printed, pdf)
+          // Maps keep the order things were added in: the first is the oldest.
+          if (known.size > READINGS_KEPT) known.delete(known.keys().next().value!)
+          setRead({ printed: preview.printed, pdf })
+        })
         .catch((error) => {
           if (reading.signal.aborted) return
           console.warn("The checker couldn't read the preview:", error)

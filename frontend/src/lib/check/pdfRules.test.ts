@@ -52,6 +52,20 @@ describe.each(samples.map((sample) => [sample.selectedTemplate as string, sample
   })
 })
 
+test.each(["jake", "resumeworded"])("the %s template's contact details and entries read back with any phone number, and names with ß", async (template) => {
+  // resumeworded prints names and companies in capitals: "Strauß" as "STRAUSS".
+  const sample = samples.find((resume) => resume.selectedTemplate === template)
+  for (const phoneNumber of ["07911 123456", "06 12 34 56 78", "0412 345 678"]) {
+    const [job, ...jobs] = sample.workExperienceSection
+    const resume = {
+      ...sample,
+      profileSection: { ...sample.profileSection, fullName: "Max Strauß", phoneNumber },
+      workExperienceSection: [{ ...job, companyName: "Großmann GmbH" }, ...jobs],
+    }
+    expect(check(resume, await readingOf(resume), ["R1", "R3"]).findings, phoneNumber).toEqual([])
+  }
+})
+
 test("a renamed heading the reader doesn't know is a fix", async () => {
   const sample = samples.find((resume) => resume.selectedTemplate === "jake")
   const resume = { ...sample, headings: { ...sample.headings, work: "My Journey" } }

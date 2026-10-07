@@ -61,19 +61,31 @@ export function until<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   })
 }
 
-/** Reads in a worker of its own, which is ended once it answers, or as soon as `signal` aborts. */
-export function readInWorker(request: ReadRequest, signal: AbortSignal): Promise<ReadResult> {
+// A worker that answered a reading that asked to keep it, idle until the next one does.
+let spare: Worker | null = null
+
+/**
+ * Reads in a worker of its own, which is ended once it answers, or as soon as
+ * `signal` aborts. With `keep`, a worker that answered is kept for the next
+ * reading with `keep`, instead of starting one each time, as the checker does
+ * with each new preview (lib/check/preview.ts). One that's stopped or fails
+ * is ended all the same.
+ */
+export function readInWorker(request: ReadRequest, signal: AbortSignal, { keep = false } = {}): Promise<ReadResult> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) return reject(signal.reason)
-    const worker = new Worker(new URL("./import.worker.ts", import.meta.url))
-    const end = (settle: () => void) => {
-      worker.terminate()
+    const worker = (keep && spare) || new Worker(new URL("./import.worker.ts", import.meta.url))
+    if (worker === spare) spare = null
+    const end = (settle: () => void, answered = false) => {
       signal.removeEventListener("abort", stop)
+      worker.onmessage = worker.onerror = worker.onmessageerror = null
+      if (keep && answered && !spare) spare = worker
+      else worker.terminate()
       settle()
     }
     const stop = () => end(() => reject(signal.reason))
     signal.addEventListener("abort", stop, { once: true })
-    worker.onmessage = ({ data }: MessageEvent<ReadResult>) => end(() => resolve(data))
+    worker.onmessage = ({ data }: MessageEvent<ReadResult>) => end(() => resolve(data), true)
     worker.onerror = (event) => end(() => reject(new Error(event.message || "The import worker failed")))
     worker.onmessageerror = () => end(() => reject(new Error("The import worker's answer couldn't be read")))
     try {

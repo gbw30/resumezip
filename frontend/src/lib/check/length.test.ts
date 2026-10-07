@@ -30,6 +30,15 @@ describe("L1 pages", () => {
     expect(check("L1", resumeWith(["Built it"], "academic"), twoPages).status).toBe("skipped")
     expect(check("L1", resumeWith(["Built it"]), full([])).status).toBe("passed")
   })
+
+  test("a dismissal lasts while the page count does", () => {
+    const keyAt = (count: number) => {
+      const pages = Array.from({ length: count }, (_, i) => lines(30, { page: i + 1 })).flat()
+      return check("L1", resumeWith(["Built it"]), reading(pages, {}, count)).findings[0].key
+    }
+    expect(keyAt(2)).toBe(keyAt(2))
+    expect(keyAt(3)).not.toBe(keyAt(2))
+  })
 })
 
 describe("L2 a few lines on the last page", () => {

@@ -4,9 +4,10 @@
 
 import { SECTIONS, type SectionName } from "@/components/editor/sections"
 import { BULLET_CHARS } from "@/lib/import/lines"
-import type { Problem, Rule } from "./engine"
+import type { PdfReading, Problem, Rule } from "./engine"
 import type { Place } from "./places"
 import { comparable, wordsOf } from "./pdf"
+import { readDate, readDateRange } from "./readDate"
 import { textsOf } from "./resume"
 import { FINE_SYMBOLS, ODD_SYMBOLS } from "./settings"
 import { bulletsIn } from "./text"
@@ -19,6 +20,19 @@ const CONTACT: { field: string; label: string }[] = [
 ]
 
 const digits = (text: string) => text.replace(/\D/g, "")
+
+// The fewest digits a phone number has anywhere: 7, as in "555-0134".
+const PHONE_DIGITS = 7
+
+// Whether the PDF has the phone number. The resume reader only knows how
+// North American numbers are usually written, and hiring software reads
+// numbers from everywhere else too ("07911 123456", "06 12 34 56 78"), so a
+// line with all its digits, in order, will do.
+function phoneFound(pdf: PdfReading, value: string): boolean {
+  const typed = digits(value)
+  if (digits(pdf.parsed.profile.phoneNumber ?? "") === typed) return true
+  return typed.length >= PHONE_DIGITS && pdf.lines.some((line) => digits(line.text).includes(typed))
+}
 
 const contactRead: Rule = {
   id: "R1",
@@ -34,9 +48,8 @@ const contactRead: Rule = {
       checked: typed.length,
       problems: typed
         .filter(({ field }) => {
-          const read = pdf.parsed.profile[field] ?? ""
           const value = resume.profile[field]
-          return field === "phoneNumber" ? digits(read) !== digits(value) : comparable(read) !== comparable(value)
+          return field === "phoneNumber" ? !phoneFound(pdf, value) : comparable(pdf.parsed.profile[field] ?? "") !== comparable(value)
         })
         .map(({ field, label }) => ({
           place: { kind: "profile", field },
@@ -86,6 +99,30 @@ const KEY_FIELDS: Record<SectionName, string[]> = {
 
 const labelOf = (section: SectionName, field: string) => SECTIONS[section].fields.find((def) => def.key === field)?.label.toLowerCase() ?? field
 
+// A year, or a month and a year, as in "2024" or "Jan 2024".
+const HAS_DATE = /\b(?:19|20)\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+'?\d/i
+// Where hiring software can split one value into two: a comma, a bar, a dot or a spaced dash.
+const SPLITS = /[,|•·;]|\s[-–—]\s/
+
+/** Why a value may not be read with its entry, from what's in it, and what to do. */
+function entryAdvice(section: SectionName, field: string, value: string): Pick<Problem, "message" | "suggestion"> {
+  const label = labelOf(section, field)
+  const unread = (suggestion: string) => ({ message: `Hiring software doesn't read the ${label} with this entry`, suggestion })
+  if (field.endsWith("Date")) {
+    // A date written the usual way has nothing to change.
+    if (!readDate(value) && !readDateRange(value)) return unread("Write it the usual way, like “Jan 2024”, “2024” or “Present”.")
+  } else if (HAS_DATE.test(value)) {
+    return unread("Move the date to the entry's date fields.")
+  } else if (SPLITS.test(value)) {
+    return unread("Keep it to one thing: hiring software can split it at a comma or a dash. Move the rest to another field or a bullet.")
+  }
+  // Nothing in it that's known to trip hiring software up.
+  return {
+    message: `Hiring software may not read the ${label} with this entry`,
+    suggestion: "Nothing in it looks wrong, so most hiring software should still read it. If it looks right in the preview, dismiss this.",
+  }
+}
+
 const entriesRead: Rule = {
   id: "R3",
   category: "readable",
@@ -122,11 +159,7 @@ const entriesRead: Rule = {
           if (words.length === 0) continue
           checked++
           if (words.every((word) => read.has(word))) continue
-          problems.push({
-            place: { kind: "entry", section, entry: entry.index, field: key },
-            message: `Hiring software doesn't read the ${labelOf(section, key)} with this entry`,
-            suggestion: "Keep the field to just what it's for: no dates, places or extra commas.",
-          })
+          problems.push({ place: { kind: "entry", section, entry: entry.index, field: key }, ...entryAdvice(section, key, entry.values[key]) })
         }
       })
     }
@@ -136,6 +169,28 @@ const entriesRead: Rule = {
 
 const short = (text: string) => (text.length > 40 ? `${text.slice(0, 40).trimEnd()}…` : text)
 
+// The shortest typed text that's worth matching inside a line, so a short
+// one, like "MI", isn't found in every line.
+const MIN_MATCH = 8
+
+/**
+ * The field a line the reader couldn't place came from: one whose text holds
+ * the whole line, or else the one that makes up the most of it, as a line can
+ * be one field printed beside another ("B.S. in Economics    Ann Arbor, MI").
+ * Either way, a field in the section it was found under comes first.
+ */
+function fieldOf(texts: { place: Place; text: string; section: SectionName | null }[], line: string, under: SectionName | null): Place | undefined {
+  const inSection = (section: SectionName | null) => (section !== null && section === under ? 1 : 0)
+  const whole = texts.filter(({ text }) => text.includes(line))
+  if (whole.length > 0) return whole.reduce((best, next) => (inSection(next.section) > inSection(best.section) ? next : best)).place
+  const parts = texts.filter(({ text }) => text.length >= MIN_MATCH && line.includes(text))
+  if (parts.length === 0) return undefined
+  return parts.reduce((best, next) => {
+    const nearer = inSection(next.section) - inSection(best.section)
+    return nearer > 0 || (nearer === 0 && next.text.length > best.text.length) ? next : best
+  }).place
+}
+
 const unplaced: Rule = {
   id: "R4",
   category: "readable",
@@ -144,17 +199,23 @@ const unplaced: Rule = {
   title: "Hiring software can place all your text",
   why: "Text it can't place under a section may be left out of what it reads.",
   check: ({ resume, pdf }) => {
-    const texts = textsOf(resume).map(({ place, text }) => ({ place, text: comparable(text) }))
+    const texts = textsOf(resume).map(({ place, text }) => ({
+      place,
+      text: comparable(text),
+      section: place.kind === "entry" || place.kind === "heading" ? place.section : null,
+    }))
+    // The section each printed heading stands for, to know which section a line was found under.
+    const headed = new Map(resume.order.map((section) => [comparable(resume.headings[section] || SECTIONS[section].title), section]))
     return {
       checked: 1,
       problems: pdf.parsed.unplaced.map((group): Problem => {
         // Pointing at the field it came from, when it can be found; text with
         // no letters or digits can't be, so it points at its page.
         const line = comparable(group.text[0] ?? "")
-        const typed = line ? texts.find(({ text }) => text.includes(line) || (text.length >= 8 && line.includes(text))) : undefined
+        const typed = line ? fieldOf(texts, line, headed.get(comparable(group.heading)) ?? null) : undefined
         const page: Place = { kind: "page", page: pdf.parsed.lines[group.lines[0]]?.page }
         return {
-          place: typed?.place ?? page,
+          place: typed ?? page,
           text: group.text.join(" "),
           message: `Hiring software can't tell where “${short(group.text[0] ?? "")}” belongs`,
           suggestion: "Check it's in the field it's for, without a date or place typed into it.",
