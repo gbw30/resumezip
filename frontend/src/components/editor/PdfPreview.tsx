@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ClipboardEvent } from "react"
 import { Document, Page, pdfjs } from "react-pdf"
 import "react-pdf/dist/esm/Page/AnnotationLayer.css"
 import "react-pdf/dist/esm/Page/TextLayer.css"
-import { Loader2 } from "lucide-react"
+import PrintingPage from "./PrintingPage"
 
 // The worker is bundled with the app, like the one lib/import/open.ts uses.
 // pdfjs-dist is pinned to react-pdf's version so both share one copy and the
@@ -25,6 +25,8 @@ const MAX_PAGE_WIDTH = 640
 const ZOOM_STEP = 0.1
 // Space between pages, matching gap-4.
 const PAGE_GAP = 16
+// How long the stand-in page takes to fade out over the first preview.
+const FADE_MS = 300
 
 interface PdfPreviewProps {
   /** Object URL of the latest compiled PDF. */
@@ -77,8 +79,19 @@ export default function PdfPreview({ pdfUrl, error }: PdfPreviewProps) {
 
   const shownDocument = documents.findLast((doc) => doc.ready) ?? documents[documents.length - 1]
   const numPages = shownDocument?.pages ?? 1
-  const isLoading = documents.length > 0 && !documents.some((doc) => doc.ready)
+  const waiting = !documents.some((doc) => doc.ready)
   const pageWidth = Math.min(availableWidth, MAX_PAGE_WIDTH) * zoom
+
+  // Once the first preview is on screen, the stand-in page fades out over it, then goes.
+  const [faded, setFaded] = useState(false)
+  useEffect(() => {
+    if (waiting) {
+      setFaded(false)
+      return
+    }
+    const timer = setTimeout(() => setFaded(true), FADE_MS)
+    return () => clearTimeout(timer)
+  }, [waiting])
 
   function onLoadSuccess(file: string, pages: number) {
     setDocuments((docs) => docs.map((doc) => (doc.file === file ? { ...doc, pages } : doc)))
@@ -123,21 +136,23 @@ export default function PdfPreview({ pdfUrl, error }: PdfPreviewProps) {
         </div>
       </div>
 
-      <div ref={scrollerRef} onCopy={copyPlainText} className="relative min-h-[480px] flex-1 overflow-auto px-5 pb-10 md:px-8">
-        {documents.length === 0 || loadError ? (
+      {/* Focusable, so the preview can be scrolled from the keyboard. */}
+      <div
+        ref={scrollerRef}
+        tabIndex={0}
+        onCopy={copyPlainText}
+        className="relative min-h-[480px] flex-1 overflow-auto px-5 pb-10 focus-visible:outline-offset-[-2px] md:px-8"
+      >
+        {loadError || (error && documents.length === 0) ? (
           <div className="flex h-full min-h-[480px] items-center justify-center text-sm text-ink-2">
-            {loadError || error ? "The preview couldn't be built." : "Your resume will appear here."}
+            The preview couldn&apos;t be built.
           </div>
         ) : (
           <div
             className="relative mx-auto"
             style={{ width: pageWidth, minHeight: numPages * pageWidth * (11 / 8.5) + (numPages - 1) * PAGE_GAP }}
           >
-            {isLoading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-sheet">
-                <Loader2 className="h-5 w-5 animate-spin text-ink-2" aria-label="Loading preview" />
-              </div>
-            )}
+            {!faded && <PrintingPage width={pageWidth} leaving={!waiting} />}
             {documents.map((doc) => (
               <div key={doc.file} className={doc === shownDocument ? "" : "invisible absolute inset-0"}>
                 <Document

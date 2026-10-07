@@ -23,6 +23,25 @@
   --font-logo: var(--font-outfit), var(--font-geist), sans-serif; /* the "resumezip" wordmark */
 }
 
+/* The line that passes down the preview's stand-in page while it waits (components/editor/PrintingPage.tsx). */
+@theme {
+  --animate-print-sweep: print-sweep 1.8s ease-in-out infinite;
+  @keyframes print-sweep {
+    from {
+      transform: translateY(0%);
+      opacity: 0;
+    }
+    15%,
+    85% {
+      opacity: 1;
+    }
+    to {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+  }
+}
+
 /* Small monospace caps for metadata: "03 / 08", "SAVED IN THIS BROWSER". */
 @utility label-mono {
   font-family: var(--font-geist-mono), ui-monospace, monospace;

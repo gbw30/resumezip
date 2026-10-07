@@ -18,7 +18,7 @@ import DownloadFailed, { nextFailure, type Failure } from "@/components/site/Dow
 import NotSaved from "@/components/site/NotSaved"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import { uniqueTitle } from "@/lib/resumeTitles"
-import { compilePreview, downloadResume, printedOf, Superseded } from "@/lib/typst/compile"
+import { compilePreview, downloadResume, loadCompiler, printedOf, Superseded } from "@/lib/typst/compile"
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
@@ -49,8 +49,17 @@ export default function EditorPage() {
     if (id) setCurrentResumeId(id)
   }, [id, setCurrentResumeId])
 
+  // Whether this browser has the resume, once storage has loaded.
+  const found = loaded && Boolean(resumes[id])
+
   // Resizing across the wide-screen width keeps the form where it was scrolled to.
-  useKeepFormPlace(mainRef, loaded && Boolean(resumes[id]))
+  useKeepFormPlace(mainRef, found)
+
+  // The PDF compiler starts loading as soon as the resume is found, before
+  // the first preview asks for it. A resume that isn't here doesn't need it.
+  useEffect(() => {
+    if (found) loadCompiler()
+  }, [found])
 
   // The saved order, plus any sections missing from older resumes.
   const sections = useMemo<SectionName[]>(() => {

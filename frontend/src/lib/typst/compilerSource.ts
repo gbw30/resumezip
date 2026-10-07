@@ -12,18 +12,21 @@ export const COMPILER_CDN_URL = `https://cdn.jsdelivr.net/npm/${COMPILER_PACKAGE
 /** The file's SHA-384, for subresource integrity. compilerSource.test.ts checks it against the installed package. */
 export const COMPILER_INTEGRITY = "sha384-YB32Rpk4pOvEGytOZweRBgdbuwNueLVpzJUQojjit/A8AveMWxDW8eT9ROz98jDo"
 
+/** The file's size in bytes, uncompressed, for saying how much of it has arrived. Checked like COMPILER_INTEGRITY. */
+export const COMPILER_SIZE = 28_325_178
+
 /**
  * Downloads a WebAssembly file and compiles it as it arrives. Fails if the
  * file doesn't match `integrity`, or if nothing arrives for `idleMs`, so a
  * stalled connection gives up while a slow one that keeps sending finishes.
- * `onData` is called each time some arrives. (fetch's own `integrity` option only answers once the whole file is in, so
+ * `onData` is called with the number of bytes each time some arrives. (fetch's own `integrity` option only answers once the whole file is in, so
  * it can't tell the two apart.)
  */
 export async function compileChecked(
   url: string,
   integrity: string,
   idleMs: number,
-  onData?: () => void,
+  onData?: (bytes: number) => void,
 ): Promise<WebAssembly.Module> {
   const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -38,9 +41,9 @@ export async function compileChecked(
     // One copy is compiled; the other is hashed, and watched for stalls until
     // it's all in. Compiling the rest can take a while on a slow computer.
     const copy = response.clone().body!
-    const hashed = sha384(copy, () => {
+    const hashed = sha384(copy, (bytes) => {
       waitForMore()
-      onData?.()
+      onData?.(bytes)
     }).finally(() => clearTimeout(timer))
     const [module, hash] = await Promise.all([WebAssembly.compileStreaming(response), hashed])
     if (hash !== integrity) throw new Error(`${url} isn't the expected file`)
@@ -54,15 +57,15 @@ export async function compileChecked(
   }
 }
 
-/** A stream's SHA-384 in subresource-integrity form, calling `onData` each time some arrives. */
-async function sha384(stream: ReadableStream<Uint8Array>, onData: () => void): Promise<string> {
+/** A stream's SHA-384 in subresource-integrity form, calling `onData` with the number of bytes each time some arrives. */
+async function sha384(stream: ReadableStream<Uint8Array>, onData: (bytes: number) => void): Promise<string> {
   const chunks: Uint8Array[] = []
   let size = 0
   const reader = stream.getReader()
   for (let read = await reader.read(); !read.done; read = await reader.read()) {
     chunks.push(read.value)
     size += read.value.length
-    onData()
+    onData(read.value.length)
   }
   const bytes = new Uint8Array(size)
   let at = 0

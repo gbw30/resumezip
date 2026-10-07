@@ -164,6 +164,9 @@ test("crossing 1280px keeps the form where it was scrolled to", async ({ page })
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
   await page.getByLabel("Location", { exact: true }).evaluate((input) => input.scrollIntoView({ block: "start", behavior: "instant" }))
   expect(Math.abs(await locationFromTop(page))).toBeLessThan(2)
+  // The page notes where the form is scrolled to when the scroll event
+  // arrives, with the next frame, so the window is resized after that.
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
 
   // The form scrolls with the page below 1280px and in its own pane above,
   // and Location stays at the top of it either way.
