@@ -6,7 +6,7 @@
 export const MAX_BYTES = 20 * 1024 * 1024
 /** Pages in a PDF, checked before any of them is read. */
 export const MAX_PAGES = 20
-/** Text, checked as it's read: a PDF's after each page, a Word file's once it's converted. */
+/** Text, checked as it's read: a PDF's as each piece arrives, a Word file's once it's converted. */
 export const MAX_CHARACTERS = 200_000
 export const MAX_LINES = 5_000
 /** A Word file's text once unzipped, checked before it's converted, since a small file can unzip to a lot. */

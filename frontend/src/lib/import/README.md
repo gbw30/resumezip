@@ -38,7 +38,7 @@ far beyond a real resume, which is a page or two and under 10,000 characters.
 | --- | --- | --- |
 | File size | 20 MB | before reading it |
 | PDF pages | 20 | as soon as the PDF opens, before any page is read |
-| Text | 200,000 characters or 5,000 lines | after each PDF page; a Word file's once converted |
+| Text | 200,000 characters or 5,000 lines | as a PDF's text arrives, even partway through a page; a Word file's once converted |
 | A Word file's XML, unzipped | 10 MB | before converting it, since a small file can unzip to a lot |
 | Time | 1 minute | from start to finish, downloads included |
 

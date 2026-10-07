@@ -15,12 +15,19 @@ const failure = (promise: Promise<unknown>) =>
     (error: Error) => error.name,
   )
 
-/** A page of text, a line per entry, as pdf.js reads it. */
+/** A line of text as pdf.js reads it, `index` lines down its page. */
+const textItem = (str: string, index: number) => ({ str, transform: [12, 0, 0, 12, 72, 720 - 16 * index], width: str.length * 6, height: 12, fontName: "F1" })
+
+/** A page of text, a line per entry, as pdf.js reads it: a line at a time. */
 const page = (lines: string[]) => ({
   view: [0, 0, 612, 792],
-  getTextContent: async () => ({
-    items: lines.map((str, i) => ({ str, transform: [12, 0, 0, 12, 72, 720 - 16 * i], width: str.length * 6, height: 12, fontName: "F1" })),
-  }),
+  streamTextContent: () =>
+    new ReadableStream({
+      start(controller) {
+        lines.forEach((line, index) => controller.enqueue({ items: [textItem(line, index)] }))
+        controller.close()
+      },
+    }),
   getOperatorList: async () => ({}),
   commonObjs: { get: () => ({ name: "Helvetica" }) },
   getAnnotations: async () => [],
@@ -174,6 +181,23 @@ describe("a PDF from another app", () => {
     expect(workers).toEqual([])
   })
 
+  test("with endless text stops reading partway through the page", async () => {
+    let lines = 0
+    const endless = new ReadableStream({
+      pull(controller) {
+        // Gives up eventually, so reading that doesn't stop fails the test rather than hanging it.
+        if (lines > (10 * MAX_CHARACTERS) / 1000) controller.error(new Error("Kept reading"))
+        else controller.enqueue({ items: [textItem("x".repeat(1000), lines++ % 40)] })
+      },
+    })
+    pages = [{ ...RESUME_PAGE, streamTextContent: () => endless }]
+    await expect(openResumeFile(pdf())).rejects.toThrow(new OpenFileError("This file has too much text to be a resume."))
+    // The line that went over, and the few pdf.js had sent ahead.
+    expect(lines).toBeGreaterThan(MAX_CHARACTERS / 1000)
+    expect(lines).toBeLessThan(MAX_CHARACTERS / 1000 + 5)
+    expect(opened).toEqual([{ closed: true }])
+  })
+
   test("with no text says it's probably a scan, and is closed", async () => {
     pages = [page([])]
     await expect(openResumeFile(pdf())).rejects.toThrow(
@@ -184,7 +208,8 @@ describe("a PDF from another app", () => {
   })
 
   test("is closed when a page can't be read", async () => {
-    pages = [RESUME_PAGE, { ...RESUME_PAGE, getTextContent: () => Promise.reject(new Error("Bad page")) }]
+    const bad = new ReadableStream({ start: (controller) => controller.error(new Error("Bad page")) })
+    pages = [RESUME_PAGE, { ...RESUME_PAGE, streamTextContent: () => bad }]
     await expect(openResumeFile(pdf())).rejects.toThrow("Bad page")
     expect(opened).toEqual([{ closed: true }])
   })

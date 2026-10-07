@@ -3,6 +3,7 @@
 // what's pushed to the right edge. parse.ts sorts the lines into fields.
 
 import type { PDFDocumentProxy } from "pdfjs-dist"
+import type { TextContent } from "pdfjs-dist/types/src/display/api"
 import { MAX_CHARACTERS, MAX_WORD_XML_BYTES, TooMuchTextError } from "./limits"
 
 /** A stretch of text in one style; `start` and `end` index into its part's text. */
@@ -226,7 +227,6 @@ export async function readPdf(doc: PDFDocumentProxy, signal?: AbortSignal): Prom
     const page = await doc.getPage(pageNumber)
     const [x0, y0, x1, y1] = page.view
 
-    const content = await page.getTextContent()
     // Font names (like "Calibri-Bold") are only available once the page's fonts are loaded.
     await page.getOperatorList()
     const fontStyles = new Map<string, { bold: boolean; italic: boolean }>()
@@ -245,24 +245,35 @@ export async function readPdf(doc: PDFDocumentProxy, signal?: AbortSignal): Prom
       return style
     }
 
+    // pdf.js sends a page's text a few pieces at a time, so reading stops at
+    // the first piece past the limit, even partway through a page.
     const items: Item[] = []
-    for (const item of content.items) {
-      if (!("str" in item) || item.str.trim() === "") continue
-      const [a, b, c, d, e, f] = item.transform as number[]
-      if (Math.abs(b) > Math.abs(a)) continue // rotated, like a vertical label in a sidebar
-      const text = item.str.replace(/[\u200B-\u200D\uFEFF\u00AD]/g, "")
-      characters += text.length
-      items.push({
-        text,
-        x: e - x0,
-        right: e - x0 + item.width,
-        baseline: f - y0,
-        size: Math.hypot(c, d) || item.height || 10,
-        ...styleOf(item.fontName),
-      })
+    const reader = (page.streamTextContent() as ReadableStream<TextContent>).getReader()
+    try {
+      for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+        for (const item of chunk.value.items) {
+          if (!("str" in item) || item.str.trim() === "") continue
+          const [a, b, c, d, e, f] = item.transform as number[]
+          if (Math.abs(b) > Math.abs(a)) continue // rotated, like a vertical label in a sidebar
+          const text = item.str.replace(/[\u200B-\u200D\uFEFF\u00AD]/g, "")
+          characters += text.length
+          if (characters > MAX_CHARACTERS) throw new TooMuchTextError()
+          items.push({
+            text,
+            x: e - x0,
+            right: e - x0 + item.width,
+            baseline: f - y0,
+            size: Math.hypot(c, d) || item.height || 10,
+            ...styleOf(item.fontName),
+          })
+        }
+      }
+    } catch (error) {
+      // pdf.js stops reading the rest of the page. It needs an Error as the
+      // reason, or it misses that the reading was stopped.
+      void reader.cancel(new Error("Stopped reading the page")).catch(() => {})
+      throw error
     }
-    // Before the next page is read.
-    if (characters > MAX_CHARACTERS) throw new TooMuchTextError()
 
     const annotations = (await page.getAnnotations()) as { subtype?: string; url?: string; unsafeUrl?: string; rect?: number[] }[]
     const links = annotations
