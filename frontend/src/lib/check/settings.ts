@@ -336,3 +336,16 @@ export const SHORTHAND: [string, string][] = [
   ["approx.", "about"], ["approx", "about"], ["govt", "government"], ["thru", "through"], ["esp.", "especially"],
   ["yrs", "years"], ["yr", "year"], ["hrs", "hours"], ["hr", "hour"], ["&", "and"],
 ]
+
+// Readable by hiring software (R1–R6).
+
+/**
+ * Characters that may not come through hiring software: emoji, arrows,
+ * stars, check marks, boxes and other symbols. FINE_SYMBOLS are exceptions.
+ */
+export const ODD_SYMBOLS =
+  /[\p{Extended_Pictographic}\p{Co}\u2190-\u21FF\u2300-\u23FF\u2460-\u24FF\u25A0-\u25FF\u2600-\u27BF\u2900-\u297F\u2B00-\u2BFF]/u
+
+/** Symbols that look like ODD_SYMBOLS but come through fine, as in a product's name. */
+export const FINE_SYMBOLS = ["©", "®", "™"]
+
