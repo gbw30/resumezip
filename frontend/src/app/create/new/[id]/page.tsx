@@ -104,10 +104,13 @@ export default function EditorPage() {
     return () => URL.revokeObjectURL(pdfUrl)
   }, [pdfUrl])
 
-  // The Edit / Preview switch steps aside while the keyboard is up.
+  // The Edit / Preview switch steps aside while a touch screen's keyboard is
+  // up. With a mouse and keyboard nothing covers the page, so it stays put and
+  // can be clicked while a field has focus.
   useEffect(() => {
+    const touch = window.matchMedia("(pointer: coarse)")
     const isField = (target: EventTarget | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
-    const onFocusIn = (event: FocusEvent) => setTyping(isField(event.target))
+    const onFocusIn = (event: FocusEvent) => setTyping(touch.matches && isField(event.target))
     const onFocusOut = (event: FocusEvent) => {
       if (isField(event.target) && !isField(event.relatedTarget)) setTyping(false)
     }
