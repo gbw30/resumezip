@@ -12,7 +12,7 @@ import modernjack from "./templates/modernjack.typ"
 import referme from "./templates/referme.typ"
 import resumeworded from "./templates/resumeworded.typ"
 import type { CompileRequest, CompileResponse, WorkerMessage, WorkerRequest } from "./compile"
-import { COMPILER_CDN_URL, COMPILER_INTEGRITY, compileChecked } from "./compilerSource"
+import { COMPILER_CDN_URL, COMPILER_INTEGRITY, COMPILER_SIZE, compileChecked } from "./compilerSource"
 
 const SOURCES: Record<string, string> = {
   "/common.typ": common,
@@ -62,25 +62,35 @@ let compiler: Promise<TypstCompiler> | null = null
 // copy is used instead.
 const CDN_IDLE_MS = 15_000
 
+// How much of the compiler has arrived, in bytes.
+let compilerBytes = 0
+
 // Tells the page the worker is getting on: some of the compiler or a font
-// arrived (at most once a second), or a slow step is starting (`now`). The
-// page only gives up when it hears nothing for a while (see compile.ts), so
-// this keeps a slow connection or a long step from being taken for a stuck one.
+// arrived (at most ten times a second), or a slow step is starting (`now`).
+// The page only gives up when it hears nothing for a while (see compile.ts),
+// so this keeps a slow connection or a long step from being taken for a
+// stuck one. It also says how much of the compiler has arrived, which the
+// preview shows while it waits.
 let reportedAt = 0
 function reportProgress(now = false) {
-  if (!now && Date.now() - reportedAt < 1_000) return
+  if (!now && Date.now() - reportedAt < 100) return
   reportedAt = Date.now()
-  postMessage({ progress: true } satisfies WorkerMessage)
+  postMessage({ progress: true, downloaded: Math.min(compilerBytes / COMPILER_SIZE, 1) } satisfies WorkerMessage)
 }
 
-// fetch, reporting progress as the body arrives.
-async function fetchReporting(url: string): Promise<Response> {
+const compilerArrived = (bytes: number) => {
+  compilerBytes += bytes
+  reportProgress()
+}
+
+// fetch, calling `onData` with the number of bytes as the body arrives.
+async function fetchReporting(url: string, onData: (bytes: number) => void = () => reportProgress()): Promise<Response> {
   const response = await fetch(url)
   if (!response.body) return response
   const body = response.body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
-        reportProgress()
+        onData(chunk.length)
         controller.enqueue(chunk)
       },
     }),
@@ -91,12 +101,17 @@ async function fetchReporting(url: string): Promise<Response> {
 // The compiler from jsDelivr, or the app's own copy if that fails (offline,
 // blocked, stalled, or not the expected file).
 async function compilerModule(): Promise<WebAssembly.Module | Response> {
+  compilerBytes = 0
   try {
-    return await compileChecked(COMPILER_CDN_URL, COMPILER_INTEGRITY, CDN_IDLE_MS, reportProgress)
+    return await compileChecked(COMPILER_CDN_URL, COMPILER_INTEGRITY, CDN_IDLE_MS, compilerArrived)
   } catch {
-    // Fall through to the bundled copy.
+    // Fall through to the bundled copy, which starts from nothing.
+    compilerBytes = 0
   }
-  return fetchReporting(new URL("@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm", import.meta.url).href)
+  return fetchReporting(
+    new URL("@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm", import.meta.url).href,
+    compilerArrived,
+  )
 }
 
 async function fetchFont(url: string): Promise<Uint8Array> {
@@ -125,10 +140,17 @@ async function createCompiler(): Promise<TypstCompiler> {
 
 function getCompiler(): Promise<TypstCompiler> {
   // Forget a failed start (e.g. a network error) so the next request retries.
-  compiler ??= createCompiler().catch((error) => {
-    compiler = null
-    throw error
-  })
+  compiler ??= createCompiler().then(
+    (instance) => {
+      postMessage({ ready: true } satisfies WorkerMessage)
+      return instance
+    },
+    (error) => {
+      compiler = null
+      postMessage({ ready: false } satisfies WorkerMessage)
+      throw error
+    },
+  )
   return compiler
 }
 

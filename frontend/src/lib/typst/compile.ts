@@ -55,8 +55,17 @@ export type CompileResponse = { id: number; pdf: Uint8Array } | { id: number; er
 /** What the page sends the worker: a resume to compile, or word to start loading the compiler before one comes. */
 export type WorkerRequest = CompileRequest | { load: true }
 
-/** What the worker sends: an answer, or word that more of the compiler or a font has downloaded. */
-export type WorkerMessage = CompileResponse | { progress: true }
+/**
+ * What the worker sends: an answer; word that it's getting on, with the share
+ * of the compiler that has downloaded so far; or whether the compiler loaded.
+ */
+export type WorkerMessage = CompileResponse | { progress: true; downloaded: number } | { ready: boolean }
+
+/** How far the compiler has got, for the preview to show while it waits. `downloaded` is the share of it that has arrived. */
+export interface CompilerStatus {
+  loaded: boolean
+  downloaded: number
+}
 
 // The worker is taken to be stuck when it has work and goes this long without
 // sending anything. While the compiler downloads, each bit that arrives
@@ -66,11 +75,27 @@ const LOADING_MS = 30_000
 const COMPILING_MS = 20_000
 
 let worker: Worker | null = null
-// Whether the current worker's compiler has loaded.
-let loaded = false
+// Whether the current worker's compiler has loaded, and how much of it has arrived.
+let status: CompilerStatus = { loaded: false, downloaded: 0 }
+const statusListeners = new Set<() => void>()
 let watchdog: ReturnType<typeof setTimeout> | undefined
 let nextId = 0
 const pending = new Map<number, { resolve: (pdf: Uint8Array) => void; reject: (error: Error) => void }>()
+
+function setStatus(next: CompilerStatus) {
+  if (next.loaded === status.loaded && next.downloaded === status.downloaded) return
+  status = next
+  for (const listener of statusListeners) listener()
+}
+
+/** How far the compiler has got loading. */
+export const compilerStatus = (): CompilerStatus => status
+
+/** Calls `listener` whenever compilerStatus changes, until the returned function is called. */
+export function onCompilerStatus(listener: () => void): () => void {
+  statusListeners.add(listener)
+  return () => statusListeners.delete(listener)
+}
 
 // Waits afresh for the worker's next sign of life, while it has work.
 function watch() {
@@ -78,8 +103,8 @@ function watch() {
   watchdog = undefined
   if (pending.size === 0) return
   watchdog = setTimeout(
-    () => restart(new PdfError("Making the PDF took too long", loaded ? "crash" : "connection")),
-    loaded ? COMPILING_MS : LOADING_MS,
+    () => restart(new PdfError("Making the PDF took too long", status.loaded ? "crash" : "connection")),
+    status.loaded ? COMPILING_MS : LOADING_MS,
   )
 }
 
@@ -93,7 +118,7 @@ function restart(error: PdfError) {
   watch()
   worker?.terminate()
   worker = null
-  loaded = false
+  setStatus({ loaded: false, downloaded: 0 })
 }
 
 function getWorker(): Worker {
@@ -108,14 +133,18 @@ function getWorker(): Worker {
       const request = pending.get(data.id)
       pending.delete(data.id)
       if ("pdf" in data) {
-        loaded = true
+        setStatus({ loaded: true, downloaded: 1 })
         request?.resolve(data.pdf)
       } else {
-        if (data.failure === "resume") loaded = true
+        if (data.failure === "resume") setStatus({ loaded: true, downloaded: 1 })
         request?.reject(new PdfError(data.error, data.failure))
         // A broken compiler can't be trusted with the rest.
         if (data.failure === "crash") return restart(new PdfError(data.error, "crash"))
       }
+    } else if ("ready" in data) {
+      setStatus({ loaded: data.ready, downloaded: data.ready ? 1 : 0 })
+    } else if (!status.loaded) {
+      setStatus({ loaded: false, downloaded: data.downloaded })
     }
     watch()
   }
