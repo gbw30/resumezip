@@ -278,6 +278,9 @@ export const US_STATES: [string, string][] = [
   ["WV", "West Virginia"], ["WI", "Wisconsin"], ["WY", "Wyoming"],
 ]
 
+/** State names that are also countries, so a place written with one may not be in the US: "Tbilisi, Georgia". */
+export const STATES_ALSO_COUNTRIES = ["Georgia"]
+
 /** Degree abbreviations with dots and without, to find both on one resume. MBA goes either way, so it isn't here. */
 export const DEGREE_ABBREVIATIONS: [string, string][] = [
   ["B.S.", "BS"], ["B.A.", "BA"], ["B.Sc.", "BSc"], ["B.S.E.", "BSE"], ["B.Eng.", "BEng"], ["B.B.A.", "BBA"],
@@ -310,6 +313,15 @@ export const NUMBER_UNITS = [
   "hour", "hours", "day", "days", "week", "weeks", "month", "months", "yr", "yrs", "year", "years", "pt", "pts", "point",
   "points", "percent", "times", "x", "kb", "mb", "gb", "tb", "mm", "cm", "km", "in", "inches", "ft", "feet", "mile",
   "miles", "kg", "lbs", "degrees",
+]
+
+/**
+ * Small words after a number that show it isn't counting the next word, as in
+ * "from 9 days to 6 across 30 centers", where "6" is days.
+ */
+export const NOT_COUNTED_AFTER = [
+  "a", "across", "after", "an", "and", "as", "at", "before", "between", "but", "by", "during", "for", "from", "in", "into",
+  "of", "on", "onto", "or", "over", "per", "since", "than", "the", "to", "under", "until", "via", "with", "within",
 ]
 
 /** Words before a number that make it a label rather than a count: "version 2", "phase 3". */

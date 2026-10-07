@@ -83,6 +83,14 @@ describe("P3 states and degrees written one way", () => {
     ])
   })
 
+  test("doesn't take a country with a state's name for the state", () => {
+    const resume = {
+      profileSection: { fullName: "Jake Ryan", location: "Austin, TX" },
+      workExperienceSection: [job(["Built it"], { workLocation: "Seattle, WA" }), job(["Led it"], { workLocation: "Tbilisi, Georgia" })],
+    }
+    expect(check("P3", resume).status).toBe("passed")
+  })
+
   test("leaves places outside the US, MBAs, and anything written one way", () => {
     const resume = {
       profileSection: { fullName: "Jake Ryan", location: "London, UK" },
@@ -105,6 +113,10 @@ describe("P4 spacing", () => {
       ["No space after a comma", "Write “Python, SQL”."],
       ["No space after a period", "Write “users. Built”."],
     ])
+  })
+
+  test("shows every kind of spacing problem in a text at once", () => {
+    expect(check("P4", resumeWith(job(["Used  Python,SQL and Go"]))).messages).toEqual(["Two spaces in a row", "No space after a comma"])
   })
 
   test("leaves numbers, tech names, abbreviations and links alone", () => {
@@ -193,8 +205,25 @@ describe("P7 numbers written one way", () => {
     expect(check("P7", resumeWith(job(["Led 3 engineers", "Ran phase three trials", "Shipped level two support"]))).status).toBe("passed")
   })
 
+  test("flags a bullet with both a digit and a word, written the usual way", () => {
+    expect(check("P7", resumeWith(job(["Led 5 engineers and mentored four interns", "Ran 3 sprints"]))).findings).toEqual([
+      expect.objectContaining({ place: bulletAt(0), message: "“5” and “four” in one bullet", suggestion: "Write “4”." }),
+    ])
+    // With nothing else to go by, small counts go in words.
+    expect(check("P7", resumeWith(job(["Led 5 engineers and mentored four interns", "Built the index"]))).findings).toEqual([
+      expect.objectContaining({ suggestion: "Write “five”." }),
+    ])
+  })
+
   test("leaves measurements and sizes out, in digits or words", () => {
-    const bullets = ["Mentor two junior engineers", "Cut latency to 9 ms", "Served 4 million users", "Took 2 minutes off each build", "Ran for six months"]
+    const bullets = [
+      "Mentor two junior engineers",
+      "Cut latency to 9 ms",
+      "Served 4 million users",
+      "Took 2 minutes off each build",
+      "Ran for six months",
+      "Found two steps to cut, taking the wait from 9 days to 6 across 30 centers",
+    ]
     expect(check("P7", resumeWith(job(bullets))).status).toBe("passed")
   })
 })

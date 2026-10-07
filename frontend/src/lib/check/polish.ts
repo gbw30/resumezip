@@ -5,7 +5,17 @@ import type { SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
 import type { Place } from "./places"
 import { textsOf, type ResumeView } from "./resume"
-import { ACRONYMS, DEGREE_ABBREVIATIONS, LOWERCASE_NAMES, NUMBER_LABELS, NUMBER_UNITS, SHORTHAND, US_STATES } from "./settings"
+import {
+  ACRONYMS,
+  DEGREE_ABBREVIATIONS,
+  LOWERCASE_NAMES,
+  NOT_COUNTED_AFTER,
+  NUMBER_LABELS,
+  NUMBER_UNITS,
+  SHORTHAND,
+  STATES_ALSO_COUNTRIES,
+  US_STATES,
+} from "./settings"
 import { bulletsIn, escaped, firstWord, mostCommon, type PlacedBullet } from "./text"
 import { verbOf } from "./verbs"
 
@@ -71,7 +81,10 @@ interface Way {
   rewrite: string
 }
 
-const STATE_NAMES = new Map(US_STATES.map(([abbreviation, name]) => [name.toLowerCase(), abbreviation]))
+// Written-out names that are also countries aren't counted: "Tbilisi, Georgia" may not be in the US.
+const STATE_NAMES = new Map(
+  US_STATES.filter(([, name]) => !STATES_ALSO_COUNTRIES.includes(name)).map(([abbreviation, name]) => [name.toLowerCase(), abbreviation]),
+)
 const STATE_ABBREVIATIONS = new Map(US_STATES)
 
 // Where places are written, besides the profile's location.
@@ -160,13 +173,13 @@ const spacing: Rule = {
     if (texts.length === 0) return null
     return {
       checked: texts.length,
-      problems: texts.flatMap(({ place, text }) => {
-        for (const { pattern, message, suggestion } of SPACING) {
+      // Each kind of spacing problem in a text, so all of them show at once.
+      problems: texts.flatMap(({ place, text }) =>
+        SPACING.flatMap(({ pattern, message, suggestion }) => {
           const found = pattern.exec(text)
-          if (found) return [{ place, message, suggestion: suggestion(found) }]
-        }
-        return []
-      }),
+          return found ? [{ place, message, suggestion: suggestion(found) }] : []
+        }),
+      ),
     }
   },
 }
@@ -239,8 +252,9 @@ const shorthand: Rule = {
 }
 
 const WORDS_FOR = ["two", "three", "four", "five", "six", "seven", "eight", "nine"]
-// Before a counted thing ("5 engineers"), but not a unit or a size ("9 ms", "4 million").
-const COUNTED = String.raw`(?= (?!(?:${NUMBER_UNITS.join("|")})\b)\p{Ll})`
+// Before a counted thing ("5 engineers"), but not a unit or a size ("9 ms",
+// "4 million"), or a small word that shows it isn't counting ("to 6 across").
+const COUNTED = String.raw`(?= (?!(?:${[...NUMBER_UNITS, ...NOT_COUNTED_AFTER].join("|")})\b)\p{Ll})`
 const DIGIT = new RegExp(String.raw`(?<![\p{L}\p{N}$€£.,/-])[2-9]${COUNTED}`, "gu")
 const LABELS = new Set(NUMBER_LABELS)
 
@@ -270,7 +284,8 @@ function wordCount(text: string): string | undefined {
 }
 
 // A count from 2 to 9, written as a digit or a word, and a percentage written
-// with "%" or "percent".
+// with "%" or "percent". When nothing else on the resume says which way is
+// usual, small counts go in words and percentages with "%".
 const NUMBER_WAYS = [
   {
     digit: digitCount,
@@ -278,6 +293,7 @@ const NUMBER_WAYS = [
     asWord: (digit: string) => WORDS_FOR[Number(digit) - 2],
     asDigit: (word: string) => String(WORDS_FOR.indexOf(word.toLowerCase()) + 2),
     elsewhere: { digit: "digits", word: "words" },
+    usually: "word" as const,
   },
   {
     digit: (text: string) => /\p{N}[\p{N}.,]*\s*%/u.exec(text)?.[0],
@@ -285,6 +301,7 @@ const NUMBER_WAYS = [
     asWord: (digit: string) => digit.replace(/\s*%/, " percent"),
     asDigit: (word: string) => word.replace(/\s*percent/i, "%"),
     elsewhere: { digit: "“%”", word: "“percent”" },
+    usually: "digit" as const,
   },
 ]
 
@@ -300,22 +317,27 @@ const numbersOneWay: Rule = {
     if (bullets.length < 2) return null
     const problems = new Map<string, Problem>()
     for (const ways of NUMBER_WAYS) {
-      // Each bullet that has one way and not the other.
-      const written = bullets.flatMap((placed): (PlacedBullet & { way: "digit" | "word"; found: string })[] => {
-        const digit = ways.digit(placed.bullet.text)
-        const word = ways.word(placed.bullet.text)
-        if (digit && !word) return [{ ...placed, way: "digit", found: digit }]
-        return word && !digit ? [{ ...placed, way: "word", found: word }] : []
+      // How each bullet writes it: as a digit, as a word, or both.
+      const written = bullets.flatMap((placed): (PlacedBullet & { digit?: string; word?: string })[] => {
+        const digit = ways.digit(placed.bullet.text)?.trim()
+        const word = ways.word(placed.bullet.text)?.trim()
+        return digit || word ? [{ ...placed, digit, word }] : []
       })
-      const usual = mostCommon(written.map(({ way }) => way))
-      for (const { place, bullet, way, found } of written) {
+      const oneWay = written.filter(({ digit, word }) => !digit !== !word).map(({ digit }) => (digit ? ("digit" as const) : ("word" as const)))
+      const usual = mostCommon(oneWay) ?? ways.usually
+      for (const { place, bullet, digit, word } of written) {
         const key = `${fieldOf(place)}|${bullet.line}|${place.kind === "entry" ? `${place.section}.${place.entry}` : ""}`
-        if (way === usual || problems.has(key)) continue
-        problems.set(key, {
-          place,
-          message: `“${found.trim()}” here, ${ways.elsewhere[usual!]} elsewhere`,
-          suggestion: `Write “${way === "word" ? ways.asDigit(found) : ways.asWord(found)}”.`,
-        })
+        if (problems.has(key)) continue
+        if (digit && word) {
+          const rewrite = usual === "digit" ? ways.asDigit(word) : ways.asWord(digit)
+          problems.set(key, { place, message: `“${digit}” and “${word}” in one bullet`, suggestion: `Write “${rewrite}”.` })
+        } else if ((digit ? "digit" : "word") !== usual) {
+          problems.set(key, {
+            place,
+            message: `“${digit ?? word}” here, ${ways.elsewhere[usual]} elsewhere`,
+            suggestion: `Write “${digit ? ways.asWord(digit) : ways.asDigit(word!)}”.`,
+          })
+        }
       }
     }
     return { checked: bullets.length, problems: [...problems.values()] }
