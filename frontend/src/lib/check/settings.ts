@@ -64,6 +64,13 @@ export const STREET_WORDS = [
   "Ct", "Court", "Pl", "Place", "Pkwy", "Parkway", "Hwy", "Highway", "Ter", "Terrace", "Cir", "Circle",
 ]
 
+// Around a detail written as an item on its own, as in "Age 22 · Single ·
+// Austin, TX": the start of the text or a separator before it, and the end or
+// a separator after it. Some details are only flagged that way, so a
+// "single-page app" or a "15-year-old codebase" isn't.
+const START = String.raw`(?:^|[,;|·•(]\s*)`
+const END = String.raw`\s*(?:$|[,;|·•)])`
+
 /**
  * Personal details to leave off, and how they're usually written. Nationality,
  * citizenship and clearance are never flagged: roles that need a security
@@ -74,13 +81,24 @@ export const PERSONAL_DETAILS = [
     name: "date of birth",
     pattern: /\b(date of birth|birth ?date|D\.?O\.?B\b)|\bborn\s+((on|in)\s+)?(\d|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d)/i,
   },
-  { name: "age", pattern: /\bage\s*:\s*\d|\b\d{2}\s*(years|yrs)\.?\s*old\b|\byears of age\b/i },
-  { name: "gender", pattern: /\b(gender|sex)\s*:/i },
-  { name: "marital status", pattern: /\bmarital status\b|\b(married|divorced|widowed)\b/i },
+  {
+    name: "age",
+    pattern: new RegExp(
+      String.raw`\bage\s*:\s*\d|\b\d{2}\s*(years|yrs)\.?\s*old\b|\byears of age\b|${START}age\s+\d{2}\b|\b\d{2}[- ](year|yr)[- ]old${END}`,
+      "i",
+    ),
+  },
+  { name: "gender", pattern: new RegExp(String.raw`\b(gender|sex)\s*:|${START}(male|female)${END}`, "i") },
+  { name: "marital status", pattern: new RegExp(String.raw`\bmarital status\b|\b(married|divorced|widowed)\b|${START}single${END}`, "i") },
 ] as const
 
-/** A Social Security number, as it's usually written. */
-export const SSN = /\b\d{3}-\d{2}-\d{4}\b/
+/**
+ * A Social Security number, as it's usually written: 123-45-6789 or
+ * 123 45 6789, or nine digits right after "SSN" or "Social Security". Nine
+ * digits on their own aren't flagged, as LinkedIn's made-up link endings and
+ * other IDs have them too.
+ */
+export const SSN = /\b\d{3}[- ]\d{2}[- ]\d{4}\b|\b(ssn|social security(\s+(number|no\.?))?)\s*[:#]?\s*\d{9}\b/i
 
 // Sections & entries (S1–S9).
 

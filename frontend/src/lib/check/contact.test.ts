@@ -142,6 +142,17 @@ describe("C9 personal details", () => {
     expect(check("C9", skills).messages).toEqual(["Leave off your age", "Leave off your marital status"])
   })
 
+  test("flags the ones written on their own, as in a list", () => {
+    expect(check("C9", withProfile({ location: "Austin, TX · Age 22 · Single" })).messages).toEqual([
+      "Leave off your age",
+      "Leave off your marital status",
+    ])
+    expect(check("C9", withProfile({ location: "Austin, TX, 22-year-old, Male" })).messages).toEqual([
+      "Leave off your age",
+      "Leave off your gender",
+    ])
+  })
+
   test("tells two details in one field apart, so each can be dismissed on its own", () => {
     const [age, gender] = check("C9", withProfile({ location: "Age: 22, Gender: Male" })).findings
     expect(age.key).not.toBe(gender.key)
@@ -161,10 +172,18 @@ describe("C9 personal details", () => {
         id: 1,
         workRole: "Engineer",
         companyName: "Google",
-        workDescription: "• Built a gender-neutral language model\n• Cut page load for users of every age group\n• Moved a 15 year old codebase to TypeScript",
+        workDescription: [
+          "• Built a gender-neutral language model",
+          "• Cut page load for users of every age group",
+          "• Moved a 15 year old codebase to TypeScript",
+          "• Migrated a 15-year-old codebase to a single-page app",
+          "• Tutored students age 12 to 15",
+          "• Ran user studies with male and female participants",
+        ].join("\n"),
       },
     ]
-    expect(check("C9", { ...jake, workExperienceSection: work }).status).toBe("passed")
+    const education = [{ id: 1, schoolName: "University of Texas at Austin", involvement: "Female Founders Club" }]
+    expect(check("C9", { ...jake, workExperienceSection: work, educationSection: education }).status).toBe("passed")
   })
 })
 
@@ -175,7 +194,17 @@ describe("C10 Social Security number", () => {
     ])
   })
 
-  test("doesn't take a phone number or a date for one", () => {
+  test("flags one written with spaces, or as nine digits after its name", () => {
+    for (const location of ["123 45 6789", "SSN: 123456789", "Social Security No. 123456789"]) {
+      expect(check("C10", withProfile({ location })).messages, location).toEqual(["Leave off your Social Security number"])
+    }
+  })
+
+  test("doesn't take a phone number, a date or another nine-digit number for one", () => {
     expect(check("C10", withProfile({ phoneNumber: "512-555-0142", location: "2021-05-2023" })).status).toBe("passed")
+    // LinkedIn's made-up endings and DOIs can have nine digits in a row.
+    const publications = [{ id: 1, publicationTitle: "Sparse Attention", publicationLink: "10.1145/123456789" }]
+    const resume = { ...withProfile({ linkedin: "linkedin.com/in/jake-ryan-123456789" }), publicationsSection: publications }
+    expect(check("C10", resume).status).toBe("passed")
   })
 })
