@@ -12,11 +12,12 @@ import { addWord, CHECK_FIELD, changeCheck, dismiss, restore, type CheckState } 
  */
 export function useResumeCheck(pdf?: PdfReading) {
   const { formData, updateFormData } = useResumeContext()
-  const resume = useDeferredValue(formData)
-  // `pdf` is of the resume as it is now, so while the deferred copy is behind,
-  // the PDF rules wait rather than compare it with a newer PDF.
-  const current = resume === formData
-  const report = useMemo(() => runChecks(resume, { pdf: current ? pdf : undefined }), [resume, pdf, current])
+  // `pdf` is of the resume as it is now, so the two are deferred together:
+  // the PDF rules never compare a resume with a PDF of another version, and a
+  // keystroke doesn't run the checks again on the old resume before the new.
+  const latestInput = useMemo(() => ({ resume: formData, pdf }), [formData, pdf])
+  const input = useDeferredValue(latestInput)
+  const report = useMemo(() => runChecks(input.resume, { pdf: input.pdf }), [input])
 
   // Changes start from the resume as it is now, not as last checked.
   const latest = useRef({ formData, report })

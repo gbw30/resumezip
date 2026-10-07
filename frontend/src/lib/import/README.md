@@ -23,7 +23,9 @@ pdf.js reads PDFs in a worker of its own; the page only collects each page's
 text (`readPdf`). Everything else happens in an import worker (`import.worker.ts`,
 which runs `read.ts`): sorting a PDF's text into lines, converting a Word file
 with mammoth, and parsing. Each file gets a worker of its own, which is ended as
-soon as it answers, so a big or odd file can't freeze the page.
+soon as it answers, so a big or odd file can't freeze the page. The checker's
+readings of the preview (`lib/check/preview.ts`) keep one between readings
+instead, as a new preview comes with every pause in typing.
 
 Cancel stops reading straight away: it closes the PDF, which ends pdf.js's worker,
 and ends the import worker. A PDF that's shown in the review stays open until the

@@ -25,7 +25,10 @@ sent anywhere.
 - `preview.ts` reads the preview PDF the way hiring software would, with the
   resume reader in `lib/import`. The editor reads each new preview once Check
   has been opened, while the page is idle, and the PDF rules only use a
-  reading while it matches what the resume prints.
+  reading while it matches what the resume prints. It keeps pdf.js's worker
+  and the import worker from one reading to the next, and remembers the last
+  few readings, so a preview it has read before, as after an undo, isn't read
+  again.
 - `places.ts` says where a finding is, so the editor can open it.
 - `state.ts` keeps what the person told the checker: findings they dismissed
   and words they added.

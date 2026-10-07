@@ -330,3 +330,33 @@ describe("downloading pdf.js", () => {
     expect(downloads).toBe(1)
   })
 })
+
+describe("reading in a worker", () => {
+  const request: ReadRequest = { kind: "pdf", pages: [] }
+  const signal = () => new AbortController().signal
+
+  test("ends each worker once it answers, unless asked to keep it for the next reading that keeps one", async () => {
+    const { readInWorker } = await import("./open")
+    await readInWorker(request, signal())
+    expect(workers.map((worker) => worker.ended)).toEqual([true])
+    // The checker reads each new preview: one worker does them all.
+    await readInWorker(request, signal(), { keep: true })
+    await readInWorker(request, signal(), { keep: true })
+    expect(workers.map((worker) => worker.ended)).toEqual([true, false])
+  })
+
+  test("ends a kept worker that's stopped, and starts another for the next reading", async () => {
+    const { readInWorker } = await import("./open")
+    await readInWorker(request, signal(), { keep: true })
+    // A newer preview stops this reading before the worker answers.
+    answer = new Promise(() => {})
+    const stopped = new AbortController()
+    const reading = readInWorker(request, stopped.signal, { keep: true })
+    stopped.abort(new Error("A newer preview"))
+    await expect(reading).rejects.toThrow("A newer preview")
+    expect(workers.map((worker) => worker.ended)).toEqual([true])
+    answer = Promise.resolve()
+    await readInWorker(request, signal(), { keep: true })
+    expect(workers.map((worker) => worker.ended)).toEqual([true, false])
+  })
+})
