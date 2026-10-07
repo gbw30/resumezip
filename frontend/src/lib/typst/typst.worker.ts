@@ -11,7 +11,7 @@ import levelsfyi from "./templates/levelsfyi.typ"
 import modernjack from "./templates/modernjack.typ"
 import referme from "./templates/referme.typ"
 import resumeworded from "./templates/resumeworded.typ"
-import type { CompileRequest, CompileResponse } from "./compile"
+import type { CompileRequest, CompileResponse, WorkerMessage } from "./compile"
 import { COMPILER_CDN_URL, COMPILER_INTEGRITY, compileChecked } from "./compilerSource"
 
 const SOURCES: Record<string, string> = {
@@ -62,22 +62,49 @@ let compiler: Promise<TypstCompiler> | null = null
 // copy is used instead.
 const CDN_IDLE_MS = 15_000
 
+// Tells the page the worker is getting on: some of the compiler or a font
+// arrived (at most once a second), or a slow step is starting (`now`). The
+// page only gives up when it hears nothing for a while (see compile.ts), so
+// this keeps a slow connection or a long step from being taken for a stuck one.
+let reportedAt = 0
+function reportProgress(now = false) {
+  if (!now && Date.now() - reportedAt < 1_000) return
+  reportedAt = Date.now()
+  postMessage({ progress: true } satisfies WorkerMessage)
+}
+
+// fetch, reporting progress as the body arrives.
+async function fetchReporting(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const response = await fetch(input, init)
+  if (!response.body) return response
+  const body = response.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        reportProgress()
+        controller.enqueue(chunk)
+      },
+    }),
+  )
+  return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers })
+}
+
 // The compiler from jsDelivr, or the app's own copy if that fails (offline,
 // blocked, stalled, or not the expected file).
 async function compilerModule(): Promise<WebAssembly.Module | Response> {
   try {
-    return await compileChecked(COMPILER_CDN_URL, COMPILER_INTEGRITY, CDN_IDLE_MS)
+    return await compileChecked(COMPILER_CDN_URL, COMPILER_INTEGRITY, CDN_IDLE_MS, reportProgress)
   } catch {
     // Fall through to the bundled copy.
   }
-  return fetch(new URL("@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm", import.meta.url))
+  return fetchReporting(new URL("@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm", import.meta.url))
 }
 
 async function createCompiler(): Promise<TypstCompiler> {
   const instance = createTypstCompiler()
   await instance.init({
     getModule: compilerModule,
-    beforeBuild: [loadFonts(FONTS, { assets: false })],
+    // Building the compiler comes next.
+    beforeBuild: [loadFonts(FONTS, { assets: false, fetcher: fetchReporting }), async () => reportProgress(true)],
   })
   for (const [path, source] of Object.entries(SOURCES)) instance.addSource(path, source)
   return instance
@@ -94,8 +121,11 @@ function getCompiler(): Promise<TypstCompiler> {
 
 addEventListener("message", async ({ data: { id, template, data, attachment } }: MessageEvent<CompileRequest>) => {
   let response: CompileResponse
+  let typst: TypstCompiler | undefined
   try {
-    const typst = await getCompiler()
+    typst = await getCompiler()
+    // Compiling comes next.
+    reportProgress(true)
     // Nothing is awaited between writing the data and compiling it, so
     // concurrent requests can't see each other's data.
     typst.mapShadow("/resume.json", new TextEncoder().encode(JSON.stringify(data)))
@@ -108,9 +138,14 @@ addEventListener("message", async ({ data: { id, template, data, attachment } }:
       format: CompileFormatEnum.pdf,
       diagnostics: "unix",
     })
-    response = result ? { id, pdf: result } : { id, error: diagnostics?.join("\n") || "Typst produced no output" }
+    response = result
+      ? { id, pdf: result }
+      : { id, error: diagnostics?.join("\n") || "Typst produced no output", failure: "resume" }
   } catch (error) {
-    response = { id, error: error instanceof Error ? error.message : String(error) }
+    // Without a compiler, it couldn't be downloaded. With one, the compiler
+    // itself broke, and the page replaces this worker.
+    const message = error instanceof Error ? error.message : String(error)
+    response = { id, error: message, failure: typst === undefined ? "connection" : "crash" }
   }
   postMessage(response)
 })

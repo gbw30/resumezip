@@ -16,10 +16,15 @@ export const COMPILER_INTEGRITY = "sha384-YB32Rpk4pOvEGytOZweRBgdbuwNueLVpzJUQoj
  * Downloads a WebAssembly file and compiles it as it arrives. Fails if the
  * file doesn't match `integrity`, or if nothing arrives for `idleMs`, so a
  * stalled connection gives up while a slow one that keeps sending finishes.
- * (fetch's own `integrity` option only answers once the whole file is in, so
+ * `onData` is called each time some arrives. (fetch's own `integrity` option only answers once the whole file is in, so
  * it can't tell the two apart.)
  */
-export async function compileChecked(url: string, integrity: string, idleMs: number): Promise<WebAssembly.Module> {
+export async function compileChecked(
+  url: string,
+  integrity: string,
+  idleMs: number,
+  onData?: () => void,
+): Promise<WebAssembly.Module> {
   const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
   const waitForMore = () => {
@@ -33,7 +38,10 @@ export async function compileChecked(url: string, integrity: string, idleMs: num
     // One copy is compiled; the other is hashed, and watched for stalls until
     // it's all in. Compiling the rest can take a while on a slow computer.
     const copy = response.clone().body!
-    const hashed = sha384(copy, waitForMore).finally(() => clearTimeout(timer))
+    const hashed = sha384(copy, () => {
+      waitForMore()
+      onData?.()
+    }).finally(() => clearTimeout(timer))
     const [module, hash] = await Promise.all([WebAssembly.compileStreaming(response), hashed])
     if (hash !== integrity) throw new Error(`${url} isn't the expected file`)
     return module

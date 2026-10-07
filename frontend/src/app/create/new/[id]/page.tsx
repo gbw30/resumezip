@@ -10,6 +10,7 @@ import ProfileForm from "@/components/editor/ProfileForm"
 import SectionForm from "@/components/editor/SectionForm"
 import SectionNav, { WIDE_SCREEN, type ActiveSection } from "@/components/editor/SectionNav"
 import TemplatePicker from "@/components/editor/TemplatePicker"
+import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
 import NotSaved from "@/components/site/NotSaved"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import { uniqueTitle } from "@/lib/resumeTitles"
@@ -24,6 +25,7 @@ export default function EditorPage() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [compileError, setCompileError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [failure, setFailure] = useState<Failure | null>(null)
   // Small screens show the form or the preview, not both.
   const [view, setView] = useState<"edit" | "preview">("edit")
   const [typing, setTyping] = useState(false)
@@ -124,8 +126,10 @@ export default function EditorPage() {
     setDownloading(true)
     try {
       await downloadResume({ ...formData, sectionOrder: sections })
+      setFailure(null)
     } catch (error) {
       console.error("Error downloading resume:", error)
+      setFailure((previous) => nextFailure(previous, error))
     } finally {
       setDownloading(false)
     }
@@ -205,6 +209,15 @@ export default function EditorPage() {
           </div>
         </div>
         <NotSaved className="border-t border-rule px-5 py-2.5 lg:px-6" />
+        {failure && (
+          <DownloadFailed
+            key={failure.count}
+            failure={failure}
+            retrying={downloading}
+            onRetry={download}
+            className="border-t border-rule px-5 py-2.5 lg:px-6"
+          />
+        )}
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">

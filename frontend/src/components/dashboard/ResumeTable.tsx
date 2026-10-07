@@ -4,6 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
+import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
 import { downloadResume } from "@/lib/typst/compile"
 import { templateById } from "@/lib/templates"
 import { RESUME_TAGS } from "./CreateResumeModal"
@@ -26,16 +27,20 @@ interface ResumeTableProps {
 }
 
 export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
-  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  // Ids of the resumes downloading, and why each one whose last download failed did.
+  const [downloading, setDownloading] = useState<string[]>([])
+  const [failed, setFailed] = useState<Record<string, Failure>>({})
 
   const download = async (resume: Record<string, any>) => {
-    setDownloadingId(resume.id)
+    setDownloading((ids) => [...ids, resume.id])
     try {
       await downloadResume(resume)
+      setFailed(({ [resume.id]: _, ...others }) => others)
     } catch (error) {
       console.error("Failed to build PDF:", error)
+      setFailed((all) => ({ ...all, [resume.id]: nextFailure(all[resume.id], error) }))
     } finally {
-      setDownloadingId(null)
+      setDownloading((ids) => ids.filter((id) => id !== resume.id))
     }
   }
 
@@ -60,10 +65,10 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
       <button
         type="button"
         onClick={() => download(resume)}
-        disabled={downloadingId === resume.id}
+        disabled={downloading.includes(resume.id)}
         className="inline-flex items-center gap-1.5 px-2 py-2.5 text-sm text-ink-2 hover:text-ink disabled:cursor-wait"
       >
-        {downloadingId === resume.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        {downloading.includes(resume.id) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
         Download
       </button>
       <button
@@ -76,8 +81,25 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
     </>
   )
 
+  // The latest copies, in case one was renamed or deleted since.
+  const failedResumes = resumes.filter((resume) => failed[resume.id])
+
   return (
     <>
+      {failedResumes.length > 0 && (
+        <div className="mb-6 flex max-w-[720px] flex-col gap-4">
+          {failedResumes.map((resume) => (
+            <DownloadFailed
+              key={`${resume.id}-${failed[resume.id].count}`}
+              failure={failed[resume.id]}
+              title={resume.resumeTitle || "Untitled resume"}
+              retrying={downloading.includes(resume.id)}
+              onRetry={() => download(resume)}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Phones: one card per resume, with its actions underneath. */}
       <ul className="border-t border-ink md:hidden">
         {resumes.map((resume) => (
