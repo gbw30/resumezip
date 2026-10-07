@@ -7,8 +7,8 @@
 <h1 align="center">resumezip</h1>
 
 <p align="center">
-  Great resumes, no sign-up.<br>
-  Write your resume, pick a template, download the PDF. All in your browser.
+  The resume builder that never sees your resume.<br>
+  A free, open-source resume builder that runs in your browser. Pick a template, write, and download the PDF.
 </p>
 
 <p align="center">
