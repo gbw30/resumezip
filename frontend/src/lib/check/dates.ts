@@ -4,98 +4,20 @@
 import type { SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
 import type { Place } from "./places"
-import { compareDates, monthName, readDate, readDateRange, type ResumeDate } from "./readDate"
+import { compareDates, datesOf, DATE_FIELDS, monthName, type EntryDates, type ResumeDate, type Written } from "./readDate"
 import type { Entry, ResumeView } from "./resume"
-
-// Each section's date fields: when it started and ended, or one field that
-// can hold a range, as a project's "Jun – Aug 2025".
-const DATE_FIELDS: Partial<Record<SectionName, { start: string; end: string } | { single: string }>> = {
-  Education: { start: "schoolStartDate", end: "schoolEndDate" },
-  Work: { start: "workStartDate", end: "workEndDate" },
-  Projects: { single: "projectDate" },
-  Publications: { single: "publicationDate" },
-  Volunteership: { start: "volunteerStartDate", end: "volunteerEndDate" },
-  Leadership: { start: "leadershipStartDate", end: "leadershipEndDate" },
-  Awards: { single: "awardDate" },
-}
+import { mostCommon } from "./text"
 
 // Jobs, schools and roles: what has a start and an end.
 const SPANS: SectionName[] = ["Work", "Education", "Leadership", "Volunteership"]
 
-/** A date on the resume, where it is, and how it's written. */
-interface Written {
-  entry: Entry
-  field: string
-  /** As written: the field, or one side of a range in it. */
-  text: string
-  date: ResumeDate
-}
-
-interface EntryDates {
-  entry: Entry
-  start?: Written
-  end?: Written
-  /** Date fields with something in them that can't be read. */
-  unreadable: { field: string; text: string }[]
-  /** How many date fields have something in them. */
-  filled: number
-}
-
 const at = (entry: Entry, field: string): Place => ({ kind: "entry", section: entry.section, entry: entry.index, field })
-
-/** An entry's dates: its start and end, from two fields or a range in one. */
-function datesOf(entry: Entry): EntryDates {
-  const fields = DATE_FIELDS[entry.section]
-  const found: EntryDates = { entry, unreadable: [], filled: 0 }
-  if (!fields) return found
-  const written = (field: string, text: string, date: ResumeDate): Written => ({ entry, field, text, date })
-  const range = (field: string, text: string) => {
-    const both = readDateRange(text)
-    if (!both) return false
-    found.start = written(field, both.start.text, both.start.date)
-    found.end = written(field, both.end.text, both.end.date)
-    return true
-  }
-  if ("single" in fields) {
-    const text = entry.values[fields.single]
-    if (!text) return found
-    found.filled = 1
-    const date = readDate(text)
-    if (date) found.end = written(fields.single, text, date)
-    else if (!range(fields.single, text)) found.unreadable.push({ field: fields.single, text })
-    return found
-  }
-  const start = entry.values[fields.start]
-  const end = entry.values[fields.end]
-  found.filled = Number(Boolean(start)) + Number(Boolean(end))
-  if (start) {
-    const date = readDate(start)
-    // A whole range typed into the start field reads too, when the end is empty.
-    if (date) found.start = written(fields.start, start, date)
-    else if (end || !range(fields.start, start)) found.unreadable.push({ field: fields.start, text: start })
-  }
-  if (end) {
-    const date = readDate(end)
-    if (date) found.end = written(fields.end, end, date)
-    else found.unreadable.push({ field: fields.end, text: end })
-  }
-  return found
-}
 
 /** The dates of each entry with something in it, section by section, in the order they're printed. */
 const allDates = (resume: ResumeView, sections: readonly SectionName[] = resume.order) =>
   resume.order.filter((section) => sections.includes(section)).map((section) => resume.sections[section].filter((entry) => !entry.blank).map(datesOf))
 
 const writtenIn = (dates: EntryDates) => [dates.start, dates.end].filter((date): date is Written => date !== undefined)
-
-// The value most of them have; on a tie, the one that comes first.
-function mostCommon<T>(values: T[]): T | undefined {
-  const counts = new Map<T, number>()
-  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
-  let best: T | undefined
-  for (const [value, count] of counts) if (best === undefined || count > counts.get(best)!) best = value
-  return best
-}
 
 const noDates: Rule = {
   id: "D1",
