@@ -19,6 +19,7 @@ import NotSaved from "@/components/site/NotSaved"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import { uniqueTitle } from "@/lib/resumeTitles"
 import { compilePreview, downloadResume, loadCompiler, printedOf, Superseded } from "@/lib/typst/compile"
+import { templateIdOf } from "@/lib/typst/resumeData"
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
@@ -55,11 +56,13 @@ export default function EditorPage() {
   // Resizing across the wide-screen width keeps the form where it was scrolled to.
   useKeepFormPlace(mainRef, found)
 
-  // The PDF compiler starts loading as soon as the resume is found, before
-  // the first preview asks for it. A resume that isn't here doesn't need it.
+  // The PDF compiler starts loading as soon as the resume is found, with its
+  // template's fonts, before the first preview asks for it. A resume that
+  // isn't here doesn't need it.
+  const template = templateIdOf(formData.selectedTemplate)
   useEffect(() => {
-    if (found) loadCompiler()
-  }, [found])
+    if (found) loadCompiler(template)
+  }, [found, template])
 
   // The saved order, plus any sections missing from older resumes.
   const sections = useMemo<SectionName[]>(() => {
