@@ -157,6 +157,12 @@ const skills: Rule = {
     const seen = new Set<string>()
     for (const entry of entries) {
       const items = listOf(entry.values.skillDetails)
+      // A group with a category but no skills prints as "Languages:" and nothing more.
+      if (items.length === 0) {
+        checked += 1
+        problems.push({ place: at(entry, "skillDetails"), message: "No skills in this group" })
+        continue
+      }
       checked += items.length
       if (items.length >= MAX_SKILLS_PER_LINE) {
         problems.push({
@@ -173,7 +179,7 @@ const skills: Rule = {
         seen.add(same)
       }
     }
-    return { checked: Math.max(1, checked), problems }
+    return { checked, problems }
   },
 }
 

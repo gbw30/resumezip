@@ -89,6 +89,19 @@ describe("S5 skills", () => {
     expect(check("S5", { ...jake, skillsSection: [] }).messages).toEqual(["Add your skills"])
   })
 
+  test("flags a group with a category but no skills", () => {
+    const skills = [
+      { id: 1, skillName: "Languages", skillDetails: "Python" },
+      { id: 2, skillName: "Tools" },
+    ]
+    expect(check("S5", { ...jake, skillsSection: skills }).findings).toEqual([
+      expect.objectContaining({ place: { kind: "entry", section: "Skills", entry: 1, field: "skillDetails" }, message: "No skills in this group" }),
+    ])
+    expect(check("S5", { ...jake, skillsSection: [{ id: 1, skillName: "Languages", skillDetails: " , " }] }).messages).toEqual([
+      "No skills in this group",
+    ])
+  })
+
   test("flags a line of 15 or more", () => {
     const many = Array.from({ length: 15 }, (_, i) => `Tool ${i + 1}`).join(", ")
     expect(check("S5", { ...jake, skillsSection: [{ id: 1, skillName: "Tools", skillDetails: many }] }).messages).toEqual(["15 skills on one line"])
