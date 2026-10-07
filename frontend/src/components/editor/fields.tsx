@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
-import { Pencil } from "lucide-react"
+import { ArrowDown, ArrowUp, Pencil } from "lucide-react"
 import type { Finding } from "@/lib/check/engine"
 import { LEVELS } from "@/lib/check/settings"
 
@@ -76,6 +76,35 @@ export function selectLine(textarea: HTMLTextAreaElement, line: number) {
   const start = lines.slice(0, line).reduce((total, text) => total + text.length + 1, 0)
   const bullet = lines[line].match(/^•\s*/)?.[0].length ?? 0
   textarea.setSelectionRange(start + bullet, start + lines[line].length)
+}
+
+/**
+ * Buttons that move something up or down one place in its list. At either
+ * end, the button that can't move it stays where it is (and focusable, so
+ * the focus isn't lost when something reaches the end), but does nothing.
+ */
+export function MoveButtons({ name, first, last, onMove }: { name: string; first: boolean; last: boolean; onMove: (by: -1 | 1) => void }) {
+  return (
+    <span className="flex shrink-0 items-center">
+      {([-1, 1] as const).map((by) => {
+        const end = by < 0 ? first : last
+        const Icon = by < 0 ? ArrowUp : ArrowDown
+        return (
+          <button
+            key={by}
+            type="button"
+            data-move={by}
+            onClick={() => !end && onMove(by)}
+            aria-label={`Move ${name} ${by < 0 ? "up" : "down"}`}
+            aria-disabled={end || undefined}
+            className="rounded-[4px] p-1.5 text-ink-2 transition-colors hover:text-ink aria-disabled:cursor-default aria-disabled:opacity-30 aria-disabled:hover:text-ink-2"
+          >
+            <Icon className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )
+      })}
+    </span>
+  )
 }
 
 // Sets a textarea's height to show all its text, so it never scrolls inside.
