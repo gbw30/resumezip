@@ -33,6 +33,8 @@ export interface SectionDef {
   /** Fields shown, in order, when an entry is collapsed. */
   summary: string[]
   choice?: ChoiceDef
+  /** Entries can also be added from a paper's DOI or link. */
+  fromPaperLink?: boolean
 }
 
 /** The profile's fields, stored on the resume under `profileSection`. */
@@ -136,6 +138,7 @@ export const SECTIONS: Record<SectionName, SectionDef> = {
     headingKey: "publications",
     addLabel: "Add publication",
     summary: ["publicationTitle", "publicationVenue"],
+    fromPaperLink: true,
     fields: [
       { key: "publicationTitle", label: "Title", placeholder: "Sparse Attention for Long Documents", size: "full" },
       { key: "publicationAuthors", label: "Authors", placeholder: "J. Ryan, A. Smith", size: "lg" },
