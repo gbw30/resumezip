@@ -70,7 +70,7 @@ It uses Node 24. [`frontend/README.md`](frontend/README.md) covers the tests, ho
 
 ## Contributing
 
-Found a bug or have an idea? [Open an issue](https://github.com/ian-hoang/resumezip/issues/new/choose). The bug form asks how bad it is, so it gets the right label. Pull requests are welcome, and CI checks each one before it can merge. Please [report security problems privately](https://github.com/ian-hoang/resumezip/security/advisories/new).
+Found a bug or have an idea? [Open an issue](https://github.com/ian-hoang/resumezip/issues/new/choose). The bug form asks how bad it is, so it gets the right label. Pull requests are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) covers the checks to run and the few rules every change follows. Please [report security problems privately](https://github.com/ian-hoang/resumezip/security/advisories/new).
 
 ## License
 
