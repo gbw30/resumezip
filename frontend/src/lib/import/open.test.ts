@@ -47,15 +47,20 @@ let attachment: string | null
 let opened: { closed: boolean }[]
 // Holds back pdf.js's download until it resolves.
 let download: Promise<void>
-// Holds back the workers' answers until it resolves.
+// Holds back the workers' answers, once they've done their work, until it resolves.
 let answer: Promise<void>
 let workers: FakeWorker[]
 
-/** Stands in for the import worker: does its job here, unless it's ended first. */
+/**
+ * Stands in for the import worker: does its job here, and answers unless it's
+ * been ended by then, as a real worker can't answer once it's ended.
+ */
 class FakeWorker {
   onmessage: ((event: { data: unknown }) => void) | null = null
   onerror = null
   onmessageerror = null
+  started = false
+  answered = false
   ended = false
 
   constructor() {
@@ -63,11 +68,13 @@ class FakeWorker {
   }
 
   postMessage(request: ReadRequest) {
-    void answer
-      .then(() => readFile(request))
-      .then((data) => {
-        if (!this.ended) this.onmessage?.({ data })
-      })
+    this.started = true
+    void readFile(request).then(async (data) => {
+      await answer
+      if (this.ended) return
+      this.answered = true
+      this.onmessage?.({ data })
+    })
   }
 
   terminate() {
@@ -232,14 +239,18 @@ describe("cancelling", () => {
     expect(workers).toEqual([])
   })
 
-  test("ends the worker sorting the text", async () => {
-    answer = never
+  test("ends the worker while it's sorting the text, so its answer never comes", async () => {
+    let finish!: () => void
+    answer = new Promise((resolve) => (finish = resolve))
     const cancel = new AbortController()
     const opening = openResumeFile(pdf(), { signal: cancel.signal })
-    await vi.waitFor(() => expect(workers).toHaveLength(1))
+    await vi.waitFor(() => expect(workers.map((worker) => worker.started)).toEqual([true]))
     cancel.abort()
     expect(await failure(opening)).toBe("AbortError")
-    expect(workers.map((worker) => worker.ended)).toEqual([true])
+
+    finish()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(workers.map(({ ended, answered }) => ({ ended, answered }))).toEqual([{ ended: true, answered: false }])
     expect(opened).toEqual([{ closed: true }])
   })
 

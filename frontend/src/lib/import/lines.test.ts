@@ -1,9 +1,16 @@
 import { describe, expect, test, vi } from "vitest"
+import { convertToHtml } from "mammoth"
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs"
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { MAX_CHARACTERS, MAX_PAGES, MAX_WORD_XML_BYTES, TooMuchTextError } from "./limits"
 import { cleanLink, linesFromDocx, linesFromPages, readPdf, unzippedXmlSize } from "./lines"
 import { textPdf, wordFile } from "./testFiles"
+
+// mammoth as it is, with its converter watched.
+vi.mock("mammoth", async (importOriginal) => {
+  const mammoth = await importOriginal<typeof import("mammoth")>()
+  return { ...mammoth, convertToHtml: vi.fn(mammoth.convertToHtml) }
+})
 
 const bytes = (buffer: Buffer) => new Uint8Array(buffer).buffer
 
@@ -75,10 +82,14 @@ describe("reading a Word file", () => {
   })
 
   test("one that unzips to too much text isn't converted", async () => {
+    vi.mocked(convertToHtml).mockClear()
     await expect(linesFromDocx(bytes(wordFile(["Mara Lin"], { padding: MAX_WORD_XML_BYTES })))).rejects.toThrow(TooMuchTextError)
+    expect(convertToHtml).not.toHaveBeenCalled()
   })
 
   test("its paragraphs become lines", async () => {
+    vi.mocked(convertToHtml).mockClear()
     await expect(linesFromDocx(bytes(wordFile(["Mara Lin", "mara@example.com"])))).resolves.toMatchObject([{ text: "Mara Lin" }, { text: "mara@example.com" }])
+    expect(convertToHtml).toHaveBeenCalledTimes(1)
   })
 })
