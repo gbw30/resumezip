@@ -121,6 +121,8 @@ export interface Report {
   results: RuleResult[]
   /** What the templates guarantee, always passed. */
   automatic: readonly string[]
+  /** The resume as the rules read it; the findings' places are on it. */
+  view: ResumeView
 }
 
 export interface CheckOptions {
@@ -156,6 +158,7 @@ export function runChecks(resume: Record<string, any>, { rules = RULES, pdf, tod
     dismissed: findings.filter((finding) => finding.dismissed),
     results,
     automatic: AUTOMATIC_PASSES,
+    view,
   }
 }
 

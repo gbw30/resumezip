@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useId, useRef, useState } from "react"
+import { hasEnoughToCheck } from "@/lib/check/labels"
 import { getStorage } from "@/lib/resumeStorage"
 import { useCheck } from "./CheckContext"
 import CheckPanel from "./CheckPanel"
@@ -52,7 +53,8 @@ export default function LeftBar({ hidden, children }: LeftBarProps) {
   const id = useId()
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const bar = useRef<HTMLElement>(null)
-  const open = report.findings.length
+  // Until there's a name and an entry, the panel asks for those instead of listing what's missing.
+  const open = hasEnoughToCheck(report.view) ? report.findings.length : 0
 
   const choose = (next: Mode) => {
     setMode(next)

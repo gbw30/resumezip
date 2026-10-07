@@ -1,12 +1,11 @@
 "use client"
 
 import type React from "react"
-import { useId, useMemo } from "react"
+import { useId } from "react"
 import { Check } from "lucide-react"
-import { useResumeContext } from "@/context/ResumeContext"
 import type { Finding } from "@/lib/check/engine"
 import { describePlace, hasEnoughToCheck } from "@/lib/check/labels"
-import { viewOf, type ResumeView } from "@/lib/check/resume"
+import type { ResumeView } from "@/lib/check/resume"
 import { LEVELS, type Level } from "@/lib/check/settings"
 import { useCheck } from "./CheckContext"
 
@@ -23,8 +22,8 @@ const quiet = "text-[13px] text-ink-2 underline-offset-4 transition-colors hover
  */
 export default function CheckPanel() {
   const { report, restore } = useCheck()
-  const { formData } = useResumeContext()
-  const view = useMemo(() => viewOf(formData), [formData])
+  // The resume as last checked, so places are named as the findings saw them.
+  const view = report.view
 
   if (!hasEnoughToCheck(view)) {
     return (
