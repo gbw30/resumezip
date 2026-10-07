@@ -3,6 +3,8 @@
 // and "Present", plus ranges in one field, like a project's "Jun – Aug 2025".
 // The words match what the resume reader in lib/import/parse.ts finds.
 
+import type { SectionName } from "@/components/editor/sections"
+import type { Entry } from "./resume"
 import { DATE_PREFIXES, PRESENT_WORDS } from "./settings"
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
@@ -134,6 +136,15 @@ export function readDateRange(text: string): DateRange | null {
   return null
 }
 
+// The month each season ends, by the month it's counted from: fall runs to December.
+const SEASON_ENDS: Record<number, number> = { 1: 3, 3: 5, 6: 8, 9: 12 }
+
+/** A date as late as it can mean, for whether it's over: “Fall 2026” is still going in October. */
+export function latestOf(date: ResumeDate): ResumeDate {
+  if (date.present || date.style.kind !== "season" || date.month === undefined) return date
+  return { ...date, month: SEASON_ENDS[date.month] ?? date.month }
+}
+
 /**
  * Which of two dates is later: below 0 if `a` is earlier, above 0 if it's
  * later, 0 if they're the same as far as both say. Present is the latest;
@@ -152,4 +163,74 @@ export function monthName(month: number, { long = false, dotted = false, sept = 
   const name = long ? full : month === 9 && sept ? "sept" : full.slice(0, 3)
   const capital = name[0].toUpperCase() + name.slice(1)
   return dotted && name !== full ? `${capital}.` : capital
+}
+
+// Each section's date fields: when it started and ended, or one field that
+// can hold a range, as a project's "Jun – Aug 2025".
+export const DATE_FIELDS: Partial<Record<SectionName, { start: string; end: string } | { single: string }>> = {
+  Education: { start: "schoolStartDate", end: "schoolEndDate" },
+  Work: { start: "workStartDate", end: "workEndDate" },
+  Projects: { single: "projectDate" },
+  Publications: { single: "publicationDate" },
+  Volunteership: { start: "volunteerStartDate", end: "volunteerEndDate" },
+  Leadership: { start: "leadershipStartDate", end: "leadershipEndDate" },
+  Awards: { single: "awardDate" },
+}
+
+/** A date on the resume, where it is, and how it's written. */
+export interface Written {
+  entry: Entry
+  field: string
+  /** As written: the field, or one side of a range in it. */
+  text: string
+  date: ResumeDate
+}
+
+export interface EntryDates {
+  entry: Entry
+  start?: Written
+  end?: Written
+  /** Date fields with something in them that can't be read. */
+  unreadable: { field: string; text: string }[]
+  /** How many date fields have something in them. */
+  filled: number
+}
+
+/** An entry's dates: its start and end, from two fields or a range in one. */
+export function datesOf(entry: Entry): EntryDates {
+  const fields = DATE_FIELDS[entry.section]
+  const found: EntryDates = { entry, unreadable: [], filled: 0 }
+  if (!fields) return found
+  const written = (field: string, text: string, date: ResumeDate): Written => ({ entry, field, text, date })
+  const range = (field: string, text: string) => {
+    const both = readDateRange(text)
+    if (!both) return false
+    found.start = written(field, both.start.text, both.start.date)
+    found.end = written(field, both.end.text, both.end.date)
+    return true
+  }
+  if ("single" in fields) {
+    const text = entry.values[fields.single]
+    if (!text) return found
+    found.filled = 1
+    const date = readDate(text)
+    if (date) found.end = written(fields.single, text, date)
+    else if (!range(fields.single, text)) found.unreadable.push({ field: fields.single, text })
+    return found
+  }
+  const start = entry.values[fields.start]
+  const end = entry.values[fields.end]
+  found.filled = Number(Boolean(start)) + Number(Boolean(end))
+  if (start) {
+    const date = readDate(start)
+    // A whole range typed into the start field reads too, when the end is empty.
+    if (date) found.start = written(fields.start, start, date)
+    else if (end || !range(fields.start, start)) found.unreadable.push({ field: fields.start, text: start })
+  }
+  if (end) {
+    const date = readDate(end)
+    if (date) found.end = written(fields.end, end, date)
+    else found.unreadable.push({ field: fields.end, text: end })
+  }
+  return found
 }

@@ -181,13 +181,19 @@ function run(rule: Rule, input: CheckInput, dismissed: ReadonlySet<string>, pdf:
 
 // What a rule found, as findings, and how much of the resume passes it.
 function judge(rule: Rule, outcome: Outcome, view: ResumeView, dismissed: ReadonlySet<string>, pdf: PdfReading | undefined): RuleResult {
+  const seen = new Map<string, number>()
   const findings = outcome.problems.flatMap((problem): Finding[] => {
     if (!placeExists(view, problem.place, pdf?.pages.length)) {
       console.warn(`The ${rule.id} check found something at a place that isn't on the resume:`, problem.place)
       return []
     }
     const text = problem.text ?? textAt(view, problem.place)
-    const key = findingKey(rule.id, problem.place, text)
+    // The same field and text again, as with two identical bullets: each
+    // after the first gets a number, so each can be dismissed on its own.
+    const first = findingKey(rule.id, problem.place, text)
+    const count = (seen.get(first) ?? 0) + 1
+    seen.set(first, count)
+    const key = count === 1 ? first : `${first}|${count}`
     return [
       {
         rule: rule.id,

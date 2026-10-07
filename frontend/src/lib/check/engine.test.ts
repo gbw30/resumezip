@@ -256,6 +256,21 @@ describe("dismissing", () => {
   })
 })
 
+describe("telling findings apart", () => {
+  test("numbers a rule's findings that share a field and text, so each can be dismissed on its own", () => {
+    const twins = { ...ada, workExperienceSection: [{ ...ada.workExperienceSection[0], workDescription: "• Built it\n• Built it" }] }
+    const same = formRule("B9", ({ resume }) => ({
+      checked: 2,
+      problems: resume.sections.Work[0].bullets.map((bullet) => ({ place: bulletPlace(0, bullet.line), message: "Same" })),
+    }))
+    const [first, second] = runChecks(twins, { rules: [same] }).findings
+    expect(second.key).toBe(`${first.key}|2`)
+    const report = runChecks(dismissed(twins, second), { rules: [same] })
+    expect(report.findings.map((finding) => finding.key)).toEqual([first.key])
+    expect(report.dismissed.map((finding) => finding.key)).toEqual([second.key])
+  })
+})
+
 describe("the rules", () => {
   test("each have a unique ID, a known category and level, and say what they check and why", () => {
     const categories = new Set<string>(CATEGORIES.map((category) => category.id))
