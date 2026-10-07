@@ -6,7 +6,7 @@ import { SECTIONS, type SectionName } from "@/components/editor/sections"
 import { BULLET_CHARS } from "@/lib/import/lines"
 import type { Problem, Rule } from "./engine"
 import type { Place } from "./places"
-import { comparable } from "./pdf"
+import { comparable, wordsOf } from "./pdf"
 import { textsOf } from "./resume"
 import { FINE_SYMBOLS, ODD_SYMBOLS } from "./settings"
 import { bulletsIn } from "./text"
@@ -72,13 +72,16 @@ const headings: Rule = {
 }
 
 // What says what an entry is and when: the fields hiring software reads to
-// know the job, school, role or project.
-const KEY_FIELDS: Partial<Record<SectionName, string[]>> = {
+// know the job, school, role, project, skills, paper or award.
+const KEY_FIELDS: Record<SectionName, string[]> = {
   Work: ["workRole", "companyName", "workStartDate", "workEndDate"],
   Education: ["schoolName", "degree", "schoolStartDate", "schoolEndDate"],
+  Skills: ["skillName", "skillDetails"],
   Projects: ["projectName", "projectDate"],
+  Publications: ["publicationTitle", "publicationDate"],
   Volunteership: ["volunteerRole", "volunteerOrg", "volunteerStartDate", "volunteerEndDate"],
   Leadership: ["leadershipRole", "leadershipOrg", "leadershipStartDate", "leadershipEndDate"],
+  Awards: ["awardName", "awardDate"],
 }
 
 const labelOf = (section: SectionName, field: string) => SECTIONS[section].fields.find((def) => def.key === field)?.label.toLowerCase() ?? field
@@ -89,7 +92,7 @@ const entriesRead: Rule = {
   level: "look",
   reads: "pdf",
   title: "Hiring software reads each entry as typed",
-  why: "If a role, company or date lands in another entry, or nowhere, your experience reads wrong.",
+  why: "If a role, company, date or skill lands in another entry, or nowhere, your resume reads wrong.",
   check: ({ resume, pdf }) => {
     let checked = 0
     const problems: Problem[] = []
@@ -98,7 +101,7 @@ const entriesRead: Rule = {
       const typed = resume.sections[section].filter((entry) => !entry.blank)
       const found = pdf.parsed.sections.find(({ name }) => name === section)
       // A section that isn't found at all is R2's.
-      if (!keys || typed.length === 0 || !found) continue
+      if (typed.length === 0 || !found) continue
       if (found.entries.length !== typed.length) {
         checked++
         problems.push({
@@ -108,15 +111,17 @@ const entriesRead: Rule = {
         })
         continue
       }
-      // Each typed value only has to be somewhere in its entry, as read: the
-      // reader can mix up neighbouring fields that hiring software tells apart.
+      // Each typed value's words only have to be somewhere in its entry, as
+      // read, as whole words: the reader can mix up neighbouring fields that
+      // hiring software tells apart, as a role read as the company.
       const fields = SECTIONS[section].fields.filter((field) => field.type !== "bullets")
       typed.forEach((entry, i) => {
-        const read = comparable(fields.map((field) => found.entries[i].fields[field.key] ?? "").join(" "))
+        const read = new Set(wordsOf(fields.map((field) => found.entries[i].fields[field.key] ?? "").join(" ")))
         for (const key of keys) {
-          if (!entry.values[key]) continue
+          const words = wordsOf(entry.values[key])
+          if (words.length === 0) continue
           checked++
-          if (read.includes(comparable(entry.values[key]))) continue
+          if (words.every((word) => read.has(word))) continue
           problems.push({
             place: { kind: "entry", section, entry: entry.index, field: key },
             message: `Hiring software doesn't read the ${labelOf(section, key)} with this entry`,
@@ -143,9 +148,10 @@ const unplaced: Rule = {
     return {
       checked: 1,
       problems: pdf.parsed.unplaced.map((group): Problem => {
-        // Pointing at the field it came from, when it can be found.
+        // Pointing at the field it came from, when it can be found; text with
+        // no letters or digits can't be, so it points at its page.
         const line = comparable(group.text[0] ?? "")
-        const typed = texts.find(({ text }) => text.includes(line) || (text.length >= 8 && line.includes(text)))
+        const typed = line ? texts.find(({ text }) => text.includes(line) || (text.length >= 8 && line.includes(text))) : undefined
         const page: Place = { kind: "page", page: pdf.parsed.lines[group.lines[0]]?.page }
         return {
           place: typed?.place ?? page,

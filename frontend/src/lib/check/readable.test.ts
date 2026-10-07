@@ -64,6 +64,18 @@ describe("R3 entries read as typed", () => {
     ])
   })
 
+  test("matches whole words, so “IT” isn't found inside “Digital”", () => {
+    const resume = { ...jake, workExperienceSection: [{ ...jake.workExperienceSection[0], workRole: "IT" }] }
+    const digital = { ...found, sections: [{ name: "Work" as const, entries: [{ fields: { workRole: "Digital", companyName: "Stripe", workStartDate: "Jan 2024", workEndDate: "Present" }, lines: [] }] }] }
+    expect(check("R3", resume, reading([], digital)).findings.map(({ place }) => place)).toEqual([{ kind: "entry", section: "Work", entry: 0, field: "workRole" }])
+  })
+
+  test("checks awards, papers and skills too", () => {
+    const resume = { ...jake, awardsSection: [{ id: 1, awardName: "Dean's List", awardDate: "2024" }] }
+    const awards = { ...found, sections: [...found.sections, { name: "Awards" as const, entries: [{ fields: { awardName: "Deans", awardDate: "2024" }, lines: [] }] }] }
+    expect(check("R3", resume, reading([], awards)).findings.map(({ place }) => place)).toEqual([{ kind: "entry", section: "Awards", entry: 0, field: "awardName" }])
+  })
+
   test("flags a section where the reader finds a different number of entries", () => {
     const merged = { ...found, sections: [{ name: "Work" as const, entries: [] }] }
     expect(check("R3", jake, reading([], merged)).findings).toEqual([
@@ -80,6 +92,11 @@ describe("R4 text the reader can't place", () => {
       { kind: "entry", section: "Work", entry: 0, field: "workDescription", line: 0 },
       { kind: "page", page: 1 },
     ])
+  })
+
+  test("points text with no letters or digits at its page", () => {
+    const pdf = reading([line("— · —", { page: 1 })], { ...found, unplaced: [{ heading: "", lines: [0], text: ["— · —"] }] })
+    expect(check("R4", jake, pdf).findings.map(({ place }) => place)).toEqual([{ kind: "page", page: 1 }])
   })
 })
 

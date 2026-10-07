@@ -17,6 +17,15 @@ export const comparable = (text: string) =>
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, "")
 
+/** A text's words, as compared between the PDF and the editor: lower case, without accents or punctuation. */
+export const wordsOf = (text: string) =>
+  text
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+
 /** A bullet as the PDF lays it out: the line it starts on, then the lines it wraps onto. */
 export interface PrintedBullet {
   lines: Line[]
