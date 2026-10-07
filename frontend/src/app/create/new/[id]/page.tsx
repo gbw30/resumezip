@@ -47,8 +47,12 @@ export default function EditorPage() {
     if (id) setCurrentResumeId(id)
   }, [id, setCurrentResumeId])
 
-  // The PDF compiler starts loading as the editor opens, before the first preview asks for it.
-  useEffect(loadCompiler, [])
+  // The PDF compiler starts loading as soon as the resume is found, before
+  // the first preview asks for it. A resume that isn't here doesn't need it.
+  const found = loaded && Boolean(resumes[id])
+  useEffect(() => {
+    if (found) loadCompiler()
+  }, [found])
 
   // The saved order, plus any sections missing from older resumes.
   const sections = useMemo<SectionName[]>(() => {
