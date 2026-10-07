@@ -81,10 +81,15 @@ describe("the resume score", () => {
     expect(score.total).toBe(75)
   })
 
-  test("leaves out a rule that has only seen part of the text so far", () => {
-    // As when the grammar checker failed partway: what it found is listed, but isn't scored.
-    const partly = rule("G1", "spelling", "fix", () => ({ ...found(4, 1)(), partial: true }))
-    const score = scoreWith([rule("C1", "contact", "fix", passes), partly])
+  test("scores a rule that has seen only part of the text by what it found there", () => {
+    // As when the grammar checker failed partway: a typo it found costs points, so it's never beside a 100…
+    const typo = rule("G1", "spelling", "fix", () => ({ ...found(4, 1)(), partial: true }))
+    const withTypo = scoreWith([rule("C1", "contact", "fix", passes), typo])
+    expect(category(withTypo, "spelling")).toMatchObject({ applies: true, earned: 11.25 })
+    expect(withTypo.total).toBe(87)
+    // …but finding nothing in part of the text isn't a pass, so it's left out.
+    const clean = rule("G1", "spelling", "fix", () => ({ ...found(4, 0)(), partial: true }))
+    const score = scoreWith([rule("C1", "contact", "fix", passes), clean])
     expect(category(score, "spelling").applies).toBe(false)
     expect(score.total).toBe(100)
   })

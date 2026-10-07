@@ -27,10 +27,12 @@ export interface Score {
   categories: CategoryScore[]
 }
 
-// A rule counts once it has looked at the whole resume. One that doesn't
-// apply, broke, is still waiting for the PDF or the grammar checker, or has
-// only seen part of the text (partial) is left out.
-const counts = (result: RuleResult) => (result.status === "passed" || result.status === "failed") && !result.partial
+// A rule counts once it has looked at the whole resume, or found something
+// where it did look, so a problem it lists always costs points, as when the
+// grammar checker failed partway. One that doesn't apply, broke, is still
+// waiting for the PDF or the grammar checker, or has seen only part of the
+// text (partial) and found nothing there is left out: that's no pass yet.
+const counts = (result: RuleResult) => result.status === "failed" || (result.status === "passed" && !result.partial)
 
 const weight = (result: RuleResult) => LEVELS[result.rule.level].weight
 

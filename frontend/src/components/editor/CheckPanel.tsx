@@ -71,7 +71,7 @@ export default function CheckPanel() {
             </p>
           )}
           {checkingGrammar && (
-            <p>{grammar === "failed" ? "Spelling and grammar couldn't be checked, so those checks are left out." : "Checking spelling and grammar…"}</p>
+            <p>{grammar === "failed" ? "Spelling and grammar couldn't all be checked, so what wasn't is left out." : "Checking spelling and grammar…"}</p>
           )}
         </div>
       )}
