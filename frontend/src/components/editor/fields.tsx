@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useId, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import { Pencil } from "lucide-react"
 import type { Finding } from "@/lib/check/engine"
 import { LEVELS } from "@/lib/check/settings"
@@ -78,6 +78,12 @@ export function selectLine(textarea: HTMLTextAreaElement, line: number) {
   textarea.setSelectionRange(start + bullet, start + lines[line].length)
 }
 
+// Sets a textarea's height to show all its text, so it never scrolls inside.
+function fitHeight(textarea: HTMLTextAreaElement) {
+  textarea.style.height = "auto"
+  textarea.style.height = `${textarea.scrollHeight + 2}px`
+}
+
 // Every non-empty line starts with "• " so the textarea reads like the PDF.
 function withBullets(text: string) {
   return text
@@ -106,10 +112,25 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
   // Grow to fit the text instead of scrolling inside the box.
   useLayoutEffect(() => {
     const textarea = textareaRef.current
-    if (!textarea) return
-    textarea.style.height = "auto"
-    textarea.style.height = `${textarea.scrollHeight + 2}px`
+    if (textarea) fitHeight(textarea)
   }, [text])
+
+  // A narrower box wraps onto more lines, so fit again when the width changes:
+  // resizing the window, turning a tablet, or the box showing after being hidden.
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    let width = textarea.clientWidth
+    const observer = new ResizeObserver(() => {
+      const next = textarea.clientWidth
+      // Hidden while the preview shows on small screens: nothing to fit until it's back.
+      if (!next || next === width) return
+      width = next
+      fitHeight(textarea)
+    })
+    observer.observe(textarea)
+    return () => observer.disconnect()
+  }, [])
 
   // Adds or removes a mark around the selected words, ** for bold or * for italic, keeping them selected.
   const toggleMark = (textarea: HTMLTextAreaElement, size: 1 | 2) => {
