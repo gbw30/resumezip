@@ -3,7 +3,7 @@
 
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import type { Place } from "./places"
-import type { Entry, ResumeView } from "./resume"
+import { entryAt, type Entry, type ResumeView } from "./resume"
 
 /**
  * A name and at least one entry with something in it. Until then the
@@ -52,7 +52,7 @@ export function describePlace(view: ResumeView, place: Place): string {
     case "section":
       return titleOf(view, place.section)
     case "entry": {
-      const entry = view.sections[place.section]?.[place.entry]
+      const entry = entryAt(view, place.section, place.entry)
       const label = `${titleOf(view, place.section)} → ${entryName(entry, place.entry)}`
       if (place.line !== undefined) {
         const bullet = entry?.bullets.findIndex((bullet) => bullet.field === place.field && bullet.line === place.line) ?? -1

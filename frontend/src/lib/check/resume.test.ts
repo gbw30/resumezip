@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest"
 import { SECTION_NAMES } from "@/components/editor/sections"
 import { findingKey, placeExists, ruleOfKey, textAt, type Place } from "./places"
+import { runChecks } from "./engine"
+import { describePlace } from "./labels"
 import { resumeTypeOf, textsOf, viewOf } from "./resume"
 
 const ada = {
@@ -142,5 +144,55 @@ describe("places on a resume", () => {
     expect(findingKey("L3", { kind: "page", page: 2 }, "")).not.toBe(first)
     expect(findingKey("L3", { kind: "page" }, "")).not.toBe(first)
     expect(findingKey("L3", { kind: "page", page: 1 }, "")).toBe(first)
+  })
+})
+
+describe("what the person left out", () => {
+  const tailored = {
+    workExperienceSection: [
+      { id: 1, workRole: "Intern", companyName: "Initech", leftOut: true },
+      { id: 2, workRole: "Engineer", companyName: "Analytical Engines", workDescription: "• Built a loom\n○ Fed the cat\n• Wrote the notes" },
+    ],
+  }
+  const view = viewOf(tailored)
+
+  test("isn't read, and what is keeps its place in the editor", () => {
+    expect(view.sections.Work.map((entry) => entry.index)).toEqual([1])
+    expect(view.sections.Work[0].bullets.map(({ line, text }) => ({ line, text }))).toEqual([
+      { line: 0, text: "Built a loom" },
+      { line: 2, text: "Wrote the notes" },
+    ])
+    expect(view.sections.Work[0].values.workDescription).not.toContain("Fed the cat")
+    expect(textsOf(view).map((found) => found.text)).not.toContain("Intern")
+  })
+
+  test("isn't on the resume as far as findings go, and entries after it are found by their place in the editor", () => {
+    expect(textAt(view, { kind: "entry", section: "Work", entry: 1, field: "workRole" })).toBe("Engineer")
+    expect(textAt(view, { kind: "entry", section: "Work", entry: 1, field: "workDescription", line: 2 })).toBe("Wrote the notes")
+    expect(placeExists(view, { kind: "entry", section: "Work", entry: 1, field: "workDescription", line: 2 })).toBe(true)
+    expect(placeExists(view, { kind: "entry", section: "Work", entry: 0 })).toBe(false)
+    expect(placeExists(view, { kind: "entry", section: "Work", entry: 1, field: "workDescription", line: 1 })).toBe(false)
+    expect(describePlace(view, { kind: "entry", section: "Work", entry: 1, field: "workDescription", line: 2 })).toBe(
+      "Experience → Analytical Engines · bullet 2",
+    )
+  })
+
+  test("isn't flagged by the rules", () => {
+    const bullets = (count: number, marker: string) =>
+      Array.from({ length: count }, (_, index) => `${marker} Built feature ${index + 1} for 40% more users`)
+    const job = { id: 1, workRole: "Engineer", companyName: "Analytical Engines", workStartDate: "Jan 2020", workEndDate: "Present" }
+    // An intern job with no bullets, which B8 would flag if it were printed.
+    const internship = { id: 2, workRole: "Intern", companyName: "Initech" }
+    const tooMany = (resume: Record<string, unknown>) =>
+      runChecks({ profileSection: { fullName: "Ada Lovelace" }, ...resume }).findings.filter((finding) => finding.rule === "B8")
+
+    // 6 bullets printed and 2 left out is no more than 6; a left-out job isn't missing bullets.
+    const tailored = tooMany({
+      workExperienceSection: [{ ...job, workDescription: [...bullets(6, "•"), ...bullets(2, "○")].join("\n") }, { ...internship, leftOut: true }],
+    })
+    expect(tailored).toEqual([])
+    // Printed, the same resume has too many bullets in one job and none in the other.
+    const whole = tooMany({ workExperienceSection: [{ ...job, workDescription: bullets(8, "•").join("\n") }, internship] })
+    expect(whole.map((finding) => finding.message)).toEqual(["8 bullets", "No bullets"])
   })
 })

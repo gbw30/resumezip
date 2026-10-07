@@ -10,7 +10,11 @@ sent anywhere.
   lives in a file of its own.
 - `resume.ts` reads the resume for the rules: each field as trimmed text, each
   bullet on its own (without the "• " or bold and italic marks), and the
-  resume's type. Rules never read the saved data themselves.
+  resume's type. Rules never read the saved data themselves. Only what's
+  printed is in it: entries and bullets the person left out of the PDF
+  (`src/lib/leftOut.ts`) aren't, so no rule flags them. An entry keeps its
+  place in the editor as `index`, so places are built from that, and entries
+  are looked up with `entryAt`, never by their place in the list.
 - `readDate.ts` reads dates the way resumes write them ("Jan 2024",
   "01/2024", "2024", "Fall 2023", "Expected May 2027", "Present", and ranges
   in one field like "Jun – Aug 2025"), and compares them. Rules that need to

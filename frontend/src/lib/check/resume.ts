@@ -2,8 +2,11 @@
 // its own without the editor's "• " or its bold and italic marks, and the
 // resume's type. It's built once per run, so rules don't each pick the saved
 // data apart, and none of them has to guard against older or broken shapes.
+// Only what's printed is here: entries and bullets the person left out of
+// the PDF (lib/leftOut.ts) aren't, so the checks don't flag them.
 
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
+import { isLeftOut, isLeftOutLine } from "@/lib/leftOut"
 import { plainText, sectionOrder } from "@/lib/typst/resumeData"
 import type { Place } from "./places"
 
@@ -29,7 +32,11 @@ export interface Bullet {
 
 export interface Entry {
   section: SectionName
-  /** Its place in the section's list, from 0. */
+  /**
+   * Its place in the section's list in the editor, from 0. Entries that are
+   * left out are skipped, so look entries up by this (`entryAt`), not by
+   * their place in `ResumeView.sections`.
+   */
   index: number
   /** Each of the section's fields, trimmed; "" when it's empty or missing. Bullet fields are as typed. */
   values: Record<string, string>
@@ -43,7 +50,7 @@ export interface ResumeView {
   type: ResumeType
   /** Each profile field, trimmed; "" when it's empty or missing. */
   profile: Record<string, string>
-  /** Each section's entries, in the order they're saved and printed. */
+  /** Each section's printed entries, in the order they're saved and printed. */
   sections: Record<SectionName, Entry[]>
   /** Each section's own title if the person renamed it, or "" for the template's. */
   headings: Record<SectionName, string>
@@ -57,12 +64,11 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "")
 
 // Older resumes saved bullets as a list; the editor types them one "• " line each.
+// Left-out lines are blanked rather than dropped, so the rest keep their line numbers.
 const linesOf = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value.map((line) => (typeof line === "string" ? line : ""))
-    : typeof value === "string"
-      ? value.split("\n")
-      : []
+  (Array.isArray(value) ? value : typeof value === "string" ? value.split("\n") : []).map((line) =>
+    typeof line === "string" && !isLeftOutLine(line) ? line : "",
+  )
 
 const bulletsOf = (field: string, value: unknown): Bullet[] =>
   linesOf(value).flatMap((line, index) => {
@@ -79,7 +85,8 @@ export function viewOf(resume: Record<string, any>): ResumeView {
   for (const name of SECTION_NAMES) {
     const { dataKey, headingKey, fields } = SECTIONS[name]
     const saved: unknown[] = Array.isArray(resume[dataKey]) ? resume[dataKey] : []
-    sections[name] = saved.map((item, index) => {
+    sections[name] = saved.flatMap((item, index) => {
+      if (isLeftOut(item)) return []
       const entry = isObject(item) ? item : {}
       const values = Object.fromEntries(
         fields.map((field) => [
@@ -92,7 +99,7 @@ export function viewOf(resume: Record<string, any>): ResumeView {
         .flatMap((field) => bulletsOf(field.key, entry[field.key]))
       // A bullet field with only a "•" in it, as the editor can leave one, is empty too.
       const blank = fields.every((field) => (field.type === "bullets" ? !bullets.some((bullet) => bullet.field === field.key) : !values[field.key]))
-      return { section: name, index, values, bullets, blank }
+      return [{ section: name, index, values, bullets, blank }]
     })
     titles[name] = text(headings[headingKey])
   }
@@ -104,6 +111,10 @@ export function viewOf(resume: Record<string, any>): ResumeView {
     order: sectionOrder(resume.sectionOrder) as SectionName[],
   }
 }
+
+/** The entry at an editor place (`Entry.index`), unless it's left out or gone. */
+export const entryAt = (view: ResumeView, section: SectionName, index: number): Entry | undefined =>
+  view.sections[section]?.find((entry) => entry.index === index)
 
 /**
  * Every piece of typed text and where it is, in the order it's printed:
