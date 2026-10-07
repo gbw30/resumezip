@@ -9,6 +9,8 @@ class FakeWorker {
   static received: CompileRequest[] = []
   static answer: (request: CompileRequest) => CompileResponse | undefined = () => undefined
   static delay: (request: CompileRequest) => number = () => 10
+  /** What it sends, 10 ms apart, when asked to load the compiler ahead of a PDF. */
+  static loading: WorkerMessage[] = []
   onmessage: ((event: { data: WorkerMessage }) => void) | null = null
   onerror: ((event: { message: string }) => void) | null = null
   terminated = false
@@ -22,6 +24,7 @@ class FakeWorker {
   postMessage(request: WorkerRequest) {
     if ("load" in request) {
       this.loadRequests++
+      FakeWorker.loading.forEach((message, index) => setTimeout(() => this.send(message), (index + 1) * 10))
       return
     }
     FakeWorker.received.push(request)
@@ -58,6 +61,7 @@ beforeEach(async () => {
   FakeWorker.received = []
   FakeWorker.answer = makesPdf
   FakeWorker.delay = () => 10
+  FakeWorker.loading = []
   // A fresh module each time, so no worker carries over.
   vi.resetModules()
   ;({ compileResume, compilePreview, printedOf, loadCompiler: loadAhead, compilerStatus, onCompilerStatus, savingData } = await import("./compile"))
@@ -328,10 +332,15 @@ test("a preview whose PDF can't be turned into a link still settles", async () =
 })
 
 test("the compiler can start loading before the first PDF, which then uses the same worker", async () => {
+  FakeWorker.loading = [{ progress: true, downloaded: 0.5 }, { progress: true, downloaded: 1 }, { ready: true }]
   loadAhead()
   loadAhead()
   expect(FakeWorker.made).toHaveLength(1)
   expect(FakeWorker.made[0].loadRequests).toBe(1)
+  await vi.advanceTimersByTimeAsync(10)
+  expect(compilerStatus()).toEqual({ loaded: false, downloaded: 0.5 })
+  await vi.advanceTimersByTimeAsync(20)
+  expect(compilerStatus()).toEqual({ loaded: true, downloaded: 1 })
 
   const result = track(compileResume(resume))
   await vi.advanceTimersByTimeAsync(10)
@@ -392,4 +401,19 @@ test("nothing loads ahead for visitors saving data or on a very slow connection"
   expect(on({ effectiveType: "2g" })).toBe(true)
   expect(on({ effectiveType: "3g" })).toBe(false)
   expect(on(undefined)).toBe(false)
+})
+
+test("a worker the browser won't start doesn't stop the page, and the first PDF says why", async () => {
+  vi.stubGlobal(
+    "Worker",
+    class {
+      constructor() {
+        throw new Error("Blocked by the page's security policy")
+      }
+    },
+  )
+  expect(() => loadAhead()).not.toThrow()
+  const result = track(compileResume(resume))
+  await vi.advanceTimersByTimeAsync(0)
+  expect(result.error?.message).toBe("Blocked by the page's security policy")
 })

@@ -157,10 +157,17 @@ function getWorker(): Worker {
 
 /**
  * Starts loading the compiler, if nothing has yet, so the first PDF doesn't
- * wait for it to download. Later PDFs use the worker this starts.
+ * wait for it to download. Later PDFs use the worker this starts. It never
+ * throws: if the worker can't start (a browser can block it), the first PDF
+ * fails and says why.
  */
 export function loadCompiler() {
-  if (!worker) getWorker().postMessage({ load: true } satisfies WorkerRequest)
+  if (worker) return
+  try {
+    getWorker().postMessage({ load: true } satisfies WorkerRequest)
+  } catch {
+    // Left for the first PDF to report.
+  }
 }
 
 /** Whether the visitor has asked to save data or is on a very slow connection, so nothing should download before it's needed. */
