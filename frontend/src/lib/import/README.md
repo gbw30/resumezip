@@ -10,8 +10,8 @@ PDF or Word file. It all happens in the browser; nothing is uploaded.
   nothing cut off. One too big to open (over `MAX_ENTRIES` entries or
   `MAX_LENGTH` characters, far more than any resume has) isn't opened at all, and
   the dialog says why. The attachment holds what's printed plus the template and
-  section order, never the resume's name or tag, since anyone who gets the PDF
-  can read it.
+  section order, never the resume's name or tag, or the entries and bullets left
+  out of the PDF (`src/lib/leftOut.ts`), since anyone who gets the PDF can read it.
 - **Any other file** is read by `lines.ts` into lines of text with their position,
   size, style and links, then sorted into the editor's fields by `parse.ts`. The
   review dialog (`components/dashboard/ImportReview.tsx`) shows the result next to

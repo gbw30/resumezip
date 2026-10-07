@@ -4,6 +4,7 @@
 // another browser or computer.
 
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS } from "@/components/editor/sections"
+import { printedResume } from "@/lib/leftOut"
 import { templateById } from "@/lib/templates"
 
 export const ATTACHMENT_NAME = "resumezip.json"
@@ -32,10 +33,12 @@ export type ResumeContent = Record<string, any>
 
 /**
  * The attachment for a resume: what's printed on it and how it's laid out.
- * Not the resume's name or tag, since anyone who gets the PDF can read it.
+ * Not the resume's name or tag, or what the person left out of it, since
+ * anyone who gets the PDF can read it. Opening the PDF again brings back
+ * what was printed; what was left out stays only in this browser.
  */
 export function toAttachment(resume: Record<string, any>): string {
-  return JSON.stringify({ format: FORMAT, version: VERSION, resume: cleanResume(resume) })
+  return JSON.stringify({ format: FORMAT, version: VERSION, resume: cleanResume(printedResume(resume)) })
 }
 
 /**

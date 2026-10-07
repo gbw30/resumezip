@@ -34,6 +34,24 @@ describe("the attachment in a downloaded PDF", () => {
     expect(fromAttachment(toAttachment(sample))).toEqual(cleanResume(sample))
   })
 
+  test("leaves out what the person left out, so whoever gets the PDF can't read it", () => {
+    const tailored = {
+      ...editorResume({}),
+      workExperienceSection: [
+        { id: 1, workRole: "Engineer", workDescription: "• Built a loom\n○ Fed the cat" },
+        { id: 2, workRole: "Secret agent", leftOut: true },
+      ],
+    }
+    const attachment = toAttachment(tailored)
+    expect(attachment).not.toContain("Fed the cat")
+    expect(attachment).not.toContain("Secret agent")
+    expect(attachment).not.toContain("leftOut")
+    // Opening the PDF again brings back what was printed.
+    expect(fromAttachment(attachment)!.workExperienceSection).toEqual([
+      expect.objectContaining({ id: 1, workRole: "Engineer", workDescription: "• Built a loom" }),
+    ])
+  })
+
   test("leaves out the resume's name and tag", () => {
     const { resume } = JSON.parse(toAttachment(samples[0]))
     expect(resume).not.toHaveProperty("resumeTitle")
