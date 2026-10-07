@@ -10,8 +10,10 @@ import LeftBar from "@/components/editor/LeftBar"
 import PdfPreview from "@/components/editor/PdfPreview"
 import ProfileForm from "@/components/editor/ProfileForm"
 import SectionForm from "@/components/editor/SectionForm"
-import SectionNav, { WIDE_SCREEN, type ActiveSection } from "@/components/editor/SectionNav"
+import { WIDE_SCREEN } from "@/components/editor/layout"
+import SectionNav, { type ActiveSection } from "@/components/editor/SectionNav"
 import TemplatePicker from "@/components/editor/TemplatePicker"
+import { useKeepFormPlace } from "@/components/editor/useKeepFormPlace"
 import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
 import NotSaved from "@/components/site/NotSaved"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
@@ -46,6 +48,9 @@ export default function EditorPage() {
   useEffect(() => {
     if (id) setCurrentResumeId(id)
   }, [id, setCurrentResumeId])
+
+  // Resizing across the wide-screen width keeps the form where it was scrolled to.
+  useKeepFormPlace(mainRef, loaded && Boolean(resumes[id]))
 
   // The saved order, plus any sections missing from older resumes.
   const sections = useMemo<SectionName[]>(() => {
@@ -99,10 +104,13 @@ export default function EditorPage() {
     return () => URL.revokeObjectURL(pdfUrl)
   }, [pdfUrl])
 
-  // The Edit / Preview switch steps aside while the keyboard is up.
+  // The Edit / Preview switch steps aside while a touch screen's keyboard is
+  // up. With a mouse and keyboard nothing covers the page, so it stays put and
+  // can be clicked while a field has focus.
   useEffect(() => {
+    const touch = window.matchMedia("(pointer: coarse)")
     const isField = (target: EventTarget | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
-    const onFocusIn = (event: FocusEvent) => setTyping(isField(event.target))
+    const onFocusIn = (event: FocusEvent) => setTyping(touch.matches && isField(event.target))
     const onFocusOut = (event: FocusEvent) => {
       if (isField(event.target) && !isField(event.relatedTarget)) setTyping(false)
     }
@@ -182,7 +190,7 @@ export default function EditorPage() {
   const position = (index: number) => `${pad(index)} / ${pad(total)}`
 
   return (
-    <div className="flex min-h-screen flex-col bg-paper lg:h-screen lg:overflow-hidden">
+    <div className="flex min-h-screen flex-col bg-paper xl:h-screen xl:overflow-hidden">
       <header ref={headerRef} className="border-b border-rule bg-sheet">
         <div className="flex min-h-[60px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-2.5 lg:px-6">
           <div className="flex min-w-0 items-center gap-4">
@@ -242,7 +250,7 @@ export default function EditorPage() {
         )}
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
         {/* The left bar and the forms share what the checker found. */}
         <CheckProvider onSelect={select}>
           <LeftBar hidden={view === "preview"}>
@@ -256,11 +264,12 @@ export default function EditorPage() {
 
           <main
             ref={mainRef}
-            className={`min-w-0 flex-1 px-5 pb-28 pt-9 sm:px-10 lg:block lg:overflow-y-auto lg:px-12 lg:pb-16 ${
+            className={`min-w-0 flex-1 px-5 pb-28 pt-9 sm:px-10 xl:block xl:overflow-y-auto xl:pb-16 ${
               view === "preview" ? "hidden" : ""
             }`}
           >
-            <div className="mx-auto max-w-[640px]">
+            {/* A container, so the fields fit the form's own width rather than the window's. */}
+            <div className="@container mx-auto max-w-[640px]">
               {active === "Profile" ? (
                 <ProfileForm position={position(1)} />
               ) : (
@@ -271,8 +280,8 @@ export default function EditorPage() {
 
           <section
             aria-label="Live preview"
-            className={`min-w-0 flex-col bg-desk pb-20 lg:flex lg:w-[46%] lg:overflow-hidden lg:pb-0 ${
-              view === "preview" ? "flex max-lg:flex-1" : "hidden"
+            className={`min-w-0 flex-col bg-desk pb-20 xl:flex xl:w-[46%] xl:overflow-hidden xl:pb-0 ${
+              view === "preview" ? "flex max-xl:flex-1" : "hidden"
             }`}
           >
             <PdfPreview pdfUrl={pdfUrl} error={compileError} />
@@ -282,7 +291,7 @@ export default function EditorPage() {
 
       <div
         data-covers="bottom"
-        className={`fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center transition-[opacity,transform] duration-200 lg:hidden ${
+        className={`fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center transition-[opacity,transform] duration-200 xl:hidden ${
           typing ? "pointer-events-none translate-y-3 opacity-0" : ""
         }`}
       >
