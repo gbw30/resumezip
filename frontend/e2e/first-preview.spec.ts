@@ -48,6 +48,33 @@ test("the editor shows a stand-in page until the first preview, and downloads on
   expect(errors).toEqual([])
 })
 
+test("a resume downloads only its template's fonts, and another template's once it's chosen", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "The page sees its workers' requests in Chromium")
+  const errors = pageErrors(page)
+  // The fonts the compiler downloads, by file name without the hash the app serves them under.
+  const fonts: string[] = []
+  page.on("request", (request) => {
+    const font = request.url().match(/\/([\w-]+)\.[0-9a-f]+\.(otf|ttf)$/)
+    if (font) fonts.push(font[1])
+  })
+  await page.goto("/")
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  const preview = page.getByRole("region", { name: "Live preview" })
+  await expect(preview.getByText(/Ada Lovelace/i).first()).toBeVisible()
+  // Jake's, the default, is set in New Computer Modern.
+  expect([...fonts].sort()).toEqual(["NewCM10-Bold", "NewCM10-BoldItalic", "NewCM10-Italic", "NewCM10-Regular"])
+
+  // Harvard is set in EB Garamond.
+  await page.getByRole("button", { name: /^Template/ }).click()
+  await page.getByRole("dialog", { name: "Choose a template" }).getByRole("button", { name: /Harvard/ }).click()
+  await expect.poll(() => fonts.filter((font) => font.startsWith("EBGaramond")).length).toBe(4)
+  await expect(preview.getByText(/Ada Lovelace/i).first()).toBeVisible()
+  await expect(page.getByText(/Couldn.t update the preview/)).toHaveCount(0)
+  expect(fonts.filter((font) => !/^(NewCM10|EBGaramond)-/.test(font))).toEqual([])
+  expect(errors).toEqual([])
+})
+
 test("the dashboard starts the compiler, and the editor uses the same one", async ({ page, browserName }) => {
   const errors = pageErrors(page)
   await saveResume(page)
