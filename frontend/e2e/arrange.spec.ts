@@ -37,8 +37,17 @@ const RESUME = {
 
 const preview = (page: Page) => page.getByRole("region", { name: "Live preview" })
 
-/** The text of the preview's pages, in the order it's printed. */
-const printed = async (page: Page) => (await preview(page).locator(".react-pdf__Page__textContent").allTextContents()).join(" ")
+/**
+ * The text of the preview's pages, in the order it's printed, or "" while a
+ * page's text is still being laid out (it ends with an "endOfContent" mark),
+ * so that what isn't printed is never missing just because it isn't there yet.
+ */
+const printed = (page: Page) =>
+  preview(page)
+    .locator(".react-pdf__Page__textContent")
+    .evaluateAll((layers) =>
+      layers.every((layer) => layer.querySelector(".endOfContent")) ? layers.map((layer) => layer.textContent ?? "").join(" ") : "",
+    )
 
 /** Which of `names` the preview prints, in the order it prints them. */
 const printedOrder = async (page: Page, names: string[]) => {
@@ -135,13 +144,23 @@ test("an entry left out isn't printed, or in the PDF's copy of the resume, and c
   expect(JSON.stringify(restored)).not.toContain("Initech")
   await elsewhere.close()
 
-  // Here it's kept, left out, through a reload, and put back with a tick.
-  await page.reload()
+  // Changed here since, and with something left out, the resume has what the PDF doesn't, so opening the PDF here says so.
+  await page.getByRole("checkbox", { name: "Include entry 3 in the PDF" }).uncheck()
+  await expect.poll(async () => (await saved(page)).workExperienceSection[2].leftOut).toBe(true)
+  await page.goto("/create/dashboard")
+  await page.locator('input[type="file"]').setInputFiles(pdf)
+  const conflict = page.getByRole("dialog", { name: "You already have this resume" })
+  await expect(conflict).toContainText("What you left out of the PDF isn't in the file, so replacing deletes it.")
+  await conflict.getByRole("button", { name: "Cancel" }).click()
+
+  // Here it's kept, left out, and put back with a tick.
+  await page.goto(`/create/new/${RESUME.id}`)
   await previewShown(page)
   await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
   const include = page.getByRole("checkbox", { name: "Include entry 2 in the PDF" })
   await expect(include).not.toBeChecked()
   await include.check()
+  await page.getByRole("checkbox", { name: "Include entry 3 in the PDF" }).check()
   await expect.poll(() => printedOrder(page, ["Google", "Initech", "Hooli"])).toEqual(["Google", "Initech", "Hooli"])
 
   expect(errors).toEqual([])
@@ -157,13 +176,16 @@ test("bullets are moved and left out from the Arrange list, or moved with Alt an
   await field.getByRole("button", { name: "Arrange bullets" }).click()
   const list = field.getByRole("list", { name: BULLETS })
   await expect(list.getByRole("listitem")).toHaveText([/Built the search index/, /Cut serving costs/, /Mentored four interns/])
-  await list.getByRole("button", { name: "Move bullet 1 down" }).click()
+  await list.getByRole("button", { name: "Move bullet 1 down" }).focus()
+  await page.keyboard.press("Enter")
   await expect(list.getByRole("button", { name: "Move bullet 2 down" })).toBeFocused()
   await expect(list.getByRole("listitem")).toHaveText([/Cut serving costs/, /Built the search index/, /Mentored four interns/])
 
   await list.getByRole("checkbox", { name: "Include bullet 3 in the PDF" }).uncheck()
   await expect(list.getByRole("listitem").nth(2)).toContainText("Left out")
-  await expect.poll(() => printed(page)).not.toContain("Mentored four interns")
+  await expect
+    .poll(() => printedOrder(page, ["Cut serving costs", "Built the search index", "Mentored four interns", "Initech"]))
+    .toEqual(["Cut serving costs", "Built the search index", "Initech"])
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
 
   // Back in the text box, the left-out bullet starts with ○, and Alt+↓ moves the line the cursor is on.
@@ -178,6 +200,13 @@ test("bullets are moved and left out from the Arrange list, or moved with Alt an
     "• Built the search index\n• Cut serving costs by 30%\n○ Mentored four interns",
   )
 
+  // Enter in a left-out bullet: the words moved to the new line stay left out.
+  const split = "• Built the search index\n• Cut serving costs by 30%\n○ Mentored four".length
+  await box.evaluate((textarea: HTMLTextAreaElement, at) => textarea.setSelectionRange(at, at), split)
+  await page.keyboard.press("Enter")
+  await expect(box).toHaveValue("• Built the search index\n• Cut serving costs by 30%\n○ Mentored four\n○ interns")
+  expect(await box.evaluate((textarea: HTMLTextAreaElement) => textarea.selectionStart)).toBe(split + 3)
+
   expect(errors).toEqual([])
 })
 
@@ -187,7 +216,12 @@ test("a section with every entry left out isn't printed, title and all", async (
   await expect.poll(() => printed(page)).toContain("Python, Rust")
 
   await page.getByRole("checkbox", { name: "Include entry 1 in the PDF" }).uncheck()
-  await expect.poll(async () => /skills|python/i.test(await printed(page))).toBe(false)
+  await expect
+    .poll(async () => {
+      const text = await printed(page)
+      return text.includes("Hooli") && !/skills|python/i.test(text)
+    })
+    .toBe(true)
 
   expect(errors).toEqual([])
 })
@@ -234,11 +268,43 @@ test("the checker skips what's left out, and opens the right entry after it", as
   // The left-out entry is the first in the editor, so the finding is about the second.
   await panel.getByRole("button", { name: weak("Google") }).click()
   await expect(page.getByRole("button", { name: "Done editing entry 2" })).toBeVisible()
-  const box = page.locator('[data-field="workDescription"]').nth(1).getByLabel(BULLETS)
+  const field = page.locator('[data-field="workDescription"]').nth(1)
+  const box = field.getByLabel(BULLETS)
+  const selected = () => box.evaluate((textarea: HTMLTextAreaElement) => textarea.value.slice(textarea.selectionStart, textarea.selectionEnd))
   await expect(box).toBeFocused()
-  expect(await box.evaluate((textarea: HTMLTextAreaElement) => textarea.value.slice(textarea.selectionStart, textarea.selectionEnd))).toBe(
-    "Responsible for the search index",
-  )
+  expect(await selected()).toBe("Responsible for the search index")
+
+  // Arranging the bullets while the finding shows: the list stays open as the checker looks again.
+  await field.getByRole("button", { name: "Arrange bullets" }).click()
+  await field.getByRole("checkbox", { name: "Include bullet 2 in the PDF" }).uncheck()
+  await expect.poll(() => printedOrder(page, ["search index", "serving costs"])).toEqual(["search index"])
+  await expect(field.getByRole("list", { name: BULLETS })).toBeVisible()
+
+  // Choosing the finding again goes back to the text, at its bullet.
+  await panel.getByRole("button", { name: weak("Google") }).click()
+  await expect(box).toBeFocused()
+  expect(await selected()).toBe("Responsible for the search index")
+
+  expect(errors).toEqual([])
+})
+
+test("the text box shows every bullet after arranging, and a deleted entry's mode isn't passed on", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+  const field = page.locator('[data-field="workDescription"]').first()
+  const box = field.getByLabel(BULLETS)
+  await box.fill(Array.from({ length: 7 }, (_, index) => `• Shipped feature ${index + 1}`).join("\n"))
+  await field.getByRole("button", { name: "Arrange bullets" }).click()
+  await field.getByRole("button", { name: "Done arranging bullets" }).click()
+  await expect.poll(() => box.evaluate((textarea: HTMLTextAreaElement) => textarea.scrollHeight <= textarea.clientHeight)).toBe(true)
+
+  // The entry is deleted while its bullets are being arranged; the next one still opens with its text box.
+  await field.getByRole("button", { name: "Arrange bullets" }).click()
+  await page.getByRole("button", { name: "Delete entry 1" }).click()
+  await page.getByRole("button", { name: "Delete", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Edit entry 3" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Edit entry 1" }).click()
+  await expect(page.locator('[data-field="workDescription"]').first().getByRole("textbox", { name: BULLETS })).toHaveValue("• Filed the reports")
 
   expect(errors).toEqual([])
 })
