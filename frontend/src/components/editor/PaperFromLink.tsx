@@ -32,8 +32,8 @@ function byHand(line: string): Partial<PublicationFields> {
 interface PaperFromLinkProps {
   /** The section's entries as they are now, to skip papers already in it. */
   entries: () => Record<string, unknown>[]
-  /** The resume owner's name, kept in long author lists. */
-  owner: string
+  /** The resume owner's name as it is now, kept in long author lists. */
+  owner: () => string
   /** Adds papers as new entries. `show` brings the first into view. */
   onAdd: (papers: Partial<PublicationFields>[], show: boolean) => void
   /** The section's own add button, shown first. */
@@ -103,8 +103,9 @@ export default function PaperFromLink({ entries, owner, onAdd, children }: Paper
     setProblems([])
     setStatus("")
 
-    const known = new Set(entries().map((entry) => paperIdOf(String(entry.publicationLink ?? ""))?.doi.toLowerCase()))
-    const found: PublicationFields[] = []
+    // The DOIs in the list, read each time: entries can change while papers are looked up.
+    const listed = () => new Set(entries().map((entry) => paperIdOf(String(entry.publicationLink ?? ""))?.doi.toLowerCase()))
+    const found: { doi: string; fields: PublicationFields }[] = []
     const failed: Problem[] = []
     const left: string[] = []
     let repeats = 0
@@ -122,15 +123,14 @@ export default function PaperFromLink({ entries, owner, onAdd, children }: Paper
         continue
       }
       const doi = paper.doi.toLowerCase()
-      if (known.has(doi)) {
+      if (listed().has(doi) || found.some((other) => other.doi === doi)) {
         repeats++
         continue
       }
       try {
         const lookup = await lookUp(paper, stop.signal)
         if (lookup.found) {
-          found.push(publicationOf(lookup.work, paper, owner))
-          known.add(doi)
+          found.push({ doi, fields: publicationOf(lookup.work, paper, owner()) })
         } else {
           failed.push({ line, reason: lookup.reason })
           left.push(line)
@@ -146,13 +146,17 @@ export default function PaperFromLink({ entries, owner, onAdd, children }: Paper
 
     setProgress(null)
     const done = left.length === 0
-    if (found.length > 0) onAdd(found, done)
+    // Any put in the list by hand meanwhile count as already there.
+    const inList = listed()
+    const added = found.filter((paper) => !inList.has(paper.doi)).map((paper) => paper.fields)
+    repeats += found.length - added.length
+    if (added.length > 0) onAdd(added, done)
     setText(left.join("\n"))
     setProblems(failed)
     setStatus(
       [
         stop.signal.aborted && "Stopped.",
-        found.length > 0 && `Added ${papers(found.length)}.`,
+        added.length > 0 && `Added ${papers(added.length)}.`,
         repeats > 0 && `${papers(repeats)} ${repeats === 1 ? "was" : "were"} already in your list.`,
       ]
         .filter(Boolean)

@@ -68,6 +68,8 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   const entries: Entry[] = Array.isArray(formData[section.dataKey]) ? formData[section.dataKey] : []
   const latest = useRef(entries)
   latest.current = entries
+  const owner = useRef("")
+  owner.current = formData.profileSection?.fullName ?? ""
 
   // One entry is open at a time; the rest collapse to a one-line summary.
   const [openId, setOpenId] = useState<number | null>(entries[0]?.id ?? null)
@@ -406,7 +408,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
       )}
 
       {section.fromPaperLink ? (
-        <PaperFromLink entries={() => latest.current} owner={formData.profileSection?.fullName ?? ""} onAdd={addEntries}>
+        <PaperFromLink entries={() => latest.current} owner={() => owner.current} onAdd={addEntries}>
           {addButtonElement}
         </PaperFromLink>
       ) : (
