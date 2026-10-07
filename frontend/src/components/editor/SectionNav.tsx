@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd"
 import { GripVertical } from "lucide-react"
+import { WIDE_SCREEN } from "./layout"
 import { SECTIONS, type SectionName } from "./sections"
 
 export type ActiveSection = "Profile" | SectionName
@@ -16,11 +17,8 @@ interface SectionNavProps {
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
-/** Wide enough for the sidebar; below this the sections are a row of tabs above the form. */
-export const WIDE_SCREEN = "(min-width: 1024px)"
-
 /**
- * The numbered sections: a list in the sidebar on wide screens, a row of tabs on small ones.
+ * The numbered sections: a list in the left bar on wide screens, a row of tabs on narrower ones.
  * Profile stays first; the rest can be dragged into any order.
  */
 export default function SectionNav({ sections, active, onSelect, onReorder }: SectionNavProps) {
@@ -56,7 +54,7 @@ export default function SectionNav({ sections, active, onSelect, onReorder }: Se
   }
 
   const item = (isActive: boolean) =>
-    `flex shrink-0 items-center gap-3 whitespace-nowrap rounded-[4px] px-2 py-[9px] text-left text-sm transition-colors lg:w-full lg:shrink ${
+    `flex shrink-0 items-center gap-3 whitespace-nowrap rounded-[4px] px-2 py-[9px] text-left text-sm transition-colors xl:w-full xl:shrink ${
       isActive ? "bg-sheet font-medium text-ink ring-1 ring-rule" : "text-ink-2 hover:text-ink"
     }`
 
@@ -64,12 +62,12 @@ export default function SectionNav({ sections, active, onSelect, onReorder }: Se
     <nav
       ref={navRef}
       aria-label="Sections"
-      className="flex gap-1 overflow-x-auto px-3 py-2 [scrollbar-width:none] lg:flex-col lg:overflow-visible lg:p-0 [&::-webkit-scrollbar]:hidden"
+      className="flex gap-1 overflow-x-auto px-3 py-2 [scrollbar-width:none] xl:flex-col xl:overflow-visible xl:p-0 [&::-webkit-scrollbar]:hidden"
     >
-      <span className="label-mono hidden px-2 pb-3 text-ink-2 lg:block">Sections</span>
+      <span className="label-mono hidden px-2 pb-3 text-ink-2 xl:block">Sections</span>
 
       <button type="button" onClick={() => onSelect("Profile")} className={item(active === "Profile")} aria-current={active === "Profile" || undefined}>
-        <span className="hidden w-3.5 lg:block" aria-hidden="true" />
+        <span className="hidden w-3.5 xl:block" aria-hidden="true" />
         <span className={`font-mono text-[11px] ${active === "Profile" ? "text-accent" : ""}`}>01</span>
         Profile
       </button>
@@ -77,7 +75,7 @@ export default function SectionNav({ sections, active, onSelect, onReorder }: Se
       <DragDropContext onDragEnd={onDragEnd}>
         <Droppable droppableId="sections" direction={wide ? "vertical" : "horizontal"}>
           {(drop) => (
-            <div ref={drop.innerRef} {...drop.droppableProps} className="flex gap-1 lg:flex-col">
+            <div ref={drop.innerRef} {...drop.droppableProps} className="flex gap-1 xl:flex-col">
               {sections.map((name, index) => {
                 const isActive = active === name
                 return (
@@ -115,7 +113,7 @@ export default function SectionNav({ sections, active, onSelect, onReorder }: Se
         </Droppable>
       </DragDropContext>
 
-      <p className="mt-3 hidden border-t border-rule px-2 pt-5 text-[13px] leading-normal text-ink-2 lg:block">
+      <p className="mt-3 hidden border-t border-rule px-2 pt-5 text-[13px] leading-normal text-ink-2 xl:block">
         Drag a section to change its place on the page.
       </p>
     </nav>

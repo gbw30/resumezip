@@ -126,3 +126,11 @@ export const HIGH_SCHOOL_NAME = /\bhigh school\b/i
 
 /** "References available upon request", however it's worded. */
 export const REFERENCES_ON_REQUEST = /\breferences?\b[^.]{0,30}?\brequest(ed)?\b/i
+
+// Dates (D1–D7).
+
+/** Words for a date that hasn't come yet: an entry that's still going. */
+export const PRESENT_WORDS = ["Present", "Current", "Now", "Ongoing", "Today"]
+
+/** Words before a date that aren't part of it: "Expected May 2027", "Class of 2027". */
+export const DATE_PREFIXES = ["Expected", "Anticipated", "Exp.", "Est.", "Estimated", "Graduated", "Graduating", "Graduation", "Class of"]

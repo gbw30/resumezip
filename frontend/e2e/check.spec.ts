@@ -44,10 +44,15 @@ test("the left bar switches between writing and checking, and remembers which", 
     await expect(tab).toHaveAttribute("aria-selected", "true")
   }
 
-  // The mode stays after a reload, until it's switched back.
+  // The mode stays after a reload, until it's switched back. Each reload
+  // waits for the preview, so the PDF compiler's download isn't cut off,
+  // which Safari logs as an error.
+  const preview = page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()
+  await expect(preview).toBeVisible()
   await page.reload()
   await expect(check).toHaveAttribute("aria-selected", "true")
   await write.click()
+  await expect(preview).toBeVisible()
   await page.reload()
   await expect(write).toHaveAttribute("aria-selected", "true")
   await expect(sections).toBeVisible()

@@ -27,7 +27,7 @@ export default function CheckPanel() {
 
   if (!hasEnoughToCheck(view)) {
     return (
-      <p className="px-5 py-4 text-sm leading-relaxed text-ink-2 lg:px-2 lg:py-0">
+      <p className="px-5 py-4 text-sm leading-relaxed text-ink-2 xl:px-2 xl:py-0">
         Add your name and one entry to check this resume.
       </p>
     )
@@ -38,7 +38,7 @@ export default function CheckPanel() {
     ...report.automatic,
   ]
   return (
-    <div className="flex flex-col gap-6 px-3 py-4 lg:p-0">
+    <div className="flex flex-col gap-6 px-3 py-4 xl:p-0">
       {/* The resume score goes here (issue #67). */}
       {report.findings.length === 0 && <p className="px-2 text-sm text-ink-2">Nothing to fix.</p>}
       <Group level="fix" view={view} findings={report.findings.filter((finding) => finding.level === "fix")} />
