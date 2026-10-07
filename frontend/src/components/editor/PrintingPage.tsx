@@ -89,7 +89,8 @@ export default function PrintingPage({ width, leaving = false }: PrintingPagePro
   const printed = following ? Math.floor(status.downloaded * BARS.length) : BARS.length
   const next = BARS[printed]
   const head = next ? next.y - 4 : PAGE.height
-  const shown = Math.round(status.downloaded * 100)
+  // Rounded down, so 100% means it has all arrived.
+  const shown = Math.floor(status.downloaded * 100)
 
   return (
     <div
@@ -135,8 +136,9 @@ export default function PrintingPage({ width, leaving = false }: PrintingPagePro
               aria-valuenow={shown}
               className="border border-rule bg-sheet px-4 py-3 text-center shadow-[0_12px_32px_-16px_rgba(17,19,24,0.35)]"
             >
+              {/* Once the compiler is in, building it and the first preview are left. */}
               <p aria-hidden="true" className="label-mono text-ink">
-                Setting up the preview · {shown}%
+                {shown < 100 ? `Setting up the preview · ${shown}%` : "Finishing up…"}
               </p>
               <p aria-hidden="true" className="mt-1 text-xs text-ink-2">
                 It&apos;s quicker after the first time.
