@@ -29,6 +29,9 @@ async function writeExperience(page: Page, width: number, height: number) {
   await page.getByLabel("Full name").fill("Ada Lovelace")
   await experience(page).click()
   await page.getByRole("button", { name: "Add experience" }).click()
+  // A new entry puts the cursor in its first field once it has slid open.
+  // Typing before then could land in the wrong field.
+  await expect(page.getByLabel("Role", { exact: true })).toBeFocused()
   for (const [label, value] of Object.entries(ENTRY)) await page.getByLabel(label, { exact: true }).fill(value)
   await page.getByLabel(BULLETS).fill(LONG_BULLETS)
 }
