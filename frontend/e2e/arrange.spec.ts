@@ -331,7 +331,9 @@ test("on a narrower screen, a moved entry's buttons stay in sight, clear of the 
 
   // Entry 2 moves up past entry 1, which is open and taller than the window, so its heading jumps up the page.
   const up = page.getByRole("button", { name: "Move entry 2 up" })
-  await up.evaluate((element) => element.scrollIntoView({ block: "center" }))
+  // At once, as the page otherwise scrolls smoothly: a scroll still going when
+  // the entry moves would carry it on, past where the move left it in sight.
+  await up.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }))
   await up.focus()
   await expect.poll(() => inSight(up)).toBe(true)
   await page.keyboard.press("Enter")
