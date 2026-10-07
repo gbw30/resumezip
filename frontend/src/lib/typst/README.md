@@ -15,6 +15,8 @@ server to build a PDF.
   (`PdfFailure`), so the page can say what to do. `loadCompiler` starts the
   download before the first PDF: "Start writing" and the editor call it at
   once, and the dashboard after a second, unless the visitor is saving data.
+  `compilerStatus` says how much of the compiler has arrived, which the
+  preview's stand-in page shows (`src/components/editor/PrintingPage.tsx`).
 - `typst.worker.ts` loads the WebAssembly compiler and the fonts at the same
   time, and the templates, once, and compiles each request. Downloads also attach a copy of the resume to the PDF
   (see `src/lib/resumeFile.ts` and `src/lib/import/README.md`).
