@@ -2,16 +2,19 @@
 // lists and thresholds here too, so tuning the checker means changing this
 // file only. See README.md.
 
-/** The rubric's categories, in the order they're shown, and what each is worth in the score (100 in all). */
+/**
+ * The rubric's categories, in the order they're shown, what each is worth in
+ * the resume score (100 in all, see score.ts), and what each checks, in a line.
+ */
 export const CATEGORIES = [
-  { id: "contact", name: "Contact & personal details", points: 15 },
-  { id: "readable", name: "Readable by hiring software", points: 15 },
-  { id: "sections", name: "Sections & entries", points: 10 },
-  { id: "dates", name: "Dates", points: 10 },
-  { id: "bullets", name: "Bullets", points: 20 },
-  { id: "length", name: "Length & layout", points: 10 },
-  { id: "spelling", name: "Spelling & grammar", points: 15 },
-  { id: "polish", name: "Polish", points: 5 },
+  { id: "contact", name: "Contact & personal details", points: 15, about: "Name, email, phone and location are there, and nothing private" },
+  { id: "readable", name: "Readable by hiring software", points: 15, about: "Hiring software finds your details, sections and entries" },
+  { id: "sections", name: "Sections & entries", points: 10, about: "The sections a resume needs, each entry filled in" },
+  { id: "dates", name: "Dates", points: 10, about: "Clear dates on every entry, written one way, newest first" },
+  { id: "bullets", name: "Bullets", points: 20, about: "Strong verbs, numbers for results, and no repeats" },
+  { id: "length", name: "Length & layout", points: 10, about: "The right length, well filled, with bullets that wrap well" },
+  { id: "spelling", name: "Spelling & grammar", points: 15, about: "No typos or mixed-up words, and tech names spelled right" },
+  { id: "polish", name: "Polish", points: 5, about: "Punctuation, capitals and spacing used one way throughout" },
 ] as const
 
 export type CategoryId = (typeof CATEGORIES)[number]["id"]
@@ -28,16 +31,19 @@ export const LEVELS = {
 
 export type Level = keyof typeof LEVELS
 
-/** What every template guarantees, so it's always listed with the passed checks. */
-export const AUTOMATIC_PASSES = [
-  "Contact details are on the page itself, not in a header or footer",
-  "Text reads in one order, top to bottom",
-  "No tables or text boxes",
-  "No images, icons or skill bars",
-  "Standard fonts",
-  "Real text that can be selected and copied",
-  "The PDF's title is your name",
-] as const
+/**
+ * What every template guarantees, so it's always listed with its category's
+ * passed checks. It earns no points, as it can't be got wrong.
+ */
+export const AUTOMATIC_PASSES: readonly { category: CategoryId; title: string }[] = [
+  { category: "readable", title: "Contact details are on the page itself, not in a header or footer" },
+  { category: "readable", title: "Text reads in one order, top to bottom" },
+  { category: "readable", title: "No tables or text boxes" },
+  { category: "readable", title: "No images, icons or skill bars" },
+  { category: "readable", title: "Standard fonts" },
+  { category: "readable", title: "Real text that can be selected and copied" },
+  { category: "readable", title: "The PDF's title is your name" },
+]
 
 /** How many dismissed findings, and how many added words, a resume keeps. The oldest go first. */
 export const MAX_DISMISSED = 500

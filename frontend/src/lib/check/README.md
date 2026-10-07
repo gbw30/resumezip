@@ -56,6 +56,14 @@ sent anywhere.
   mostly names Harper doesn't know ("Redux", "Kanban"), so there G1 counts
   only a slip in typing a word Harper offers ("Comunication") or a tech name,
   and the grammar rules leave them alone.
+- `score.ts` works out the resume score (issue #67), out of 100: how well the
+  resume follows these checks, not whether it gets anyone hired. Each
+  category's points (`settings.ts`) are shared among its rules that apply, a
+  must-fix counting twice as much as a suggestion, and each rule earns its
+  share times its credit, so a problem in part of the resume costs only that
+  part, and dismissed suggestions count as passing. Rules that don't apply are
+  left out, and a category none of whose rules apply gives its points to the
+  others. Points are rounded down, so 100 means everything passed.
 - `places.ts` says where a finding is, so the editor can open it.
 - `state.ts` keeps what the person told the checker: findings they dismissed
   and words they added.
@@ -65,9 +73,13 @@ sent anywhere.
   bullet 2"), and whether there's enough of a resume to check yet.
 - `components/editor/useResumeCheck.ts` checks the open resume as it changes.
   `CheckContext.tsx` shares that with the left bar's Check panel
-  (`CheckPanel.tsx`) and the forms: choosing a finding opens its section and
-  entry, puts the cursor in its field (or selects its bullet), and shows what's
-  wrong and why under it until it's fixed.
+  (`CheckPanel.tsx`) and the forms. The panel shows the score, then each
+  category with its points, what it found (fixes first) and what passed;
+  categories with findings are open until folded. While the PDF or the text
+  is being checked again after a change, a category keeps its points and says
+  so instead of a count, so the score doesn't jump. Choosing a finding opens
+  its section and entry, puts the cursor in its field (or selects its bullet),
+  and shows what's wrong and why under it until it's fixed.
 
 ## Writing a rule
 

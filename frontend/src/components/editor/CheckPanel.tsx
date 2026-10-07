@@ -1,13 +1,14 @@
 "use client"
 
 import type React from "react"
-import { useId } from "react"
-import { Check } from "lucide-react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { Check, ChevronDown, CircleAlert, CircleCheck, Info, LoaderCircle } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
-import type { Finding } from "@/lib/check/engine"
+import type { Finding, Report, Rule } from "@/lib/check/engine"
 import { describePlace, hasEnoughToCheck } from "@/lib/check/labels"
 import type { ResumeView } from "@/lib/check/resume"
-import { LEVELS, type Level } from "@/lib/check/settings"
+import { scoreOf, totalOf, wholePoints, type CategoryScore } from "@/lib/check/score"
+import { CATEGORIES, type CategoryId } from "@/lib/check/settings"
 import { hasLeftOut } from "@/lib/leftOut"
 import { useCheck } from "./CheckContext"
 
@@ -15,12 +16,16 @@ import { useCheck } from "./CheckContext"
 // again (rule G1, issue #66).
 const TYPO_RULE = "G1"
 
+const FIX_COLOR = "text-[#b42318]"
+
 const quiet = "text-[13px] text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline"
 
+type Category = (typeof CATEGORIES)[number]
+
 /**
- * What the checker found on the resume, in the left bar's Check mode: what
- * to fix, what's worth a look, what was dismissed, and what passed. Choosing
- * a finding opens its field in the form.
+ * What the checker found on the resume, in the left bar's Check mode: the
+ * resume score, then each category with its points, what it found and what
+ * passed. Choosing a finding opens its field in the form.
  */
 export default function CheckPanel() {
   const { report, restore, pdf, grammar } = useCheck()
@@ -28,31 +33,36 @@ export default function CheckPanel() {
   // The resume as last checked, so places are named as the findings saw them.
   const view = report.view
 
+  // Rules still being checked: the PDF ones while the preview is read, and
+  // the grammar ones while text is.
+  const inProgress = (reads: Rule["reads"]) => (reads === "pdf" && pdf === "reading") || (reads === "grammar" && grammar === "checking")
+  const checking = new Map<CategoryId, Rule["reads"]>()
+  for (const result of report.results) {
+    if ((result.status === "waiting" || result.partial) && inProgress(result.rule.reads)) checking.set(result.rule.category, result.rule.reads)
+  }
+  const score = useShownScore(report, checking)
+
   if (!hasEnoughToCheck(view)) {
     return (
-      <p className="px-5 py-4 text-sm leading-relaxed text-ink-2 xl:px-2 xl:py-0">
-        {/* The checker reads only what's printed, so entries that are all left out don't count. */}
-        {view.profile.fullName && hasLeftOut(formData)
-          ? "Include an entry in the PDF to check this resume."
-          : "Add your name and one entry to check this resume."}
-      </p>
+      <div className="flex flex-col gap-4 px-3 py-4 xl:p-0">
+        <ScoreHeader total={null} />
+        <p className="px-2 text-sm leading-relaxed text-ink-2">
+          {/* The checker reads only what's printed, so entries that are all left out don't count. */}
+          {view.profile.fullName && hasLeftOut(formData)
+            ? "Include an entry in the PDF to check this resume."
+            : "Add your name and one entry to check this resume."}
+        </p>
+      </div>
     )
   }
 
   const waitingFor = (reads: "pdf" | "grammar") => report.results.some((result) => result.status === "waiting" && result.rule.reads === reads)
   // Grammar rules check text as it's typed, so they're behind until it's all been checked.
   const checkingGrammar = waitingFor("grammar") || grammar !== "ready"
-  const waiting = waitingFor("pdf") || checkingGrammar
-  const passed = [
-    // A rule that hasn't looked at everything yet hasn't passed yet.
-    ...report.results.filter((result) => result.status === "passed" && !result.partial).map((result) => result.rule.title),
-    ...report.automatic,
-  ]
   return (
-    <div className="flex flex-col gap-6 px-3 py-4 xl:p-0">
-      {/* The resume score goes here (issue #67). */}
-      {/* The PDF rules wait for the preview, and the grammar rules for the grammar checker, so "Nothing to fix" waits for them. */}
-      {waiting ? (
+    <div className="flex flex-col gap-5 px-3 py-4 xl:p-0">
+      <ScoreHeader total={score.total} />
+      {(waitingFor("pdf") || checkingGrammar) && (
         <div role="status" className="flex flex-col gap-1 px-2 text-sm text-ink-2">
           {waitingFor("pdf") && (
             <p>
@@ -67,11 +77,27 @@ export default function CheckPanel() {
             <p>{grammar === "failed" ? "Spelling and grammar couldn't be checked, so those checks are left out." : "Checking spelling and grammar…"}</p>
           )}
         </div>
-      ) : (
-        report.findings.length === 0 && <p className="px-2 text-sm text-ink-2">Nothing to fix.</p>
       )}
-      <Group level="fix" view={view} findings={report.findings.filter((finding) => finding.level === "fix")} />
-      <Group level="look" view={view} findings={report.findings.filter((finding) => finding.level === "look")} />
+
+      <div className="flex flex-col">
+        {CATEGORIES.map((category, index) => (
+          <CategoryRow
+            key={category.id}
+            category={category}
+            view={view}
+            findings={report.findings.filter((finding) => finding.category === category.id)}
+            passed={[
+              // A rule that hasn't looked at everything yet hasn't passed yet.
+              ...report.results
+                .filter((result) => result.rule.category === category.id && result.status === "passed" && !result.partial)
+                .map((result) => result.rule.title),
+              ...report.automatic.filter((pass) => pass.category === category.id).map((pass) => pass.title),
+            ]}
+            checking={checking.get(category.id)}
+            score={score.categories[index]}
+          />
+        ))}
+      </div>
 
       {report.dismissed.length > 0 && (
         <Folded summary={`Dismissed · ${report.dismissed.length}`}>
@@ -88,64 +114,264 @@ export default function CheckPanel() {
           </ul>
         </Folded>
       )}
-
-      <Folded summary={`${passed.length} passed`}>
-        <ul className="flex flex-col gap-1.5 px-2 py-1">
-          {passed.map((title, index) => (
-            <li key={index} className="flex gap-2 text-[13px] leading-snug text-ink-2">
-              <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {title}
-            </li>
-          ))}
-        </ul>
-      </Folded>
     </div>
   )
 }
 
-/** The findings at one level: each opens its field, and suggestions can be dismissed. */
-function Group({ level, view, findings }: { level: Level; view: ResumeView; findings: Finding[] }) {
-  const { open, dismiss, addWord } = useCheck()
+/**
+ * The score as shown. A category that's being checked again keeps the points
+ * it had when last checked, so its bar and the total don't jump each time
+ * the PDF or the text is read again after a change. Until a category has
+ * been checked once, the total waits for it ("checking").
+ */
+function useShownScore(report: Report, checking: ReadonlyMap<CategoryId, unknown>) {
+  const now = useMemo(() => scoreOf(report), [report])
+  const kept = useRef(new Map<CategoryId, CategoryScore>())
+  useEffect(() => {
+    for (const category of now.categories) if (!checking.has(category.id)) kept.current.set(category.id, category)
+  })
+  const categories = now.categories.map((category) => (checking.has(category.id) ? (kept.current.get(category.id) ?? null) : category))
+  const total =
+    now.total === null ? null : categories.every((category) => category !== null) ? totalOf(categories as CategoryScore[]) : ("checking" as const)
+  return { total, categories }
+}
+
+/** The resume score, and how it works. */
+function ScoreHeader({ total }: { total: number | "checking" | null }) {
   const id = useId()
-  if (findings.length === 0) return null
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-1">
-      <h2 id={id} className="label-mono px-2 text-ink-2">
-        {LEVELS[level].name} · {findings.length}
-      </h2>
-      <ul className="flex flex-col">
-        {findings.map((finding, index) => (
-          <li key={`${finding.key}:${index}`} className="flex flex-col">
-            <button
-              type="button"
-              onClick={() => open(finding)}
-              className="flex flex-col items-start gap-0.5 rounded-[4px] px-2 py-2 text-left transition-colors hover:bg-sheet"
-            >
-              <span className="w-full truncate font-mono text-[11px] text-ink-2">{describePlace(view, finding.place)}</span>
-              <span className="text-sm leading-snug text-ink">{finding.message}</span>
-            </button>
-            {(finding.level === "look" || finding.rule === TYPO_RULE) && (
-              <div className="-mt-1 flex gap-4 px-2 pb-1.5">
-                {finding.rule === TYPO_RULE && (
-                  <button type="button" onClick={() => addWord(finding.text)} aria-label={`Add word “${finding.text}”`} className={quiet}>
-                    Add word
-                  </button>
-                )}
-                {finding.level === "look" && (
-                  <button type="button" onClick={() => dismiss(finding)} aria-label={`Dismiss: ${finding.message}`} className={quiet}>
-                    Dismiss
-                  </button>
-                )}
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
+    <section aria-labelledby={id} className="flex flex-col gap-2 px-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id={id} className="label-mono text-ink-2">
+          Resume score
+        </h2>
+        <p className="flex items-baseline gap-1 text-ink" aria-busy={total === "checking" || undefined}>
+          {typeof total === "number" ? (
+            <>
+              <span className="text-[32px] font-medium leading-none tabular-nums">{total}</span>
+              <span className="text-sm text-ink-2" aria-hidden="true">
+                / 100
+              </span>
+              <span className="sr-only">out of 100</span>
+            </>
+          ) : (
+            <>
+              <span className="text-[32px] font-medium leading-none text-ink-2" aria-hidden="true">
+                {total === "checking" ? "…" : "–"}
+              </span>
+              <span className="sr-only">{total === "checking" ? "Checking" : "Not scored yet"}</span>
+            </>
+          )}
+        </p>
+      </div>
+      <details className="text-[13px] leading-relaxed text-ink-2">
+        <summary className="w-fit cursor-pointer select-none underline-offset-4 transition-colors hover:text-ink hover:underline">
+          How the score works
+        </summary>
+        <div className="flex flex-col gap-2 pt-2">
+          <p>
+            It's how well this resume follows the checks below, out of 100. It doesn't say whether a resume will get anyone
+            hired.
+          </p>
+          <p>
+            Each category is worth some of the 100 points:{" "}
+            {CATEGORIES.map((category) => `${category.name} ${category.points}`).join(", ")}. Its checks share them, and a
+            must-fix counts twice as much as a suggestion.
+          </p>
+          <p>
+            A check that finds something in part of the resume still gets credit for the rest. Dismissed suggestions count as
+            passed, and checks that don't apply are left out.
+          </p>
+        </div>
+      </details>
     </section>
   )
 }
 
-/** A list that starts folded, like the passed checks. */
+/**
+ * One category: an icon and a count for where it stands, what it checks,
+ * its points, and, opened, its findings (fixes first) and what passed.
+ * Categories with findings are open until folded; the rest are folded until
+ * opened. While it's being checked again, it stays as it was, rather than
+ * folding as its PDF findings wait for the new preview to be read.
+ */
+function CategoryRow({
+  category,
+  view,
+  findings,
+  passed,
+  checking,
+  score,
+}: {
+  category: Category
+  view: ResumeView
+  findings: Finding[]
+  passed: string[]
+  /** What it's waiting on, while some of its rules are still being checked. */
+  checking: Rule["reads"] | undefined
+  /** Its points as shown; null until it has been checked once. */
+  score: CategoryScore | null
+}) {
+  const id = useId()
+  const [toggled, setToggled] = useState<boolean | null>(null)
+  const hadFindings = useRef(findings.length > 0)
+  useEffect(() => {
+    if (!checking) hadFindings.current = findings.length > 0
+  })
+  const open = toggled ?? (checking ? hadFindings.current : findings.length > 0)
+  const fixes = findings.filter((finding) => finding.level === "fix")
+  const looks = findings.filter((finding) => finding.level === "look")
+  const counts = [fixes.length > 0 && `${fixes.length} to fix`, looks.length > 0 && `${looks.length} to review`].filter(Boolean).join(", ")
+  // Where it stands, in a few words. While its rules wait on the PDF or the
+  // text, it says so instead of a count.
+  const allPassed = !checking && !counts && passed.length > 0
+  const status =
+    checking === "pdf"
+      ? "Reading the PDF…"
+      : checking
+        ? "Checking…"
+        : counts || (allPassed ? `${passed.length} of ${passed.length}` : "Nothing to check")
+
+  return (
+    <section aria-labelledby={`${id}-name`} className="flex flex-col border-b border-rule last:border-b-0">
+      <h2>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={`${id}-body`}
+          aria-label={`${category.name}, ${allPassed ? `${status} passed` : status}`}
+          onClick={() => setToggled(!open)}
+          className="flex w-full items-start gap-2 rounded-[4px] px-2 pb-1 pt-3 text-left transition-colors hover:bg-sheet"
+        >
+          {checking ? (
+            <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-ink-2 motion-reduce:animate-none" aria-hidden="true" />
+          ) : fixes.length > 0 ? (
+            <CircleAlert className={`mt-0.5 h-4 w-4 shrink-0 ${FIX_COLOR}`} aria-hidden="true" />
+          ) : looks.length > 0 ? (
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+          ) : (
+            <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-ink-2" aria-hidden="true" />
+          )}
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span id={`${id}-name`} className="text-sm font-medium leading-snug text-ink">
+              {category.name}
+            </span>
+            <span className={`text-[12px] leading-snug ${checking ? "text-ink-2" : fixes.length > 0 ? FIX_COLOR : looks.length > 0 ? "text-accent" : "text-ink-2"}`}>
+              {status}
+            </span>
+          </span>
+          <ChevronDown
+            className={`mt-0.5 h-4 w-4 shrink-0 text-ink-2 transition-transform ${open ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+      </h2>
+      <div className="flex flex-col gap-1.5 pb-3 pl-8 pr-2">
+        <p className="text-[12px] leading-snug text-ink-2">{category.about}</p>
+        <Points name={category.name} score={score} />
+      </div>
+
+      <div id={`${id}-body`} hidden={!open} className="flex flex-col gap-3 pb-3 pl-6">
+        {fixes.length > 0 && (
+          <Group title={`To fix · ${fixes.length}`}>
+            {fixes.map((finding, index) => (
+              <FindingItem key={`${finding.key}:${index}`} finding={finding} view={view} />
+            ))}
+          </Group>
+        )}
+        {looks.length > 0 && (
+          <Group title={`To review · ${looks.length}`}>
+            {looks.map((finding, index) => (
+              <FindingItem key={`${finding.key}:${index}`} finding={finding} view={view} />
+            ))}
+          </Group>
+        )}
+        {passed.length > 0 && (
+          <Group title={`Passed · ${passed.length}`}>
+            {passed.map((title, index) => (
+              <li key={index} className="flex gap-2 px-2 py-0.5 text-[13px] leading-snug text-ink-2">
+                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                {title}
+              </li>
+            ))}
+          </Group>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/** A category's points, as a bar. */
+function Points({ name, score }: { name: string; score: CategoryScore | null }) {
+  // Not checked yet: the count says it's being checked.
+  if (!score) return null
+  if (!score.applies) return <p className="text-[12px] text-ink-2">None of its checks apply, so it isn't scored.</p>
+  const earned = wholePoints(score.earned)
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        role="meter"
+        aria-label={`${name}, points`}
+        aria-valuemin={0}
+        aria-valuemax={score.points}
+        aria-valuenow={earned}
+        aria-valuetext={`${earned} of ${score.points} points`}
+        className="h-1 flex-1 overflow-hidden rounded-full bg-rule"
+      >
+        <div className="h-full rounded-full bg-ink" style={{ width: `${(100 * score.earned) / score.points}%` }} />
+      </div>
+      <span className="font-mono text-[11px] tabular-nums text-ink-2" aria-hidden="true">
+        {earned}/{score.points}
+      </span>
+    </div>
+  )
+}
+
+/** Some of a category's findings or passed checks, under a small title. */
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  const id = useId()
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-0.5">
+      <h3 id={id} className="label-mono px-2 text-ink-2">
+        {title}
+      </h3>
+      <ul className="flex flex-col">{children}</ul>
+    </section>
+  )
+}
+
+/** A finding: it opens its field, and a suggestion can be dismissed. */
+function FindingItem({ finding, view }: { finding: Finding; view: ResumeView }) {
+  const { open, dismiss, addWord } = useCheck()
+  return (
+    <li className="flex flex-col">
+      <button
+        type="button"
+        onClick={() => open(finding)}
+        className="flex flex-col items-start gap-0.5 rounded-[4px] px-2 py-2 text-left transition-colors hover:bg-sheet"
+      >
+        <span className="w-full truncate font-mono text-[11px] text-ink-2">{describePlace(view, finding.place)}</span>
+        <span className="text-sm leading-snug text-ink">{finding.message}</span>
+      </button>
+      {(finding.level === "look" || finding.rule === TYPO_RULE) && (
+        <div className="-mt-1 flex gap-4 px-2 pb-1.5">
+          {finding.rule === TYPO_RULE && (
+            <button type="button" onClick={() => addWord(finding.text)} aria-label={`Add word “${finding.text}”`} className={quiet}>
+              Add word
+            </button>
+          )}
+          {finding.level === "look" && (
+            <button type="button" onClick={() => dismiss(finding)} aria-label={`Dismiss: ${finding.message}`} className={quiet}>
+              Dismiss
+            </button>
+          )}
+        </div>
+      )}
+    </li>
+  )
+}
+
+/** A list that starts folded, like the dismissed findings. */
 function Folded({ summary, children }: { summary: string; children: React.ReactNode }) {
   return (
     <details>

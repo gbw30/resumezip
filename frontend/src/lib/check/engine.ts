@@ -151,8 +151,8 @@ export interface Report {
   dismissed: Finding[]
   /** How each rule did, in the order the rules were given. */
   results: RuleResult[]
-  /** What the templates guarantee, always passed. */
-  automatic: readonly string[]
+  /** What the templates guarantee, always passed, with the category each is about. */
+  automatic: typeof AUTOMATIC_PASSES
   /** The resume as the rules read it; the findings' places are on it. */
   view: ResumeView
 }
