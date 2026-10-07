@@ -6,9 +6,12 @@ PDF or Word file. It all happens in the browser; nothing is uploaded.
 - `open.ts` is what the UI calls. pdf.js and mammoth only download when a PDF
   or Word file is opened.
 - **resumezip PDFs** carry their resume as an attached file, `resumezip.json`
-  (see `src/lib/resumeFile.ts`). Opening one restores the resume exactly. The
-  attachment holds what's printed plus the template and section order, never the
-  resume's name or tag, since anyone who gets the PDF can read it.
+  (see `src/lib/resumeFile.ts`). Opening one restores the resume exactly, with
+  nothing cut off. One too big to open (over `MAX_ENTRIES` entries or
+  `MAX_LENGTH` characters, far more than any resume has) isn't opened at all, and
+  the dialog says why. The attachment holds what's printed plus the template and
+  section order, never the resume's name or tag, since anyone who gets the PDF
+  can read it.
 - **Any other file** is read by `lines.ts` into lines of text with their position,
   size, style and links, then sorted into the editor's fields by `parse.ts`. The
   review dialog (`components/dashboard/ImportReview.tsx`) shows the result next to

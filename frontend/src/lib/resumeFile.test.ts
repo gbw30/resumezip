@@ -1,10 +1,33 @@
 import { readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { describe, expect, test } from "vitest"
-import { cleanResume, fromAttachment, toAttachment } from "./resumeFile"
+import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
+import { cleanResume, fromAttachment, MAX_ENTRIES, MAX_LENGTH, toAttachment, TooLongError, type ResumeContent } from "./resumeFile"
 
 const SAMPLES = path.resolve("src/lib/typst/preview-samples")
 const samples = readdirSync(SAMPLES).map((file) => JSON.parse(readFileSync(path.join(SAMPLES, file), "utf8")))
+
+/** `count` entries for a section, in the editor's shape, each field `length` characters long. */
+const entries = (name: SectionName, count: number, length = 10) =>
+  Array.from({ length: count }, (_, index) => ({
+    id: index + 1,
+    ...Object.fromEntries(SECTIONS[name].fields.map((field) => [field.key, "x".repeat(length)])),
+  }))
+
+/**
+ * A resume in the editor's shape, so what's restored can be compared with it
+ * as it is: `count` entries in every section, and every heading, profile
+ * field and entry field `length` characters long.
+ */
+const editorResume = ({ count = 1, length = 10 }): ResumeContent => ({
+  id: "a",
+  updatedAt: "2026-10-06T12:00:00.000Z",
+  selectedTemplate: "jake",
+  sectionOrder: [...SECTION_NAMES],
+  headings: Object.fromEntries(SECTION_NAMES.map((name) => [SECTIONS[name].headingKey, "x".repeat(length)])),
+  profileSection: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, "x".repeat(length)])),
+  ...Object.fromEntries(SECTION_NAMES.map((name) => [SECTIONS[name].dataKey, entries(name, count, length)])),
+})
 
 describe("the attachment in a downloaded PDF", () => {
   test.each(samples.map((sample) => [sample.selectedTemplate, sample]))("restores the %s sample exactly", (_, sample) => {
@@ -17,10 +40,43 @@ describe("the attachment in a downloaded PDF", () => {
     expect(resume).not.toHaveProperty("resumeTag")
   })
 
+  // Earlier versions cut sections to 100 entries, headings to 200
+  // characters, profile fields to 500 and everything else to 10,000.
+  test.each([99, 100, 101])("restores all %i entries in each section", (count) => {
+    const resume = editorResume({ count })
+    expect(fromAttachment(toAttachment(resume))).toEqual(resume)
+  })
+
+  test.each([199, 200, 201, 499, 500, 501, 9_999, 10_000, 10_001])("restores all %i characters of every field", (length) => {
+    const resume = editorResume({ length })
+    expect(fromAttachment(toAttachment(resume))).toEqual(resume)
+  })
+
+  test("restores as many entries as it can open, and won't open more rather than cut them off", () => {
+    const resume: ResumeContent = { ...editorResume({ count: 0 }), publicationsSection: entries("Publications", MAX_ENTRIES) }
+    expect(fromAttachment(toAttachment(resume))).toEqual(resume)
+    resume.workExperienceSection = entries("Work", 1)
+    expect(() => fromAttachment(toAttachment(resume))).toThrow(TooLongError)
+  })
+
+  test("restores as many characters as it can open, and won't open more rather than cut them off", () => {
+    const resume = editorResume({})
+    const [work] = resume.workExperienceSection
+    work.workDescription = ""
+    work.workDescription = "x".repeat(MAX_LENGTH - toAttachment(resume).length)
+    expect(toAttachment(resume)).toHaveLength(MAX_LENGTH)
+    expect(fromAttachment(toAttachment(resume))).toEqual(resume)
+    work.workDescription += "x"
+    expect(() => fromAttachment(toAttachment(resume))).toThrow(TooLongError)
+  })
+
   test("isn't read from other JSON or from newer versions", () => {
     expect(fromAttachment("not json")).toBeNull()
     expect(fromAttachment(JSON.stringify({ format: "something-else", version: 1, resume: {} }))).toBeNull()
     expect(fromAttachment(JSON.stringify({ format: "resumezip", version: 2, resume: {} }))).toBeNull()
+    // Not even one too long to open, so the PDF is read like any other.
+    expect(fromAttachment(JSON.stringify({ format: "something-else", notes: "x".repeat(MAX_LENGTH) }))).toBeNull()
+    expect(fromAttachment("x".repeat(MAX_LENGTH + 1))).toBeNull()
   })
 })
 
@@ -43,12 +99,9 @@ describe("cleanResume", () => {
     expect(new Set(clean.sectionOrder).size).toBe(clean.sectionOrder.length)
   })
 
-  test("caps long text and long lists", () => {
-    const clean = cleanResume({
-      profileSection: { fullName: "x".repeat(5000) },
-      skillsSection: Array.from({ length: 500 }, () => ({ skillName: "Go" })),
-    })
-    expect(clean.profileSection.fullName).toHaveLength(500)
-    expect(clean.skillsSection).toHaveLength(100)
+  test("turns bullets an earlier version kept as a list into lines, all of them", () => {
+    const lines = Array.from({ length: 2000 }, (_, index) => `Shipped release ${index + 1}`)
+    const clean = cleanResume({ workExperienceSection: [{ workDescription: lines }] })
+    expect(clean.workExperienceSection[0].workDescription).toBe(lines.map((line) => `• ${line}`).join("\n"))
   })
 })
