@@ -26,8 +26,8 @@ export function useStartWriting() {
         return
       }
       const id = createNewResume("Untitled resume", "personal", template)
-      // The editor's preview needs the PDF compiler, so it starts downloading now.
-      loadCompiler()
+      // The editor's preview needs the PDF compiler and the template's fonts, so they start downloading now.
+      loadCompiler(template)
       router.push(`/create/new/${id}`)
     },
     [getState, createNewResume, router],
