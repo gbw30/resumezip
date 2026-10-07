@@ -1,13 +1,15 @@
 // Opens a resume file someone picked or dropped, entirely in the browser. A
 // PDF that resumezip made carries its resume (see lib/resumeFile.ts) and is
-// restored exactly; anything else is read and sorted into fields by parse.ts.
-// Reading stops at the limits in limits.ts, and closes whatever it opened.
+// restored exactly; anything else is read and sorted into fields by parse.ts,
+// in a worker (read.ts). Reading stops at the limits in limits.ts, and shuts
+// down whatever it started.
 
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { ATTACHMENT_NAME, fromAttachment, MAX_ENTRIES, MAX_LENGTH, TooLongError, type ResumeContent } from "@/lib/resumeFile"
-import { MAX_BYTES, MAX_CHARACTERS, MAX_LINES, MAX_PAGES, TooMuchTextError } from "./limits"
-import { linesFromDocx, linesFromPages, readPdf, type Line, type PageSize, type PdfPage } from "./lines"
-import { parseResume, type ParsedResume } from "./parse"
+import { MAX_BYTES, MAX_PAGES, TooMuchTextError } from "./limits"
+import { readPdf, type Line, type PageSize, type PdfPage } from "./lines"
+import type { ParsedResume } from "./parse"
+import type { ReadRequest, ReadResult } from "./read"
 
 export type OpenedFile =
   | { kind: "resumezip"; resume: ResumeContent; title: string }
@@ -49,11 +51,36 @@ function kindOf(file: File): "pdf" | "docx" | null {
   return null
 }
 
-/** Sorts lines into fields, unless there are more than a resume would have. */
-function parseLines(lines: Line[]): ParsedResume {
-  const characters = lines.reduce((sum, line) => sum + line.text.length, 0)
-  if (lines.length > MAX_LINES || characters > MAX_CHARACTERS) throw new OpenFileError(TOO_MUCH_TEXT)
-  return parseResume(lines)
+/** Reads in a worker of its own, which is ended once it answers. */
+function readInWorker(request: ReadRequest): Promise<ReadResult> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL("./import.worker.ts", import.meta.url))
+    const end = (settle: () => void) => {
+      worker.terminate()
+      settle()
+    }
+    worker.onmessage = ({ data }: MessageEvent<ReadResult>) => end(() => resolve(data))
+    worker.onerror = (event) => end(() => reject(new Error(event.message || "The import worker failed")))
+    worker.onmessageerror = () => end(() => reject(new Error("The import worker's answer couldn't be read")))
+    try {
+      worker.postMessage(request, request.kind === "docx" ? [request.data] : [])
+    } catch (error) {
+      end(() => reject(error))
+    }
+  })
+}
+
+/** The resume found, or the problem, worded for the person who picked the file. */
+function found(result: ReadResult, noText: string): ParsedResume {
+  if ("parsed" in result) return result.parsed
+  if ("failed" in result) throw new Error(result.failed)
+  throw new OpenFileError(
+    result.problem === "too much text"
+      ? TOO_MUCH_TEXT
+      : result.problem === "no text"
+        ? noText
+        : "We couldn't read this Word file. Try saving it as a PDF and opening that.",
+  )
 }
 
 /** The resume a resumezip PDF carries, or null for a PDF from anywhere else. */
@@ -98,9 +125,8 @@ async function openPdf(data: ArrayBuffer, title: string, fileName: string): Prom
     } catch (error) {
       throw error instanceof TooMuchTextError ? new OpenFileError(TOO_MUCH_TEXT) : error
     }
-    const lines = linesFromPages(pages)
-    if (lines.length === 0) throw new OpenFileError("This PDF has no text we can read. It's probably a scan or a picture of a resume.")
-    const parsed = parseLines(lines)
+    const result = await readInWorker({ kind: "pdf", pages })
+    const parsed = found(result, "This PDF has no text we can read. It's probably a scan or a picture of a resume.")
     shown = true
     return { kind: "parsed", parsed, lines: parsed.lines, title, fileName, pdf: { doc, pages: pages.map(({ width, height }) => ({ width, height })) } }
   } finally {
@@ -110,14 +136,7 @@ async function openPdf(data: ArrayBuffer, title: string, fileName: string): Prom
 }
 
 async function openWordFile(data: ArrayBuffer, title: string, fileName: string): Promise<OpenedFile> {
-  let lines: Line[]
-  try {
-    lines = await linesFromDocx(data)
-  } catch (error) {
-    throw new OpenFileError(error instanceof TooMuchTextError ? TOO_MUCH_TEXT : "We couldn't read this Word file. Try saving it as a PDF and opening that.")
-  }
-  if (lines.length === 0) throw new OpenFileError("This Word file has no text in it.")
-  const parsed = parseLines(lines)
+  const parsed = found(await readInWorker({ kind: "docx", data }), "This Word file has no text in it.")
   return { kind: "parsed", parsed, lines: parsed.lines, title, fileName }
 }
 
