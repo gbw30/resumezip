@@ -155,7 +155,10 @@ export default function PdfPreview({ pdfUrl, error }: PdfPreviewProps) {
                       width={pageWidth}
                       loading={null}
                       className="shadow-[0_1px_2px_rgba(17,19,24,0.06),0_18px_40px_-16px_rgba(17,19,24,0.22)]"
-                      renderTextLayer
+                      // The text layer, for selecting and copying, is the costliest
+                      // part. It's drawn once a PDF is on screen, not for one
+                      // loading out of sight that a newer one may replace.
+                      renderTextLayer={doc.ready && doc === shownDocument}
                       renderAnnotationLayer
                       onRenderSuccess={() => onRenderSuccess(doc.file, index + 1)}
                     />
