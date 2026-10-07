@@ -27,10 +27,10 @@ const severities = [...form.split("id: severity")[1].split("validations:")[0].ma
   (match) => match[1],
 )
 
-test("every severity option gets its label", () => {
+test("every severity option gets its priority label", () => {
   assert.deepEqual(
     severities.map((option) => labelsFor(report(option))),
-    [["severity: critical"], ["severity: major"], ["severity: minor"], ["severity: trivial"]],
+    [["P0: critical"], ["P1: high"], ["P2: medium"], ["P3: low"]],
   )
 })
 
@@ -40,5 +40,5 @@ test("issues not made with the form get no labels", () => {
 })
 
 test("Windows line endings work too", () => {
-  assert.deepEqual(labelsFor(report(severities[2]).replaceAll("\n", "\r\n")), ["severity: minor"])
+  assert.deepEqual(labelsFor(report(severities[2]).replaceAll("\n", "\r\n")), ["P2: medium"])
 })

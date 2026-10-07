@@ -1,20 +1,20 @@
-# Gives a pull request the severity label of the bug it fixes. If issue #123
-# is "severity: critical" and a pull request's description says it fixes
-# #123, the pull request gets "severity: critical" too, including when the
-# issue only gets its severity later. Greptile's dashboard can then review
-# pull requests with the labels that matter.
+# Gives a pull request the priority label of the issue it fixes. If issue #123
+# is "P0: critical" and a pull request's description says it fixes #123, the
+# pull request gets "P0: critical" too, including when the issue only gets
+# its priority later. Greptile's dashboard can then review pull requests
+# with the labels that matter.
 #
 # pull_request_target runs this file as it is on main, so it can label pull
 # requests from forks, and changes to it only apply once merged. It never
 # checks out the pull request's code, and only copies labels the linked
 # issues already have, so it's safe despite the trigger's reputation.
 
-name: Pull request severity
+name: Pull request priority
 
 on:
   pull_request_target: # zizmor: ignore[dangerous-triggers] -- no checkout; reads labels only
     types: [opened, edited, reopened, synchronize]
-  # A bug can get its severity after a pull request for it is opened.
+  # An issue can get its priority after a pull request for it is opened.
   issues:
     types: [labeled]
 
@@ -23,9 +23,12 @@ permissions:
   pull-requests: write
 
 jobs:
-  severity:
-    name: Copy severity
-    if: github.event_name != 'issues' || startsWith(github.event.label.name, 'severity:')
+  priority:
+    name: Copy priority
+    if: >-
+      github.event_name != 'issues' ||
+      startsWith(github.event.label.name, 'P0:') || startsWith(github.event.label.name, 'P1:') ||
+      startsWith(github.event.label.name, 'P2:') || startsWith(github.event.label.name, 'P3:')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -41,7 +44,7 @@ jobs:
             }
 
             if (context.eventName === "issues") {
-              // An issue just got a severity: give it to the open pull requests that will close it.
+              // An issue just got a priority: give it to the open pull requests that will close it.
               const { repository } = await github.graphql(
                 `query ($owner: String!, $repo: String!, $number: Int!) {
                   repository(owner: $owner, name: $repo) {
@@ -60,7 +63,7 @@ jobs:
               return
             }
 
-            // A pull request opened or changed: give it the severities of the issues it will close,
+            // A pull request opened or changed: give it the priorities of the issues it will close,
             // whether linked from its description ("fixes #123" and the like) or by hand.
             const { repository } = await github.graphql(
               `query ($owner: String!, $repo: String!, $number: Int!) {
@@ -74,11 +77,11 @@ jobs:
               }`,
               { ...context.repo, number: context.issue.number },
             )
-            const severities = [
+            const priorities = [
               ...new Set(
                 repository.pullRequest.closingIssuesReferences.nodes
                   .flatMap(labelsOf)
-                  .filter((name) => name.startsWith("severity: ")),
+                  .filter((name) => /^P[0-3]: /.test(name)),
               ),
             ]
-            await addMissing(context.issue.number, severities, context.payload.pull_request.labels.map((label) => label.name))
+            await addMissing(context.issue.number, priorities, context.payload.pull_request.labels.map((label) => label.name))

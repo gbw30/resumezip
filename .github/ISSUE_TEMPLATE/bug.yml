@@ -1,4 +1,4 @@
-# The answer to "How bad is it?" becomes a severity label
+# The answer to "How bad is it?" becomes a priority label, P0 to P3
 # (.github/scripts/issue-labels.mjs). Keep the two in step.
 name: Bug report
 description: Something in resumezip doesn't work or looks wrong.
