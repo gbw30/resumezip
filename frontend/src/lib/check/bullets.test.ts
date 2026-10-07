@@ -165,6 +165,12 @@ describe("B8 how many bullets", () => {
 })
 
 describe("B9 repeated bullets", () => {
+  test("lets each copy of a bullet written three times be dismissed on its own", () => {
+    const findings = check("B9", resumeWith(job(["Built the index", "Built the index", "Built the index"]))).findings
+    expect(findings.map((finding) => finding.place)).toEqual([bulletAt(1), bulletAt(2)])
+    expect(findings[0].key).not.toBe(findings[1].key)
+  })
+
   test("flags a bullet that's the same as one before it, case and punctuation aside", () => {
     const resume = resumeWith(job(["Built the search index."]), { ...job(["Led the team", "built the Search Index"]), id: 2 })
     expect(check("B9", resume).findings).toEqual([
