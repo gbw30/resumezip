@@ -87,18 +87,19 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-ubuntu-24.04-${{ steps.playwright.outputs.version }}
       # The browsers, unless they were kept, and the system libraries they
-      # need, from Ubuntu's package servers. A server can stop answering
-      # partway (on October 7, 2026, one hung for 20 minutes and the job
-      # timed out), so apt gives up on one after 30 seconds and tries again,
-      # and each try is cut off after 5 minutes.
+      # need, from Ubuntu's package servers. A server can go quiet partway
+      # (on October 7, 2026, apt waited on one for 20 minutes, and the job
+      # timed out), so apt gives up on a connection after 20 seconds without
+      # data, tries it twice more, then moves on, and waits for another apt
+      # to finish rather than failing. A failed install is tried again, up to
+      # 3 times. A slow download that's still going isn't cut off: stopping
+      # one from outside leaves apt running, holding its lock.
       - name: Install browsers
         run: |
-          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/99timeouts > /dev/null
+          printf 'Acquire::http::Timeout "20";\nAcquire::https::Timeout "20";\nAcquire::Retries "2";\nDPkg::Lock::Timeout "120";\n' | sudo tee /etc/apt/apt.conf.d/99timeouts > /dev/null
           for try in 1 2 3; do
-            timeout 5m npx playwright install --with-deps chromium webkit && exit 0
-            echo "::warning::Installing the browsers didn't finish, try $try of 3"
-            # Finishes any package a cut-off try left half installed.
-            sudo dpkg --configure -a || true
+            npx playwright install --with-deps chromium webkit && exit 0
+            echo "::warning::Installing the browsers failed, try $try of 3"
           done
           exit 1
       - name: Build
