@@ -5,6 +5,7 @@
 // crash the app or get saved over. lib/resumeStore.ts decides when to save.
 
 import { SECTIONS } from "@/components/editor/sections"
+import { CHECK_FIELD } from "@/lib/check/state"
 
 /**
  * Saved data that can't be read is kept instead of being saved over, each
@@ -267,10 +268,10 @@ export const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
 // Fields the editor reads as lists of entries, and as objects of named
-// values. Older resumes can lack some of them, or have them empty (null);
-// only other shapes count.
+// values (the checker's dismissals and added words are one). Older resumes
+// can lack some of them, or have them empty (null); only other shapes count.
 const ENTRY_LISTS = new Set(Object.values(SECTIONS).map((section) => section.dataKey))
-export const OBJECT_FIELDS = new Set(["profileSection", "headings"])
+export const OBJECT_FIELDS = new Set(["profileSection", "headings", CHECK_FIELD])
 
 /** A field as the editor can show it, and whether that's all of it; null if none of it. */
 function readField(key: string, value: unknown): { value: unknown; complete: boolean } | null {
@@ -394,9 +395,12 @@ export function mergeResume(theirs: Resume, ours: Resume, changed: ReadonlySet<s
 
 /**
  * What an edit changed, as mergeResume takes it: the field, or for an object
- * field like the profile, each value in it that changed.
+ * field like the profile, each value in it that changed. An object field
+ * that wasn't there counts as empty, so two tabs that each start one at
+ * once, as with the first dismissal in each, keep both.
  */
 export function changedPaths(field: string, before: unknown, after: unknown): string[] {
+  before ??= {}
   if (!OBJECT_FIELDS.has(field) || !isObject(before) || !isObject(after)) return [field]
   const keys = new Set([...Object.keys(before), ...Object.keys(after)])
   return [...keys].filter((key) => before[key] !== after[key]).map((key) => `${field}.${key}`)
