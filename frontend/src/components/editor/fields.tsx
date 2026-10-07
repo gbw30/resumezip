@@ -2,9 +2,11 @@
 
 import type React from "react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
-import { ArrowDown, ArrowUp, Pencil } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react"
 import type { Finding } from "@/lib/check/engine"
 import { LEVELS } from "@/lib/check/settings"
+import { plainText } from "@/lib/typst/resumeData"
+import { bulletLines, moveBullet, moveLine, setLeftOutLine } from "./arrange"
 
 interface FieldProps {
   label: string
@@ -69,12 +71,19 @@ export function Field({ label, value, placeholder, type = "text", className = ""
   )
 }
 
+/** Where a line starts in a textarea's text. */
+const lineStart = (text: string, line: number) =>
+  text
+    .split("\n")
+    .slice(0, line)
+    .reduce((total, words) => total + words.length + 1, 0)
+
 /** Selects a line's words in a bullets textarea, after its "• ", to point at one bullet. */
 export function selectLine(textarea: HTMLTextAreaElement, line: number) {
   const lines = textarea.value.split("\n")
   if (line < 0 || line >= lines.length) return
-  const start = lines.slice(0, line).reduce((total, text) => total + text.length + 1, 0)
-  const bullet = lines[line].match(/^•\s*/)?.[0].length ?? 0
+  const start = lineStart(textarea.value, line)
+  const bullet = lines[line].match(/^[•○]\s*/)?.[0].length ?? 0
   textarea.setSelectionRange(start + bullet, start + lines[line].length)
 }
 
@@ -113,30 +122,45 @@ function fitHeight(textarea: HTMLTextAreaElement) {
   textarea.style.height = `${textarea.scrollHeight + 2}px`
 }
 
-// Every non-empty line starts with "• " so the textarea reads like the PDF.
+// Every non-empty line starts with "• " so the textarea reads like the PDF,
+// or "○ " for a bullet that's left out of it (lib/leftOut.ts).
 function withBullets(text: string) {
   return text
     .split("\n")
     .map((line) => {
-      if (!line.trim() || line === "•") return line
-      if (/^•([^\s]|$)/.test(line)) return line.replace(/^•/, "• ")
-      return line.startsWith("• ") ? line : `• ${line}`
+      if (!line.trim() || line === "•" || line === "○") return line
+      if (/^[•○]([^\s]|$)/.test(line)) return line.replace(/^([•○])/, "$1 ")
+      return /^[•○] /.test(line) ? line : `• ${line}`
     })
     .join("\n")
 }
 
+const onMac = () => /Mac|iPhone|iPad/.test(navigator.platform)
+
 // A keyboard shortcut as this device writes it: ⌘B on a Mac, Ctrl+B elsewhere.
-const shortcut = (key: string) => (/Mac|iPhone|iPad/.test(navigator.platform) ? `⌘${key}` : `Ctrl+${key}`)
+const shortcut = (key: string) => (onMac() ? `⌘${key}` : `Ctrl+${key}`)
+
+// With Option on a Mac, Alt elsewhere: ⌥↑, Alt+↑.
+const altShortcut = (key: string) => (onMac() ? `⌥${key}` : `Alt+${key}`)
 
 /**
  * A textarea for bullet points: one per line, and Enter starts a new bullet.
- * **Bold**, *italic* and ***both*** print that way; ⌘B and ⌘I add or remove the marks.
+ * **Bold**, *italic* and ***both*** print that way; ⌘B and ⌘I add or remove
+ * the marks. Alt+↑ and Alt+↓ move the line the cursor is on. "Arrange" shows
+ * the bullets as a list instead, to move them and leave them out of the PDF.
  */
 export function BulletsField({ label, value, placeholder, className = "", onChange, name, flag }: FieldProps) {
   const text = withBullets(value)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const textareaId = useId()
   const hintId = useId()
   const noteId = useId()
+  const bullets = bulletLines(text)
+  const [arranging, setArranging] = useState(false)
+  // When the checker points at this field, it's the text the person needs to see.
+  useEffect(() => {
+    if (flag) setArranging(false)
+  }, [flag])
 
   // Grow to fit the text instead of scrolling inside the box.
   useLayoutEffect(() => {
@@ -192,11 +216,30 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
     })
   }
 
+  // Moves the line the cursor is on, keeping the cursor where it was in it.
+  const moveCursorLine = (textarea: HTMLTextAreaElement, by: -1 | 1) => {
+    const before = text.slice(0, textarea.selectionStart)
+    const line = before.split("\n").length - 1
+    const column = before.length - (before.lastIndexOf("\n") + 1)
+    const next = moveLine(text, line, by)
+    if (next === text) return
+    onChange(next)
+    const cursor = lineStart(next, line + by) + Math.min(column, next.split("\n")[line + by].length)
+    requestAnimationFrame(() => {
+      textarea.selectionStart = textarea.selectionEnd = cursor
+    })
+  }
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const key = event.key.toLowerCase()
     if ((event.metaKey || event.ctrlKey) && !event.altKey && (key === "b" || key === "i")) {
       event.preventDefault()
       toggleMark(event.currentTarget, key === "b" ? 2 : 1)
+      return
+    }
+    if (event.altKey && !event.metaKey && !event.ctrlKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      event.preventDefault()
+      moveCursorLine(event.currentTarget, event.key === "ArrowUp" ? -1 : 1)
       return
     }
     if (event.key !== "Enter" || event.nativeEvent.isComposing) return
@@ -212,9 +255,33 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
 
   return (
     <div data-field={name} className={`flex min-w-0 flex-col gap-2 ${className}`}>
-      <label className="flex flex-col gap-2">
-        <span className="label-mono text-ink-2">{label}</span>
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor={textareaId} id={`${textareaId}-label`} className="label-mono text-ink-2">
+          {label}
+        </label>
+        {(arranging || bullets.length > 0) && (
+          <button
+            type="button"
+            onClick={() => setArranging(!arranging)}
+            aria-label={arranging ? "Done arranging bullets" : "Arrange bullets"}
+            className="-my-1.5 inline-flex items-center gap-1.5 rounded-[4px] px-1.5 py-1.5 text-sm text-ink-2 transition-colors hover:text-ink"
+          >
+            {arranging ? (
+              "Done"
+            ) : (
+              <>
+                <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
+                Arrange
+              </>
+            )}
+          </button>
+        )}
+      </div>
+      {arranging ? (
+        <ArrangedBullets labelId={`${textareaId}-label`} text={text} onChange={onChange} />
+      ) : (
         <textarea
+          id={textareaId}
           ref={textareaRef}
           aria-describedby={flag ? `${hintId} ${noteId}` : hintId}
           aria-invalid={flag?.level === "fix" || undefined}
@@ -231,21 +298,81 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
                 : "border-accent ring-1 ring-accent"
           }`}
         />
-      </label>
+      )}
       {flag && <FlagNote id={noteId} finding={flag} />}
-      <span id={hintId} className="text-[13px] leading-normal text-ink-2">
-        {window.matchMedia("(pointer: coarse)").matches ? (
-          // No keyboard shortcuts on a touch screen, so show the marks to type.
-          <>
-            <span className="font-mono">**bold**</span> · <span className="font-mono">*italic*</span>
-          </>
-        ) : (
-          <>
-            <kbd className="font-mono">{shortcut("B")}</kbd> <strong className="font-semibold text-ink">bold</strong> ·{" "}
-            <kbd className="font-mono">{shortcut("I")}</kbd> <em className="text-ink">italic</em>
-          </>
-        )}
-      </span>
+      {!arranging && (
+        <span id={hintId} className="text-[13px] leading-normal text-ink-2">
+          {window.matchMedia("(pointer: coarse)").matches ? (
+            // No keyboard shortcuts on a touch screen, so show the marks to type.
+            <>
+              <span className="font-mono">**bold**</span> · <span className="font-mono">*italic*</span>
+            </>
+          ) : (
+            <>
+              <kbd className="font-mono">{shortcut("B")}</kbd> <strong className="font-semibold text-ink">bold</strong> ·{" "}
+              <kbd className="font-mono">{shortcut("I")}</kbd> <em className="text-ink">italic</em> ·{" "}
+              <kbd className="font-mono">{altShortcut("↑")}</kbd> <kbd className="font-mono">{altShortcut("↓")}</kbd> move a line
+            </>
+          )}
+          {bullets.some((bullet) => bullet.leftOut) && " · Lines starting with ○ are left out of the PDF."}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The bullets as a list, each with a box to leave it out of the PDF and
+ * buttons to move it. A bullet keeps the focus as it moves, so it can be
+ * moved again and again from the keyboard.
+ */
+function ArrangedBullets({ labelId, text, onChange }: { labelId: string; text: string; onChange: (value: string) => void }) {
+  const bullets = bulletLines(text)
+  // Bullets have no ids, so each is known by its words (and which time they
+  // come up, for repeats), which don't change while they're arranged. So
+  // React moves a bullet's row with it, and the focus goes along.
+  const seen = new Map<string, number>()
+  const keyed = bullets.map((bullet) => {
+    const count = (seen.get(bullet.words) ?? 0) + 1
+    seen.set(bullet.words, count)
+    return { ...bullet, key: `${count}:${bullet.words}` }
+  })
+  const [announcement, setAnnouncement] = useState("")
+
+  return (
+    <div className="flex flex-col gap-2">
+      <ul aria-labelledby={labelId} className="flex flex-col rounded-[4px] border border-rule bg-sheet">
+        {keyed.map((bullet, index) => (
+          <li key={bullet.key} className="flex items-start gap-3 border-b border-rule px-3.5 py-2 last:border-b-0">
+            <input
+              type="checkbox"
+              checked={!bullet.leftOut}
+              onChange={(event) => onChange(setLeftOutLine(text, bullet.line, !event.target.checked))}
+              aria-label={`Include bullet ${index + 1} in the PDF`}
+              className="mt-1.5 h-4 w-4 shrink-0 accent-accent"
+            />
+            <span className={`min-w-0 flex-1 py-0.5 text-[15px] leading-[1.6] ${bullet.leftOut ? "text-ink-2" : "text-ink"}`}>
+              {plainText(bullet.words)}
+              {bullet.leftOut && <span className="label-mono ml-2 whitespace-nowrap text-ink-2">Left out</span>}
+            </span>
+            <MoveButtons
+              name={`bullet ${index + 1}`}
+              first={index === 0}
+              last={index === keyed.length - 1}
+              onMove={(by) => {
+                onChange(moveBullet(text, bullet.line, by))
+                setAnnouncement(`Moved to ${index + by + 1} of ${keyed.length}`)
+              }}
+            />
+          </li>
+        ))}
+      </ul>
+      <p className="text-[13px] leading-normal text-ink-2">
+        Untick a bullet to leave it out of the PDF. It stays here, so you can put it back.
+      </p>
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
     </div>
   )
 }
