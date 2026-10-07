@@ -199,11 +199,17 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   const add = () => addEntries([{}])
 
   // Ids are renumbered so they stay 1..n, as the stored data always has been.
+  // Moved entries keep their ids, so ids aren't in order: an entry that's
+  // open gets the id of its new place.
   const remove = (id: number) => {
     const hadFocus = elements.current.get(id)?.contains(document.activeElement) ?? false
-    save(latest.current.filter((entry) => entry.id !== id).map((entry, i) => ({ ...entry, id: i + 1 })))
+    const kept = latest.current.filter((entry) => entry.id !== id)
+    save(kept.map((entry, i) => ({ ...entry, id: i + 1 })))
     setRemovingId(null)
-    setOpenId((current) => (current === null || current === id ? null : current > id ? current - 1 : current))
+    setOpenId((current) => {
+      const place = kept.findIndex((entry) => entry.id === current)
+      return place < 0 ? null : place + 1
+    })
     if (hadFocus) addButton.current?.focus({ preventScroll: true })
   }
 
