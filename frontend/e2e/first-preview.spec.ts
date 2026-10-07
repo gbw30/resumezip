@@ -48,16 +48,26 @@ test("the editor shows a stand-in page until the first preview, and downloads on
   expect(errors).toEqual([])
 })
 
-test("the dashboard starts the compiler, and the editor uses the same one", async ({ page }) => {
+test("the dashboard starts the compiler, and the editor uses the same one", async ({ page, browserName }) => {
   const errors = pageErrors(page)
   await saveResume(page)
   const workers = compilerWorkers(page)
+  const downloads: string[] = []
+  page.on("request", (request) => {
+    if (request.url().endsWith(".wasm")) downloads.push(request.url())
+  })
+  // The download itself is checked in Chromium, where the page sees its workers' requests.
+  const seesDownloads = browserName === "chromium"
   await page.goto("/create/dashboard")
   await expect.poll(() => workers.length).toBe(1)
+  if (seesDownloads) await expect.poll(() => downloads.length).toBeGreaterThan(0)
+  const downloadedAhead = downloads.length
 
   await page.getByRole("link", { name: resume.resumeTitle }).first().click()
   await expect(page.getByRole("region", { name: "Live preview" }).locator("canvas")).toBeVisible()
   expect(workers).toHaveLength(1)
+  // The editor doesn't download the compiler again.
+  expect(downloads).toHaveLength(downloadedAhead)
   expect(errors).toEqual([])
 })
 
