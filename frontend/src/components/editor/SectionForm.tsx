@@ -266,7 +266,10 @@ export default function SectionForm({ section, position }: SectionFormProps) {
           {entries.map((entry, index) => {
             const isOpen = entry.id === openId
             const confirming = entry.id === confirmingId
-            const summary = section.summary.map((key) => entry[key]?.trim()).filter(Boolean).join(", ")
+            // Its first filled field stands in when the usual ones are empty, like a paper's link added by hand.
+            const summary =
+              section.summary.map((key) => entry[key]?.trim()).filter(Boolean).join(", ") ||
+              section.fields.map((field) => entry[field.key]?.trim()).find(Boolean)
             const name = `entry ${index + 1}`
 
             return (
