@@ -6,7 +6,7 @@ import { hasEnoughToCheck } from "@/lib/check/labels"
 import { getStorage } from "@/lib/resumeStorage"
 import { useCheck } from "./CheckContext"
 import CheckPanel from "./CheckPanel"
-import { WIDE_SCREEN } from "./SectionNav"
+import { WIDE_SCREEN } from "./layout"
 
 /** What the left bar shows: the sections to write in, or what the checker found. */
 export type Mode = "write" | "check"
@@ -44,7 +44,7 @@ interface LeftBarProps {
 
 /**
  * The editor's left bar: a Write | Check switch, then the section list or
- * what the checker found. On small screens it's a bar above the form, pinned
+ * what the checker found. Below WIDE_SCREEN it's a bar above the form, pinned
  * in Write mode so the section tabs stay at hand.
  */
 export default function LeftBar({ hidden, children }: LeftBarProps) {
@@ -89,11 +89,11 @@ export default function LeftBar({ hidden, children }: LeftBarProps) {
     <aside
       ref={bar}
       data-covers="top"
-      className={`shrink-0 border-b border-rule bg-paper lg:static lg:block lg:w-[248px] lg:overflow-y-auto lg:border-b-0 lg:border-r lg:px-4 lg:py-7 ${
+      className={`shrink-0 border-b border-rule bg-paper xl:static xl:block xl:w-[248px] xl:overflow-y-auto xl:border-b-0 xl:border-r xl:px-4 xl:py-7 ${
         mode === "write" ? "sticky top-0 z-20" : ""
       } ${hidden ? "hidden" : ""}`}
     >
-      <div role="tablist" aria-label="Write or check" className="mx-3 mt-2 flex gap-1 rounded-[4px] bg-desk p-1 lg:mx-0 lg:mb-6 lg:mt-0">
+      <div role="tablist" aria-label="Write or check" className="mx-3 mt-2 flex gap-1 rounded-[4px] bg-desk p-1 xl:mx-0 xl:mb-6 xl:mt-0">
         {MODES.map((option, index) => {
           const selected = option.id === mode
           // "Check · 3": how much the checker found that isn't dismissed.
