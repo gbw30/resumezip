@@ -9,5 +9,6 @@ import { POLISH_RULES } from "./polish"
 import { READABLE_RULES } from "./readable"
 import type { Rule } from "./engine"
 import { SECTION_RULES } from "./sections"
+import { SPELLING_RULES } from "./spelling"
 
-export const RULES: readonly Rule[] = [...CONTACT_RULES, ...READABLE_RULES, ...SECTION_RULES, ...DATE_RULES, ...BULLET_RULES, ...LENGTH_RULES, ...POLISH_RULES]
+export const RULES: readonly Rule[] = [...CONTACT_RULES, ...READABLE_RULES, ...SECTION_RULES, ...DATE_RULES, ...BULLET_RULES, ...LENGTH_RULES, ...SPELLING_RULES, ...POLISH_RULES]

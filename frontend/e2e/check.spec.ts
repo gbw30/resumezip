@@ -178,7 +178,7 @@ test("when the preview can't be built, the checker says its PDF checks are left 
 
   await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
-  await expect(panel.getByRole("status")).toHaveText("The preview couldn't be built, so the checks on the PDF are left out.")
+  await expect(panel.getByRole("status")).toContainText("The preview couldn't be built, so the checks on the PDF are left out.")
   expect(errors).toEqual([])
 })
 

@@ -23,7 +23,7 @@ const quiet = "text-[13px] text-ink-2 underline-offset-4 transition-colors hover
  * a finding opens its field in the form.
  */
 export default function CheckPanel() {
-  const { report, restore, pdf } = useCheck()
+  const { report, restore, pdf, grammar } = useCheck()
   const { formData } = useResumeContext()
   // The resume as last checked, so places are named as the findings saw them.
   const view = report.view
@@ -39,7 +39,8 @@ export default function CheckPanel() {
     )
   }
 
-  const waiting = report.results.some((result) => result.status === "waiting")
+  const waitingFor = (reads: "pdf" | "grammar") => report.results.some((result) => result.status === "waiting" && result.rule.reads === reads)
+  const waiting = waitingFor("pdf") || waitingFor("grammar")
   const passed = [
     ...report.results.filter((result) => result.status === "passed").map((result) => result.rule.title),
     ...report.automatic,
@@ -47,15 +48,22 @@ export default function CheckPanel() {
   return (
     <div className="flex flex-col gap-6 px-3 py-4 xl:p-0">
       {/* The resume score goes here (issue #67). */}
-      {/* The PDF rules wait for the preview, so "Nothing to fix" waits for them. */}
+      {/* The PDF rules wait for the preview, and the grammar rules for the grammar checker, so "Nothing to fix" waits for them. */}
       {waiting ? (
-        <p role="status" className="px-2 text-sm text-ink-2">
-          {pdf === "unbuilt"
-            ? "The preview couldn't be built, so the checks on the PDF are left out."
-            : pdf === "unreadable"
-              ? "The PDF couldn't be read, so the checks on it are left out."
-              : "Checking the PDF…"}
-        </p>
+        <div role="status" className="flex flex-col gap-1 px-2 text-sm text-ink-2">
+          {waitingFor("pdf") && (
+            <p>
+              {pdf === "unbuilt"
+                ? "The preview couldn't be built, so the checks on the PDF are left out."
+                : pdf === "unreadable"
+                  ? "The PDF couldn't be read, so the checks on it are left out."
+                  : "Checking the PDF…"}
+            </p>
+          )}
+          {waitingFor("grammar") && (
+            <p>{grammar === "failed" ? "Spelling and grammar couldn't be checked, so those checks are left out." : "Checking spelling and grammar…"}</p>
+          )}
+        </div>
       ) : (
         report.findings.length === 0 && <p className="px-2 text-sm text-ink-2">Nothing to fix.</p>
       )}

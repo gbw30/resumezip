@@ -18,6 +18,28 @@ export interface PdfReading {
   parsed: ParsedResume
 }
 
+/** Something the grammar checker (Harper, see grammar.ts) found in a piece of text. */
+export interface GrammarLint {
+  /** Harper's name for the rule that found it: "SpellCheck", "AnA". */
+  rule: string
+  /** Harper's kind of finding: "Spelling", "Grammar", "Style"… */
+  kind: string
+  /** The text it's about, as written. */
+  text: string
+  /** Where that text starts in the whole, counting characters (code points). */
+  start: number
+  /** Harper's own description. */
+  message: string
+  /** What Harper would write instead, best first. */
+  suggestions: string[]
+}
+
+/**
+ * What the grammar checker found in each piece of typed text, by the text.
+ * A text that isn't here hasn't been checked yet.
+ */
+export type GrammarReading = ReadonlyMap<string, readonly GrammarLint[]>
+
 /** What a rule reads. */
 export interface CheckInput {
   resume: ResumeView
@@ -70,12 +92,14 @@ interface RuleInfo {
 /**
  * A check. It returns null when it doesn't apply, as for a project rule on a
  * resume without projects; that counts neither for nor against the resume.
- * PDF rules wait until the preview has been read.
+ * PDF rules wait until the preview has been read, and grammar rules until
+ * the grammar checker has loaded.
  */
 export type Rule = RuleInfo &
   (
     | { reads: "form"; check: (input: CheckInput) => Outcome | null }
     | { reads: "pdf"; check: (input: CheckInput & { pdf: PdfReading }) => Outcome | null }
+    | { reads: "grammar"; check: (input: CheckInput & { grammar: GrammarReading }) => Outcome | null }
   )
 
 /** A problem, with its rule's level and reason, ready to show. */
@@ -96,7 +120,7 @@ export interface Finding {
 
 /**
  * How a rule did: "passed", "failed" (it found something that isn't
- * dismissed), "skipped" (it doesn't apply), "waiting" (for the PDF) or
+ * dismissed), "skipped" (it doesn't apply), "waiting" (for the PDF or the grammar checker) or
  * "error" (it broke, and is left out like a skipped one).
  */
 export type RuleStatus = "passed" | "failed" | "skipped" | "waiting" | "error"
@@ -130,6 +154,8 @@ export interface CheckOptions {
   rules?: readonly Rule[]
   /** The preview PDF as read, once it has been; PDF rules wait for it. */
   pdf?: PdfReading
+  /** What the grammar checker found so far, once it has loaded; grammar rules wait for it. */
+  grammar?: GrammarReading
   today?: Date
 }
 
@@ -139,12 +165,12 @@ const LEVEL_ORDER: Record<Level, number> = { fix: 0, look: 1 }
 const CATEGORY_ORDER = new Map<string, number>(CATEGORIES.map((category, index) => [category.id, index]))
 
 /** Runs the rules over a resume, as the editor saves it, and says what they found. */
-export function runChecks(resume: Record<string, any>, { rules = RULES, pdf, today = new Date() }: CheckOptions = {}): Report {
+export function runChecks(resume: Record<string, any>, { rules = RULES, pdf, grammar, today = new Date() }: CheckOptions = {}): Report {
   const view = viewOf(resume)
   const state = readCheckState(resume)
   const dismissed = new Set(state.dismissed)
   const input: CheckInput = { resume: view, today, words: new Set(state.words.map((word) => word.toLowerCase())) }
-  const results = rules.map((rule) => run(rule, input, dismissed, pdf))
+  const results = rules.map((rule) => run(rule, input, dismissed, pdf, grammar))
   // A stable sort, so rules and the resume's own order break ties.
   const findings = results
     .flatMap((result) => result.findings)
@@ -167,11 +193,18 @@ export function runChecks(resume: Record<string, any>, { rules = RULES, pdf, tod
 // it's logged and left out, and the rest of the checker carries on. The
 // checker runs as the editor draws, so one let through would take the editor
 // down with it.
-function run(rule: Rule, input: CheckInput, dismissed: ReadonlySet<string>, pdf: PdfReading | undefined): RuleResult {
+function run(
+  rule: Rule,
+  input: CheckInput,
+  dismissed: ReadonlySet<string>,
+  pdf: PdfReading | undefined,
+  grammar: GrammarReading | undefined,
+): RuleResult {
   const untouched = { rule, checked: 0, credit: 1, findings: [] }
-  if (rule.reads === "pdf" && !pdf) return { ...untouched, status: "waiting" }
+  if ((rule.reads === "pdf" && !pdf) || (rule.reads === "grammar" && !grammar)) return { ...untouched, status: "waiting" }
   try {
-    const outcome = rule.reads === "pdf" ? rule.check({ ...input, pdf: pdf! }) : rule.check(input)
+    const outcome =
+      rule.reads === "pdf" ? rule.check({ ...input, pdf: pdf! }) : rule.reads === "grammar" ? rule.check({ ...input, grammar: grammar! }) : rule.check(input)
     return outcome ? judge(rule, outcome, input.resume, dismissed, pdf) : { ...untouched, status: "skipped" }
   } catch (error) {
     console.warn(`The ${rule.id} check failed:`, error)

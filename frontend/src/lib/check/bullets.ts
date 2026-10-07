@@ -3,7 +3,7 @@
 
 import type { SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
-import { compareDates, datesOf, latestOf, type ResumeDate } from "./readDate"
+import { hasEnded } from "./readDate"
 import type { Entry } from "./resume"
 import {
   BULLETS_WITH_NUMBERS,
@@ -203,16 +203,12 @@ const pastTense: Rule = {
   title: "Past tense for what has ended",
   why: "The present tense says you still do it.",
   check: ({ resume, today }) => {
-    const now: ResumeDate = { present: false, year: today.getFullYear(), month: today.getMonth() + 1, style: { kind: "number" }, shortYear: false }
     const ended = new Map<Entry, boolean>()
-    const hasEnded = (entry: Entry) => {
-      if (!ended.has(entry)) {
-        const end = datesOf(entry).end?.date
-        ended.set(entry, end !== undefined && !end.present && compareDates(latestOf(end), now) < 0)
-      }
+    const endedYet = (entry: Entry) => {
+      if (!ended.has(entry)) ended.set(entry, hasEnded(entry, today))
       return ended.get(entry)!
     }
-    const bullets = bulletsIn(resume, ROLES).filter(({ entry }) => hasEnded(entry))
+    const bullets = bulletsIn(resume, ROLES).filter(({ entry }) => endedYet(entry))
     if (bullets.length === 0) return null
     return {
       checked: bullets.length,

@@ -2,8 +2,11 @@
 
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
-import type { Finding, PdfReading } from "@/lib/check/engine"
+import { useResumeContext } from "@/context/ResumeContext"
+import type { Finding, GrammarLint, GrammarReading, PdfReading } from "@/lib/check/engine"
 import type { Place } from "@/lib/check/places"
+import { viewOf } from "@/lib/check/resume"
+import { grammarTexts } from "@/lib/check/spelling"
 import type { ActiveSection } from "./SectionNav"
 import { useResumeCheck } from "./useResumeCheck"
 
@@ -35,6 +38,8 @@ type CheckValue = ReturnType<typeof useResumeCheck> & {
    * "unreadable", or "unbuilt" when the preview itself couldn't be made.
    */
   pdf: "reading" | "read" | "unreadable" | "unbuilt"
+  /** Where the grammar rules stand: the grammar checker "loading", "ready", or "failed" to load. */
+  grammar: "loading" | "ready" | "failed"
 }
 
 /** The preview on screen: its PDF, and what it prints (`printedOf` as JSON). */
@@ -74,6 +79,10 @@ function whenIdle(callback: () => void): () => void {
 // to one, as with undo, or a change that's put back, doesn't read it again.
 const READINGS_KEPT = 4
 
+// How many pieces of text to remember the grammar checker's findings for.
+// Each is checked once; one that's typed back, as with undo, isn't again.
+const GRAMMAR_TEXTS_KEPT = 2000
+
 interface CheckProviderProps {
   /** Shows a section in the form, as choosing it in the section list does. */
   onSelect: (section: ActiveSection) => void
@@ -89,7 +98,8 @@ interface CheckProviderProps {
  * Checks the open resume for the editor: the left bar lists what's found, and
  * the forms point at the finding the person chose to fix. Once Check has been
  * opened, each new preview is read for the PDF rules, while the page is idle;
- * they wait while the preview is behind what's been typed.
+ * they wait while the preview is behind what's been typed. Text that's new
+ * since it was last checked goes to the grammar checker then too.
  */
 export function CheckProvider({ onSelect, preview, printed, unbuilt, children }: CheckProviderProps) {
   const [watching, setWatching] = useState(false)
@@ -126,9 +136,45 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, children }:
     }
   }, [watching, preview])
 
+  // What the grammar checker found in each piece of text, once it has loaded.
+  const { formData } = useResumeContext()
+  const [grammarRead, setGrammarRead] = useState<GrammarReading | undefined>(undefined)
+  const [grammarFailed, setGrammarFailed] = useState(false)
+  const grammarFound = useRef(new Map<string, readonly GrammarLint[]>())
+  const texts = useMemo(() => (watching ? grammarTexts(viewOf(formData)).map(({ text }) => text) : []), [watching, formData])
+  useEffect(() => {
+    if (!watching) return
+    const known = grammarFound.current
+    const missing = [...new Set(texts.filter((text) => !known.has(text)))]
+    if (missing.length === 0) {
+      setGrammarRead((current) => current ?? new Map(known))
+      return
+    }
+    return whenIdle(() => {
+      // The grammar checker only loads once Check has been opened.
+      import("@/lib/check/grammar")
+        .then(({ checkGrammar }) => checkGrammar(missing))
+        .then((lints) => {
+          // Kept even if the text has changed since: it's what that text holds whenever it's typed.
+          missing.forEach((text, index) => known.set(text, lints[index]))
+          for (const oldest of known.keys()) {
+            if (known.size <= GRAMMAR_TEXTS_KEPT) break
+            known.delete(oldest)
+          }
+          setGrammarRead(new Map(known))
+          setGrammarFailed(false)
+        })
+        .catch((error) => {
+          console.warn("The grammar checker couldn't check the resume:", error)
+          setGrammarFailed(true)
+        })
+    })
+  }, [watching, texts])
+
   const current = read?.printed === printed ? read : null
   const pdf: CheckValue["pdf"] = current ? (current.pdf ? "read" : "unreadable") : unbuilt === printed ? "unbuilt" : "reading"
-  const check = useResumeCheck(current?.pdf ?? undefined)
+  const grammar: CheckValue["grammar"] = grammarFailed ? "failed" : grammarRead ? "ready" : "loading"
+  const check = useResumeCheck(current?.pdf ?? undefined, grammarRead)
   const [chosen, setChosen] = useState<Target | null>(null)
   const claimed = useRef(0)
   const select = useRef(onSelect)
@@ -150,7 +196,10 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, children }:
   const live = chosen ? check.report.findings.find((finding) => sameIssue(finding, chosen.finding)) : undefined
   const target = useMemo(() => (chosen && live ? { finding: live, request: chosen.request } : null), [chosen, live])
   const watchPdf = useCallback(() => setWatching(true), [])
-  const value = useMemo(() => ({ ...check, target, open, pending, claim, watchPdf, pdf }), [check, target, open, pending, claim, watchPdf, pdf])
+  const value = useMemo(
+    () => ({ ...check, target, open, pending, claim, watchPdf, pdf, grammar }),
+    [check, target, open, pending, claim, watchPdf, pdf, grammar],
+  )
   return <CheckContext.Provider value={value}>{children}</CheckContext.Provider>
 }
 
