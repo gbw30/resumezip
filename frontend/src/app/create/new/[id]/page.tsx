@@ -108,6 +108,8 @@ export default function EditorPage() {
         setPdfUrl(url)
         setPdfPrinted(printed)
         setCompileError(null)
+        // What failed before can build now, as after a hiccup.
+        setUnbuilt(null)
       } catch (error) {
         if (!wanted.signal.aborted && !(error instanceof Superseded)) {
           setCompileError(error instanceof Error ? error.message : String(error))
