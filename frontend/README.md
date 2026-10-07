@@ -64,9 +64,9 @@ Issues are labelled by priority, from "P0: critical" to "P3: low". A bug
 report starts at the priority its answer to "How bad is it?" gives it, and a
 maintainer can move it. A pull request that fixes an issue (its description
 says "fixes" and the issue number) gets that issue's priority label, even if
-the issue gets one later (`.github/workflows/pr-priority.yml`). Greptile's
-dashboard is set to review pull requests by label, so fixes for urgent issues
-get a review.
+the issue gets one later, and moves with it when the issue moves
+(`.github/workflows/pr-priority.yml`). Greptile's dashboard is set to review
+pull requests by label, so fixes for urgent issues get a review.
 
 ## Deploying
 
