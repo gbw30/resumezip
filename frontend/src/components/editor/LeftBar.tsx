@@ -3,8 +3,8 @@
 import type React from "react"
 import { useId, useRef, useState } from "react"
 import { getStorage } from "@/lib/resumeStorage"
+import { useCheck } from "./CheckContext"
 import CheckPanel from "./CheckPanel"
-import { useResumeCheck } from "./useResumeCheck"
 
 /** What the left bar shows: the sections to write in, or what the checker found. */
 export type Mode = "write" | "check"
@@ -47,7 +47,7 @@ interface LeftBarProps {
  */
 export default function LeftBar({ hidden, children }: LeftBarProps) {
   const [mode, setMode] = useState<Mode>(savedMode)
-  const { report } = useResumeCheck()
+  const { report } = useCheck()
   const id = useId()
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const open = report.findings.length
@@ -112,7 +112,7 @@ export default function LeftBar({ hidden, children }: LeftBarProps) {
       </div>
 
       <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${mode}`}>
-        {mode === "write" ? children : <CheckPanel report={report} />}
+        {mode === "write" ? children : <CheckPanel />}
       </div>
     </aside>
   )
