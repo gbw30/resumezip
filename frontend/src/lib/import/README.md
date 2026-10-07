@@ -17,6 +17,34 @@ PDF or Word file. It all happens in the browser; nothing is uploaded.
   review dialog (`components/dashboard/ImportReview.tsx`) shows the result next to
   the file before anything is saved.
 
+## Off the main thread
+
+pdf.js reads PDFs in a worker of its own; the page only collects each page's
+text (`readPdf`). Everything else happens in an import worker (`import.worker.ts`,
+which runs `read.ts`): sorting a PDF's text into lines, converting a Word file
+with mammoth, and parsing. Each file gets a worker of its own, which is ended as
+soon as it answers, so a big or odd file can't freeze the page.
+
+Cancel stops reading straight away: it closes the PDF, which ends pdf.js's worker,
+and ends the import worker. A PDF that's shown in the review stays open until the
+review closes.
+
+## Limits
+
+Reading stops, with a message saying why, at any of these (`limits.ts`). Each is
+far beyond a real resume, which is a page or two and under 10,000 characters.
+
+| What | Limit | Checked |
+| --- | --- | --- |
+| File size | 20 MB | before reading it |
+| PDF pages | 20 | as soon as the PDF opens, before any page is read |
+| Text | 200,000 characters or 5,000 lines | after each PDF page; a Word file's once converted |
+| A Word file's XML, unzipped | 10 MB | before converting it, since a small file can unzip to a lot |
+| Time | 1 minute | from start to finish, downloads included |
+
+pdf.js leaves out text that runs off the page, so only tiny print can fit enough
+on 20 pages to reach the text limit. Pictures in Word files aren't read at all.
+
 ## How parse.ts reads a resume
 
 1. Headings: known names ("Work Experience", "Honors & Awards") first, then lines
