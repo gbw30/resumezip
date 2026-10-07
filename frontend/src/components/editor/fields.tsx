@@ -7,6 +7,7 @@ import type { Finding } from "@/lib/check/engine"
 import { LEVELS } from "@/lib/check/settings"
 import { plainText } from "@/lib/typst/resumeData"
 import { bulletLines, moveBullet, moveLine, newBullet, setLeftOutLine, toggleMark, withBullets, type Edited } from "./arrange"
+import { reducedMotion, reveal, scrollerOf } from "./layout"
 
 interface FieldProps {
   label: string
@@ -93,6 +94,8 @@ export function selectLine(textarea: HTMLTextAreaElement, line: number) {
  * Buttons that move something up or down one place in its list. At either
  * end, the button that can't move it stays where it is (and focusable, so
  * the focus isn't lost when something reaches the end), but does nothing.
+ * What moved can go past the edge of the screen, or under the bars pinned
+ * there, so the screen follows the button.
  */
 export function MoveButtons({ name, first, last, onMove }: { name: string; first: boolean; last: boolean; onMove: (by: -1 | 1) => void }) {
   return (
@@ -105,7 +108,12 @@ export function MoveButtons({ name, first, last, onMove }: { name: string; first
             key={by}
             type="button"
             data-move={by}
-            onClick={() => !end && onMove(by)}
+            onClick={(event) => {
+              if (end) return
+              const button = event.currentTarget
+              onMove(by)
+              requestAnimationFrame(() => reveal(button, scrollerOf(button), reducedMotion()))
+            }}
             aria-label={`Move ${name} ${by < 0 ? "up" : "down"}`}
             aria-disabled={end || undefined}
             className="rounded-[4px] p-1.5 text-ink-2 transition-colors hover:text-ink aria-disabled:cursor-default aria-disabled:opacity-30 aria-disabled:hover:text-ink-2"

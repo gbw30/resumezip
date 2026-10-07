@@ -6,7 +6,7 @@ import { useResumeContext } from "@/context/ResumeContext"
 import { isLeftOut } from "@/lib/leftOut"
 import { useCheck } from "./CheckContext"
 import { BulletsField, Field, FlagNote, MoveButtons, SectionHeading, selectLine } from "./fields"
-import { uncovered } from "./layout"
+import { reducedMotion, reveal, scrollerOf } from "./layout"
 import PaperFromLink from "./PaperFromLink"
 import { FIELD_SPAN, type ChoiceDef, type SectionDef } from "./sections"
 
@@ -27,33 +27,12 @@ const SLIDE_MS = 300
 const TYPED = ':is(input:not([type="checkbox"]), textarea)'
 const FIRST_FIELD = `[data-field] ${TYPED}`
 
-const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
-
-/** The element that scrolls the editor: its pane on wide screens, the page on small ones. */
-function scrollerOf(element: HTMLElement): HTMLElement {
-  for (let node = element.parentElement; node; node = node.parentElement) {
-    const { overflowY } = getComputedStyle(node)
-    if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) return node
-  }
-  return document.scrollingElement as HTMLElement
-}
-
 /** Moves the cursor to what the checker points at (one bullet, if `line` is given) and scrolls it into view. */
 function pointAt(target: HTMLElement | null | undefined, line?: number, view: HTMLElement | null | undefined = target) {
   if (!target) return
   target.focus({ preventScroll: true })
   if (line !== undefined && target instanceof HTMLTextAreaElement) selectLine(target, line)
   view?.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" })
-}
-
-/** Scrolls just enough to show the top of an opened entry: its heading and first fields. */
-function reveal(element: HTMLElement, scroller: HTMLElement, reduced: boolean) {
-  const box = element.getBoundingClientRect()
-  const view = scroller === document.scrollingElement ? uncovered() : scroller.getBoundingClientRect()
-  const below = box.top + Math.min(box.height, 260) - view.bottom
-  const above = view.top - box.top
-  const by = above > 0 ? -above - 16 : below > 0 ? below + 16 : 0
-  if (by) scroller.scrollBy({ top: by, behavior: reduced ? "auto" : "smooth" })
 }
 
 /** The form for one list section (education, experience, ...): its title and entries. */
@@ -236,13 +215,6 @@ export default function SectionForm({ section, position }: SectionFormProps) {
     save(next)
     setConfirmingId(null)
     setAnnouncement(`Moved to ${to + 1} of ${current.length}`)
-    // It can move past the bottom of the screen, so the screen follows.
-    requestAnimationFrame(() =>
-      elements.current
-        .get(id)
-        ?.querySelector(`[data-move="${by}"]`)
-        ?.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" }),
-    )
   }
 
   /** Leaves an entry out of the PDF, or puts it back. An entry that's in has no `leftOut` at all. */
