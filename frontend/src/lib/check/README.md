@@ -15,6 +15,11 @@ sent anywhere.
   "01/2024", "2024", "Fall 2023", "Expected May 2027", "Present", and ranges
   in one field like "Jun – Aug 2025"), and compares them. Rules that need to
   know when something started or ended use it.
+- `verbs.ts` reads the verb a bullet starts with: which verb, its tense, and
+  other verbs to suggest. The verbs themselves are listed in `settings.ts`.
+- `text.ts` has helpers for rules that read words: every bullet with its
+  place, a text's first word, and the usual way among several of writing
+  something.
 - `places.ts` says where a finding is, so the editor can open it.
 - `state.ts` keeps what the person told the checker: findings they dismissed
   and words they added.
