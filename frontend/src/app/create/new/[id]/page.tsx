@@ -10,7 +10,8 @@ import LeftBar from "@/components/editor/LeftBar"
 import PdfPreview from "@/components/editor/PdfPreview"
 import ProfileForm from "@/components/editor/ProfileForm"
 import SectionForm from "@/components/editor/SectionForm"
-import SectionNav, { WIDE_SCREEN, type ActiveSection } from "@/components/editor/SectionNav"
+import { WIDE_SCREEN } from "@/components/editor/layout"
+import SectionNav, { type ActiveSection } from "@/components/editor/SectionNav"
 import TemplatePicker from "@/components/editor/TemplatePicker"
 import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
 import NotSaved from "@/components/site/NotSaved"
@@ -182,7 +183,7 @@ export default function EditorPage() {
   const position = (index: number) => `${pad(index)} / ${pad(total)}`
 
   return (
-    <div className="flex min-h-screen flex-col bg-paper lg:h-screen lg:overflow-hidden">
+    <div className="flex min-h-screen flex-col bg-paper xl:h-screen xl:overflow-hidden">
       <header ref={headerRef} className="border-b border-rule bg-sheet">
         <div className="flex min-h-[60px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-2.5 lg:px-6">
           <div className="flex min-w-0 items-center gap-4">
@@ -242,7 +243,7 @@ export default function EditorPage() {
         )}
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
         {/* The left bar and the forms share what the checker found. */}
         <CheckProvider onSelect={select}>
           <LeftBar hidden={view === "preview"}>
@@ -256,7 +257,7 @@ export default function EditorPage() {
 
           <main
             ref={mainRef}
-            className={`min-w-0 flex-1 px-5 pb-28 pt-9 sm:px-10 lg:block lg:overflow-y-auto lg:px-12 lg:pb-16 ${
+            className={`min-w-0 flex-1 px-5 pb-28 pt-9 sm:px-10 xl:block xl:overflow-y-auto xl:pb-16 ${
               view === "preview" ? "hidden" : ""
             }`}
           >
@@ -271,8 +272,8 @@ export default function EditorPage() {
 
           <section
             aria-label="Live preview"
-            className={`min-w-0 flex-col bg-desk pb-20 lg:flex lg:w-[46%] lg:overflow-hidden lg:pb-0 ${
-              view === "preview" ? "flex max-lg:flex-1" : "hidden"
+            className={`min-w-0 flex-col bg-desk pb-20 xl:flex xl:w-[46%] xl:overflow-hidden xl:pb-0 ${
+              view === "preview" ? "flex max-xl:flex-1" : "hidden"
             }`}
           >
             <PdfPreview pdfUrl={pdfUrl} error={compileError} />
@@ -282,7 +283,7 @@ export default function EditorPage() {
 
       <div
         data-covers="bottom"
-        className={`fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center transition-[opacity,transform] duration-200 lg:hidden ${
+        className={`fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center transition-[opacity,transform] duration-200 xl:hidden ${
           typing ? "pointer-events-none translate-y-3 opacity-0" : ""
         }`}
       >
