@@ -21,7 +21,7 @@ const quiet = "text-[13px] text-ink-2 underline-offset-4 transition-colors hover
  * a finding opens its field in the form.
  */
 export default function CheckPanel() {
-  const { report, restore } = useCheck()
+  const { report, restore, pdf } = useCheck()
   // The resume as last checked, so places are named as the findings saw them.
   const view = report.view
 
@@ -33,6 +33,7 @@ export default function CheckPanel() {
     )
   }
 
+  const waiting = report.results.some((result) => result.status === "waiting")
   const passed = [
     ...report.results.filter((result) => result.status === "passed").map((result) => result.rule.title),
     ...report.automatic,
@@ -40,7 +41,14 @@ export default function CheckPanel() {
   return (
     <div className="flex flex-col gap-6 px-3 py-4 xl:p-0">
       {/* The resume score goes here (issue #67). */}
-      {report.findings.length === 0 && <p className="px-2 text-sm text-ink-2">Nothing to fix.</p>}
+      {/* The PDF rules wait for the preview, so "Nothing to fix" waits for them. */}
+      {waiting ? (
+        <p role="status" className="px-2 text-sm text-ink-2">
+          {pdf === "unreadable" ? "The PDF couldn't be read, so the checks on it are left out." : "Checking the PDF…"}
+        </p>
+      ) : (
+        report.findings.length === 0 && <p className="px-2 text-sm text-ink-2">Nothing to fix.</p>
+      )}
       <Group level="fix" view={view} findings={report.findings.filter((finding) => finding.level === "fix")} />
       <Group level="look" view={view} findings={report.findings.filter((finding) => finding.level === "look")} />
 

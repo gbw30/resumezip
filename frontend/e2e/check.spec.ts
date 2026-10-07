@@ -151,6 +151,7 @@ test("with Check open, the PDF is read too: a bullet that runs three lines is fl
   await check.click()
   const long = panel.getByRole("button", { name: /^Experience → .* Runs \d+ lines$/ })
   await expect(long).toBeVisible()
+  await expect(panel.getByText("Checking the PDF…")).toBeHidden()
   await long.click()
   await expect(bullets).toBeFocused()
 

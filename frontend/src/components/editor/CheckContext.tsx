@@ -31,6 +31,8 @@ type CheckValue = ReturnType<typeof useResumeCheck> & {
   claim: (request: number) => boolean
   /** Starts reading the preview for the PDF rules, as Check is opened. */
   watchPdf: () => void
+  /** Where the PDF rules stand: "reading" the current preview, "read", or "unreadable". */
+  pdf: "reading" | "read" | "unreadable"
 }
 
 /** The preview on screen: its PDF, and what it prints (`printedOf` as JSON). */
@@ -83,17 +85,18 @@ interface CheckProviderProps {
  */
 export function CheckProvider({ onSelect, preview, printed, children }: CheckProviderProps) {
   const [watching, setWatching] = useState(false)
-  const [read, setRead] = useState<{ printed: string; pdf: PdfReading } | null>(null)
+  // The latest preview as read, and what it prints; null if it couldn't be read.
+  const [read, setRead] = useState<{ printed: string; pdf: PdfReading | null } | null>(null)
   useEffect(() => {
     if (!watching || !preview) return
     const reading = new AbortController()
     const cancel = whenIdle(() => {
       readPreview(preview.url, reading.signal)
-        .then((pdf) => {
-          if (pdf) setRead({ printed: preview.printed, pdf })
-        })
+        .then((pdf) => setRead({ printed: preview.printed, pdf }))
         .catch((error) => {
-          if (!reading.signal.aborted) console.warn("The checker couldn't read the preview:", error)
+          if (reading.signal.aborted) return
+          console.warn("The checker couldn't read the preview:", error)
+          setRead({ printed: preview.printed, pdf: null })
         })
     })
     return () => {
@@ -102,7 +105,9 @@ export function CheckProvider({ onSelect, preview, printed, children }: CheckPro
     }
   }, [watching, preview])
 
-  const check = useResumeCheck(read?.printed === printed ? read.pdf : undefined)
+  const current = read?.printed === printed ? read : null
+  const pdf: CheckValue["pdf"] = !current ? "reading" : current.pdf ? "read" : "unreadable"
+  const check = useResumeCheck(current?.pdf ?? undefined)
   const [chosen, setChosen] = useState<Target | null>(null)
   const claimed = useRef(0)
   const select = useRef(onSelect)
@@ -124,7 +129,7 @@ export function CheckProvider({ onSelect, preview, printed, children }: CheckPro
   const live = chosen ? check.report.findings.find((finding) => sameIssue(finding, chosen.finding)) : undefined
   const target = useMemo(() => (chosen && live ? { finding: live, request: chosen.request } : null), [chosen, live])
   const watchPdf = useCallback(() => setWatching(true), [])
-  const value = useMemo(() => ({ ...check, target, open, pending, claim, watchPdf }), [check, target, open, pending, claim, watchPdf])
+  const value = useMemo(() => ({ ...check, target, open, pending, claim, watchPdf, pdf }), [check, target, open, pending, claim, watchPdf, pdf])
   return <CheckContext.Provider value={value}>{children}</CheckContext.Provider>
 }
 
