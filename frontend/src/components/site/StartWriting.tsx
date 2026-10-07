@@ -5,6 +5,7 @@ import { useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useResumeActions } from "@/context/ResumeContext"
 import type { TemplateId } from "@/lib/templates"
+import { loadCompiler } from "@/lib/typst/compile"
 
 /**
  * Starts the user writing. First-time visitors get a new resume straight away;
@@ -25,6 +26,8 @@ export function useStartWriting() {
         return
       }
       const id = createNewResume("Untitled resume", "personal", template)
+      // The editor's preview needs the PDF compiler, so it starts downloading now.
+      loadCompiler()
       router.push(`/create/new/${id}`)
     },
     [getState, createNewResume, router],

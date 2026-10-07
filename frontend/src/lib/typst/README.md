@@ -12,9 +12,11 @@ server to build a PDF.
   checks in as each slow step starts (building the compiler, each compile), so
   the limit applies to one step at a time. Previews compile one at a time:
   while one runs, only the newest waits, and downloads never wait behind them. Failures say why
-  (`PdfFailure`), so the page can say what to do.
-- `typst.worker.ts` loads the WebAssembly compiler, fonts and templates once and
-  compiles each request. Downloads also attach a copy of the resume to the PDF
+  (`PdfFailure`), so the page can say what to do. `loadCompiler` starts the
+  download before the first PDF: "Start writing" and the editor call it at
+  once, and the dashboard after a second, unless the visitor is saving data.
+- `typst.worker.ts` loads the WebAssembly compiler and the fonts at the same
+  time, and the templates, once, and compiles each request. Downloads also attach a copy of the resume to the PDF
   (see `src/lib/resumeFile.ts` and `src/lib/import/README.md`).
 - `templates/*.typ` are the resume templates (the first ones were ported from LaTeX).
   `common.typ` has the shared helpers. They are bundled as strings (see the

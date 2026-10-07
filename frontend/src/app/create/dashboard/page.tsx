@@ -15,6 +15,7 @@ import PageIntro from "@/components/site/PageIntro"
 import SiteFooter from "@/components/site/SiteFooter"
 import SiteHeader from "@/components/site/SiteHeader"
 import type { OpenedFile } from "@/lib/import/open"
+import { loadCompiler, savingData } from "@/lib/typst/compile"
 
 // Only loaded when someone opens a file that isn't a resumezip PDF.
 const ImportReview = dynamic(() => import("@/components/dashboard/ImportReview"))
@@ -99,6 +100,15 @@ export default function DashboardPage() {
     if (!reviewedPdf) return
     return () => void reviewedPdf.destroy()
   }, [reviewedPdf])
+
+  // People here are usually a click away from the editor, so the PDF
+  // compiler starts downloading once the page has settled. Visitors saving
+  // data only download it when they open a resume.
+  useEffect(() => {
+    if (savingData()) return
+    const timer = setTimeout(loadCompiler, 1_000)
+    return () => clearTimeout(timer)
+  }, [])
 
   // Dropping a file anywhere on the page opens it.
   const openFileRef = useRef(openFile)
