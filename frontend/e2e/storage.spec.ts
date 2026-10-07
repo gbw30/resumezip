@@ -130,6 +130,9 @@ test("saved data that can't be read is kept instead of being saved over", async 
   expect(await seriousAccessibilityProblems(page)).toEqual([])
 
   // It's still there after a reload, and downloads exactly as it was saved.
+  // The reload waits until the dashboard has finished loading the editor's
+  // code in the background, which Safari logs as an error when it's cut off.
+  await page.waitForLoadState("networkidle")
   await page.reload()
   await expect(note).toBeVisible()
   const downloading = page.waitForEvent("download")
