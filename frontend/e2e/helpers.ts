@@ -1,10 +1,14 @@
 import AxeBuilder from "@axe-core/playwright"
 import type { Page } from "@playwright/test"
 
-// Safari logs this when a page is left while the PDF compiler or its fonts
-// are still downloading, which the dashboard and editor start early. The
-// visitor never sees it.
-const LEFT_MID_DOWNLOAD = /^Fetch API cannot load \S+\.(wasm|otf|ttf) due to access control checks\.$/
+// Safari logs these when a page is left while something is still loading in
+// the background, and the visitor never sees them: the PDF compiler or its
+// fonts, which the dashboard and editor start early, and the pages behind a
+// page's links, which Next.js fetches ahead.
+const LEFT_MID_DOWNLOAD = [
+  /^Fetch API cannot load \S+\.(wasm|otf|ttf) due to access control checks\.$/,
+  /^Failed to fetch RSC payload for \S+\. Falling back to browser navigation\. TypeError: Load failed$/,
+]
 
 /**
  * Collects the errors a page throws or logs, for a test to check at the end.
@@ -14,7 +18,7 @@ export function pageErrors(page: Page): string[] {
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
   page.on("console", (message) => {
-    if (message.type() === "error" && !LEFT_MID_DOWNLOAD.test(message.text())) {
+    if (message.type() === "error" && !LEFT_MID_DOWNLOAD.some((pattern) => pattern.test(message.text()))) {
       errors.push(`${message.text()} (at ${message.location().url})`)
     }
   })
