@@ -52,6 +52,9 @@ export const failureOf = (error: unknown): PdfFailure => (error instanceof PdfEr
 
 export type CompileResponse = { id: number; pdf: Uint8Array } | { id: number; error: string; failure: PdfFailure }
 
+/** What the page sends the worker: a resume to compile, or word to start loading the compiler before one comes. */
+export type WorkerRequest = CompileRequest | { load: true }
+
 /** What the worker sends: an answer, or word that more of the compiler or a font has downloaded. */
 export type WorkerMessage = CompileResponse | { progress: true }
 
@@ -123,6 +126,20 @@ function getWorker(): Worker {
   return created
 }
 
+/**
+ * Starts loading the compiler, if nothing has yet, so the first PDF doesn't
+ * wait for it to download. Later PDFs use the worker this starts.
+ */
+export function loadCompiler() {
+  if (!worker) getWorker().postMessage({ load: true } satisfies WorkerRequest)
+}
+
+/** Whether the visitor has asked to save data or is on a very slow connection, so nothing should download before it's needed. */
+export function savingData(): boolean {
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+  return Boolean(connection?.saveData) || /2g/.test(connection?.effectiveType ?? "")
+}
+
 interface CompileOptions {
   /** Attach a copy of the resume so resumezip can open the PDF again. Downloads do; previews don't need to. */
   attach?: boolean
@@ -136,7 +153,7 @@ export function compileResume(resume: Record<string, any>, { attach = false }: C
 function send(printed: Printed, attachment?: string): Promise<Uint8Array> {
   const request: CompileRequest = { id: nextId++, ...printed, attachment }
   return new Promise((resolve, reject) => {
-    getWorker().postMessage(request)
+    getWorker().postMessage(request satisfies WorkerRequest)
     pending.set(request.id, { resolve, reject })
     // A stuck worker can't hang a download forever. A wait that's already
     // running is kept, so new requests can't keep a stuck worker going.

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
-import type { CompileRequest, CompileResponse, PdfError, WorkerMessage } from "./compile"
+import type { CompileRequest, CompileResponse, PdfError, WorkerMessage, WorkerRequest } from "./compile"
 
 // Stands in for the Typst worker. Each test says how it answers (undefined
 // means it never does) and how long it takes.
@@ -12,12 +12,18 @@ class FakeWorker {
   onmessage: ((event: { data: WorkerMessage }) => void) | null = null
   onerror: ((event: { message: string }) => void) | null = null
   terminated = false
+  /** How many times it was asked to start loading the compiler. */
+  loadRequests = 0
 
   constructor() {
     FakeWorker.made.push(this)
   }
 
-  postMessage(request: CompileRequest) {
+  postMessage(request: WorkerRequest) {
+    if ("load" in request) {
+      this.loadRequests++
+      return
+    }
     FakeWorker.received.push(request)
     const response = FakeWorker.answer(request)
     if (response) setTimeout(() => this.send(response), FakeWorker.delay(request))
@@ -40,6 +46,8 @@ const resume = { resumeTitle: "Test resume" }
 let compileResume: typeof import("./compile").compileResume
 let compilePreview: typeof import("./compile").compilePreview
 let printedOf: typeof import("./compile").printedOf
+let loadAhead: typeof import("./compile").loadCompiler
+let savingData: typeof import("./compile").savingData
 
 beforeEach(async () => {
   vi.useFakeTimers()
@@ -50,7 +58,7 @@ beforeEach(async () => {
   FakeWorker.delay = () => 10
   // A fresh module each time, so no worker carries over.
   vi.resetModules()
-  ;({ compileResume, compilePreview, printedOf } = await import("./compile"))
+  ;({ compileResume, compilePreview, printedOf, loadCompiler: loadAhead, savingData } = await import("./compile"))
 })
 
 afterEach(() => {
@@ -315,4 +323,28 @@ test("a preview whose PDF can't be turned into a link still settles", async () =
   const next = track(compilePreview(printing("Ad")))
   await vi.advanceTimersByTimeAsync(10)
   expect(next.value).toMatch(/^blob:/)
+})
+
+test("the compiler can start loading before the first PDF, which then uses the same worker", async () => {
+  loadAhead()
+  loadAhead()
+  expect(FakeWorker.made).toHaveLength(1)
+  expect(FakeWorker.made[0].loadRequests).toBe(1)
+
+  const result = track(compileResume(resume))
+  await vi.advanceTimersByTimeAsync(10)
+  expect(result.value).toEqual(PDF)
+  expect(FakeWorker.made).toHaveLength(1)
+})
+
+test("nothing loads ahead for visitors saving data or on a very slow connection", () => {
+  const on = (connection?: object) => {
+    vi.stubGlobal("navigator", { connection })
+    return savingData()
+  }
+  expect(on({ saveData: true, effectiveType: "4g" })).toBe(true)
+  expect(on({ effectiveType: "slow-2g" })).toBe(true)
+  expect(on({ effectiveType: "2g" })).toBe(true)
+  expect(on({ effectiveType: "3g" })).toBe(false)
+  expect(on(undefined)).toBe(false)
 })

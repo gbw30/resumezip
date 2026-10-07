@@ -11,7 +11,7 @@ import levelsfyi from "./templates/levelsfyi.typ"
 import modernjack from "./templates/modernjack.typ"
 import referme from "./templates/referme.typ"
 import resumeworded from "./templates/resumeworded.typ"
-import type { CompileRequest, CompileResponse, WorkerMessage } from "./compile"
+import type { CompileRequest, CompileResponse, WorkerMessage, WorkerRequest } from "./compile"
 import { COMPILER_CDN_URL, COMPILER_INTEGRITY, compileChecked } from "./compilerSource"
 
 const SOURCES: Record<string, string> = {
@@ -132,7 +132,13 @@ function getCompiler(): Promise<TypstCompiler> {
   return compiler
 }
 
-addEventListener("message", async ({ data: { id, template, data, attachment } }: MessageEvent<CompileRequest>) => {
+addEventListener("message", ({ data: request }: MessageEvent<WorkerRequest>) => {
+  // Loading ahead of the first PDF. If it fails, that PDF tries again.
+  if ("load" in request) getCompiler().catch(() => {})
+  else void compile(request)
+})
+
+async function compile({ id, template, data, attachment }: CompileRequest) {
   let response: CompileResponse
   let typst: TypstCompiler | undefined
   try {
@@ -161,4 +167,4 @@ addEventListener("message", async ({ data: { id, template, data, attachment } }:
     response = { id, error: message, failure: typst === undefined ? "connection" : "crash" }
   }
   postMessage(response)
-})
+}
