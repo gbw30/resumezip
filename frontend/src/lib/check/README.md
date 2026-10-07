@@ -20,6 +20,12 @@ sent anywhere.
 - `text.ts` has helpers for rules that read words: every bullet with its
   place, a text's first word, and the usual way among several of writing
   something.
+- `pdf.ts` has helpers for the rules that read the preview PDF: text compared
+  without what printing changes, and the lines each typed bullet is printed on.
+- `preview.ts` reads the preview PDF the way hiring software would, with the
+  resume reader in `lib/import`. The editor reads each new preview once Check
+  has been opened, while the page is idle, and the PDF rules only use a
+  reading while it matches what the resume prints.
 - `places.ts` says where a finding is, so the editor can open it.
 - `state.ts` keeps what the person told the checker: findings they dismissed
   and words they added.
