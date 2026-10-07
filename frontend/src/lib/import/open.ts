@@ -52,7 +52,7 @@ function kindOf(file: File): "pdf" | "docx" | null {
 }
 
 /** Waits for `promise`, or stops waiting as soon as `signal` aborts. */
-function until<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+export function until<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
     const stop = () => reject(signal.reason)
     signal.addEventListener("abort", stop, { once: true })
