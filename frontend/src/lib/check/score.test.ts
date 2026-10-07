@@ -2,7 +2,8 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { readBack, render, samples } from "@/lib/import/testRender"
 import { runChecks, type Outcome, type Rule } from "./engine"
 import { viewOf } from "./resume"
-import { scoreOf, totalOf, wholePoints, type Score } from "./score"
+import { RULES } from "./rules"
+import { checkingCategories, keepScores, scoreOf, shownScore, totalOf, wholePoints, type KeptScores, type Score } from "./score"
 import { CATEGORIES, type CategoryId, type Level } from "./settings"
 import { grammarTexts } from "./spelling"
 import { CHECK_FIELD, dismiss, readCheckState } from "./state"
@@ -80,6 +81,14 @@ describe("the resume score", () => {
     expect(score.total).toBe(75)
   })
 
+  test("leaves out a rule that has only seen part of the text so far", () => {
+    // As when the grammar checker failed partway: what it found is listed, but isn't scored.
+    const partly = rule("G1", "spelling", "fix", () => ({ ...found(4, 1)(), partial: true }))
+    const score = scoreWith([rule("C1", "contact", "fix", passes), partly])
+    expect(category(score, "spelling").applies).toBe(false)
+    expect(score.total).toBe(100)
+  })
+
   test("counts dismissed suggestions as passing", () => {
     const weak = rule("B1", "bullets", "look", found(4, 1))
     const [finding] = runChecks(ada, { rules: [weak] }).findings
@@ -94,6 +103,50 @@ describe("the resume score", () => {
     expect(wholePoints(0.1 * 3 * 10)).toBe(3)
     expect(wholePoints(2.9999999999)).toBe(3)
     expect(totalOf([])).toBeNull()
+  })
+})
+
+describe("while checks are under way", () => {
+  // Length waiting for the PDF to be read, as after each change.
+  const waitingForPdf: Rule = { ...rule("L5", "length", "look", passes), reads: "pdf", check: found(1) }
+
+  test("a category is being checked while the PDF or the text it reads is, whatever the report says so far", () => {
+    expect(Object.fromEntries(checkingCategories(RULES, { readingPdf: true, checkingText: false }))).toEqual({ readable: "pdf", length: "pdf" })
+    expect(Object.fromEntries(checkingCategories(RULES, { readingPdf: false, checkingText: true }))).toEqual({ spelling: "grammar" })
+    expect(checkingCategories(RULES, { readingPdf: false, checkingText: false }).size).toBe(0)
+  })
+
+  test("a category being checked again keeps its points as last checked, so the score doesn't jump", () => {
+    const kept: KeptScores = new Map()
+    const before = scoreWith([rule("C2", "contact", "fix", passes), rule("L5", "length", "look", passes)])
+    keepScores(kept, before, new Map())
+    // Now the email is broken, and Length is waiting for the new PDF: it keeps its 10 points.
+    const now = scoreWith([rule("C2", "contact", "fix", found(1)), waitingForPdf])
+    const checking = new Map([["length", "pdf"]] as const)
+    const shown = shownScore(now, kept, checking)
+    expect(shown.categories.find((category) => category?.id === "length")).toEqual({ id: "length", points: 10, earned: 10, applies: true })
+    expect(shown.total).toBe(40)
+    // And isn't kept as it is while waiting.
+    keepScores(kept, now, checking)
+    expect(kept.get("length")!.earned).toBe(10)
+    expect(kept.get("contact")!.earned).toBe(0)
+  })
+
+  test("until a category has been checked once, its points and the total wait", () => {
+    const now = scoreWith([rule("C1", "contact", "fix", passes), waitingForPdf])
+    const shown = shownScore(now, new Map(), new Map([["length", "pdf"]] as const))
+    expect(shown.total).toBe("checking")
+    expect(shown.categories.find((_, index) => CATEGORIES[index].id === "length")).toBeNull()
+  })
+
+  test("points from before the resume could be scored aren't kept", () => {
+    // Without a name and an entry yet, Length's rule doesn't apply.
+    const kept: KeptScores = new Map()
+    keepScores(kept, scoreWith([rule("L5", "length", "look", () => null)], {}), new Map())
+    expect(kept.size).toBe(0)
+    // So once it has them, and the new PDF is being read, the total waits for it.
+    const now = scoreWith([rule("C1", "contact", "fix", passes), waitingForPdf])
+    expect(shownScore(now, kept, new Map([["length", "pdf"]] as const)).total).toBe("checking")
   })
 })
 

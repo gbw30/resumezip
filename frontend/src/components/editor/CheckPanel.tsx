@@ -7,7 +7,7 @@ import { useResumeContext } from "@/context/ResumeContext"
 import type { Finding, Report, Rule } from "@/lib/check/engine"
 import { describePlace, hasEnoughToCheck } from "@/lib/check/labels"
 import type { ResumeView } from "@/lib/check/resume"
-import { scoreOf, totalOf, wholePoints, type CategoryScore } from "@/lib/check/score"
+import { checkingCategories, keepScores, scoreOf, shownScore, wholePoints, type CategoryScore, type KeptScores } from "@/lib/check/score"
 import { CATEGORIES, type CategoryId } from "@/lib/check/settings"
 import { hasLeftOut } from "@/lib/leftOut"
 import { useCheck } from "./CheckContext"
@@ -33,13 +33,10 @@ export default function CheckPanel() {
   // The resume as last checked, so places are named as the findings saw them.
   const view = report.view
 
-  // Rules still being checked: the PDF ones while the preview is read, and
-  // the grammar ones while text is.
-  const inProgress = (reads: Rule["reads"]) => (reads === "pdf" && pdf === "reading") || (reads === "grammar" && grammar === "checking")
-  const checking = new Map<CategoryId, Rule["reads"]>()
-  for (const result of report.results) {
-    if ((result.status === "waiting" || result.partial) && inProgress(result.rule.reads)) checking.set(result.rule.category, result.rule.reads)
-  }
+  const checking = checkingCategories(
+    report.results.map((result) => result.rule),
+    { readingPdf: pdf === "reading", checkingText: grammar === "checking" },
+  )
   const score = useShownScore(report, checking)
 
   if (!hasEnoughToCheck(view)) {
@@ -118,22 +115,12 @@ export default function CheckPanel() {
   )
 }
 
-/**
- * The score as shown. A category that's being checked again keeps the points
- * it had when last checked, so its bar and the total don't jump each time
- * the PDF or the text is read again after a change. Until a category has
- * been checked once, the total waits for it ("checking").
- */
+/** The score as shown (`shownScore`), with each category's points as last checked. */
 function useShownScore(report: Report, checking: ReadonlyMap<CategoryId, unknown>) {
   const now = useMemo(() => scoreOf(report), [report])
-  const kept = useRef(new Map<CategoryId, CategoryScore>())
-  useEffect(() => {
-    for (const category of now.categories) if (!checking.has(category.id)) kept.current.set(category.id, category)
-  })
-  const categories = now.categories.map((category) => (checking.has(category.id) ? (kept.current.get(category.id) ?? null) : category))
-  const total =
-    now.total === null ? null : categories.every((category) => category !== null) ? totalOf(categories as CategoryScore[]) : ("checking" as const)
-  return { total, categories }
+  const kept = useRef<KeptScores>(new Map())
+  useEffect(() => keepScores(kept.current, now, checking))
+  return shownScore(now, kept.current, checking)
 }
 
 /** The resume score, and how it works. */
