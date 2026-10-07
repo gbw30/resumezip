@@ -52,8 +52,12 @@ export const failureOf = (error: unknown): PdfFailure => (error instanceof PdfEr
 
 export type CompileResponse = { id: number; pdf: Uint8Array } | { id: number; error: string; failure: PdfFailure }
 
-/** What the page sends the worker: a resume to compile, or word to start loading the compiler before one comes. */
-export type WorkerRequest = CompileRequest | { load: true }
+/**
+ * What the page sends the worker: a resume to compile, or word to start
+ * loading the compiler, and the fonts of the template likely to come first,
+ * before one comes.
+ */
+export type WorkerRequest = CompileRequest | { load: true; template?: TemplateId }
 
 /**
  * What the worker sends: an answer; word that it's getting on, with the share
@@ -157,14 +161,15 @@ function getWorker(): Worker {
 
 /**
  * Starts loading the compiler, if nothing has yet, so the first PDF doesn't
- * wait for it to download. Later PDFs use the worker this starts. It never
- * throws: if the worker can't start (a browser can block it), the first PDF
- * fails and says why.
+ * wait for it to download, along with the fonts of `template`, the one
+ * likely to print first (the default if not given). Later PDFs use the
+ * worker this starts. It never throws: if the worker can't start (a browser
+ * can block it), the first PDF fails and says why.
  */
-export function loadCompiler() {
+export function loadCompiler(template?: TemplateId) {
   if (worker) return
   try {
-    getWorker().postMessage({ load: true } satisfies WorkerRequest)
+    getWorker().postMessage({ load: true, template } satisfies WorkerRequest)
   } catch {
     // Left for the first PDF to report.
   }
