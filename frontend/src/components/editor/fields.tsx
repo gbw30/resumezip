@@ -19,6 +19,8 @@ interface FieldProps {
   name?: string
   /** What the checker found here, while the person is fixing it. */
   flag?: Finding | null
+  /** Counts up each time the person chooses `flag`'s finding, as the checker's requests do. */
+  request?: number
 }
 
 /**
@@ -136,7 +138,7 @@ const altShortcut = (key: string) => (onMac() ? `⌥${key}` : `Alt+${key}`)
  * the marks. Alt+↑ and Alt+↓ move the line the cursor is on. "Arrange" shows
  * the bullets as a list instead, to move them and leave them out of the PDF.
  */
-export function BulletsField({ label, value, placeholder, className = "", onChange, name, flag }: FieldProps) {
+export function BulletsField({ label, value, placeholder, className = "", onChange, name, flag, request }: FieldProps) {
   const text = withBullets(value)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const textareaId = useId()
@@ -144,22 +146,25 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
   const noteId = useId()
   const bullets = bulletLines(text)
   const [arranging, setArranging] = useState(false)
-  // When the checker points at this field, it's the text the person needs to see.
-  useEffect(() => {
-    if (flag) setArranging(false)
-  }, [flag])
-
+  // Choosing a finding here shows the text, where the cursor goes to it. Only a
+  // new choice does: the finding is found afresh each time the checker runs.
+  const [shownRequest, setShownRequest] = useState(request)
+  if (request !== shownRequest) {
+    setShownRequest(request)
+    if (request !== undefined) setArranging(false)
+  }
   // Where the cursor goes once the box shows the text it was just given.
   const selection = useRef<[number, number] | null>(null)
 
-  // Grow to fit the text instead of scrolling inside the box, and put the cursor where it goes.
+  // Grow to fit the text instead of scrolling inside the box (and again when
+  // it's back from arranging), and put the cursor where it goes.
   useLayoutEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
     fitHeight(textarea)
     if (selection.current) textarea.setSelectionRange(...selection.current)
     selection.current = null
-  }, [text])
+  }, [text, arranging])
 
   // A narrower box wraps onto more lines, so fit again when the width changes:
   // resizing the window, turning a tablet, or the box showing after being hidden.
@@ -183,7 +188,7 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
       observer.disconnect()
       cancelAnimationFrame(frame)
     }
-  }, [])
+  }, [arranging])
 
   // Gives the box new text, with the cursor (or a selection) where it says.
   const edit = (textarea: HTMLTextAreaElement, { text: next, start, end }: Edited) => {

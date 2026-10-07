@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Plus } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
+import { isLeftOut } from "@/lib/leftOut"
 import { useCheck } from "./CheckContext"
 import { BulletsField, Field, FlagNote, MoveButtons, SectionHeading, selectLine } from "./fields"
 import { uncovered } from "./layout"
@@ -21,8 +22,10 @@ interface SectionFormProps {
 // How long an entry takes to slide open, closed or away (matches duration-300).
 const SLIDE_MS = 300
 
-// An entry's first field, past the controls in its heading (like Include).
-const FIRST_FIELD = "[data-field] :is(input, textarea)"
+// Where a field is typed in: not the Include boxes in an entry's heading, or
+// in a bullets field being arranged.
+const TYPED = ':is(input:not([type="checkbox"]), textarea)'
+const FIRST_FIELD = `[data-field] ${TYPED}`
 
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
@@ -107,7 +110,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
           pointAt(addButton.current, undefined, heading.current)
         } else if (entry) {
           const fields = elements.current.get(entry.id)
-          const selector = place.field ? `[data-field="${place.field}"] :is(input, textarea)` : FIRST_FIELD
+          const selector = place.field ? `[data-field="${place.field}"] ${TYPED}` : FIRST_FIELD
           pointAt(fields?.querySelector<HTMLElement>(selector), place.line)
         }
       },
@@ -305,7 +308,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
               section.summary.map((key) => entry[key]?.trim()).filter(Boolean).join(", ") ||
               section.fields.map((field) => entry[field.key]?.trim()).find(Boolean)
             const name = `entry ${index + 1}`
-            const leftOut = entry.leftOut === true
+            const leftOut = isLeftOut(entry)
 
             return (
               <div
@@ -445,6 +448,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                           )}
                           {section.fields.map((field) => {
                             const Input = field.type === "bullets" ? BulletsField : Field
+                            const flag = flagAt(index, field.key)
                             return (
                               <Input
                                 key={field.key}
@@ -454,7 +458,8 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                                 value={entry[field.key] ?? ""}
                                 onChange={(value) => update(entry.id, field.key, value)}
                                 className={FIELD_SPAN[field.size]}
-                                flag={flagAt(index, field.key)}
+                                flag={flag}
+                                request={flag ? target!.request : undefined}
                               />
                             )
                           })}
