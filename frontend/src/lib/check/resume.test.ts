@@ -55,6 +55,8 @@ describe("reading a resume for the checks", () => {
     const [filled, blank] = viewOf(ada).sections.Work
     expect([filled.blank, blank.blank]).toEqual([false, true])
     expect(blank).toMatchObject({ section: "Work", index: 1, bullets: [] })
+    const bare = viewOf({ workExperienceSection: [{ workRole: " ", workDescription: "• \n•" }] })
+    expect(bare.sections.Work[0].blank).toBe(true)
   })
 
   test("reads renamed section titles, and the order the sections are printed in", () => {

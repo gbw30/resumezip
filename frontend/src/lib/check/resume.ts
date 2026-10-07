@@ -35,7 +35,7 @@ export interface Entry {
   values: Record<string, string>
   /** The bullets in its bullet field, in order. */
   bullets: Bullet[]
-  /** Nothing typed in it at all, as when it was added but never filled in. */
+  /** Nothing typed in it at all, as when it was added but never filled in; bullet points with no words count as nothing. */
   blank: boolean
 }
 
@@ -90,7 +90,9 @@ export function viewOf(resume: Record<string, any>): ResumeView {
       const bullets = fields
         .filter((field) => field.type === "bullets")
         .flatMap((field) => bulletsOf(field.key, entry[field.key]))
-      return { section: name, index, values, bullets, blank: Object.values(values).every((value) => value === "") }
+      // A bullet field with only a "•" in it, as the editor can leave one, is empty too.
+      const blank = fields.every((field) => (field.type === "bullets" ? !bullets.some((bullet) => bullet.field === field.key) : !values[field.key]))
+      return { section: name, index, values, bullets, blank }
     })
     titles[name] = text(headings[headingKey])
   }
