@@ -64,11 +64,15 @@ test("a resume downloads only its template's fonts, and another template's once 
   await expect(preview.getByText(/Ada Lovelace/i).first()).toBeVisible()
   // Jake's, the default, is set in New Computer Modern.
   expect([...fonts].sort()).toEqual(["NewCM10-Bold", "NewCM10-BoldItalic", "NewCM10-Italic", "NewCM10-Regular"])
+  // The page as drawn, to tell when another template's has replaced it.
+  const drawn = () => preview.locator("canvas").first().evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL())
+  const jakes = await drawn()
 
   // Harvard is set in EB Garamond.
   await page.getByRole("button", { name: /^Template/ }).click()
   await page.getByRole("dialog", { name: "Choose a template" }).getByRole("button", { name: /Harvard/ }).click()
   await expect.poll(() => fonts.filter((font) => font.startsWith("EBGaramond")).length).toBe(4)
+  await expect.poll(drawn).not.toBe(jakes)
   await expect(preview.getByText(/Ada Lovelace/i).first()).toBeVisible()
   await expect(page.getByText(/Couldn.t update the preview/)).toHaveCount(0)
   expect(fonts.filter((font) => !/^(NewCM10|EBGaramond)-/.test(font))).toEqual([])
