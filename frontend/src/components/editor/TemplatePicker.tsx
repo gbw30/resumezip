@@ -32,6 +32,11 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
     if (!open) return
     // Start on the current template, scrolled into view.
     panelRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus()
+    // The page behind stays where it is: on phones a finger on the dimmed
+    // area would otherwise scroll it.
+    const page = document.documentElement
+    const overflow = page.style.overflow
+    page.style.overflow = "hidden"
     // A click elsewhere on the page closes it, and what was clicked keeps the focus.
     const onPointerDown = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
@@ -53,6 +58,7 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
     document.addEventListener("pointerdown", onPointerDown)
     document.addEventListener("keydown", onKeyDown)
     return () => {
+      page.style.overflow = overflow
       document.removeEventListener("pointerdown", onPointerDown)
       document.removeEventListener("keydown", onKeyDown)
     }

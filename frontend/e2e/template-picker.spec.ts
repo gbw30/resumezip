@@ -36,9 +36,10 @@ for (const [width, height] of [
     const templates = dialog.locator("button[aria-pressed]")
     for (const template of await templates.all()) {
       await template.scrollIntoViewIfNeeded()
+      // Layout is in fractions of a pixel and scrolling in whole ones, so allow one.
       const shown = (await template.boundingBox())!
-      expect(shown.y).toBeGreaterThanOrEqual(box.y)
-      expect(shown.y + shown.height).toBeLessThanOrEqual(box.y + box.height)
+      expect(shown.y).toBeGreaterThanOrEqual(box.y - 1)
+      expect(shown.y + shown.height).toBeLessThanOrEqual(box.y + box.height + 1)
     }
     expect(await pageWidth(page)).toBeLessThanOrEqual(width)
 
