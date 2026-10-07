@@ -88,6 +88,37 @@ test("opening a PDF works after pdf.js failed to download once", async ({ page }
   expect(errors.filter((error) => !/^(Failed to load resource|Couldn't open file:)/.test(error))).toEqual([])
 })
 
+test("when the code that reads files can't download, it says so, and works once it can", async ({ page }) => {
+  const errors = pageErrors(page)
+  // It downloads when the first file is opened. Its chunk's name changes
+  // with every build, so it's found by a message only it has.
+  let offline = true
+  let failed = 0
+  await page.route("**/_next/static/chunks/**", async (route) => {
+    const response = await route.fetch()
+    if (offline && (await response.text()).includes("This file took too long to read")) {
+      failed++
+      return route.abort("internetdisconnected")
+    }
+    return route.fulfill({ response })
+  })
+
+  await page.goto("/create/dashboard")
+  await page.locator('input[type="file"]').setInputFiles(pdf([RESUME]))
+  const error = page.getByRole("dialog", { name: "Couldn't open that file" })
+  await expect(error).toContainText("Something went wrong reading this file.")
+  expect(failed).toBeGreaterThan(0)
+
+  offline = false
+  const choosing = page.waitForEvent("filechooser")
+  await error.getByRole("button", { name: "Choose another file" }).click()
+  await (await choosing).setFiles(pdf([RESUME]))
+  await expect(page.getByRole("dialog", { name: "Here's what we found" })).toContainText("Mara Lin")
+
+  // Only the failed downloads, and the dashboard logging one.
+  expect(errors.filter((error) => !/^(Failed to load resource|Couldn't open file:)/.test(error))).toEqual([])
+})
+
 test("Cancel stops reading a file, and the next one opens as usual", async ({ page }) => {
   const errors = pageErrors(page)
   const workers = watchWorkers(page)

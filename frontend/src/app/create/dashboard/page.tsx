@@ -77,9 +77,13 @@ export default function DashboardPage() {
     const current = new AbortController()
     reading.current = current
     setOpening({ step: "reading", fileName: file.name })
+    // Kept once the code that reads files has loaded, so a failure can say
+    // what's wrong without waiting on anything (or loading it again).
+    let OpenFileError: typeof import("@/lib/import/open").OpenFileError | undefined
     try {
-      const { openResumeFile } = await import("@/lib/import/open")
-      const opened = await openResumeFile(file, { signal: current.signal })
+      const open = await import("@/lib/import/open")
+      OpenFileError = open.OpenFileError
+      const opened = await open.openResumeFile(file, { signal: current.signal })
       if (current !== reading.current) {
         if (opened.kind === "parsed") void opened.pdf?.doc.destroy()
         return
@@ -97,12 +101,9 @@ export default function DashboardPage() {
     } catch (error) {
       if (current !== reading.current) return
       reading.current = null
-      const { OpenFileError } = await import("@/lib/import/open")
-      if (!(error instanceof OpenFileError)) console.error("Couldn't open file:", error)
-      setOpening({
-        step: "error",
-        message: error instanceof OpenFileError ? error.message : "Something went wrong reading this file. Try a PDF or Word copy of it.",
-      })
+      const problem = OpenFileError && error instanceof OpenFileError ? error.message : null
+      if (problem === null) console.error("Couldn't open file:", error)
+      setOpening({ step: "error", message: problem ?? "Something went wrong reading this file. Try a PDF or Word copy of it." })
     }
   }
 
