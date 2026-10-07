@@ -14,7 +14,7 @@ import DownloadFailed, { nextFailure, type Failure } from "@/components/site/Dow
 import NotSaved from "@/components/site/NotSaved"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import { uniqueTitle } from "@/lib/resumeTitles"
-import { compileResumeUrl, downloadResume } from "@/lib/typst/compile"
+import { compilePreview, downloadResume, printedOf, Superseded } from "@/lib/typst/compile"
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
@@ -51,13 +51,17 @@ export default function EditorPage() {
     if (formData.id) document.title = `${tabTitle} · resumezip`
   }, [formData.id, tabTitle])
 
-  // Re-render the preview in the browser shortly after the resume changes.
+  // What the preview shows. Changes that don't print, such as renaming the
+  // resume, leave it as it was, so they don't recompile.
+  const printed = useMemo(() => JSON.stringify(printedOf({ ...formData, sectionOrder: sections })), [formData, sections])
+
+  // Re-render the preview in the browser shortly after what it shows changes.
   useEffect(() => {
     if (!formData.id) return
     let cancelled = false
     const timer = setTimeout(async () => {
       try {
-        const url = await compileResumeUrl({ ...formData, sectionOrder: sections })
+        const url = await compilePreview(JSON.parse(printed))
         if (cancelled) {
           URL.revokeObjectURL(url)
           return
@@ -65,14 +69,14 @@ export default function EditorPage() {
         setPdfUrl(url)
         setCompileError(null)
       } catch (error) {
-        if (!cancelled) setCompileError(error instanceof Error ? error.message : String(error))
+        if (!cancelled && !(error instanceof Superseded)) setCompileError(error instanceof Error ? error.message : String(error))
       }
     }, 400)
     return () => {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [formData, sections])
+  }, [formData.id, printed])
 
   // Free each preview PDF once a newer one replaces it.
   useEffect(() => {
