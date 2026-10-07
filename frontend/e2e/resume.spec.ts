@@ -50,3 +50,68 @@ test("a new visitor writes a resume, sees it, downloads it and opens it again", 
   expect(errors).toEqual([])
   expect(otherErrors).toEqual([])
 })
+
+test("a long resume's PDF opens again with nothing cut off", async ({ page, browser }, testInfo) => {
+  const errors = pageErrors(page)
+  // Longer than earlier versions kept in a PDF: over 100 publications, and a
+  // description of over 10,000 characters.
+  const titles = Array.from({ length: 101 }, (_, index) => `Paper ${index + 1}`)
+  const description = Array.from(
+    { length: 120 },
+    (_, index) => `• Ran experiment ${index + 1} on sparse attention for long documents, and wrote up what it found`,
+  ).join("\n")
+  expect(description.length).toBeGreaterThan(10_000)
+  const resume = {
+    id: "long-cv",
+    resumeTitle: "Long CV",
+    resumeTag: "personal",
+    updatedAt: "2026-10-06T12:00:00.000Z",
+    selectedTemplate: "jake",
+    sectionOrder: ["Education", "Work", "Skills", "Projects", "Publications", "Volunteership", "Leadership", "Awards"],
+    headings: {},
+    profileSection: { fullName: "Ada Lovelace" },
+    educationSection: [],
+    workExperienceSection: [{ id: 1, workRole: "Research Engineer", companyName: "Google", workDescription: description }],
+    projectsSection: [],
+    publicationsSection: titles.map((title, index) => ({
+      id: index + 1,
+      publicationTitle: title,
+      publicationAuthors: "A. Lovelace",
+      publicationVenue: "Proc. NeurIPS",
+      publicationDate: "2025",
+    })),
+    skillsSection: [],
+    volunteerExperienceSection: [],
+    leadershipExperienceSection: [],
+    awardsSection: [],
+  }
+  await page.addInitScript(
+    ({ key, value }) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, value)
+    },
+    { key: "resume:long-cv", value: JSON.stringify(resume) },
+  )
+  await page.goto("/create/new/long-cv")
+  await expect(page.getByRole("region", { name: "Live preview" }).getByText(/Ada Lovelace/i).first()).toBeVisible()
+
+  const downloading = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Download PDF" }).click()
+  const pdf = testInfo.outputPath("long-cv.pdf")
+  await (await downloading).saveAs(pdf)
+
+  // Opened in another browser, it has every publication and the whole description.
+  const elsewhere = await browser.newContext()
+  const other = await elsewhere.newPage()
+  const otherErrors = pageErrors(other)
+  await other.goto("/create/dashboard")
+  await other.locator('input[type="file"]').setInputFiles(pdf)
+  await expect(other).toHaveURL(/\/create\/new\/long-cv$/)
+  await expect(other.getByRole("region", { name: "Live preview" }).getByText(/Ada Lovelace/i).first()).toBeVisible()
+  const restored = await other.evaluate(() => JSON.parse(localStorage.getItem("resume:long-cv") ?? "{}"))
+  expect(restored.publicationsSection.map((entry: { publicationTitle: string }) => entry.publicationTitle)).toEqual(titles)
+  expect(restored.workExperienceSection[0].workDescription).toBe(description)
+  await elsewhere.close()
+
+  expect(errors).toEqual([])
+  expect(otherErrors).toEqual([])
+})
