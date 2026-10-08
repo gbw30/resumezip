@@ -80,7 +80,7 @@ const TABS: { id: TabId; label: string; items: { title: string; body: string }[]
       },
       {
         title: "Can I get feedback on my resume?",
-        body: "Not yet, but it’s on the way.",
+        body: "Yes. In the editor, switch from Write to Check. It lists what to fix, like weak bullets, missing dates and typos, and takes you to each one. It runs in your browser too.",
       },
     ],
   },
