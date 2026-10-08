@@ -124,7 +124,13 @@ test("the checker asks for a name and an entry first, then scores the resume and
   await expect(email).toBeHidden()
   await page.keyboard.press("Space")
   await expect(contact).toHaveAttribute("aria-expanded", "true")
+  // Once everything's checked: not the checks it passed, in Contact or anywhere,
+  // nor a category with nothing to fix, nor what the templates guarantee.
+  await expect(panel.getByRole("status")).toBeHidden()
+  await expect(panel.getByText("No Social Security number")).toHaveCount(0)
   await expect(panel.getByText(/^Passed/)).toHaveCount(0)
+  await expect(panel.getByRole("button", { name: /^Readable by hiring software/ })).toHaveCount(0)
+  await expect(panel.getByText("Real text that can be selected and copied")).toHaveCount(0)
 
   // A line says what the score measures, and that a must-fix holds it down.
   await expect(score).toContainText("How well this resume follows the checks below.")

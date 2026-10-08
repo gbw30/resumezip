@@ -171,6 +171,21 @@ describe("while checks are under way", () => {
     expect(kept.get("contact")!.earned).toBe(0)
   })
 
+  test("a must-fix found while its category is checked again holds the total down at once", () => {
+    // Readable was clean, and a bullet character is typed while the new PDF is read.
+    const kept: KeptScores = new Map()
+    const readable = (outcome: () => Outcome) => [...passing("readable"), rule("R6", "readable", "fix", outcome)]
+    keepScores(kept, scoreWith(readable(passes)), new Map())
+    const checking = new Map([["readable", "pdf"]] as const)
+    const shown = shownScore(scoreWith(readable(found(1))), kept, checking)
+    // Its points are kept as they were, but the total is held.
+    expect(shown.categories.find((category) => category?.id === "readable")!.earned).toBe(15)
+    expect(shown.total).toBe(MUST_FIX_MAX)
+    expect(shown.mustFix).toBe(true)
+    // And it says so while another category waits to be checked for the first time.
+    expect(shownScore(scoreWith(readable(found(1))), new Map(), checking)).toMatchObject({ total: "checking", mustFix: true })
+  })
+
   test("until a category has been checked once, its points and the total wait", () => {
     const now = scoreWith([rule("C1", "contact", "fix", passes), waitingForPdf])
     const shown = shownScore(now, new Map(), new Map([["length", "pdf"]] as const))

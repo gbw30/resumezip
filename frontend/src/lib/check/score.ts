@@ -144,7 +144,9 @@ export function keepScores(kept: KeptScores, now: Score, checking: ReadonlyMap<C
  * last checked (`kept`), so its bar and the total don't jump each time the
  * PDF or the text is read again after a change. Until each has been checked
  * once, the total waits ("checking"), and so does a category's bar (null).
- * `mustFix` says whether a must-fix left is holding the total down.
+ * `mustFix` says whether a must-fix is left, as last checked or as found
+ * since, as by a form rule while the PDF is read again; either holds the
+ * total down at once.
  */
 export function shownScore(
   now: Score,
@@ -154,6 +156,7 @@ export function shownScore(
   const categories = now.categories.map((category) => (checking.has(category.id) ? (kept.get(category.id) ?? null) : category))
   const shown = categories.filter((category): category is CategoryScore => category !== null)
   if (now.total === null) return { total: null, categories, mustFix: false }
+  const mustFix = hasMustFix(shown) || hasMustFix(now.categories)
   const total = shown.length === categories.length ? totalOf(shown) : "checking"
-  return { total, categories, mustFix: typeof total === "number" && hasMustFix(shown) }
+  return { total: typeof total === "number" && mustFix ? Math.min(total, MUST_FIX_MAX) : total, categories, mustFix }
 }
