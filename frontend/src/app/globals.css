@@ -11,6 +11,7 @@
   --color-rule-strong: #c9c9c4; /* input underlines, outlined buttons */
   --color-accent: #2e5be6;
   --color-accent-soft: #a8b9f2;
+  --color-alert: #b42318; /* must-fix findings (6.6:1 against white) */
 }
 
 /* Fine diagonal hatching for a quiet note, over its background color. */

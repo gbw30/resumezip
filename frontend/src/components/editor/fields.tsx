@@ -4,7 +4,7 @@ import type React from "react"
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react"
 import type { Finding } from "@/lib/check/engine"
-import { LEVELS } from "@/lib/check/settings"
+import { LEVELS, type Level } from "@/lib/check/settings"
 import { plainText } from "@/lib/typst/resumeData"
 import {
   bulletLines,
@@ -41,20 +41,25 @@ interface FieldProps {
 }
 
 /**
+ * A small pill for a finding's level: red for a must-fix, the one thing that
+ * holds the score down, so it stands out; grey for a suggestion.
+ */
+export const levelPill = (level: Level) =>
+  `inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[11px] font-medium leading-none ${
+    level === "fix" ? "bg-alert text-white" : "bg-ink/[0.06] text-ink"
+  }`
+
+/**
  * What the checker found where the person is fixing it, and why it matters.
  * It says how sure the checker is in words, so the field's color isn't the
  * only sign.
  */
 export function FlagNote({ id, finding }: { id?: string; finding: Finding }) {
   return (
-    <div
-      id={id}
-      className={`flex flex-col gap-0.5 border-l-2 pl-3 text-[13px] leading-normal ${
-        finding.level === "fix" ? "border-[#b42318]" : "border-accent"
-      }`}
-    >
-      <p className="text-ink">
-        <span className="font-medium">{LEVELS[finding.level].name}:</span> {finding.message}
+    <div id={id} className="flex flex-col gap-1 rounded-[4px] border border-rule bg-sheet px-3 py-2.5 text-[13px] leading-normal">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink">
+        <span className={levelPill(finding.level)}>{LEVELS[finding.level].name}</span>
+        {finding.message}
       </p>
       <p className="text-ink-2">{finding.why}</p>
       {finding.suggestion && <p className="text-ink-2">{finding.suggestion}</p>}
@@ -81,11 +86,7 @@ export function Field({ label, value, placeholder, type = "text", className = ""
           aria-describedby={flag ? noteId : undefined}
           aria-invalid={flag?.level === "fix" || undefined}
           className={`w-full min-w-0 border-0 bg-transparent py-2 text-base text-ink outline-none transition-colors placeholder:text-ink-2/50 focus-visible:outline-none ${
-            !flag
-              ? "border-b border-rule-strong focus:border-accent"
-              : flag.level === "fix"
-                ? "border-b-2 border-[#b42318]"
-                : "border-b-2 border-accent"
+            !flag ? "border-b border-rule-strong focus:border-accent" : "border-b-2 border-accent"
           }`}
         />
       </label>
@@ -365,11 +366,7 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
           className={`w-full resize-none overflow-hidden rounded-[4px] border bg-sheet px-3.5 py-3 text-[15px] leading-[1.7] text-ink outline-none transition-colors placeholder:text-ink-2/50 focus-visible:outline-none ${
-            !flag
-              ? "border-rule focus:border-accent"
-              : flag.level === "fix"
-                ? "border-[#b42318] ring-1 ring-[#b42318]"
-                : "border-accent ring-1 ring-accent"
+            !flag ? "border-rule focus:border-accent" : "border-accent ring-1 ring-accent"
           }`}
         />
       )}
