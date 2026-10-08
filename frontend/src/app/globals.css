@@ -102,7 +102,7 @@
 
   /* Buttons show the hand, as links do: Tailwind's base styles give them the
      arrow. One that can't be used right now (aria-disabled) says so itself. */
-  button:not(:disabled),
+  button:not(:disabled):not([aria-disabled="true"]),
   [role="button"]:not([aria-disabled="true"]),
   summary {
     cursor: pointer;

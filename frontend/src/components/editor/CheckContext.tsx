@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
-import { useResumeContext } from "@/context/ResumeContext"
+import type { Resume } from "@/context/ResumeContext"
 import type { Finding, GrammarLint, GrammarReading, PdfReading } from "@/lib/check/engine"
 import { hasEnoughToCheck } from "@/lib/check/labels"
 import type { Place } from "@/lib/check/places"
@@ -123,6 +123,8 @@ interface CheckProviderProps {
   printed: string
   /** What the resume printed when its preview last failed to build. */
   unbuilt: string | null
+  /** The resume being opened, as saved: one with nothing to check yet opens in Write. */
+  opened: Resume
   children: React.ReactNode
 }
 
@@ -133,11 +135,10 @@ interface CheckProviderProps {
  * they wait while the preview is behind what's been typed. Text that's new
  * since it was last checked goes to the grammar checker then too.
  */
-export function CheckProvider({ onSelect, preview, printed, unbuilt, children }: CheckProviderProps) {
-  const { formData } = useResumeContext()
+export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, children }: CheckProviderProps) {
   // A resume with nothing to check yet opens in Write, so its sections aren't
   // hidden behind a request to fill them in.
-  const [mode, setMode] = useState<Mode>(() => (hasEnoughToCheck(viewOf(formData)) ? savedMode() : "write"))
+  const [mode, setMode] = useState<Mode>(() => (hasEnoughToCheck(viewOf(opened)) ? savedMode() : "write"))
   const chooseMode = useCallback((next: Mode) => {
     setMode(next)
     saveMode(next)

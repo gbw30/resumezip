@@ -33,8 +33,8 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
   // Ids of the resumes downloading, and why each one whose last download failed did.
   const [downloading, setDownloading] = useState<string[]>([])
   const [failed, setFailed] = useState<Record<string, Failure>>({})
-  // Ids of the resumes just downloaded, and what's said aloud about the last one.
-  const [downloaded, setDownloaded] = useState<string[]>([])
+  // When each resume just downloaded finished, by id, and what's said aloud about the last one.
+  const [downloaded, setDownloaded] = useState<Record<string, number>>({})
   const [announcement, setAnnouncement] = useState("")
 
   const download = async (resume: Record<string, any>) => {
@@ -42,9 +42,21 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
     try {
       await downloadResume(resume)
       setFailed(({ [resume.id]: _, ...others }) => others)
-      setDownloaded((ids) => [...ids, resume.id])
-      setAnnouncement(`Downloaded ${resume.resumeTitle || "Untitled resume"}`)
-      setTimeout(() => setDownloaded((ids) => ids.filter((id) => id !== resume.id)), DOWNLOADED_MS)
+      const at = Date.now()
+      setDownloaded((all) => ({ ...all, [resume.id]: at }))
+      // Cleared first, so a second download in a row is said aloud again.
+      setAnnouncement("")
+      requestAnimationFrame(() => setAnnouncement(`Downloaded ${resume.resumeTitle || "Untitled resume"}`))
+      // Only this download's confirmation goes; a newer one keeps its two seconds.
+      setTimeout(
+        () =>
+          setDownloaded((all) => {
+            if (all[resume.id] !== at) return all
+            const { [resume.id]: _, ...others } = all
+            return others
+          }),
+        DOWNLOADED_MS,
+      )
     } catch (error) {
       console.error("Failed to build PDF:", error)
       setFailed((all) => ({ ...all, [resume.id]: nextFailure(all[resume.id], error) }))
@@ -80,9 +92,9 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
         {downloading.includes(resume.id) ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
         ) : (
-          downloaded.includes(resume.id) && <Check className="h-3.5 w-3.5" aria-hidden="true" />
+          resume.id in downloaded && <Check className="h-3.5 w-3.5" aria-hidden="true" />
         )}
-        {downloaded.includes(resume.id) ? "Downloaded" : "Download"}
+        {resume.id in downloaded ? "Downloaded" : "Download"}
       </button>
       <button
         type="button"

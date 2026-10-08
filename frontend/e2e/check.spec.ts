@@ -70,6 +70,20 @@ test("the left bar switches between writing and checking, and remembers which", 
   await expect(later.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()).toBeVisible()
   await later.close()
 
+  // In this tab Check is still remembered, so the resume opens on Check from
+  // a freshly loaded dashboard too, but a new resume, with nothing to check
+  // yet, opens on Write.
+  await page.goto("/create/dashboard")
+  await page.getByRole("link", { name: "Open", exact: true }).click()
+  await expect(check).toHaveAttribute("aria-selected", "true")
+  await expect(preview).toBeVisible()
+  await page.getByRole("link", { name: "Your resumes" }).click()
+  await page.getByRole("button", { name: "New resume" }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click()
+  await expect(page).toHaveURL(/\/create\/new\//)
+  await expect(write).toHaveAttribute("aria-selected", "true")
+  await expect(preview).toBeVisible()
+
   expect(errors).toEqual([])
 })
 

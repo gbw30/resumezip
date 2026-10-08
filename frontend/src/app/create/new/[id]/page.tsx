@@ -45,7 +45,9 @@ export default function EditorPage() {
   const [unbuilt, setUnbuilt] = useState<string | null>(null)
   const [compileError, setCompileError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
-  const [downloaded, setDownloaded] = useState(false)
+  // When the last download finished, while the button says so; 0 otherwise.
+  const [downloadedAt, setDownloadedAt] = useState(0)
+  const downloaded = downloadedAt > 0
   const [failure, setFailure] = useState<Failure | null>(null)
   // A save since the page opened, for a moment.
   const [justSaved, setJustSaved] = useState(false)
@@ -141,12 +143,12 @@ export default function EditorPage() {
     return () => clearTimeout(timer)
   }, [savedAt])
 
-  // After a download, the button says so for a moment.
+  // After a download, the button says so for a moment, counted from the latest one.
   useEffect(() => {
-    if (!downloaded) return
-    const timer = setTimeout(() => setDownloaded(false), DOWNLOADED_MS)
+    if (!downloadedAt) return
+    const timer = setTimeout(() => setDownloadedAt(0), DOWNLOADED_MS)
     return () => clearTimeout(timer)
-  }, [downloaded])
+  }, [downloadedAt])
 
   // Free each preview PDF a while after a newer one replaces it. The
   // preview may only just have started reading it, and pdf.js fails, and
@@ -210,7 +212,9 @@ export default function EditorPage() {
     try {
       await downloadResume({ ...formData, sectionOrder: sections })
       setFailure(null)
-      setDownloaded(true)
+      // Cleared first, so a second download in a row is said aloud again.
+      setDownloadedAt(0)
+      requestAnimationFrame(() => setDownloadedAt(Date.now()))
     } catch (error) {
       console.error("Error downloading resume:", error)
       setFailure((previous) => nextFailure(previous, error))
@@ -332,7 +336,8 @@ export default function EditorPage() {
 
       <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
         {/* The left bar and the forms share what the checker found. */}
-        <CheckProvider onSelect={select} preview={preview} printed={printed} unbuilt={unbuilt}>
+        {/* The resume from the address: on the first render the open resume can still be the one before. */}
+        <CheckProvider onSelect={select} preview={preview} printed={printed} unbuilt={unbuilt} opened={resumes[id]}>
           <LeftBar hidden={view === "preview"}>
             <SectionNav
               sections={sections}
@@ -365,7 +370,7 @@ export default function EditorPage() {
               view === "preview" ? "flex max-xl:flex-1" : "hidden"
             }`}
           >
-            <PdfPreview pdfUrl={pdfUrl} error={compileError} updating={switchingTemplate} />
+            <PdfPreview pdfUrl={pdfUrl} error={compileError} updating={switchingTemplate && !compileError} />
           </section>
         </CheckProvider>
       </div>
