@@ -56,11 +56,9 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // As in maya/latex-jake.
   "maya/latex-jake-company-first": ["projects[1].name", "projects[1].techStack"],
   // An academic CV in Typst. Without italics, a citation's venue and its
-  // details read as one. The mentoring lines read as teaching.
+  // details read as one.
   "marcus/typst-academic": [
     "education[2].degree",
-    "work[7].bullets",
-    "work[8]",
     "leadership[0].organization",
     "leadership[0].bullets",
     "leadership[3].organization",

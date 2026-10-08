@@ -718,3 +718,33 @@ describe("a title with a comma, then a dash or colon", () => {
     expect(work[0]).toMatchObject({ workRole: "Software Engineer, Backend", companyName: "Google" })
   })
 })
+
+describe("a line with something other than a date in a column of dates", () => {
+  test("goes to Couldn't place with the lines it wraps onto, and isn't part of the entry above", () => {
+    const { resume, unplaced } = read("Experience", [
+      line([["2026", 36], ["Instructional Staff, Robots in Society", 120], ["Sendai, Japan", 480]]),
+      line([["2023 – 2025", 36], ["Lead Teaching Assistant, Robot Kinematics", 120], ["West Lafayette, IN", 470]]),
+      line([["Purdue Univ.", 36], ["L. Park → Salesforce, H. Ortiz → Eli Lilly. Senior design team, “Boiler Proctor:", 120]]),
+      line([["Integrating Safe Exam Browser with Brightspace,” 2026.", 120]]),
+    ])
+    expect(resume.workExperienceSection).toHaveLength(2)
+    expect(resume.workExperienceSection[1]).toMatchObject({ workRole: "Lead Teaching Assistant", companyName: "Robot Kinematics", workDescription: "" })
+    expect(unplaced).toEqual([
+      "Purdue Univ. L. Park → Salesforce, H. Ortiz → Eli Lilly. Senior design team, “Boiler Proctor: Integrating Safe Exam Browser with Brightspace,” 2026.",
+    ])
+  })
+
+  test("isn't a place set beside the organization, under the date", () => {
+    const { resume, unplaced } = read("Experience", [
+      line([["2024 – Present", 36], ["Software Engineer", 120]], { bold: true }),
+      line([["Seattle, WA", 36], ["Stripe", 120]], { italic: true }),
+      line([["2022 – 2024", 36], ["Data Analyst", 120]], { bold: true }),
+      line([["Austin, TX", 36], ["Indeed", 120]], { italic: true }),
+    ])
+    expect(resume.workExperienceSection).toMatchObject([
+      { workRole: "Software Engineer", companyName: "Stripe", workLocation: "Seattle, WA" },
+      { workRole: "Data Analyst", companyName: "Indeed", workLocation: "Austin, TX" },
+    ])
+    expect(unplaced).toEqual([])
+  })
+})

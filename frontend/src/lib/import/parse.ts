@@ -928,6 +928,32 @@ function subHeadingsBesideDates(lines: ParseLine[]): Set<ParseLine> {
 }
 
 /**
+ * In a CV with its dates in a column on the left, a line with something
+ * else in that column, neither a date nor a place ("Purdue Univ.", beside a
+ * paragraph about students mentored), doesn't start an entry and isn't part
+ * of the one above. It has no field to go in, nor do the lines it wraps
+ * onto, set at the column's edge, up to the next line in the column.
+ */
+function besideDatesWithoutOne(lines: ParseLine[]): ParseLine[][] {
+  const end = dateColumnEnd(lines)
+  if (end === undefined) return []
+  const found: ParseLine[][] = []
+  let current: ParseLine[] | undefined
+  for (const line of lines) {
+    const [first, second] = line.parts
+    if (second && Math.abs(second.x - end) <= 3 && !DATE.test(first.text) && !isLocation(first.text)) {
+      current = [line]
+      found.push(current)
+    } else if (current && !line.bullet && Math.abs(line.left - end) <= 3) {
+      current.push(line)
+    } else {
+      current = undefined
+    }
+  }
+  return found
+}
+
+/**
  * "Lab Manager & Instructional Staff", then a department or two, each on a
  * short line of its own under the organization, before the bullets: the
  * first is the role, the rest have no field. Without bullets after them,
@@ -954,7 +980,13 @@ function readExperience(name: ExperienceName, lines: ParseLine[]): SectionResult
     leftover.lines.push(line.index)
     leftover.text.push(line.text)
   }
-  const entries = groupEntries(lines.filter((line) => !subHeadings.has(line))).map((group) => {
+  const besideNoDate = besideDatesWithoutOne(lines)
+  for (const block of besideNoDate) {
+    leftover.lines.push(...block.map((line) => line.index))
+    leftover.text.push(tidy(block.map((line) => line.text).reduce(joinWrapped)))
+  }
+  const setAside = new Set([...subHeadings, ...besideNoDate.flat()])
+  const entries = groupEntries(lines.filter((line) => !setAside.has(line))).map((group) => {
     const header = readHeader(group.header)
     const { role, org, rest, call, split } = roleAndOrg(header.texts)
     const fields = blankEntry(name)
