@@ -1340,7 +1340,8 @@ export function parseResume(file: Line[]): ParsedResume {
     addUnplaced(titleCase(label), result.leftover.lines, result.leftover.text)
   })
 
-  // Lines before the first heading that we couldn't read, when there are no headings at all.
+  // With no headings at all, firstHeading falls back to the 4th line: what's
+  // below the top of the resume couldn't be sorted, so it's listed as it is.
   if (starts.length === 0) {
     const rest = lines.filter((line) => line.index >= firstHeading && content(line))
     addUnplaced("Everything else", rest.map((line) => line.index), rest.map(textOf))

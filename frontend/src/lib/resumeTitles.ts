@@ -16,7 +16,11 @@ export function uniqueTitle(title: string, taken: unknown[]): string {
   return `${base} ${n}`
 }
 
-/** Numbers resumes that share a name. The oldest keeps it; the others get the next free numbers. */
+/**
+ * Numbers resumes that share a name. The first one in `resumes` keeps it (in
+ * storage order, since resumes don't record when they were made); the others
+ * get the next free numbers.
+ */
 export function numberDuplicateTitles(resumes: Record<string, any>): Record<string, any> {
   const entries = Object.entries(resumes)
   const seen = new Set<string>()
