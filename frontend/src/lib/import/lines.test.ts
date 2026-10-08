@@ -163,4 +163,21 @@ describe("hyphens", () => {
       expect(texts).toEqual(["It helps coor\u00AD", "dinate the team", "Not so well-", "known"])
     })
   })
+
+  test("one alone in a span that's part of the document's structure, or has nothing to say about it, is a hyphen", async () => {
+    const content = [
+      "BT /F1 12 Tf 72 720 Td",
+      // A span in the document's structure, numbered by an MCID.
+      "(A well) Tj /Span << /MCID 3 >> BDC (-) Tj EMC",
+      "0 -16 Td (known name) Tj",
+      // A span with no properties, which can't say what it stands for.
+      "0 -16 Td (A long) Tj /Span BMC (-) Tj EMC",
+      "0 -16 Td (term plan) Tj",
+      "ET",
+    ].join(" ")
+    await withPdf(pdfOf([content]), async (doc) => {
+      const texts = linesFromPages(await readPdf(doc)).map((line) => line.text)
+      expect(texts).toEqual(["A well-", "known name", "A long-", "term plan"])
+    })
+  })
 })

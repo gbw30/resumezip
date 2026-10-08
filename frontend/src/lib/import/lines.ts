@@ -258,17 +258,20 @@ export async function readPdf(doc: PDFDocumentProxy, signal?: AbortSignal): Prom
     // typesetter added to break a word is marked as a soft hyphen in a span
     // of its own; pdf.js gives the hyphen, but not what it's marked as. So
     // each span counts the pieces of text in it, keeping the first, and
-    // passes them on to the span around it when it ends.
-    const spans: { count: number; first?: Item }[] = []
+    // passes them on to the span around it when it ends. Only a span with
+    // properties can say what its text stands for, and only one outside the
+    // document's structure (with no MCID) is there to say it.
+    const spans: { count: number; first?: Item; standsIn: boolean }[] = []
     const reader = (page.streamTextContent({ includeMarkedContent: true }) as ReadableStream<TextContent>).getReader()
     try {
       for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
         for (const item of chunk.value.items) {
           if ("type" in item) {
-            if (item.type === "beginMarkedContent" || item.type === "beginMarkedContentProps") spans.push({ count: 0 })
-            else if (item.type === "endMarkedContent") {
+            if (item.type === "beginMarkedContent" || item.type === "beginMarkedContentProps") {
+              spans.push({ count: 0, standsIn: item.type === "beginMarkedContentProps" && !item.id })
+            } else if (item.type === "endMarkedContent") {
               const span = spans.pop()
-              if (span?.count === 1 && /^[-\u2010]$/.test(span.first!.text)) span.first!.soft = true
+              if (span?.standsIn && span.count === 1 && /^[-\u2010]$/.test(span.first!.text)) span.first!.soft = true
               const outer = spans[spans.length - 1]
               if (span?.first && outer) {
                 outer.first ??= span.first
