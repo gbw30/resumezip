@@ -102,9 +102,8 @@ test("the checker asks for a name and an entry first, then scores the resume and
   await expect(readable).toHaveAttribute("aria-expanded", "false")
   await expect(guaranteed).toBeHidden()
 
-  // How the score works says what it measures.
-  await panel.getByText("How the score works").click()
-  await expect(panel.getByText("It doesn't say whether a resume will get anyone hired.", { exact: false })).toBeVisible()
+  // A line says what the score measures, and no more.
+  await expect(score).toContainText("How well this resume follows the checks below.")
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
 
   expect(errors).toEqual([])
@@ -138,10 +137,11 @@ test("the score goes up as a problem is fixed", async ({ page }) => {
   expect(errors).toEqual([])
 })
 
-test("choosing a finding opens its field, fixing it clears it, and a suggestion can be dismissed", async ({ page }) => {
+test("choosing a finding opens its field, where it shows while Check is open, fixing it clears it, and a suggestion can be dismissed", async ({ page }) => {
   const errors = pageErrors(page)
   await newResume(page)
-  const check = page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ })
+  const modes = page.getByRole("tablist", { name: "Write or check" })
+  const check = modes.getByRole("tab", { name: /^Check/ })
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
 
   // No count until there's a name and an entry to check.
@@ -160,7 +160,16 @@ test("choosing a finding opens its field, fixing it clears it, and a suggestion 
   const field = page.getByLabel("Email")
   await expect(field).toBeFocused()
   await expect(field).toHaveAttribute("aria-invalid", "true")
-  await expect(page.getByText("Recruiters reply by email, so it has to work.")).toBeVisible()
+  const why = page.getByText("Recruiters reply by email, so it has to work.")
+  await expect(why).toBeVisible()
+
+  // Back in Write mode the field is left plain, until Check is open again.
+  await modes.getByRole("tab", { name: "Write" }).click()
+  await expect(why).toBeHidden()
+  await expect(field).not.toHaveAttribute("aria-invalid")
+  await check.click()
+  await expect(why).toBeVisible()
+  await expect(field).toHaveAttribute("aria-invalid", "true")
   await field.fill("ada@example.com")
   await expect(email).toBeHidden()
   await expect(field).not.toHaveAttribute("aria-invalid")
