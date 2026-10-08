@@ -1,6 +1,8 @@
 // Resume names are kept unique so they can be told apart in the list:
 // a second "Untitled resume" becomes "Untitled resume 2", then 3, and so on.
 
+import type { Resume } from "./resume"
+
 const UNTITLED = "Untitled resume"
 
 // Names are compared ignoring case and surrounding spaces; a blank name counts as "Untitled resume".
@@ -16,8 +18,12 @@ export function uniqueTitle(title: string, taken: unknown[]): string {
   return `${base} ${n}`
 }
 
-/** Numbers resumes that share a name. The oldest keeps it; the others get the next free numbers. */
-export function numberDuplicateTitles(resumes: Record<string, any>): Record<string, any> {
+/**
+ * Numbers resumes that share a name. The first one in `resumes` keeps it (in
+ * storage order, since resumes don't record when they were made); the others
+ * get the next free numbers.
+ */
+export function numberDuplicateTitles(resumes: Record<string, Resume>): Record<string, Resume> {
   const entries = Object.entries(resumes)
   const seen = new Set<string>()
   const duplicates = entries.filter(([, resume]) => {

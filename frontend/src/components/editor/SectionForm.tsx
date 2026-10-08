@@ -4,15 +4,13 @@ import { useEffect, useRef, useState } from "react"
 import { Plus } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
 import { isLeftOut } from "@/lib/leftOut"
+import type { Entry } from "@/lib/resume"
 import { useCheck } from "./CheckContext"
 import { nextAnnouncement } from "./arrange"
 import { BulletsField, Field, FlagNote, MoveButtons, SectionHeading, selectLine } from "./fields"
 import { reducedMotion, reveal, scrollerOf } from "./layout"
 import PaperFromLink from "./PaperFromLink"
-import { FIELD_SPAN, type ChoiceDef, type SectionDef } from "./sections"
-
-// `leftOut` is set on entries left out of the PDF (see lib/leftOut.ts).
-type Entry = { id: number; leftOut?: true; [field: string]: any }
+import { FIELD_SPAN, type ChoiceDef, type FieldKey, type SectionDef } from "./sections"
 
 interface SectionFormProps {
   section: SectionDef
@@ -39,7 +37,8 @@ function pointAt(target: HTMLElement | null | undefined, line?: number, view: HT
 /** The form for one list section (education, experience, ...): its title and entries. */
 export default function SectionForm({ section, position }: SectionFormProps) {
   const { formData, updateFormData } = useResumeContext()
-  const entries: Entry[] = Array.isArray(formData[section.dataKey]) ? formData[section.dataKey] : []
+  const saved = formData[section.dataKey]
+  const entries = Array.isArray(saved) ? saved : []
   const latest = useRef(entries)
   latest.current = entries
   const owner = useRef("")
@@ -167,11 +166,11 @@ export default function SectionForm({ section, position }: SectionFormProps) {
    * entries, so nothing typed while a paper was being looked up is lost.
    * `show` brings the opened entry into view and puts the cursor in it.
    */
-  const addEntries = (values: Record<string, string>[], show = true) => {
+  const addEntries = (values: Partial<Record<FieldKey, string>>[], show = true) => {
     const current = latest.current
     const id = current.length > 0 ? Math.max(...current.map((entry) => entry.id)) + 1 : 1
     const blank = Object.fromEntries(section.fields.map((field) => [field.key, ""]))
-    save([...current, ...values.map((value, index) => ({ ...blank, ...value, id: id + index }) as Entry)])
+    save([...current, ...values.map((value, index): Entry => ({ ...blank, ...value, id: id + index }))])
     setConfirmingId(null)
     setOpenId(id)
     if (!show) return
@@ -206,7 +205,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
     setTimeout(() => remove(id), SLIDE_MS)
   }
 
-  const update = (id: number, key: string, value: string) =>
+  const update = (id: number, key: FieldKey, value: string) =>
     save(entries.map((entry) => (entry.id === id ? { ...entry, [key]: value } : entry)))
 
   /**

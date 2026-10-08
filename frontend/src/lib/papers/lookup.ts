@@ -30,6 +30,8 @@ async function get(url: string, headers: Record<string, string>, signal: AbortSi
   const stop = new AbortController()
   const timer = setTimeout(() => stop.abort(), LOOKUP_TIMEOUT_MS)
   const abort = () => stop.abort()
+  // A signal aborted before this request started never fires "abort" again.
+  if (signal?.aborted) abort()
   signal?.addEventListener("abort", abort)
   try {
     const response = await fetcher(url, { headers, signal: stop.signal, credentials: "omit", referrerPolicy: "no-referrer" })

@@ -5,6 +5,7 @@
 // they always have.
 
 import { SECTIONS } from "@/components/editor/sections"
+import type { Resume } from "@/lib/resume"
 
 /** What a left-out bullet starts with, instead of "•". */
 export const LEFT_OUT_BULLET = "○"
@@ -31,18 +32,20 @@ const printedBullets = (value: unknown) =>
       : value
 
 /** Whether anything in the resume is left out: an entry, or a bullet. */
-export function hasLeftOut(resume: Record<string, any>): boolean {
-  return Object.values(SECTIONS).some(
-    ({ dataKey, fields }) =>
-      Array.isArray(resume[dataKey]) &&
-      resume[dataKey].some(
+export function hasLeftOut(resume: Resume): boolean {
+  return Object.values(SECTIONS).some(({ dataKey, fields }) => {
+    const entries = resume[dataKey]
+    return (
+      Array.isArray(entries) &&
+      entries.some(
         (entry: unknown) =>
           isLeftOut(entry) ||
           (typeof entry === "object" &&
             entry !== null &&
             fields.some((field) => field.type === "bullets" && linesOf((entry as Record<string, unknown>)[field.key]).some(isLeftOutLine))),
-      ),
-  )
+      )
+    )
+  })
 }
 
 /**
@@ -50,11 +53,13 @@ export function hasLeftOut(resume: Record<string, any>): boolean {
  * what the PDF shows, and all the copy of the resume inside the PDF holds,
  * since anyone who gets the PDF can read that copy.
  */
-export function printedResume(resume: Record<string, any>): Record<string, any> {
-  const printed = { ...resume }
+export function printedResume(resume: Resume): Resume {
+  // Saved entries are only checked for shape, so they're read as unknown here.
+  const printed: Record<string, unknown> = { ...resume }
   for (const { dataKey, fields } of Object.values(SECTIONS)) {
-    if (!Array.isArray(resume[dataKey])) continue
-    printed[dataKey] = resume[dataKey]
+    const entries: unknown = resume[dataKey]
+    if (!Array.isArray(entries)) continue
+    printed[dataKey] = entries
       .filter((entry: unknown) => !isLeftOut(entry))
       .map((entry: unknown) => {
         if (typeof entry !== "object" || entry === null) return entry
@@ -65,5 +70,5 @@ export function printedResume(resume: Record<string, any>): Record<string, any> 
         return kept
       })
   }
-  return printed
+  return printed as Resume
 }

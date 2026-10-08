@@ -1,11 +1,13 @@
 import { describe, expect, test } from "vitest"
 import { SECTION_NAMES } from "@/components/editor/sections"
+import type { Resume } from "@/lib/resume"
+import { asSaved } from "@/lib/testResume"
 import { findingKey, placeExists, ruleOfKey, textAt, type Place } from "./places"
 import { runChecks } from "./engine"
 import { describePlace } from "./labels"
 import { resumeTypeOf, textsOf, viewOf } from "./resume"
 
-const ada = {
+const ada = asSaved({
   resumeTag: "academic",
   profileSection: { fullName: "  Ada Lovelace ", email: "ada@example.com", phoneNumber: null },
   headings: { work: " Engines ", edu: "" },
@@ -20,7 +22,7 @@ const ada = {
     { id: 2 },
   ],
   educationSection: [{ id: 1, schoolName: "University of London", degree: "B.A. in Mathematics" }],
-}
+})
 
 describe("reading a resume for the checks", () => {
   test("reads each field as trimmed text, and missing or empty ones as ''", () => {
@@ -46,7 +48,7 @@ describe("reading a resume for the checks", () => {
   })
 
   test("reads bullets saved as a list, as older resumes did", () => {
-    const old = { workExperienceSection: [{ workDescription: ["Built a loom", "", "Wrote the notes"] }] }
+    const old = asSaved({ workExperienceSection: [{ workDescription: ["Built a loom", "", "Wrote the notes"] }] })
     expect(viewOf(old).sections.Work[0].bullets.map((bullet) => [bullet.line, bullet.text])).toEqual([
       [0, "Built a loom"],
       [2, "Wrote the notes"],
@@ -57,7 +59,7 @@ describe("reading a resume for the checks", () => {
     const [filled, blank] = viewOf(ada).sections.Work
     expect([filled.blank, blank.blank]).toEqual([false, true])
     expect(blank).toMatchObject({ section: "Work", index: 1, bullets: [] })
-    const bare = viewOf({ workExperienceSection: [{ workRole: " ", workDescription: "• \n•" }] })
+    const bare = viewOf({ workExperienceSection: [{ id: 1, workRole: " ", workDescription: "• \n•" }] })
     expect(bare.sections.Work[0].blank).toBe(true)
   })
 
@@ -70,7 +72,7 @@ describe("reading a resume for the checks", () => {
   })
 
   test("doesn't break on fields in shapes the editor doesn't save", () => {
-    const view = viewOf({ profileSection: "Ada", headings: [], workExperienceSection: { companyName: "Acme" }, educationSection: [null, "junk"] })
+    const view = viewOf(asSaved({ profileSection: "Ada", headings: [], workExperienceSection: { companyName: "Acme" }, educationSection: [null, "junk"] }))
     expect(view.profile.fullName).toBe("")
     expect(view.sections.Work).toEqual([])
     expect(view.sections.Education.map((entry) => entry.blank)).toEqual([true, true])
@@ -122,7 +124,7 @@ describe("places on a resume", () => {
     expect(placeExists(view, { kind: "entry", section: "Work", entry: 2 })).toBe(false)
     expect(placeExists(view, { kind: "entry", section: "Work", entry: 0, line: 0 })).toBe(false)
     expect(placeExists(view, { kind: "entry", section: "Nope" as never, entry: 0 })).toBe(false)
-    expect(placeExists(view, { kind: "profile", field: "password" })).toBe(false)
+    expect(placeExists(view, { kind: "profile", field: "password" as never })).toBe(false)
     expect(placeExists(view, { kind: "page" })).toBe(true)
     expect(placeExists(view, { kind: "page", page: 2 }, 2)).toBe(true)
     expect(placeExists(view, { kind: "page", page: 3 }, 2)).toBe(false)
@@ -148,7 +150,7 @@ describe("places on a resume", () => {
 })
 
 describe("what the person left out", () => {
-  const tailored = {
+  const tailored: Resume = {
     workExperienceSection: [
       { id: 1, workRole: "Intern", companyName: "Initech", leftOut: true },
       { id: 2, workRole: "Engineer", companyName: "Analytical Engines", workDescription: "• Built a loom\n○ Fed the cat\n• Wrote the notes" },
@@ -183,7 +185,7 @@ describe("what the person left out", () => {
     expect(textsOf(renamed).some((found) => found.place.kind === "heading")).toBe(true)
     const allLeftOut = viewOf({
       headings: { work: "Jobs & mgmt" },
-      workExperienceSection: tailored.workExperienceSection.map((entry) => ({ ...entry, leftOut: true })),
+      workExperienceSection: tailored.workExperienceSection?.map((entry) => ({ ...entry, leftOut: true as const })),
     })
     expect(textsOf(allLeftOut).some((found) => found.place.kind === "heading")).toBe(false)
   })

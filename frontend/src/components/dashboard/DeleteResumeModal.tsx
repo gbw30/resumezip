@@ -3,7 +3,7 @@
 import Modal from "./Modal"
 
 interface DeleteResumeModalProps {
-  resumeTitle: string
+  resumeTitle?: string
   onClose: () => void
   onDelete: () => void
 }

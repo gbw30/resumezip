@@ -225,7 +225,7 @@ const valueAt = (value: unknown, where: string) =>
   where
     .split(/[.[\]]+/)
     .filter(Boolean)
-    .reduce<any>((inside, key) => inside?.[key], value)
+    .reduce<unknown>((inside, key) => (inside as Record<string, unknown> | null | undefined)?.[key], value)
 
 describe.each(files)("%s", (file) => {
   test("reads back no worse than before", async () => {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { memoryStorage } from "./memoryStorage"
+import type { Resume } from "./resume"
 import { createResumeStore, SAVE_DELAY } from "./resumeStore"
 import { keyOf, LEGACY_KEY, readResume } from "./resumeStorage"
 
@@ -133,7 +134,7 @@ describe("two tabs", () => {
     const one = openTab(storage)
     const two = openTab(storage)
     one.edit("a", "profileSection", { fullName: "Ada King" })
-    two.edit("a", "workExperienceSection", [{ companyName: "Analytical Engines" }])
+    two.edit("a", "workExperienceSection", [{ id: 1, companyName: "Analytical Engines" }])
     one.flush()
     two.flush()
     one.receive(keyOf("a"))
@@ -451,7 +452,7 @@ describe("adding resumes", () => {
   test("resumes saved with the same name are numbered when the page opens, and that's saved", () => {
     const storage = memoryStorage(saved(ada, { ...grace, resumeTitle: "Ada" }))
     const tab = openTab(storage)
-    const titles = (resumes: (Record<string, any> | null | undefined)[]) => resumes.map((resume) => resume?.resumeTitle).sort()
+    const titles = (resumes: (Resume | null | undefined)[]) => resumes.map((resume) => resume?.resumeTitle).sort()
     expect(titles(Object.values(tab.getState().resumes))).toEqual(["Ada", "Ada 2"])
 
     vi.advanceTimersByTime(SAVE_DELAY)

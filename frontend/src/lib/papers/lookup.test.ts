@@ -20,9 +20,13 @@ function fakeFetch(...answers: Answer[]) {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 const status = (code: number) => new Response("", { status: code })
 
-// A service that never answers, until the request is stopped.
+// A service that never answers, until the request is stopped. Like fetch, it
+// rejects at once when given a signal that's already aborted.
 const hanging = (async (_url: string, init: RequestInit) =>
-  new Promise<Response>((_, reject) => init.signal!.addEventListener("abort", () => reject(init.signal!.reason)))) as unknown as typeof fetch
+  new Promise<Response>((_, reject) => {
+    if (init.signal!.aborted) reject(init.signal!.reason)
+    init.signal!.addEventListener("abort", () => reject(init.signal!.reason))
+  })) as unknown as typeof fetch
 
 // A service that answers at once, then never finishes sending its record, until the request is stopped.
 const stalling = (async (_url: string, init: RequestInit) =>
@@ -106,6 +110,22 @@ describe("looking up a paper", () => {
     await expect(lookup).rejects.toThrow()
     // And one that's already stopped doesn't start.
     await expect(lookUp({ doi: "10.1/x" }, stop.signal, hanging)).rejects.toThrow()
+  })
+
+  test("stopping a lookup between Crossref and doi.org stops the doi.org request too", async () => {
+    vi.useFakeTimers()
+    const stop = new AbortController()
+    const crossrefMissesThenStop = (async () => {
+      stop.abort()
+      return status(404)
+    }) as unknown as typeof fetch
+    const fetcher = ((url: string, init: RequestInit) => (url.includes("crossref") ? crossrefMissesThenStop : hanging)(url, init)) as typeof fetch
+    const lookup = lookUp({ doi: "10.1/x" }, stop.signal, fetcher)
+    const settled = vi.fn()
+    lookup.then(settled, settled)
+    await vi.advanceTimersByTimeAsync(10)
+    expect(settled).toHaveBeenCalled()
+    await expect(lookup).rejects.toThrow()
   })
 
   test("an answer that stalls halfway still gives up in time, or can be stopped", async () => {

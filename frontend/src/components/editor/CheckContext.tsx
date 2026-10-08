@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
-import type { Resume } from "@/context/ResumeContext"
+import type { Resume } from "@/lib/resume"
 import type { Finding, GrammarLint, GrammarReading, PdfReading } from "@/lib/check/engine"
 import { hasEnoughToCheck } from "@/lib/check/labels"
 import type { Place } from "@/lib/check/places"

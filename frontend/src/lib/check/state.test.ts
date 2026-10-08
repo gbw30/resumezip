@@ -5,6 +5,7 @@ import { memoryStorage } from "@/lib/memoryStorage"
 import { toAttachment } from "@/lib/resumeFile"
 import { createResumeStore } from "@/lib/resumeStore"
 import { changedPaths, mergeResume } from "@/lib/resumeStorage"
+import { asSaved } from "@/lib/testResume"
 import { runChecks, type Finding, type Rule } from "./engine"
 import { MAX_DISMISSED, MAX_WORD_LENGTH, MAX_WORDS } from "./settings"
 import { addWord, changeCheck, CHECK_FIELD, dismiss, readCheckState, removeWord, restore } from "./state"
@@ -26,7 +27,7 @@ const suggestion = (key: string, rule = "B1"): Finding => ({
 describe("what the checker saves on a resume", () => {
   test("is nothing dismissed and no words when there's none, or it's in another shape", () => {
     for (const check of [undefined, null, "B1", ["B1|x|y"], { dismissed: "B1|x|y", words: { Kubernetes: true } }]) {
-      expect(readCheckState({ [CHECK_FIELD]: check })).toEqual({ dismissed: [], words: [] })
+      expect(readCheckState(asSaved({ [CHECK_FIELD]: check }))).toEqual({ dismissed: [], words: [] })
     }
   })
 

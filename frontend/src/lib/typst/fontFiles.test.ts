@@ -114,12 +114,12 @@ describe("printing with only the fonts a resume needs", () => {
     profileSection: { fullName: "Đặng Thị Ngọc Ánh", location: MIXED, email: "anh@example.com" },
     workExperienceSection: [
       {
-        company: "Œuvre Łódź",
-        role: "Kỹ sư phần mềm",
-        location: "Hà Nội",
-        startDate: "Jan 2024",
-        endDate: "Present",
-        description: MIXED.split(" · ").map((part) => `• ${part}`).join("\n"),
+        companyName: "Œuvre Łódź",
+        workRole: "Kỹ sư phần mềm",
+        workLocation: "Hà Nội",
+        workStartDate: "Jan 2024",
+        workEndDate: "Present",
+        workDescription: MIXED.split(" · ").map((part) => `• ${part}`).join("\n"),
       },
     ],
   })
@@ -130,6 +130,8 @@ describe("printing with only the fonts a resume needs", () => {
 
   test.each(cases)("$name prints the same, reading only the fonts expected", async ({ resume, sample }) => {
     const data = toTemplateData(resume)
+    // The mixed-script job has to reach the template, or only the profile is printed.
+    if (!sample) expect(data.work).toHaveLength(1)
     const template = TEMPLATES.find((each) => each.id === resume.selectedTemplate)!
     await useFonts("all")
     const before = await print(template.id, data)

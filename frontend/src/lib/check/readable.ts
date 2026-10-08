@@ -2,7 +2,7 @@
 // the way hiring software reads a resume and compared with what was typed,
 // and characters that may not come through.
 
-import { SECTIONS, type SectionName } from "@/components/editor/sections"
+import { SECTIONS, type FieldKey, type FieldKeyOf, type ProfileKey, type SectionName } from "@/components/editor/sections"
 import { BULLET_CHARS } from "@/lib/import/lines"
 import type { PdfReading, Problem, Rule } from "./engine"
 import type { Place } from "./places"
@@ -13,7 +13,7 @@ import { FINE_SYMBOLS, ODD_SYMBOLS } from "./settings"
 import { bulletsIn } from "./text"
 
 // The profile fields a recruiter needs to reach the person.
-const CONTACT: { field: string; label: string }[] = [
+const CONTACT: { field: ProfileKey; label: string }[] = [
   { field: "fullName", label: "name" },
   { field: "email", label: "email" },
   { field: "phoneNumber", label: "phone number" },
@@ -86,7 +86,7 @@ const headings: Rule = {
 
 // What says what an entry is and when: the fields hiring software reads to
 // know the job, school, role, project, skills, paper or award.
-const KEY_FIELDS: Record<SectionName, string[]> = {
+const KEY_FIELDS: { [Section in SectionName]: FieldKeyOf<Section>[] } = {
   Work: ["workRole", "companyName", "workStartDate", "workEndDate"],
   Education: ["schoolName", "degree", "schoolStartDate", "schoolEndDate"],
   Skills: ["skillName", "skillDetails"],
@@ -97,7 +97,7 @@ const KEY_FIELDS: Record<SectionName, string[]> = {
   Awards: ["awardName", "awardDate"],
 }
 
-const labelOf = (section: SectionName, field: string) => SECTIONS[section].fields.find((def) => def.key === field)?.label.toLowerCase() ?? field
+const labelOf = (section: SectionName, field: FieldKey) => SECTIONS[section].fields.find((def) => def.key === field)?.label.toLowerCase() ?? field
 
 // A year, or a month and a year, as in "2024" or "Jan 2024".
 const HAS_DATE = /\b(?:19|20)\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+'?\d/i
@@ -105,7 +105,7 @@ const HAS_DATE = /\b(?:19|20)\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oc
 const SPLITS = /[,|•·;]|\s[-–—]\s/
 
 /** Why a value may not be read with its entry, from what's in it, and what to do. */
-function entryAdvice(section: SectionName, field: string, value: string): Pick<Problem, "message" | "suggestion"> {
+function entryAdvice(section: SectionName, field: FieldKey, value: string): Pick<Problem, "message" | "suggestion"> {
   const label = labelOf(section, field)
   const unread = (suggestion: string) => ({ message: `Hiring software doesn't read the ${label} with this entry`, suggestion })
   if (field.endsWith("Date")) {

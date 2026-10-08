@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd"
 import { GripVertical } from "lucide-react"
+import type { Headings } from "@/lib/resume"
 import { WIDE_SCREEN } from "./layout"
 import { SECTIONS, type SectionName } from "./sections"
 
@@ -11,7 +12,7 @@ export type ActiveSection = "Profile" | SectionName
 interface SectionNavProps {
   sections: SectionName[]
   /** The person's own section titles, by each section's `headingKey`. */
-  headings?: Record<string, string>
+  headings?: Headings | null
   active: ActiveSection
   onSelect: (section: ActiveSection) => void
   onReorder: (sections: SectionName[]) => void

@@ -202,7 +202,7 @@ export default function EditorPage() {
 
   // Once a rename is done, number the name if another resume already has it.
   const commitTitle = () => {
-    const others = Object.entries(resumes as Record<string, any>).filter(([key]) => key !== id)
+    const others = Object.entries(resumes).filter(([key]) => key !== id)
     const title = uniqueTitle(formData.resumeTitle ?? "", others.map(([, resume]) => resume?.resumeTitle))
     if (title !== formData.resumeTitle) updateFormData("resumeTitle", title)
   }

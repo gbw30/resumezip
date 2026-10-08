@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest"
+import type { Resume } from "@/lib/resume"
 import { pronounIn } from "./bullets"
 import { runChecks } from "./engine"
 import { RULES } from "./rules"
@@ -19,7 +20,7 @@ const resumeWith = (...jobs: ReturnType<typeof job>[]) => ({ profileSection: { f
 const TODAY = new Date(2026, 9, 7)
 
 /** What one rule says about a resume. */
-function check(id: string, resume: Record<string, any>) {
+function check(id: string, resume: Resume) {
   const rule = RULES.find((rule) => rule.id === id)!
   const report = runChecks(resume, { rules: [rule], today: TODAY })
   return {

@@ -1,11 +1,12 @@
 // The editor's list sections. Each is an array of entries stored on the resume
 // under `dataKey`; field keys are what the PDF templates read (see
-// lib/typst/resumeData.ts), so don't rename them.
+// lib/typst/resumeData.ts), so don't rename them. The resume's types
+// (lib/resume.ts) are derived from the definitions here.
 
 export type SectionName = "Education" | "Work" | "Skills" | "Projects" | "Publications" | "Volunteership" | "Leadership" | "Awards"
 
-export interface FieldDef {
-  key: string
+export interface FieldDef<Key extends string = string> {
+  key: Key
   label: string
   placeholder: string
   /** Width in a 4-column row: sm = 1, md = 2, lg = 3, full = 4. */
@@ -15,14 +16,17 @@ export interface FieldDef {
 }
 
 /** A choice that applies to the whole section, stored on the resume under `key`. */
-export interface ChoiceDef {
-  key: string
+export interface ChoiceDef<Key extends string = string> {
+  key: Key
   label: string
   /** The first option is the default. */
-  options: { value: string; label: string; hint: string }[]
+  options: readonly { value: string; label: string; hint: string }[]
 }
 
-export interface SectionDef {
+// A section's definition, with its keys as type parameters: the definitions
+// below are checked against Definition<string, ...>, and SectionDef then has
+// the keys they define.
+interface Definition<Field extends string, Data extends string, Heading extends string, Choice extends string> {
   name: SectionName
   /**
    * Shown in the editor, and printed as the section's heading unless the user
@@ -30,22 +34,21 @@ export interface SectionDef {
    * editor and the PDF never disagree (typst/headings.test.ts checks).
    */
   title: string
-  dataKey: string
-  headingKey: string
+  dataKey: Data
+  headingKey: Heading
   addLabel: string
-  fields: FieldDef[]
+  fields: readonly FieldDef<Field>[]
   /** Fields shown, in order, when an entry is collapsed. */
-  summary: string[]
-  choice?: ChoiceDef
+  summary: readonly Field[]
+  choice?: ChoiceDef<Choice>
   /** Entries can also be added from a paper's DOI or link. */
   fromPaperLink?: boolean
 }
 
 /** A profile field: also how the browser can fill it in, and whether it's a web address. */
-type ProfileFieldDef = FieldDef & { inputType?: string; autoComplete?: string; web?: true }
+type ProfileFieldDef<Key extends string = string> = FieldDef<Key> & { inputType?: string; autoComplete?: string; web?: true }
 
-/** The profile's fields, stored on the resume under `profileSection`. */
-export const PROFILE_FIELDS: ProfileFieldDef[] = [
+const PROFILE = [
   { key: "fullName", label: "Full name", placeholder: "Jake Ryan", size: "full", autoComplete: "name" },
   { key: "email", label: "Email", placeholder: "jake@example.com", size: "md", inputType: "email", autoComplete: "email" },
   { key: "phoneNumber", label: "Phone", placeholder: "123-456-7890", size: "md", inputType: "tel", autoComplete: "tel" },
@@ -53,23 +56,31 @@ export const PROFILE_FIELDS: ProfileFieldDef[] = [
   { key: "linkedin", label: "LinkedIn", placeholder: "linkedin.com/in/jake", size: "md", web: true },
   { key: "profileGithub", label: "GitHub", placeholder: "github.com/jake", size: "md", web: true },
   { key: "personalWebsite", label: "Website", placeholder: "jake.dev", size: "md", web: true },
-]
+] as const satisfies readonly ProfileFieldDef[]
+
+/** A profile field's key, like "email". */
+export type ProfileKey = (typeof PROFILE)[number]["key"]
+
+/** The profile's fields, stored on the resume under `profileSection`. */
+export const PROFILE_FIELDS: readonly ProfileFieldDef<ProfileKey>[] = PROFILE
 
 // The end's placeholder is a date: "Present" there read as what a blank end means, and a blank one prints nothing.
-const dates = (prefix: string): FieldDef[] => [
-  { key: `${prefix}StartDate`, label: "Start", placeholder: "Jan 2024", size: "sm" },
-  { key: `${prefix}EndDate`, label: "End", placeholder: "Dec 2025", size: "sm" },
-]
+const dates = <Prefix extends string>(prefix: Prefix) =>
+  [
+    { key: `${prefix}StartDate`, label: "Start", placeholder: "Jan 2024", size: "sm" },
+    { key: `${prefix}EndDate`, label: "End", placeholder: "Dec 2025", size: "sm" },
+  ] as const
 
-const bullets = (key: string): FieldDef => ({
-  key,
-  label: "What you did · one bullet per line",
-  placeholder: "Built a service that cut page load time by 30%",
-  size: "full",
-  type: "bullets",
-})
+const bullets = <Key extends string>(key: Key) =>
+  ({
+    key,
+    label: "What you did · one bullet per line",
+    placeholder: "Built a service that cut page load time by 30%",
+    size: "full",
+    type: "bullets",
+  }) as const
 
-export const SECTIONS: Record<SectionName, SectionDef> = {
+const DEFINITIONS = {
   Education: {
     name: "Education",
     title: "Education",
@@ -199,7 +210,24 @@ export const SECTIONS: Record<SectionName, SectionDef> = {
       { key: "awardOrg", label: "Issued by", placeholder: "Amazon Web Services", size: "md" },
     ],
   },
-}
+} as const satisfies { [Name in SectionName]: Definition<string, string, string, string> & { name: Name } }
+
+type Definitions = typeof DEFINITIONS
+
+/** A section's field keys, like "schoolName" for Education. */
+export type FieldKeyOf<Name extends SectionName> = Definitions[Name]["fields"][number]["key"]
+/** A field key of any section. */
+export type FieldKey = FieldKeyOf<SectionName>
+/** Where a section's entries are stored on the resume, like "educationSection". */
+export type DataKey = Definitions[SectionName]["dataKey"]
+/** Where a section's own title is stored in the resume's headings, like "edu". */
+export type HeadingKey = Definitions[SectionName]["headingKey"]
+/** Where a section's choice is stored on the resume, like "projectLinks". */
+export type ChoiceKey = Extract<Definitions[SectionName], { choice: unknown }>["choice"]["key"]
+
+export type SectionDef = Definition<FieldKey, DataKey, HeadingKey, ChoiceKey>
+
+export const SECTIONS: Record<SectionName, SectionDef> = DEFINITIONS
 
 export const SECTION_NAMES = Object.keys(SECTIONS) as SectionName[]
 

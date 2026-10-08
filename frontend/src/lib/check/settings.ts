@@ -2,6 +2,8 @@
 // lists and thresholds here too, so tuning the checker means changing this
 // file only. See README.md.
 
+import type { FieldKey, ProfileKey } from "@/components/editor/sections"
+
 /**
  * The rubric's categories, in the order they're shown, what each is worth in
  * the resume score (100 in all, see score.ts), and what each checks, in a line.
@@ -374,7 +376,7 @@ export const MIN_PAGE_FULL = 0.75
  * resume, and they aren't checked for spelling themselves, but for the
  * skills (SKILL_FIELDS).
  */
-export const NAME_FIELDS = [
+export const NAME_FIELDS: readonly (ProfileKey | FieldKey)[] = [
   "fullName", "location", "companyName", "workLocation", "schoolName", "schoolLocation", "involvement", "skillName",
   "skillDetails", "projectName", "techStack", "publicationAuthors", "publicationVenue", "volunteerOrg",
   "volunteerLocation", "leadershipOrg", "leadershipLocation", "awardOrg",
@@ -385,7 +387,7 @@ export const NAME_FIELDS = [
  * ("Redux", "Kanban"), and words it does ("Communication"). G1 checks them
  * for slips in typing those words (MIN_SKILL_SLIP), and in tech names.
  */
-export const SKILL_FIELDS = ["skillName", "skillDetails", "techStack"]
+export const SKILL_FIELDS: readonly FieldKey[] = ["skillName", "skillDetails", "techStack"]
 
 /**
  * Tech names as their makers write them (G6), checked in any field. Names

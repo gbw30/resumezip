@@ -1,11 +1,9 @@
 "use client";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { keepSavedData } from "@/lib/keepSavedData"
-import type { ResumeContent } from "@/lib/resumeFile"
-import { createResumeStore, INITIAL_STATE, type Resume, type ResumeState } from "@/lib/resumeStore"
+import type { Resume, ResumeContent, ResumeField } from "@/lib/resume"
+import { createResumeStore, INITIAL_STATE, type ResumeState } from "@/lib/resumeStore"
 import { getStorage } from "@/lib/resumeStorage"
-
-export type { Resume } from "@/lib/resumeStore"
 
 /** What changes the resumes. Each keeps the same identity for as long as the page is open. */
 interface ResumeActions {
@@ -24,7 +22,7 @@ interface ResumeContextValue extends ResumeState, ResumeActions {
   /** The open resume, or {} when none is open. */
   formData: Resume;
   /** Changes a field of the open resume. */
-  updateFormData: (section: string, data: unknown) => void;
+  updateFormData: <Field extends ResumeField>(field: Field, value: Resume[Field]) => void;
 }
 
 const ResumeContext = createContext<ResumeContextValue | null>(null);
@@ -134,8 +132,8 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   const updateFormData = useCallback(
-    (section: string, data: unknown) => {
-      if (currentResumeId) store.edit(currentResumeId, section, data);
+    <Field extends ResumeField>(field: Field, value: Resume[Field]) => {
+      if (currentResumeId) store.edit(currentResumeId, field, value);
     },
     [store, currentResumeId],
   );

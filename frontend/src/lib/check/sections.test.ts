@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest"
+import type { Resume } from "@/lib/resume"
 import { runChecks } from "./engine"
 import { RULES } from "./rules"
 import { listOf } from "./sections"
@@ -21,7 +22,7 @@ const jake = {
 const OCTOBER_2026 = new Date(2026, 9, 6)
 
 /** What one rule says about a resume. */
-function check(id: string, resume: Record<string, any>, today = OCTOBER_2026) {
+function check(id: string, resume: Resume, today = OCTOBER_2026) {
   const rule = RULES.find((rule) => rule.id === id)!
   const report = runChecks(resume, { rules: [rule], today })
   return { status: report.results[0].status, messages: report.findings.map((finding) => finding.message), findings: report.findings }

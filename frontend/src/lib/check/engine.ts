@@ -5,7 +5,8 @@
 
 import type { Line, PageSize } from "@/lib/import/lines"
 import type { ParsedResume } from "@/lib/import/parse"
-import { findingKey, placeExists, textAt, type Place } from "./places"
+import type { Resume } from "@/lib/resume"
+import { findingKey, placeExists, placeId, textAt, type Place } from "./places"
 import { viewOf, type ResumeView } from "./resume"
 import { RULES } from "./rules"
 import { CATEGORIES, type CategoryId, type Level } from "./settings"
@@ -171,7 +172,7 @@ const LEVEL_ORDER: Record<Level, number> = { fix: 0, look: 1 }
 const CATEGORY_ORDER = new Map<string, number>(CATEGORIES.map((category, index) => [category.id, index]))
 
 /** Runs the rules over a resume, as the editor saves it, and says what they found. */
-export function runChecks(resume: Record<string, any>, { rules = RULES, pdf, grammar, today = new Date() }: CheckOptions = {}): Report {
+export function runChecks(resume: Resume, { rules = RULES, pdf, grammar, today = new Date() }: CheckOptions = {}): Report {
   const view = viewOf(resume)
   const state = readCheckState(resume)
   const dismissed = new Set(state.dismissed)
@@ -249,13 +250,16 @@ function judge(rule: Rule, outcome: Outcome, view: ResumeView, dismissed: Readon
     ]
   })
 
-  const open = findings.filter((finding) => !finding.dismissed).length
+  const open = findings.filter((finding) => !finding.dismissed)
+  // Credit counts the things that failed, not the problems: a bullet with
+  // two typos is one failed bullet out of `checked`.
+  const failed = new Set(open.map((finding) => placeId(finding.place))).size
   const checked = Math.max(1, Number.isFinite(outcome.checked) ? outcome.checked : 0)
   const credit =
-    findings.length > 0 && open === 0
+    findings.length > 0 && open.length === 0
       ? 1
       : outcome.credit !== undefined
         ? clamp(outcome.credit)
-        : clamp((checked - open) / checked)
-  return { rule, status: open > 0 ? "failed" : "passed", checked, credit, findings, ...(outcome.partial && { partial: true }) }
+        : clamp((checked - failed) / checked)
+  return { rule, status: open.length > 0 ? "failed" : "passed", checked, credit, findings, ...(outcome.partial && { partial: true }) }
 }

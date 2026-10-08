@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useState } from "react"
 import { Check, Loader2 } from "lucide-react"
 import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
+import type { ResumeWithId } from "@/lib/resume"
 import { downloadResume } from "@/lib/typst/compile"
 import { templateById } from "@/lib/templates"
 import { RESUME_TAGS } from "./CreateResumeModal"
@@ -12,8 +13,8 @@ import { RESUME_TAGS } from "./CreateResumeModal"
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" })
 const dateFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" })
 
-function formatEdited(value: string) {
-  const date = new Date(value)
+function formatEdited(value: string | undefined) {
+  const date = new Date(value ?? "")
   if (Number.isNaN(date.getTime())) return "—"
   const today = new Date().toDateString() === date.toDateString()
   return today ? `Today, ${timeFormat.format(date)}` : dateFormat.format(date)
@@ -25,8 +26,8 @@ const DOWNLOADED_MS = 2000
 const tagName = (tag: string) => RESUME_TAGS.find((option) => option.id === tag?.toLowerCase())?.name ?? tag
 
 interface ResumeTableProps {
-  resumes: Record<string, any>[]
-  onDelete: (resume: Record<string, any>) => void
+  resumes: ResumeWithId[]
+  onDelete: (resume: ResumeWithId) => void
 }
 
 export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
@@ -37,7 +38,7 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
   const [downloaded, setDownloaded] = useState<Record<string, number>>({})
   const [announcement, setAnnouncement] = useState("")
 
-  const download = async (resume: Record<string, any>) => {
+  const download = async (resume: ResumeWithId) => {
     // Each try takes back the resume's last "Downloaded", so it never shows beside a failure.
     setDownloaded(({ [resume.id]: _, ...others }) => others)
     setDownloading((ids) => [...ids, resume.id])
@@ -70,7 +71,7 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
   const header = "label-mono border-b border-rule py-3.5 text-left font-normal text-ink-2"
   const cell = "border-b border-rule py-[18px]"
 
-  const thumbnail = (resume: Record<string, any>) => (
+  const thumbnail = (resume: ResumeWithId) => (
     <Image
       src={templateById(resume.selectedTemplate).image}
       alt=""
@@ -80,7 +81,7 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
     />
   )
 
-  const actions = (resume: Record<string, any>) => (
+  const actions = (resume: ResumeWithId) => (
     <>
       <Link href={`/create/new/${resume.id}`} className="px-2 py-2.5 text-sm underline underline-offset-4 hover:decoration-2">
         Open
