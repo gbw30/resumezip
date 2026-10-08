@@ -235,3 +235,49 @@ test("a Word file that unzips to too much text says so", async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles(docx(wordFile(RESUME, { padding: MAX_WORD_XML_BYTES })))
   await expect(page.getByRole("dialog", { name: "Couldn't open that file" })).toContainText("This file has too much text to be a resume.")
 })
+
+test("closing the review after unticking or swapping asks first", async ({ page }) => {
+  const errors = pageErrors(page)
+  await page.goto("/create/dashboard")
+  const file = page.locator('input[type="file"]')
+  const review = page.getByRole("dialog", { name: "Here's what we found" })
+  const discard = page.getByRole("dialog", { name: "Discard your changes?" })
+  const keepReviewing = discard.getByRole("button", { name: "Keep reviewing" })
+  const entry = review.getByRole("checkbox", { name: "Include State University" })
+  const swap = review.getByRole("button", { name: /^Swap school and degree/ })
+
+  // Unchanged, Escape closes it at once.
+  await file.setInputFiles(pdf([RESUME]))
+  await expect(entry).toBeChecked()
+  await page.keyboard.press("Escape")
+  await expect(review).toBeHidden()
+
+  // Unticked, Escape asks first. Escaping the question goes back to the
+  // review, with the entry still unticked and focus where it was.
+  await file.setInputFiles(pdf([RESUME]))
+  await entry.press("Space")
+  await expect(entry).not.toBeChecked()
+  await page.keyboard.press("Escape")
+  await expect(keepReviewing).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(discard).toBeHidden()
+  await expect(entry).not.toBeChecked()
+  await expect(entry).toBeFocused()
+
+  // Swapped, a click outside asks too, with focus in the question.
+  await entry.press("Space")
+  await swap.press("Enter")
+  await expect(swap).toHaveAttribute("aria-pressed", "true")
+  await page.mouse.click(4, 4)
+  await expect(keepReviewing).toBeFocused()
+  await keepReviewing.click()
+  await expect(discard).toBeHidden()
+  await expect(swap).toHaveAttribute("aria-pressed", "true")
+
+  // And so does Cancel. Discarding closes the review, with no resume made.
+  await review.getByRole("button", { name: "Cancel" }).click()
+  await discard.getByRole("button", { name: "Discard" }).click()
+  await expect(review).toBeHidden()
+  await expect(page.getByText("No resumes yet.")).toBeVisible()
+  expect(errors).toEqual([])
+})

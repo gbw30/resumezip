@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useRef } from "react"
+import { useEffect, useId, useRef } from "react"
 
 interface ModalProps {
   title: string
@@ -14,6 +14,8 @@ interface ModalProps {
 /** A centred dialog that closes on Escape or a click outside it. */
 export default function Modal({ title, onClose, wide = false, children }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  // Its own, as another dialog can be open alongside it.
+  const titleId = useId()
   // Callers pass a new onClose on every render. Reading the latest one from a
   // ref keeps the effect below to the dialog opening, so a parent re-render
   // (as when another tab saves) doesn't pull focus back to the first control.
@@ -50,7 +52,7 @@ export default function Modal({ title, onClose, wide = false, children }: ModalP
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={wide ? "modal-title" : titleId}
         className={
           wide
             ? "flex h-[min(88vh,880px)] w-full max-w-[1120px] flex-col overflow-hidden rounded-[4px] bg-paper"
@@ -58,7 +60,7 @@ export default function Modal({ title, onClose, wide = false, children }: ModalP
         }
       >
         {!wide && (
-          <h2 id="modal-title" className="font-serif text-[28px] leading-tight tracking-[-0.02em]">
+          <h2 id={titleId} className="font-serif text-[28px] leading-tight tracking-[-0.02em]">
             {title}
           </h2>
         )}
