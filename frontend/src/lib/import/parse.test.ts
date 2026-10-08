@@ -576,3 +576,50 @@ describe("how much of a file couldn't be placed", () => {
     expect(unplacedShare(parsed)).toBeGreaterThan(MUCH_UNPLACED)
   })
 })
+
+describe("a role and organization that are hard to tell apart", () => {
+  // Company first, then the role, as each entry here is set.
+  const companyFirst = (company: string, role: string, dates: string) => [
+    line([[company, 36], ["Orlando, FL", 480]], { bold: true }),
+    line([[role, 36], [dates, 460]], { italic: true }),
+  ]
+
+  test("are read the way the section's other entries are", () => {
+    const { resume } = read("Experience", [
+      ...companyFirst("Lakeview Regional Medical Center", "Hospital Volunteer", "May 2025 – August 2025"),
+      ...companyFirst("Seminole Heart & Vascular Clinic", "Physician Shadowing – Cardiology", "August 2026 – Present"),
+      ...companyFirst("Department of Surgery, State University", "Undergraduate Researcher", "May 2026 – Present"),
+    ])
+    expect(resume.workExperienceSection[1]).toMatchObject({ workRole: "Physician Shadowing – Cardiology", companyName: "Seminole Heart & Vascular Clinic" })
+  })
+
+  test("are read the way the rest of the resume is, when their section has nothing to go by", () => {
+    const parsed = parseResume([
+      line([["Mara Lin", 36]], { size: 18, bold: true }),
+      line([["Experience", 36]], { size: 12, bold: true }),
+      line([["Data Analyst", 36], ["2024 – Present", 470]], { bold: true }),
+      line([["Acme Corporation", 36], ["Atlanta, GA", 480]], { italic: true }),
+      line([["Software Engineer Intern", 36], ["2023", 500]], { bold: true }),
+      line([["Initech Group", 36], ["Atlanta, GA", 480]], { italic: true }),
+      line([["Leadership", 36]], { size: 12, bold: true }),
+      line([["Software Lead", 36], ["2022 – 2024", 470]], { bold: true }),
+      line([["GT Solar Racing Engineering", 36], ["Atlanta, GA", 480]], { italic: true }),
+    ])
+    expect(toResumeContent(parsed).leadershipExperienceSection[0]).toMatchObject({ leadershipRole: "Software Lead", leadershipOrg: "GT Solar Racing Engineering" })
+  })
+
+  test("don't change one that's clear, whatever the others do", () => {
+    const { resume } = read("Experience", [
+      ...companyFirst("Lakeview Regional Medical Center", "Hospital Volunteer", "May 2025 – August 2025"),
+      ...companyFirst("Department of Surgery, State University", "Undergraduate Researcher", "May 2026 – Present"),
+      line([["Research Assistant", 36], ["2024", 500]], { bold: true }),
+      line([["Proteomics Core Laboratory", 36], ["Orlando, FL", 480]], { italic: true }),
+    ])
+    expect(resume.workExperienceSection[2]).toMatchObject({ workRole: "Research Assistant", companyName: "Proteomics Core Laboratory" })
+  })
+
+  test("are read as before when nothing else on the resume says which comes first", () => {
+    const { resume } = read("Experience", companyFirst("Seminole Heart & Vascular Clinic", "Physician Shadowing – Cardiology", "August 2026 – Present"))
+    expect(resume.workExperienceSection[0]).toMatchObject({ workRole: "Seminole Heart & Vascular Clinic", companyName: "Physician Shadowing – Cardiology" })
+  })
+})

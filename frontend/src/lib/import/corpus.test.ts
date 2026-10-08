@@ -31,18 +31,9 @@ const files = readdirSync(CORPUS, { withFileTypes: true })
 const KNOWN_GAPS: Record<string, string[]> = {
   // pdfTeX prints "~90%" with a math tilde, "∼90%".
   "diego/latex-jake": ["work[0].bullets"],
-  // "Stanford Code in Place - Student" reads with the role and organization
-  // swapped, and a project's "Name, tech" isn't split.
-  "diego/html-harvard": [
-    "projects[0].name",
-    "projects[0].techStack",
-    "projects[1].name",
-    "projects[1].techStack",
-    "leadership[2].organization",
-    "leadership[2].role",
-  ],
-  // "Stanford Code in Place - Student" reads swapped, as in diego/html-harvard.
-  "diego/writer-classic": ["leadership[2].organization", "leadership[2].role"],
+  // A project's "Name, tech" isn't split.
+  "diego/html-harvard": ["projects[0].name", "projects[0].techStack", "projects[1].name", "projects[1].techStack"],
+  "diego/writer-classic": [],
   // "Degree. GPA 3.6/4.0" leaves the degree's full stop on.
   "jordan/html-harvard": ["education[0].degree"],
   "jordan/html-modern": [],
@@ -51,8 +42,7 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "jordan/html-side-headings": ["education[0]", "work[0]", "work[1]", "work[2]", "skills[0]", "skills[1]", "volunteer[0]", "awards[0]", "awards[1]"],
   "jordan/writer-modern": [],
   // "Sprout – HackGT 2026" splits at the dash, so "HackGT 2026" reads as a
-  // tool. "GT Solar Racing Engineering" reads as the role. "Role, Company"
-  // on one line all reads as the role.
+  // tool. "Role, Company" on one line all reads as the role.
   "maya/html-modern": [
     "work[0].company",
     "work[0].role",
@@ -61,19 +51,10 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "leadership[0].organization",
     "leadership[0].role",
   ],
-  "maya/latex-jake": [
-    "projects[1].name",
-    "projects[1].techStack",
-    "leadership[0].organization",
-    "leadership[0].role",
-  ],
+  // "Sprout – HackGT 2026" splits as in maya/html-modern.
+  "maya/latex-jake": ["projects[1].name", "projects[1].techStack"],
   // As in maya/latex-jake.
-  "maya/latex-jake-company-first": [
-    "projects[1].name",
-    "projects[1].techStack",
-    "leadership[0].organization",
-    "leadership[0].role",
-  ],
+  "maya/latex-jake-company-first": ["projects[1].name", "projects[1].techStack"],
   // An academic CV in Typst. The current job's title lines read as bullets.
   // A " - " in a teaching title splits it. Without italics, a
   // citation's venue and its details read as one. The mentoring lines read
@@ -99,10 +80,7 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "publications[2].venue",
     "publications[2].details",
   ],
-  // A resume typed in Word. With the company first, "Seminole Heart &
-  // Vascular Clinic" and "Physician Shadowing – Cardiology" read swapped:
-  // neither has a word that says which is which.
-  "nadia/writer-company-first": ["work[1].company", "work[1].role"],
+  "nadia/writer-company-first": [],
   "nadia/latex-jake": [],
   // With dates in a column on the left, each entry's title lines split into
   // two entries. A dash inside an award's name ("Architect – Professional")
@@ -147,13 +125,12 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "priya/html-sidebar": ["awards[0].name", "awards[0].organization", "awards[1].name", "awards[1].organization"],
   // A dash inside an award's name reads as the start of the organization.
   "priya/latex-jake": ["awards[0].name", "awards[0].organization"],
-  // As in priya/latex-jake, and "Zillow" with "Software Engineer II" swapped.
-  "priya/writer-modern": ["work[1].company", "work[1].role", "awards[0].name", "awards[0].organization"],
-  // The degree keeps its full stop, as in jordan/html-harvard. The first job's
-  // role and hospital read swapped: "nurse" isn't a word it knows in job titles.
-  // A comma inside an award's name ("Registered Nurse License, Texas") reads
+  // As in priya/latex-jake.
+  "priya/writer-modern": ["awards[0].name", "awards[0].organization"],
+  // The degree keeps its full stop, as in jordan/html-harvard. A comma
+  // inside an award's name ("Registered Nurse License, Texas") reads
   // as the start of the organization.
-  "sam/html-harvard": ["education[0].degree", "work[0].company", "work[0].role", "awards[0].name", "awards[0].organization"],
+  "sam/html-harvard": ["education[0].degree", "awards[0].name", "awards[0].organization"],
   // As in jordan/html-side-headings.
   "sam/html-side-headings": [
     "education[0]",

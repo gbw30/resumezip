@@ -739,8 +739,14 @@ function joinDashed(texts: Fragment[]): Fragment[] {
   return joined
 }
 
+/** Whether an entry's role came before its organization, and how much more title-like it scored. */
+interface RoleCall {
+  roleFirst: boolean
+  margin: number
+}
+
 /** Decides which bit of text is the job title and which is the organization. */
-function roleAndOrg(pieces: Fragment[]): { role: string; org: string; rest: string[] } {
+function roleAndOrg(pieces: Fragment[]): { role: string; org: string; rest: string[]; call?: RoleCall } {
   const texts = joinDashed(pieces)
   if (texts.length === 0) return { role: "", org: "", rest: [] }
   if (texts.length === 1) {
@@ -766,7 +772,45 @@ function roleAndOrg(pieces: Fragment[]): { role: string; org: string; rest: stri
   const role = [...ranked].sort((a, b) => b.title - a.title || a.order - b.order)[0]
   const others = ranked.filter((item) => item !== role)
   const org = [...others].sort((a, b) => a.title - b.title || a.order - b.order)[0]
-  return { role: role.text, org: org.text, rest: others.filter((item) => item !== org).map((item) => item.text) }
+  return {
+    role: role.text,
+    org: org.text,
+    rest: others.filter((item) => item !== org).map((item) => item.text),
+    call: { roleFirst: role.order < org.order, margin: role.title - org.title },
+  }
+}
+
+/** A role that scores this much more title-like than its organization, or less, is a close call. */
+const CLOSE_CALL = 1
+
+type ExperienceName = keyof typeof EXPERIENCE_FIELDS
+
+/**
+ * People set every entry out the same way, so a close call between role and
+ * organization goes the way the other entries went: those in its own
+ * section, or if it has none to go by, those in the rest of the resume.
+ * Only entries whose scores weren't tied count. A tie goes their way with
+ * one to go by; a call a point apart takes two, since its scores lean the
+ * right way more often than not. With fewer, or ones that disagree, it
+ * stays as it was.
+ */
+function followOtherEntries(sections: { name: ExperienceName; calls: Map<FoundEntry, RoleCall> }[]) {
+  const all = sections.flatMap(({ calls }) => [...calls.values()])
+  for (const { name, calls } of sections) {
+    const keys = EXPERIENCE_FIELDS[name]
+    for (const [entry, call] of calls) {
+      if (call.margin > CLOSE_CALL) continue
+      const voters = (from: RoleCall[]) => from.filter((other) => other !== call && other.margin > 0)
+      const own = voters([...calls.values()])
+      const others = own.length > 0 ? own : voters(all)
+      const roleFirst = others.filter((other) => other.roleFirst).length
+      const orgFirst = others.length - roleFirst
+      const needed = call.margin + 1
+      const order = roleFirst >= needed && roleFirst >= 2 * orgFirst ? true : orgFirst >= needed && orgFirst >= 2 * roleFirst ? false : undefined
+      if (order === undefined || order === call.roleFirst) continue
+      ;[entry.fields[keys.role], entry.fields[keys.org]] = [entry.fields[keys.org], entry.fields[keys.role]]
+    }
+  }
 }
 
 /** "• one\n• two", the editor's format for bullets. */
@@ -784,6 +828,8 @@ const linesOf = (group: Group) => [...group.header.flatMap((line) => [line.index
 interface SectionResult {
   entries: FoundEntry[]
   leftover: { lines: number[]; text: string[] }
+  /** How each entry's role and organization were told apart, where they had to be. */
+  calls?: Map<FoundEntry, RoleCall>
 }
 
 const EXPERIENCE_FIELDS: Record<"Work" | "Leadership" | "Volunteership", Record<string, string>> = {
@@ -825,9 +871,10 @@ function subHeadingsBesideDates(lines: ParseLine[]): Set<ParseLine> {
   )
 }
 
-function readExperience(name: "Work" | "Leadership" | "Volunteership", lines: ParseLine[]): SectionResult {
+function readExperience(name: ExperienceName, lines: ParseLine[]): SectionResult {
   const keys = EXPERIENCE_FIELDS[name]
   const leftover: SectionResult["leftover"] = { lines: [], text: [] }
+  const calls = new Map<FoundEntry, RoleCall>()
   const subHeadings = subHeadingsBesideDates(lines)
   for (const line of subHeadings) {
     leftover.lines.push(line.index)
@@ -835,7 +882,7 @@ function readExperience(name: "Work" | "Leadership" | "Volunteership", lines: Pa
   }
   const entries = groupEntries(lines.filter((line) => !subHeadings.has(line))).map((group) => {
     const header = readHeader(group.header)
-    const { role, org, rest } = roleAndOrg(header.texts)
+    const { role, org, rest, call } = roleAndOrg(header.texts)
     const fields = blankEntry(name)
     fields[keys.role] = role
     fields[keys.org] = org
@@ -847,9 +894,11 @@ function readExperience(name: "Work" | "Leadership" | "Volunteership", lines: Pa
       leftover.lines.push(...group.header.map((line) => line.index))
       leftover.text.push(...rest, ...header.otherDates)
     }
-    return { fields, lines: linesOf(group) }
+    const entry = { fields, lines: linesOf(group) }
+    if (call) calls.set(entry, call)
+    return entry
   })
-  return { entries, leftover }
+  return { entries, leftover, calls }
 }
 
 /** "B.S. in Biology, Stanford University" is a degree and a school. */
@@ -1586,6 +1635,7 @@ export function parseResume(file: Line[]): ParsedResume {
   }
 
   const starts = lines.filter((line) => headings.has(line.index))
+  const experience: { name: ExperienceName; calls: Map<FoundEntry, RoleCall> }[] = []
   starts.forEach((start, i) => {
     const { meaning, label } = headings.get(start.index)!
     const end = starts[i + 1]?.index ?? lines.length
@@ -1624,8 +1674,10 @@ export function parseResume(file: Line[]): ParsedResume {
               : readExperience(name, sectionLines)
     const entries = result.entries.filter((entry) => Object.values(entry.fields).some((value) => value.trim() !== ""))
     if (entries.length) sectionFor(name).entries.push(...entries)
+    if (result.calls && name in EXPERIENCE_FIELDS) experience.push({ name: name as ExperienceName, calls: result.calls })
     addUnplaced(titleCase(label), result.leftover.lines, result.leftover.text)
   })
+  followOtherEntries(experience)
 
   // Lines before the first heading that we couldn't read, when there are no headings at all.
   if (starts.length === 0) {

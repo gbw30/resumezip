@@ -2,8 +2,6 @@
 
 exports[`diego/html-harvard > reads back no worse than before 1`] = `
 {
-  "leadership[2].organization": "Student",
-  "leadership[2].role": "Stanford Code in Place",
   "projects[0].name": "World Cup Match Prediction Model, Python, SQL, SQLite, Pandas, scikit-learn",
   "projects[0].techStack": "",
   "projects[1].name": "Flood Risk Prediction Prototype, HTML, CSS, JavaScript, Open-Meteo API, OpenStreetMap",
@@ -21,12 +19,7 @@ exports[`diego/latex-jake > reads back no worse than before 1`] = `
 }
 `;
 
-exports[`diego/writer-classic > reads back no worse than before 1`] = `
-{
-  "leadership[2].organization": "Student",
-  "leadership[2].role": "Stanford Code in Place",
-}
-`;
+exports[`diego/writer-classic > reads back no worse than before 1`] = `{}`;
 
 exports[`jordan/html-harvard > reads back no worse than before 1`] = `
 {
@@ -113,8 +106,6 @@ exports[`maya/html-modern > reads back no worse than before 1`] = `
 
 exports[`maya/latex-jake > reads back no worse than before 1`] = `
 {
-  "leadership[0].organization": "Software Lead",
-  "leadership[0].role": "GT Solar Racing Engineering",
   "projects[1].name": "Sprout",
   "projects[1].techStack": "HackGT 2026, React, Flask, PostgreSQL, LightGBM, Gemini",
 }
@@ -122,8 +113,6 @@ exports[`maya/latex-jake > reads back no worse than before 1`] = `
 
 exports[`maya/latex-jake-company-first > reads back no worse than before 1`] = `
 {
-  "leadership[0].organization": "Software Lead",
-  "leadership[0].role": "GT Solar Racing Engineering",
   "projects[1].name": "Sprout",
   "projects[1].techStack": "HackGT 2026, React, Flask, PostgreSQL, LightGBM, Gemini",
 }
@@ -131,12 +120,7 @@ exports[`maya/latex-jake-company-first > reads back no worse than before 1`] = `
 
 exports[`nadia/latex-jake > reads back no worse than before 1`] = `{}`;
 
-exports[`nadia/writer-company-first > reads back no worse than before 1`] = `
-{
-  "work[1].company": "Physician Shadowing – Cardiology",
-  "work[1].role": "Seminole Heart & Vascular Clinic",
-}
-`;
+exports[`nadia/writer-company-first > reads back no worse than before 1`] = `{}`;
 
 exports[`priya/html-dates-left > reads back no worse than before 1`] = `
 {
@@ -256,8 +240,6 @@ exports[`priya/writer-modern > reads back no worse than before 1`] = `
 {
   "awards[0].name": "AWS Certified Solutions Architect",
   "awards[0].organization": "Professional, Amazon Web Services",
-  "work[1].company": "Software Engineer II",
-  "work[1].role": "Zillow",
 }
 `;
 
@@ -266,8 +248,6 @@ exports[`sam/html-harvard > reads back no worse than before 1`] = `
   "awards[0].name": "Registered Nurse License",
   "awards[0].organization": "Texas, Texas Board of Nursing",
   "education[0].degree": "Bachelor of Science in Nursing.",
-  "work[0].company": "Registered Nurse, Emergency Department",
-  "work[0].role": "St. David’s Medical Center",
 }
 `;
 
