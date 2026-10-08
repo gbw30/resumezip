@@ -24,7 +24,11 @@ export interface ChoiceDef {
 
 export interface SectionDef {
   name: SectionName
-  /** Shown in the editor; the resume uses the user's heading or the template's default. */
+  /**
+   * Shown in the editor, and printed as the section's heading unless the user
+   * writes their own: every template's default heading is this one, so the
+   * editor and the PDF never disagree (typst/headings.test.ts checks).
+   */
   title: string
   dataKey: string
   headingKey: string
@@ -150,7 +154,7 @@ export const SECTIONS: Record<SectionName, SectionDef> = {
   },
   Volunteership: {
     name: "Volunteership",
-    title: "Volunteering",
+    title: "Volunteer Experience",
     dataKey: "volunteerExperienceSection",
     headingKey: "volunteer",
     addLabel: "Add volunteering",
@@ -165,7 +169,7 @@ export const SECTIONS: Record<SectionName, SectionDef> = {
   },
   Leadership: {
     name: "Leadership",
-    title: "Leadership",
+    title: "Leadership Experience",
     dataKey: "leadershipExperienceSection",
     headingKey: "leadership",
     addLabel: "Add leadership",
@@ -180,7 +184,7 @@ export const SECTIONS: Record<SectionName, SectionDef> = {
   },
   Awards: {
     name: "Awards",
-    title: "Awards",
+    title: "Awards & Certifications",
     dataKey: "awardsSection",
     headingKey: "awards",
     addLabel: "Add award",
