@@ -100,7 +100,10 @@ export default function LeftBar({ hidden, children }: LeftBarProps) {
       </div>
 
       <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${mode}`}>
-        {mode === "write" ? children : <CheckPanel />}
+        {/* Switching fades the other one in (`starting:` is CSS @starting-style). */}
+        <div key={mode} className="transition-opacity duration-200 ease-out motion-reduce:transition-none starting:opacity-0">
+          {mode === "write" ? children : <CheckPanel />}
+        </div>
       </div>
     </aside>
   )

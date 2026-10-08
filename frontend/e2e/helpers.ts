@@ -52,11 +52,26 @@ export function pageErrors(page: Page): string[] {
   return errors
 }
 
+/** Waits for the CSS transitions under way to end, as a dialog fading in. */
+export async function transitionsDone(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        // Transitions only: CSS animations, as a spinner's, can go on for ever.
+        .filter((animation) => "transitionProperty" in animation)
+        .map((animation) => animation.finished.catch(() => undefined)),
+    ),
+  )
+}
+
 /**
  * The page's serious and critical problems under WCAG 2.1 A and AA, as
  * readable lines, leaving out the parts matching `exclude`.
  */
 export async function seriousAccessibilityProblems(page: Page, exclude: string[] = []): Promise<string[]> {
+  // Something fading in would be read part-way, with colors too faint for its contrast.
+  await transitionsDone(page)
   let axe = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
   for (const selector of exclude) axe = axe.exclude(selector)
   const { violations } = await axe.analyze()
