@@ -48,3 +48,20 @@ describe("dates", () => {
     )
   })
 })
+
+describe("nothing on an entry's title line is thrown away", () => {
+  test("a second date goes to Couldn't place", () => {
+    const { resume, unplaced } = read("Experience", [
+      line([["Teaching Assistant", 36], ["Fall 2023", 400], ["Spring 2025", 480]], { bold: true }),
+      line([["State University", 36]], { italic: true }),
+    ])
+    expect(resume.workExperienceSection[0]).toMatchObject({ workRole: "Teaching Assistant", workEndDate: "Fall 2023" })
+    expect(unplaced).toEqual(["Spring 2025"])
+  })
+
+  test("so do an award's other dates", () => {
+    const { resume, unplaced } = read("Awards", [line([["Dean’s List, Fall 2023, Spring 2024", 36]])])
+    expect(resume.awardsSection[0]).toMatchObject({ awardName: "Dean’s List", awardDate: "Fall 2023" })
+    expect(unplaced).toEqual(["Spring 2024"])
+  })
+})

@@ -520,6 +520,8 @@ function groupEntries(lines: ParseLine[], isBody: (line: Line) => boolean = () =
 interface Header {
   texts: Fragment[]
   date: FoundDate | null
+  /** Dates besides `date`. An entry has one date field, so these go to "Couldn't place". */
+  otherDates: string[]
   location: string
   links: string[]
 }
@@ -556,7 +558,7 @@ function joinWrappedTitles(lines: Line[]): Line[] {
 
 /** Pulls the dates, place and links out of an entry's title lines, leaving the other bits of text. */
 function readHeader(lines: Line[], remove: RegExp[] = []): Header {
-  const header: Header = { texts: [], date: null, location: "", links: [] }
+  const header: Header = { texts: [], date: null, otherDates: [], location: "", links: [] }
   for (const line of joinWrappedTitles(lines)) {
     header.links.push(...line.links)
     for (const part of line.parts) {
@@ -570,7 +572,8 @@ function readHeader(lines: Line[], remove: RegExp[] = []): Header {
         for (const match of text.matchAll(new RegExp(pattern.source, "gi"))) blank(match.index!, match[0].length)
       }
       for (let date = findDate(text); date; date = findDate(text)) {
-        header.date ??= date
+        if (header.date) header.otherDates.push(date.text)
+        else header.date = date
         blank(date.index, date.length)
       }
       for (const url of text.matchAll(new RegExp(URL.source, "gi"))) {
@@ -678,9 +681,9 @@ function readExperience(name: "Work" | "Leadership" | "Volunteership", lines: Pa
     fields[keys.start] = header.date?.start ?? ""
     fields[keys.end] = header.date?.end ?? ""
     fields[keys.bullets] = bulletField(group.body.map(described))
-    if (rest.length) {
+    if (rest.length || header.otherDates.length) {
       leftover.lines.push(...group.header.map((line) => line.index))
-      leftover.text.push(...rest)
+      leftover.text.push(...rest, ...header.otherDates)
     }
     return { fields, lines: linesOf(group) }
   })
@@ -732,7 +735,7 @@ function readEducation(lines: ParseLine[]): SectionResult {
     fields.schoolStartDate = header.date?.start ?? ""
     fields.schoolEndDate = header.date?.end ?? ""
 
-    const other: string[] = [...rest]
+    const other: string[] = [...rest, ...header.otherDates]
     for (const item of group.body) {
       const text = withoutGpa(item.text)
       const label = text.match(LABEL)
@@ -778,6 +781,10 @@ function readProjects(lines: ParseLine[]): SectionResult {
       else if (!/^github\.com/i.test(url) && !url.includes("@") && !fields.additionalLink) fields.additionalLink = url
     }
     fields.projectDescription = bulletField(bullets)
+    if (header.otherDates.length) {
+      leftover.lines.push(...group.header.map((line) => line.index))
+      leftover.text.push(...header.otherDates)
+    }
     return { fields, lines: linesOf(group) }
   })
   return { entries, leftover }
@@ -911,6 +918,10 @@ function readPublications(lines: ParseLine[]): SectionResult {
     const rest = group.body.filter((item) => !authors.includes(item))
     // A line like "J. Ryan, A. Smith. NeurIPS" holds both the authors and the venue.
     publicationFields([...header.texts.map((fragment) => fragment.text), ...authors.map((item) => item.text)].flatMap(sentencesOf), fields)
+    if (header.otherDates.length) {
+      leftover.lines.push(...group.header.map((line) => line.index))
+      leftover.text.push(...header.otherDates)
+    }
     if (rest.length) {
       leftover.lines.push(...rest.flatMap((item) => item.lines))
       leftover.text.push(...rest.map((item) => item.text))
@@ -968,10 +979,17 @@ function blocksBySpacing(lines: ParseLine[]): ParseLine[][] | null {
 }
 
 function readAwards(lines: ParseLine[]): SectionResult {
+  const leftover: SectionResult["leftover"] = { lines: [], text: [] }
+  const keepOtherDates = (header: Header, from: ParseLine[]) => {
+    if (header.otherDates.length === 0) return
+    leftover.lines.push(...from.map((line) => line.index))
+    leftover.text.push(...header.otherDates)
+  }
   const blocks = blocksBySpacing(lines)
   if (blocks) {
     const entries = blocks.map((block) => {
       const header = readHeader(block)
+      keepOtherDates(header, block)
       return {
         fields: {
           awardName: header.texts[0]?.text ?? "",
@@ -981,7 +999,7 @@ function readAwards(lines: ParseLine[]): SectionResult {
         lines: block.flatMap((line) => [line.index, ...(line.merged ?? [])]),
       }
     })
-    return { entries, leftover: { lines: [], text: [] } }
+    return { entries, leftover }
   }
   const entries: FoundEntry[] = []
   for (const line of lines) {
@@ -999,6 +1017,7 @@ function readAwards(lines: ParseLine[]): SectionResult {
       continue
     }
     const header = readHeader([line])
+    keepOtherDates(header, [line])
     let name = header.texts[0]?.text ?? ""
     let org = header.texts.slice(1).map((fragment) => fragment.text).join(", ")
     const comma = name.indexOf(", ")
@@ -1020,7 +1039,7 @@ function readAwards(lines: ParseLine[]): SectionResult {
       lines: [line.index],
     })
   }
-  return { entries: entries.filter((entry) => entry.fields.awardName || entry.fields.awardOrg), leftover: { lines: [], text: [] } }
+  return { entries: entries.filter((entry) => entry.fields.awardName || entry.fields.awardOrg), leftover }
 }
 
 // ---------------------------------------------------------------- profile
