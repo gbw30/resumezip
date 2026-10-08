@@ -96,21 +96,20 @@ const email: Rule = {
   level: "fix",
   reads: "form",
   title: "Your email address",
-  why: "Recruiters need a usable way to reach you; an email address should be complete.",
+  why: "Recruiters reply by email, and application forms ask for it, so it has to work.",
   check: ({ resume }) => {
     const value = resume.profile.email
-    const reachableByPhone = phoneNumber(resume.profile.phoneNumber)
-    const problems: Problem[] = emailAddress(value)
-      ? []
-      : !value && reachableByPhone
-        ? [{ place: profile("email"), message: "Consider adding an email address", level: "look", advisory: true }]
+    // A phone number doesn't stand in for it: hiring software and most
+    // applications need an email address to reply to.
+    const problems: Problem[] = !value
+      ? [{ place: profile("email"), message: "Add your email address" }]
+      : emailAddress(value)
+        ? []
         : [
             {
               place: profile("email"),
-              message: reachableByPhone ? "Not a whole email address" : "Add a usable email address or phone number",
-              suggestion: value
-                ? "Check the email spelling and domain, like jake@gmail.com."
-                : "Include at least one way a recruiter can contact you.",
+              message: "Not a whole email address",
+              suggestion: "Check the email spelling and domain, like jake@gmail.com.",
               text: value,
             },
           ]

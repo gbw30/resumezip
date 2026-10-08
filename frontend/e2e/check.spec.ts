@@ -129,7 +129,7 @@ test("the checker asks for a name and an entry first, then scores the resume and
   // keyboard. What passed isn't listed.
   const contact = panel.getByRole("button", { name: /^Contact & personal details, 1 to fix/ })
   await expect(contact).toHaveAttribute("aria-expanded", "true")
-  const email = panel.getByRole("button", { name: /Add a usable email address or phone number/ })
+  const email = panel.getByRole("button", { name: /Add your email address/ })
   await expect(email).toBeVisible()
   await contact.focus()
   await page.keyboard.press("Enter")
@@ -137,7 +137,7 @@ test("the checker asks for a name and an entry first, then scores the resume and
   // What's folding away can't be reached with Tab, even while it slides shut:
   // checked at once, as it loses the focus anyway once it's shut.
   await page.keyboard.press("Tab")
-  const folding = panel.getByRole("button", { name: /Add a usable email address or phone number/, includeHidden: true })
+  const folding = panel.getByRole("button", { name: /Add your email address/, includeHidden: true })
   expect(await folding.evaluate((button) => button === document.activeElement)).toBe(false)
   await expect(email).toBeHidden()
   await contact.focus()
@@ -181,7 +181,7 @@ test("the score goes up as a problem is fixed", async ({ page }) => {
   // The contact category is open, as it has something to fix, and lists it.
   const contact = panel.getByRole("button", { name: /^Contact & personal details, 1 to fix/ })
   await expect(contact).toHaveAttribute("aria-expanded", "true")
-  const email = panel.getByRole("button", { name: /Add a usable email address or phone number/ })
+  const email = panel.getByRole("button", { name: /Not a whole email address/ })
   await expect(email).toBeVisible()
 
   const number = panel.getByRole("region", { name: "Resume score" }).getByText(/^\d+$/)
@@ -218,12 +218,12 @@ test("choosing a finding opens its field, where it shows while Check is open, fi
 
   // The email's finding opens the profile, with the cursor in the field and why it matters under it.
   await check.click()
-  const email = panel.getByRole("button", { name: /Add a usable email address or phone number/ })
+  const email = panel.getByRole("button", { name: /Not a whole email address/ })
   await email.click()
   const field = page.getByLabel("Email")
   await expect(field).toBeFocused()
   await expect(field).toHaveAttribute("aria-invalid", "true")
-  const why = page.getByText("Recruiters need a usable way to reach you; an email address should be complete.")
+  const why = page.getByText("Recruiters reply by email, and application forms ask for it, so it has to work.")
   await expect(why).toBeVisible()
 
   // Back in Write mode the field is left plain, until Check is open again.

@@ -48,7 +48,7 @@ describe("C1 name", () => {
 describe("C2 email", () => {
   test("flags a missing or partial address", () => {
     expect(check("C2", withProfile({ email: "" })).findings).toEqual([
-      expect.objectContaining({ message: "Consider adding an email address", level: "look", advisory: true }),
+      expect.objectContaining({ message: "Add your email address", level: "fix" }),
     ])
     for (const email of [
       "jake@gmail",
@@ -81,21 +81,16 @@ describe("C2 email", () => {
     }
   })
 
-  test("requires a usable contact channel even when unusable values are present", () => {
-    for (const changes of [
-      { email: "", phoneNumber: "" },
-      { email: "not-an-email", phoneNumber: "123" },
-      { email: "", phoneNumber: "9".repeat(30) },
-    ]) {
-      expect(check("C2", withProfile(changes)).findings).toEqual([
-        expect.objectContaining({ message: "Add a usable email address or phone number", level: "fix" }),
+  test("is a fix even when a phone number works", () => {
+    // Hiring software and application forms reply by email, so a phone number doesn't replace it.
+    for (const phoneNumber of ["+298 35 60 20", "(512) 555-0134", ""]) {
+      expect(check("C2", withProfile({ email: "", phoneNumber })).findings, phoneNumber).toEqual([
+        expect.objectContaining({ message: "Add your email address", level: "fix" }),
+      ])
+      expect(check("C2", withProfile({ email: "wrong", phoneNumber })).findings, phoneNumber).toEqual([
+        expect.objectContaining({ message: "Not a whole email address", level: "fix" }),
       ])
     }
-    expect(check("C2", withProfile({ email: "", phoneNumber: "+298 35 60 20" })).findings[0]).toMatchObject({
-      level: "look",
-      advisory: true,
-    })
-    expect(check("C2", withProfile({ email: "wrong", phoneNumber: "+298 35 60 20" })).findings[0]).toMatchObject({ level: "fix" })
   })
 })
 
