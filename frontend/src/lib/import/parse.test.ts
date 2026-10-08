@@ -460,3 +460,35 @@ describe("a title with a separator in parentheses", () => {
     expect(resume.workExperienceSection[0]).toMatchObject({ workRole: "Software Engineer (Contract)", companyName: "Acme Corp" })
   })
 })
+
+describe("a long title line with something set apart on its right", () => {
+  test("is the entry's title, not a sentence", () => {
+    const degree = "Bachelor of Science in Biomedical Sciences, Minors in Public Health & Psychology"
+    const { resume, unplaced } = read("Education", [
+      line([["University of Central Florida", 36], ["May 2027", 500]], { bold: true }),
+      line([[degree, 36], ["GPA: 3.91/4.0", 500]], { italic: true }),
+    ])
+    expect(resume.educationSection[0]).toMatchObject({ schoolName: "University of Central Florida", degree, gpa: "3.91/4.0", schoolEndDate: "May 2027" })
+    expect(unplaced).toEqual([])
+  })
+
+  test("doesn't make a long line on its own a title", () => {
+    const { resume } = read("Experience", [
+      line([["Data Analyst", 36], ["2023 – 2024", 480]], { bold: true }),
+      line([["Acme Corp", 36]], { italic: true }),
+      line([["Built the dashboards the sales team used every week to plan its calls and follow-ups with clients", 36]]),
+    ])
+    expect(resume.workExperienceSection).toHaveLength(1)
+    expect(resume.workExperienceSection[0].workDescription).toBe(
+      "• Built the dashboards the sales team used every week to plan its calls and follow-ups with clients",
+    )
+  })
+  test("doesn't make a title of long text with a short label on its left", () => {
+    const { resume } = read("Experience", [
+      line([["2025", 36], ["Teaching Assistant, Robot Kinematics", 120], ["West Lafayette, IN", 480]], { bold: true }),
+      line([["Rebuilt the course's labs", 130]], { bullet: true }),
+      line([["Purdue Univ.", 36], ["Mentored a senior design team building an exam proctoring tool, now used by 600 students", 120]]),
+    ])
+    expect(resume.workExperienceSection).toHaveLength(1)
+  })
+})

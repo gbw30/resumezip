@@ -423,9 +423,16 @@ function described(item: Item): string {
     .join("")
 }
 
-/** A long line that reads like a sentence, not an entry's title. */
+/**
+ * A long line that reads like a sentence, not an entry's title. A title can
+ * be long too, but has a few words set apart on its right: a GPA, a place.
+ */
 const sentence = (line: ParseLine) =>
-  !line.bold && !hasDate(line) && (line.text.length > 85 || (/[.!?]$/.test(line.text) && words(line.text).length >= 4) || line.full === true)
+  !line.bold &&
+  !hasDate(line) &&
+  ((line.text.length > 85 && !setApartOnRight(line)) || (/[.!?]$/.test(line.text) && words(line.text).length >= 4) || line.full === true)
+
+const setApartOnRight = (line: Line) => line.parts.length > 1 && words(line.parts[line.parts.length - 1].text).length <= 5
 
 /** The style a line starts in ("**President** | ACM"), which is what tells entry titles apart. */
 const leadStyle = (line: Line) => {
