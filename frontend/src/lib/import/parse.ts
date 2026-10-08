@@ -769,10 +769,44 @@ function blankEntry(name: SectionName): Record<string, string> {
   return Object.fromEntries(SECTIONS[name].fields.map((field) => [field.key, ""]))
 }
 
+/**
+ * Where entries' text starts when their dates are in a column on the left
+ * ("2023 – 2025   Lead TA, …"), or undefined when they aren't.
+ */
+function dateColumnEnd(lines: Line[]): number | undefined {
+  const counts = new Map<number, number>()
+  for (const line of lines) {
+    if (line.parts.length < 2 || !dateOnly(line.parts[0].text)) continue
+    const start = Math.round(line.parts[1].x)
+    counts.set(start, (counts.get(start) ?? 0) + 1)
+  }
+  const [end, count] = [...counts].sort((a, b) => b[1] - a[1])[0] ?? []
+  return count !== undefined && count >= 2 ? end : undefined
+}
+
+/**
+ * "Teaching", "Mentoring": a few words alone in the column of dates, with no
+ * date of their own, head the entries below them and have no field to go in.
+ */
+function subHeadingsBesideDates(lines: ParseLine[]): Set<ParseLine> {
+  const end = dateColumnEnd(lines)
+  if (end === undefined) return new Set()
+  return new Set(
+    lines.filter(
+      (line) => line.box !== undefined && line.box[2] < end && line.parts.length === 1 && !hasDate(line) && !isLocation(line.text) && words(line.text).length <= 4,
+    ),
+  )
+}
+
 function readExperience(name: "Work" | "Leadership" | "Volunteership", lines: ParseLine[]): SectionResult {
   const keys = EXPERIENCE_FIELDS[name]
   const leftover: SectionResult["leftover"] = { lines: [], text: [] }
-  const entries = groupEntries(lines).map((group) => {
+  const subHeadings = subHeadingsBesideDates(lines)
+  for (const line of subHeadings) {
+    leftover.lines.push(line.index)
+    leftover.text.push(line.text)
+  }
+  const entries = groupEntries(lines.filter((line) => !subHeadings.has(line))).map((group) => {
     const header = readHeader(group.header)
     const { role, org, rest } = roleAndOrg(header.texts)
     const fields = blankEntry(name)

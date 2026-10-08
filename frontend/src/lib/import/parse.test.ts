@@ -492,3 +492,36 @@ describe("a long title line with something set apart on its right", () => {
     expect(resume.workExperienceSection).toHaveLength(1)
   })
 })
+
+describe("a sub-heading in a column of dates", () => {
+  test("goes to Couldn't place, not into the entries around it", () => {
+    const { resume, unplaced } = read(
+      "Experience",
+      onPage([
+        line([["Industry", 72]], { italic: true }),
+        line([["2026", 36], ["Instructional Staff, Robots in Society", 120], ["Sendai, Japan", 480]]),
+        line([["2023 – 2025", 36], ["Lead Teaching Assistant, Robot Kinematics", 120], ["West Lafayette, IN", 470]]),
+        line([["Mentoring", 66]], { italic: true }),
+      ]),
+    )
+    expect(resume.workExperienceSection).toHaveLength(2)
+    expect(resume.workExperienceSection).toMatchObject([
+      { workRole: "Instructional Staff", companyName: "Robots in Society", workLocation: "Sendai, Japan", workEndDate: "2026" },
+      { workRole: "Lead Teaching Assistant", companyName: "Robot Kinematics", workLocation: "West Lafayette, IN", workEndDate: "2025" },
+    ])
+    expect(unplaced).toEqual(["Industry", "Mentoring"])
+  })
+
+  test("isn't a place set under a date", () => {
+    const { resume, unplaced } = read(
+      "Experience",
+      onPage([
+        line([["2026", 36], ["Instructional Staff, Robots in Society", 120]]),
+        line([["Sendai, Japan", 36]]),
+        line([["2023 – 2025", 36], ["Lead Teaching Assistant, Robot Kinematics", 120]]),
+      ]),
+    )
+    expect(resume.workExperienceSection[0]).toMatchObject({ workRole: "Instructional Staff", workLocation: "Sendai, Japan" })
+    expect(unplaced).toEqual([])
+  })
+})
