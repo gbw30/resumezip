@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useParams } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { ArrowLeft, Check, Download, Eye, Loader2, PencilLine } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
 import { CheckProvider } from "@/components/editor/CheckContext"
@@ -34,8 +34,33 @@ const PDF_KEPT_MS = 10_000
 const SAVED_MS = 1500
 const DOWNLOADED_MS = 2000
 
+const EDITOR_ADDRESS = "/create/new/"
+
+/**
+ * The resume id in an editor address: all of the path after /create/new/, as
+ * an id can have a "/" in it, without the browser's escapes (a space is %20).
+ */
+function idFromAddress(pathname: string): string {
+  const escaped = pathname.startsWith(EDITOR_ADDRESS) ? pathname.slice(EDITOR_ADDRESS.length) : ""
+  try {
+    return decodeURIComponent(escaped)
+  } catch {
+    // A "%" that doesn't start an escape is part of the id.
+    return escaped
+  }
+}
+
 export default function EditorPage() {
-  const { id } = useParams<{ id: string }>()
+  // next.config.js serves this one prebuilt page at every resume's address,
+  // /create/new/<id>, so the id comes from the address.
+  const id = idFromAddress(usePathname())
+  // Going back or forward from one resume straight to another stays on this
+  // page; keyed by resume, the editor starts afresh rather than keeping the
+  // last one's open section, preview and messages.
+  return <Editor key={id} id={id} />
+}
+
+function Editor({ id }: { id: string }) {
   const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus, savedAt } = useResumeContext()
   const [active, setActive] = useState<ActiveSection>("Profile")
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
