@@ -146,10 +146,10 @@ exports[`priya/html-dates-left > reads back no worse than before 1`] = `
   "work[1].role": "",
   "work[1].start": "",
   "work[2].bullets": [],
-  "work[2].company": "Software Engineer II",
+  "work[2].company": "",
   "work[2].end": "Feb 2023",
   "work[2].location": "",
-  "work[2].role": "",
+  "work[2].role": "Software Engineer II",
   "work[2].start": "Jun 2020",
   "work[3].bullets": [
     "Built the Kafka pipeline that feeds new listings into search within 90 seconds of an agent publishing them, down from 20 minutes",

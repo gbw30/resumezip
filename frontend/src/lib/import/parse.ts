@@ -718,11 +718,17 @@ function readHeader(lines: Line[], remove: RegExp[] = []): Header {
 
 const score = (text: string, pattern: RegExp) => (text.match(new RegExp(pattern.source, "gi")) ?? []).length
 
-/** Above zero for job titles, below for organizations. The last word counts double. */
+/**
+ * Above zero for job titles, below for organizations. The last word counts
+ * double. A word that usually names an organization is part of a title when
+ * it says what the title word after it does: "Software Engineer", "Lab Manager".
+ */
 function titleScore(text: string): number {
-  const last = words(text).pop() ?? ""
+  const all = words(text)
+  const last = all[all.length - 1] ?? ""
   const acronym = /^[A-Z0-9&.]{2,6}$/.test(text) ? 1 : 0
-  return score(text, TITLE_WORDS) + Number(TITLE_WORDS.test(last)) - score(text, ORG_WORDS) - Number(ORG_WORDS.test(last)) - acronym
+  const orgWords = all.filter((word, i) => ORG_WORDS.test(word) && !TITLE_WORDS.test(all[i + 1] ?? "")).length
+  return score(text, TITLE_WORDS) + Number(TITLE_WORDS.test(last)) - orgWords - Number(ORG_WORDS.test(last)) - acronym
 }
 
 /**
@@ -815,11 +821,11 @@ type ExperienceName = keyof typeof EXPERIENCE_FIELDS
 /**
  * People set every entry out the same way, so a close call between role and
  * organization goes the way the other entries went: those in its own
- * section, or if it has none to go by, those in the rest of the resume.
- * Only entries whose scores weren't tied count. A tie goes their way with
- * one to go by; a call a point apart takes two, since its scores lean the
- * right way more often than not. With fewer, or ones that disagree, it
- * stays as it was.
+ * section, or for a tie with none there to go by, those in the rest of the
+ * resume, which may set its entries out another way. Only entries whose
+ * scores weren't tied count. A tie goes their way with one to go by; a call
+ * a point apart takes two, since its scores lean the right way more often
+ * than not. With fewer, or ones that disagree, it stays as it was.
  */
 function followOtherEntries(sections: { name: ExperienceName; calls: Map<FoundEntry, RoleCall> }[]) {
   const all = sections.flatMap(({ calls }) => [...calls.values()])
@@ -829,7 +835,7 @@ function followOtherEntries(sections: { name: ExperienceName; calls: Map<FoundEn
       if (call.margin > CLOSE_CALL) continue
       const voters = (from: RoleCall[]) => from.filter((other) => other !== call && other.margin > 0)
       const own = voters([...calls.values()])
-      const others = own.length > 0 ? own : voters(all)
+      const others = own.length > 0 || call.margin > 0 ? own : voters(all)
       const roleFirst = others.filter((other) => other.roleFirst).length
       const orgFirst = others.length - roleFirst
       const needed = call.margin + 1

@@ -618,6 +618,18 @@ describe("a role and organization that are hard to tell apart", () => {
     expect(resume.workExperienceSection[2]).toMatchObject({ workRole: "Research Assistant", companyName: "Proteomics Core Laboratory" })
   })
 
+  test("don't follow other sections, which may be set out another way, unless their scores tie", () => {
+    const parsed = parseResume([
+      line([["Mara Lin", 36]], { size: 18, bold: true }),
+      line([["Experience", 36]], { size: 12, bold: true }),
+      line([["Software Engineer, Backend - Google", 36], ["2024", 500]]),
+      line([["Leadership", 36]], { size: 12, bold: true }),
+      line([["ColorStack - National Member", 36], ["2025", 500]]),
+      line([["Robotics Club - Treasurer", 36], ["2023", 500]]),
+    ])
+    expect(toResumeContent(parsed).workExperienceSection[0]).toMatchObject({ workRole: "Software Engineer, Backend", companyName: "Google" })
+  })
+
   test("are read as before when nothing else on the resume says which comes first", () => {
     const { resume } = read("Experience", companyFirst("Seminole Heart & Vascular Clinic", "Physician Shadowing – Cardiology", "August 2026 – Present"))
     expect(resume.workExperienceSection[0]).toMatchObject({ workRole: "Seminole Heart & Vascular Clinic", companyName: "Physician Shadowing – Cardiology" })
