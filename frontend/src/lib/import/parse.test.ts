@@ -341,3 +341,22 @@ describe("a paragraph", () => {
     expect(resume.workExperienceSection[0].workDescription).toBe(points.map((point) => `• ${point}`).join("\n"))
   })
 })
+
+describe("citations under sub-headings", () => {
+  test("are read as citations, with the sub-headings set aside", () => {
+    const label = (text: string, x: number) => line([[text, x]], { bold: true, italic: true })
+    const { resume, unplaced } = read("Publications", [
+      label("Conference", 89),
+      line([["[1] W. Zhang and M. Torres, “Sparse Experts for Retrieval,” International", 127]]),
+      line([["Conference on Learning Representations (ICLR), 2026.", 147]]),
+      label("Thesis", 111),
+      line([["[2] W. Zhang, “Reading Long Documents,” Ph.D. thesis, University of", 127]]),
+      line([["Michigan, Ann Arbor, MI, USA, 2027.", 147]]),
+    ])
+    expect(resume.publicationsSection.map((paper: Record<string, string>) => [paper.publicationTitle, paper.publicationDate])).toEqual([
+      ["Sparse Experts for Retrieval", "2026"],
+      ["Reading Long Documents", "2027"],
+    ])
+    expect(unplaced).toEqual(["Conference", "Thesis"])
+  })
+})

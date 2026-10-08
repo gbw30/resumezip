@@ -965,9 +965,14 @@ function readCitation(text: string, italics: string[] = []): Record<string, stri
  * Publications come either as citations, one per bullet or number, or laid
  * out like other entries: the title and date, then authors and venue below.
  */
-function readPublications(lines: ParseLine[]): SectionResult {
+function readPublications(section: ParseLine[]): SectionResult {
   const leftover: SectionResult["leftover"] = { lines: [], text: [] }
   const startsCitation = (line: Line) => line.bullet || NUMBERED.test(line.text)
+  // Sub-headings over groups of citations ("Conference", "Thesis"): a few
+  // words in bold or italic, just before a citation.
+  const label = (line: ParseLine, i: number) =>
+    !startsCitation(line) && section[i + 1] !== undefined && startsCitation(section[i + 1]) && (line.bold || line.italic) && words(line.text).length <= 4 && !/[.,;:]$/.test(line.text)
+  const lines = section.filter((line, i) => !label(line, i))
   // Citations that wrap are set in under the line they start on, so every
   // other line sits right of the bullet or number above it.
   let start: ParseLine | undefined
@@ -978,6 +983,12 @@ function readPublications(lines: ParseLine[]): SectionResult {
   })
   const citations = lines.filter(startsCitation).length >= lines.length / 2 || (hanging && lines.filter(startsCitation).length >= 2)
   if (citations) {
+    // The sub-headings label groups, which a citation has no field for.
+    for (const line of section) {
+      if (lines.includes(line)) continue
+      leftover.lines.push(line.index)
+      leftover.text.push(line.text)
+    }
     const items: { text: string; lines: number[]; x: number; italics: string[] }[] = []
     for (const line of lines) {
       const last = items[items.length - 1]
@@ -999,7 +1010,7 @@ function readPublications(lines: ParseLine[]): SectionResult {
     return { entries: items.map((item) => ({ fields: readCitation(item.text, item.italics), lines: item.lines })), leftover }
   }
 
-  const entries = groupEntries(lines).map((group) => {
+  const entries = groupEntries(section).map((group) => {
     const fields = blankEntry("Publications")
     const header = readHeader(group.header)
     fields.publicationDate = header.date?.text ?? ""
