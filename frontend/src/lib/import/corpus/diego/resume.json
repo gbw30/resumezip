@@ -1,0 +1,110 @@
+{
+  "sectionOrder": ["Education", "Work", "Projects", "Leadership", "Skills"],
+  "headings": { "leadership": "Leadership & Involvement", "skills": "Technical Skills" },
+  "profileSection": {
+    "fullName": "Diego Morales",
+    "email": "diego.morales@example.com",
+    "phoneNumber": "305-555-0172",
+    "location": "",
+    "linkedin": "linkedin.com/in/diego-morales-dev",
+    "profileGithub": "github.com/dmorales-dev",
+    "personalWebsite": ""
+  },
+  "educationSection": [
+    {
+      "schoolName": "Florida International University",
+      "schoolLocation": "Miami, FL",
+      "degree": "B.S. in Computer Science",
+      "gpa": "",
+      "schoolStartDate": "Aug. 2026",
+      "schoolEndDate": "May 2029",
+      "coursework": "",
+      "involvement": ""
+    },
+    {
+      "schoolName": "Broward College",
+      "schoolLocation": "Fort Lauderdale, FL",
+      "degree": "A.A. in Liberal Arts",
+      "gpa": "",
+      "schoolStartDate": "Aug. 2024",
+      "schoolEndDate": "May 2026",
+      "coursework": "Artificial Intelligence (CAI 1001C), Statistical Methods (STA 2023), Calculus 2 (MAC 2312, in progress), Foundations of Analytics and AI (QMB 3302, in progress)",
+      "involvement": ""
+    }
+  ],
+  "workExperienceSection": [
+    {
+      "workRole": "Data Science Research Intern",
+      "companyName": "Broward College - Crop Disease Classification Research",
+      "workLocation": "Fort Lauderdale, FL",
+      "workStartDate": "May 2025",
+      "workEndDate": "Aug. 2025",
+      "workDescription": "• Classified 6 crop diseases, as measured by ~90% validation accuracy on a 35,000-image dataset, by a TensorFlow and Keras CNN with an 80/20 split pipeline.\n• Validated model reliability, as measured by precision and recall on 7,000 held-out images, by confusion-matrix analysis across all 6 classes.\n• Presented crop-health findings, as measured by 200+ symposium attendees, by a talk on low-cost disease detection for local farmers and growers."
+    },
+    {
+      "workRole": "Software Development Director",
+      "companyName": "Society of Hispanic Professional Engineers (SHPE FIU)",
+      "workLocation": "Miami, FL",
+      "workStartDate": "Sep. 2026",
+      "workEndDate": "Present",
+      "workDescription": "• Maintaining the chapter’s member points system, as measured by $150+ in annual national opportunities tied to its rankings, by HTML, CSS, and JavaScript updates scoped with chapter leadership.\n• Building chapter website features, as measured by 250+ active members served, by feedback sessions with leadership on usability and accessibility."
+    },
+    {
+      "workRole": "Firmware New Member",
+      "companyName": "Panther Rocketry Club (PRC), Florida International University",
+      "workLocation": "Miami, FL",
+      "workStartDate": "Sep. 2026",
+      "workEndDate": "Present",
+      "workDescription": "• Earned a spot in PRC’s mentored 6-week firmware program, as measured by selection from 250+ applicants, by a competitive application for rocket C development.\n• Developing a rocket telemetry simulator, as measured by 3 modeled forces (thrust, gravity, drag), by C code with a fixed-size altitude array and flight statistics reports."
+    }
+  ],
+  "projectsSection": [
+    {
+      "projectName": "World Cup Match Prediction Model",
+      "projectDate": "Jul. 2026 - Present",
+      "techStack": "Python, SQL, SQLite, Pandas, scikit-learn",
+      "projectGithub": "",
+      "additionalLink": "",
+      "projectDescription": "• Built a SQLite match database, as measured by 2,300 cleaned international matches with per-match goals and win rate, by Pandas cleaning and SQL aggregation.\n• Engineered leakage-free features, as measured by 2,100 training examples, by pre-match-only history for a scikit-learn win/draw/loss classifier."
+    },
+    {
+      "projectName": "Flood Risk Prediction Prototype",
+      "projectDate": "Sep. 2026",
+      "techStack": "HTML, CSS, JavaScript, Open-Meteo API, OpenStreetMap",
+      "projectGithub": "",
+      "additionalLink": "",
+      "projectDescription": "• Delivered a working prototype, as measured by a 24-hour build at the Miami Civic Hack Day, by team collaboration in partnership with the county’s resilience office.\n• Scored street flooding risk, as measured by 4,800 Miami grid points, by an algorithm of rainfall, tide level, elevation, and drainage data on a green-to-red heat map.\n• Added a preparedness chatbot, as measured by 5 covered topics, by rule-based logic with location-specific map context and public safety links."
+    }
+  ],
+  "leadershipExperienceSection": [
+    {
+      "leadershipRole": "",
+      "leadershipOrg": "First Year Leadership Program, SHPE FIU",
+      "leadershipLocation": "",
+      "leadershipStartDate": "Sep. 2026",
+      "leadershipEndDate": "Present",
+      "leadershipDescription": "• Earned a program seat, as measured by selection as 1 of 25 from 80+ applicants, by application to 6 leadership and communication workshops."
+    },
+    {
+      "leadershipRole": "National Member",
+      "leadershipOrg": "ColorStack",
+      "leadershipLocation": "",
+      "leadershipStartDate": "Sep. 2026",
+      "leadershipEndDate": "Present",
+      "leadershipDescription": "• Joined a national Black and Latinx CS community, as measured by participation across 4 events, by career, technical, and peer-networking programming."
+    },
+    {
+      "leadershipRole": "Student",
+      "leadershipOrg": "Stanford Code in Place",
+      "leadershipLocation": "",
+      "leadershipStartDate": "Apr. 2025",
+      "leadershipEndDate": "May 2025",
+      "leadershipDescription": "• Completed Stanford’s online Python course, as measured by a graphical Breakout game with paddle physics and scoring rules, by functions, loops, and game-state logic."
+    }
+  ],
+  "skillsSection": [
+    { "skillName": "Programming Languages", "skillDetails": "Python, C/C++, SQL, JavaScript, HTML, CSS" },
+    { "skillName": "ML Libraries & Frameworks", "skillDetails": "TensorFlow, Keras, scikit-learn, Pandas, NumPy, Matplotlib, Seaborn" },
+    { "skillName": "Developer Tools", "skillDetails": "Git/GitHub, SQLite, VS Code, Jupyter Notebook, Google Colab" }
+  ]
+}

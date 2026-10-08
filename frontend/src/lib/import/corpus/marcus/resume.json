@@ -1,0 +1,190 @@
+{
+  "sectionOrder": ["Work", "Education", "Skills", "Awards", "Publications", "Leadership"],
+  "headings": {},
+  "profileSection": {
+    "fullName": "Marcus J. Ferreira (フェレイラ・マーカス)",
+    "email": "ferreira@example.com",
+    "phoneNumber": "(765) 555-0142",
+    "location": "West Lafayette, IN",
+    "linkedin": "linkedin.com/in/marcus-ferreira-lab",
+    "profileGithub": "github.com/mferreira-lab",
+    "personalWebsite": "marcusferreira.dev"
+  },
+  "workExperienceSection": [
+    {
+      "workRole": "Lab Manager & Instructional Staff",
+      "companyName": "Purdue University (PU)",
+      "workLocation": "West Lafayette, IN",
+      "workStartDate": "",
+      "workEndDate": "",
+      "workDescription": "• **Operations:** Run a 2,800 sq. ft. robotics teaching lab serving 120+ students per semester, partner student teams, and department outreach events; supervise two lab assistants and four TAs.\n• **Equipment:** Oversee $80,000+ in robots, sensors, and test equipment, including motion-capture cameras, 3D printers, and a laser cutter; chose and bought the lab’s robot arms and led its full rebuild.\n• **Safety & Compliance:** Run access control, safety training, and incident response; coordinate with Purdue Facilities, Environmental Health, and ITaP on equipment approvals, upkeep, and computing projects.\n• **Budget:** Handle purchasing for the lab, the ME program, and BoilerHacks ($40,000 in sponsorship funds for BoilerHacks) across a $30,000 program budget, supply funds, and equipment fee accounts.\n• **Systems:** Built request forms for parts and club orders, and a GitHub Issues–based ticketing system with automatic print-time estimates.\n• **Research & Outreach:** Support faculty research with Dr. Ana Lucia Reyes and Dr. Samuel Whitfield; lead lab tours for visitors and sponsors; teach ENGR 2030 on robotics careers for first-year students."
+    },
+    {
+      "workRole": "Study Abroad Instructional Staff (Purdue in Japan: RAS)",
+      "companyName": "Purdue Univ.",
+      "workLocation": "Sendai, Japan",
+      "workStartDate": "",
+      "workEndDate": "2026",
+      "workDescription": "• Supported a 10-week Purdue engineering study abroad program to Sendai, Japan during Summer 2026, combining Japanese language study with robotics and culturally aware design courses for 40 undergraduate and graduate students. Guided team projects between Purdue and Tohoku University students, ending in final demos for faculty and staff from both universities, alongside internships with a local nonprofit. Coordinated student field trips and cultural activities, and held full (director-level) responsibility for program operations during the final week."
+    },
+    {
+      "workRole": "Lead Teaching Assistant, Robot Kinematics",
+      "companyName": "Purdue Univ.",
+      "workLocation": "West Lafayette, IN",
+      "workStartDate": "2023",
+      "workEndDate": "2025",
+      "workDescription": "• Rebuilt the course’s MATLAB labs and rubrics and built a Dockerized autograder on Gradescope, cutting grading time from 12+ hours to about 3 per TA and giving students instant feedback on submissions. Built automatic plagiarism checks and a quiz grading tool that works with Brightspace. Started using an open-source online homework system to bring required course material costs from over $90 to under $10. These tools supported the course’s growth to nearly 600 students per semester."
+    },
+    {
+      "workRole": "Software Engineer Intern (Maps @ RouteWise)",
+      "companyName": "Microsoft Corp.",
+      "workLocation": "Redmond, WA, USA",
+      "workStartDate": "",
+      "workEndDate": "2024",
+      "workDescription": "• Designed a caching layer that cut costly API calls and latency in RouteWise’s trip report generation. Enabled cross-team permission checks for services supporting a new offline report service, and worked with partner teams to reduce load on a key internal service by providing a second access path."
+    },
+    {
+      "workRole": "Software Engineer Intern (Teams @ Workplace)",
+      "companyName": "Microsoft Corp.",
+      "workLocation": "Redmond, WA, USA",
+      "workStartDate": "",
+      "workEndDate": "2023",
+      "workDescription": "• Built a Slack integration for Workplace Teams to improve weekly employee–manager check-ins. Architected and deployed it on Azure (Functions, Key Vault, API Management) with a focus on security and scalability, and wrote and documented APIs connecting Slack to existing internal services. Presented the integration at the summer intern showcase to the Workplace leadership team, and handed it off with a runbook for on-call engineers."
+    },
+    {
+      "workRole": "Instructional Staff",
+      "companyName": "Purdue in Japan: RAS, ME 49700 / ME 59700",
+      "workLocation": "Sendai, Japan",
+      "workStartDate": "",
+      "workEndDate": "2026",
+      "workDescription": "• Mobile Robot Programming, Robots in Society, and Principles of Culturally Aware Design."
+    },
+    {
+      "workRole": "Instructional Staff",
+      "companyName": "ME 4630/4640 - Robotics Design 1/2",
+      "workLocation": "West Lafayette, IN",
+      "workStartDate": "2025",
+      "workEndDate": "Present",
+      "workDescription": ""
+    },
+    {
+      "workRole": "Lead Teaching Assistant",
+      "companyName": "ME 3410 - Robot Kinematics",
+      "workLocation": "West Lafayette, IN",
+      "workStartDate": "2023",
+      "workEndDate": "2025",
+      "workDescription": ""
+    }
+  ],
+  "educationSection": [
+    {
+      "schoolName": "Purdue University (PU)",
+      "schoolLocation": "West Lafayette, IN",
+      "degree": "M.S. in Mechanical Engineering",
+      "gpa": "",
+      "schoolStartDate": "",
+      "schoolEndDate": "May 2027",
+      "coursework": "",
+      "involvement": ""
+    },
+    {
+      "schoolName": "Purdue University (PU)",
+      "schoolLocation": "West Lafayette, IN",
+      "degree": "B.S. (Honors) in Mechanical Engineering",
+      "gpa": "",
+      "schoolStartDate": "",
+      "schoolEndDate": "December 2025",
+      "coursework": "",
+      "involvement": ""
+    },
+    {
+      "schoolName": "Tohoku University (東北大学)",
+      "schoolLocation": "Sendai, Japan",
+      "degree": "Study Abroad, Purdue in Japan: Robotics & Society",
+      "gpa": "",
+      "schoolStartDate": "",
+      "schoolEndDate": "Summer 2025",
+      "coursework": "",
+      "involvement": ""
+    }
+  ],
+  "skillsSection": [
+    { "skillName": "Research Interests", "skillDetails": "Engineering Education, Lab Infrastructure, Mobile Robotics, Embedded Systems, Digital Fabrication, Human–Robot Interaction, AI in Education." },
+    { "skillName": "Infrastructure & Systems", "skillDetails": "Linux, Docker, Kubernetes, networking, access control, ticketing and inventory systems" },
+    { "skillName": "Lab & Fabrication", "skillDetails": "Motion capture, oscilloscopes and test equipment, 3D printing, laser cutting, CNC milling, and machine shop tools" },
+    { "skillName": "Embedded & Software", "skillDetails": "Microcontrollers (ESP32, Arduino), ROS 2, Python, C, C++, MATLAB, SQL, and TypeScript" }
+  ],
+  "awardsSection": [
+    { "awardName": "Rising Leader Award", "awardOrg": "Purdue Student Life Awards", "awardDate": "2026" },
+    { "awardName": "Engineering Student Society Award for Excellence", "awardOrg": "Purdue CoE", "awardDate": "2025" },
+    { "awardName": "1st Place Overall", "awardOrg": "BoilerMake", "awardDate": "2022" }
+  ],
+  "publicationsSection": [
+    {
+      "publicationAuthors": "M. Ferreira, D. L. Hart, A. L. Reyes, J. K. Okafor, P. S. Lindqvist Moreno, R. Bianchi, T. N. Ward, and E. V. Sato",
+      "publicationTitle": "Low-cost localization for greenhouse inspection robots",
+      "publicationVenue": "ASABE Annual International Meeting",
+      "publicationDetails": "ASABE Paper No. 2600531, Indianapolis, IN, Jul. 12–15",
+      "publicationDate": "2026",
+      "publicationLink": "10.13031/aim.202600531"
+    },
+    {
+      "publicationAuthors": "L. Park, H. Ortiz, A. L. Reyes, and M. Ferreira",
+      "publicationTitle": "Boiler Proctor: Integrating Safe Exam Browser with Brightspace",
+      "publicationVenue": "Senior Design Project",
+      "publicationDetails": "School of Electrical and Computer Engineering, Purdue University, West Lafayette, IN, USA",
+      "publicationDate": "Apr. 2026",
+      "publicationLink": ""
+    },
+    {
+      "publicationAuthors": "M. Ferreira",
+      "publicationTitle": "Teaching robot kinematics with physical models: A constructivist approach for first-year robotics students",
+      "publicationVenue": "B.S. honors thesis",
+      "publicationDetails": "School of Engineering Education, Purdue University, West Lafayette, IN, USA",
+      "publicationDate": "2025",
+      "publicationLink": ""
+    }
+  ],
+  "leadershipExperienceSection": [
+    {
+      "leadershipRole": "Advisor for several student organizations",
+      "leadershipOrg": "",
+      "leadershipLocation": "",
+      "leadershipStartDate": "2025",
+      "leadershipEndDate": "Present",
+      "leadershipDescription": "• BoilerHacks (XI, XII), Purdue Robotics Union (PRU), Open Robotics Club (ORC). Advised the development of BoilerHacks’ current event check-in platform, in use for two years."
+    },
+    {
+      "leadershipRole": "Vice-President",
+      "leadershipOrg": "BoilerHacks XI",
+      "leadershipLocation": "",
+      "leadershipStartDate": "",
+      "leadershipEndDate": "2025",
+      "leadershipDescription": ""
+    },
+    {
+      "leadershipRole": "Technical Director",
+      "leadershipOrg": "Purdue Robotics Union (PRU)",
+      "leadershipLocation": "",
+      "leadershipStartDate": "2024",
+      "leadershipEndDate": "2025",
+      "leadershipDescription": ""
+    },
+    {
+      "leadershipRole": "Director of Technology",
+      "leadershipOrg": "BoilerHacks X",
+      "leadershipLocation": "",
+      "leadershipStartDate": "2024",
+      "leadershipEndDate": "2025",
+      "leadershipDescription": "• Led a team of three developers to build HackDesk, a platform managing registration, applications, check-in, attendance, and payments for a 600-person event."
+    },
+    {
+      "leadershipRole": "Technical Lead",
+      "leadershipOrg": "Open Robotics Club (ORC)",
+      "leadershipLocation": "",
+      "leadershipStartDate": "2022",
+      "leadershipEndDate": "2024",
+      "leadershipDescription": ""
+    }
+  ]
+}

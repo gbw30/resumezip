@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 import { MAX_PAGES, MAX_WORD_XML_BYTES } from "../src/lib/import/limits"
 import { textPdf, wordFile } from "../src/lib/import/testFiles"
-import { pageErrors } from "./helpers"
+import { pageErrors, seriousAccessibilityProblems } from "./helpers"
 
 const RESUME = ["Mara Lin", "mara@example.com", "EDUCATION", "State University"]
 const pdf = (pages: string[][]) => ({ name: "Mara Lin.pdf", mimeType: "application/pdf", buffer: textPdf(pages) })
@@ -147,6 +147,35 @@ test("Cancel stops reading a file, and the next one opens as usual", async ({ pa
   await expect.poll(workers).toEqual(["import ended", "pdf.js running"])
   await review.getByRole("button", { name: "Cancel" }).click()
   await expect.poll(workers).toEqual(["import ended", "pdf.js ended"])
+  expect(errors).toEqual([])
+})
+
+test("a file read mostly wrong says so up front, and shows what couldn't be placed", async ({ page }) => {
+  const errors = pageErrors(page)
+  await page.goto("/create/dashboard")
+  const review = page.getByRole("dialog", { name: "Here's what we found" })
+
+  // Read right: nothing to warn about.
+  await page.locator('input[type="file"]').setInputFiles(pdf([RESUME]))
+  await expect(review).toContainText("State University")
+  await expect(review).not.toContainText("We couldn't place")
+  await review.getByRole("button", { name: "Cancel" }).click()
+
+  // No headings to sort it by, so almost all of it goes to "Couldn't place".
+  const lost = [
+    "Mara Lin",
+    "mara@example.com",
+    "Hospital Volunteer, Lakeview Medical Center, May 2025 to August 2025",
+    "Escorted outpatients to imaging appointments and answered their questions",
+    "Cleaned wheelchairs and kept the waiting areas tidy, following hospital rules",
+  ]
+  await page.locator('input[type="file"]').setInputFiles(pdf([lost]))
+  await expect(review).toContainText("We couldn't place most of this file.")
+  expect(await seriousAccessibilityProblems(page)).toEqual([])
+  // The dialog's buttons along its bottom aren't a second footer for the page.
+  await expect(page.getByRole("contentinfo")).toHaveCount(1)
+  await review.getByRole("button", { name: "Show what we couldn't place" }).click()
+  await expect(review.getByRole("region", { name: /^Couldn't place/ })).toBeFocused()
   expect(errors).toEqual([])
 })
 

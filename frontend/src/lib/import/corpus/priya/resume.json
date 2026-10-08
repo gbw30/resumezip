@@ -1,0 +1,79 @@
+{
+  "sectionOrder": ["Work", "Skills", "Education", "Awards", "Volunteership"],
+  "headings": { "work": "Professional Experience", "awards": "Certifications" },
+  "summary": "Backend engineer with seven years of experience building payment and data platforms that handle billions of requests a month. I like turning slow, fragile systems into boring, reliable ones.",
+  "profileSection": {
+    "fullName": "Priya Nair",
+    "email": "priya.nair@example.com",
+    "phoneNumber": "(206) 555-0131",
+    "location": "Seattle, WA",
+    "linkedin": "linkedin.com/in/priyanair",
+    "profileGithub": "github.com/priyanair",
+    "personalWebsite": "priyanair.dev"
+  },
+  "workExperienceSection": [
+    {
+      "workRole": "Senior Software Engineer",
+      "companyName": "Stripe",
+      "workLocation": "Seattle, WA",
+      "workStartDate": "Mar 2023",
+      "workEndDate": "Present",
+      "workDescription": "• Lead a team of 5 engineers that owns the ledger service recording every card payment, about 4 billion entries a month\n• Moved the ledger from a single PostgreSQL cluster to a sharded design with no downtime, cutting p99 write latency from 180 ms to 35 ms\n• Wrote the team’s on-call guide and cut pages per week from 14 to 3 by fixing the five noisiest alerts at their source"
+    },
+    {
+      "workRole": "Software Engineer II",
+      "companyName": "Zillow",
+      "workLocation": "Seattle, WA",
+      "workStartDate": "Jun 2020",
+      "workEndDate": "Feb 2023",
+      "workDescription": "• Built the Kafka pipeline that feeds new listings into search within 90 seconds of an agent publishing them, down from 20 minutes\n• Replaced a nightly batch job with incremental updates in Go, saving $40,000 a month in compute\n• Mentored 3 new graduates through their first year on the team"
+    },
+    {
+      "workRole": "Software Engineer",
+      "companyName": "Expedia Group",
+      "workLocation": "Bellevue, WA",
+      "workStartDate": "Jul 2018",
+      "workEndDate": "May 2020",
+      "workDescription": "• Added price caching to the hotel search API in Java, raising its cache hit rate from 40% to 85%\n• Wrote contract tests between search and booking that caught 12 breaking changes before release"
+    },
+    {
+      "workRole": "Software Engineering Intern",
+      "companyName": "Intuit",
+      "workLocation": "Mountain View, CA",
+      "workStartDate": "Jun 2017",
+      "workEndDate": "Sep 2017",
+      "workDescription": "• Built an internal tool that flags tax form fields left out of new releases, used by 30 QA engineers"
+    }
+  ],
+  "skillsSection": [
+    { "skillName": "Languages", "skillDetails": "Go, Java, Python, SQL, TypeScript" },
+    { "skillName": "Infrastructure", "skillDetails": "Kubernetes, Terraform, AWS, Kafka, PostgreSQL, Redis" },
+    { "skillName": "Practices", "skillDetails": "System design, incident response, load testing, code review" }
+  ],
+  "educationSection": [
+    {
+      "schoolName": "University of Washington",
+      "schoolLocation": "Seattle, WA",
+      "degree": "B.S. in Computer Engineering",
+      "gpa": "3.7/4.0",
+      "schoolStartDate": "Sep 2014",
+      "schoolEndDate": "Jun 2018",
+      "coursework": "",
+      "involvement": ""
+    }
+  ],
+  "awardsSection": [
+    { "awardName": "AWS Certified Solutions Architect – Professional", "awardOrg": "Amazon Web Services", "awardDate": "Jan 2024" },
+    { "awardName": "Certified Kubernetes Administrator", "awardOrg": "Cloud Native Computing Foundation", "awardDate": "Aug 2022" }
+  ],
+  "volunteerExperienceSection": [
+    {
+      "volunteerRole": "Mentor",
+      "volunteerOrg": "Ada Developers Academy",
+      "volunteerLocation": "Seattle, WA",
+      "volunteerStartDate": "Jan 2021",
+      "volunteerEndDate": "Present",
+      "volunteerDescription": "• Meet weekly with a student in the full-stack program to review code and practice interviews"
+    }
+  ]
+}

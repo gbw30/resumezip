@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react"
 import type { PDFDocumentProxy } from "pdfjs-dist"
-import { ArrowLeftRight, Check, Copy } from "lucide-react"
+import { ArrowLeftRight, Check, CircleAlert, Copy } from "lucide-react"
 import { SECTIONS, type SectionName } from "@/components/editor/sections"
 import type { Line, PageSize } from "@/lib/import/lines"
 import type { OpenedFile } from "@/lib/import/open"
-import { entryKey, toResumeContent, type FoundEntry, type ParsedResume } from "@/lib/import/parse"
+import { entryKey, MUCH_UNPLACED, toResumeContent, unplacedShare, type FoundEntry, type ParsedResume } from "@/lib/import/parse"
 import type { ResumeContent } from "@/lib/resumeFile"
 import Modal from "./Modal"
 
@@ -87,12 +87,17 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
   const [swapped, setSwapped] = useState<Set<string>>(new Set())
   const [highlight, setHighlight] = useState<number[]>([])
   const [copied, setCopied] = useState(false)
+  const unplacedRef = useRef<HTMLElement>(null)
 
   const parsed = withSwaps(file.parsed, swapped)
   const { profile } = parsed
   const contact = [profile.location, profile.email, profile.phoneNumber, profile.linkedin, profile.profileGithub, profile.personalWebsite].filter(Boolean)
   const leftovers = parsed.unplaced.reduce((sum, group) => sum + group.text.length, 0)
   const foundNothing = !profile.fullName && parsed.sections.length === 0
+  // Most of a file that wasn't placed was likely read wrong, so it's said up
+  // front instead of left at the bottom, where it's easy to miss.
+  const share = unplacedShare(parsed)
+  const muchUnplaced = !foundNothing && share >= MUCH_UNPLACED
 
   const toggle = (set: Set<string>, key: string) => {
     const next = new Set(set)
@@ -106,6 +111,12 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
     onFocus: () => setHighlight(lines),
     onBlur: () => setHighlight([]),
   })
+
+  const showUnplaced = () => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    unplacedRef.current?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" })
+    unplacedRef.current?.focus({ preventScroll: true })
+  }
 
   const copyLeftovers = async () => {
     const text = parsed.unplaced.map((group) => [group.heading, ...group.text].join("\n")).join("\n\n")
@@ -121,7 +132,12 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
   return (
     <Modal title="Here's what we found" onClose={onCancel} wide>
       <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-        <section aria-label="Your file" className="hidden min-h-0 overflow-y-auto border-r border-rule bg-desk lg:block">
+        {/* Focusable, so the file can be scrolled from the keyboard. */}
+        <section
+          aria-label="Your file"
+          tabIndex={0}
+          className="hidden min-h-0 overflow-y-auto border-r border-rule bg-desk focus-visible:outline-offset-[-2px] lg:block"
+        >
           {file.pdf ? (
             <PdfPages doc={file.pdf.doc} pages={file.pdf.pages} lines={file.lines} highlight={highlight} />
           ) : (
@@ -140,6 +156,22 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                 ? "We couldn't make out much in this file. You can still start from it and fill in the rest."
                 : "Untick anything that's wrong. You can change everything in the editor."}
             </p>
+
+            {muchUnplaced && (
+              <div className="mt-5 flex max-w-md gap-3 rounded-[4px] border border-rule bg-sheet px-4 py-3">
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#b42318]" aria-hidden="true" />
+                <div className="min-w-0 text-sm leading-relaxed">
+                  <p className="font-medium text-ink">We couldn&apos;t place {share >= 0.5 ? "most" : "a lot"} of this file.</p>
+                  <p className="mt-1 text-ink-2">
+                    Its layout may be one we don&apos;t read well yet. Nothing&apos;s lost: it&apos;s all under Couldn&apos;t place, to copy into
+                    the editor.
+                  </p>
+                  <button type="button" onClick={showUnplaced} className="mt-2 font-medium text-accent underline-offset-2 hover:underline">
+                    Show what we couldn&apos;t place
+                  </button>
+                </div>
+              </div>
+            )}
 
             <section className="mt-7 border-t border-ink pt-4" {...point(parsed.profileLines)}>
               <span className="label-mono text-ink-2">Profile</span>
@@ -204,9 +236,11 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
             })}
 
             {leftovers > 0 && (
-              <section className="mt-8">
+              <section ref={unplacedRef} tabIndex={-1} aria-labelledby="couldnt-place" className="mt-8 scroll-mt-4 outline-none">
                 <div className="flex items-baseline justify-between gap-4 border-b border-ink pb-2">
-                  <h3 className="label-mono text-ink-2">Couldn&apos;t place · {plural(leftovers, "line")}</h3>
+                  <h3 id="couldnt-place" className="label-mono text-ink-2">
+                    Couldn&apos;t place · {plural(leftovers, "line")}
+                  </h3>
                   <button
                     type="button"
                     onClick={copyLeftovers}
@@ -233,7 +267,8 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
             )}
           </div>
 
-          <footer className="flex items-center justify-end gap-2 border-t border-rule px-6 py-4 sm:px-8">
+          {/* Not a <footer>: inside a dialog, that would be a second footer for the whole page. */}
+          <div className="flex items-center justify-end gap-2 border-t border-rule px-6 py-4 sm:px-8">
             <button type="button" onClick={onCancel} className="h-10 px-4 text-sm text-ink-2 hover:text-ink">
               Cancel
             </button>
@@ -244,7 +279,7 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
             >
               Create resume
             </button>
-          </footer>
+          </div>
         </div>
       </div>
     </Modal>
