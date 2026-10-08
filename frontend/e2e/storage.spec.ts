@@ -281,6 +281,25 @@ test("two tabs editing different resumes at once keep both edits", async ({ page
   expect(otherErrors).toEqual([])
 })
 
+test("an open dialog keeps focus where it is when another tab saves", async ({ page, context }) => {
+  const errors = pageErrors(page)
+  await page.goto("/create/dashboard")
+  await page.getByRole("button", { name: "New resume" }).click()
+  const dialog = page.getByRole("dialog", { name: "New resume" })
+  await expect(dialog.getByLabel("Name", { exact: true })).toBeFocused()
+  const create = dialog.getByRole("button", { name: "Create" })
+  await create.focus()
+
+  // Another tab saves a resume, so the dashboard behind the dialog shows it.
+  const other = await context.newPage()
+  await startWriting(other)
+  await other.getByLabel("Full name").fill("Grace Hopper")
+  await expect(page.getByText(/^1 resume\W+stored in this browser$/i)).toBeVisible()
+
+  await expect(create).toBeFocused()
+  expect(errors).toEqual([])
+})
+
 test("the browser is asked to keep saved resumes once there is one, and only once a page", async ({ page }) => {
   const errors = pageErrors(page)
   // Counts the requests instead of asking the real browser, and the

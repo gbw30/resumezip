@@ -14,16 +14,21 @@ interface ModalProps {
 /** A centred dialog that closes on Escape or a click outside it. */
 export default function Modal({ title, onClose, wide = false, children }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  // Callers pass a new onClose on every render. Reading the latest one from a
+  // ref keeps the effect below to the dialog opening, so a parent re-render
+  // (as when another tab saves) doesn't pull focus back to the first control.
+  const close = useRef(onClose)
+  close.current = onClose
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
+      if (event.key === "Escape") close.current()
     }
     document.addEventListener("keydown", onKeyDown)
     // Start keyboard users inside the dialog.
     panelRef.current?.querySelector<HTMLElement>("input, button")?.focus()
     return () => document.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
+  }, [])
 
   return (
     <div
