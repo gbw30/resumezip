@@ -25,16 +25,25 @@ export default function Modal({ title, onClose, wide = false, children }: ModalP
       if (event.key === "Escape") close.current()
     }
     document.addEventListener("keydown", onKeyDown)
-    // Start keyboard users inside the dialog.
+    // Start keyboard users inside the dialog, and put them back where they were once it closes.
+    const opener = document.activeElement
     panelRef.current?.querySelector<HTMLElement>("input, button")?.focus()
-    return () => document.removeEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("keydown", onKeyDown)
+      if (opener instanceof HTMLElement) opener.focus()
+    }
   }, [])
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
+        if (event.target !== event.currentTarget) return
+        // The browser's own handling of the press would then move focus to the
+        // page, undoing where the dialog's effects just put it: back on the
+        // opener, or into a dialog that opens instead.
+        event.preventDefault()
+        onClose()
       }}
     >
       <div

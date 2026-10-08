@@ -90,8 +90,8 @@ test("Start writing on the dashboard opens the New resume dialog", async ({ page
   await page.keyboard.press("Escape")
   await expect(dialog).toBeHidden()
 
-  // The same from the phone's menu, which shuts as the dialog opens. It starts
-  // a resume as the dashboard's own New resume does.
+  // The same from the phone's menu, which shuts as the dialog opens, and gets
+  // the focus back once it closes. It starts a resume as the dashboard's own New resume does.
   await page.setViewportSize({ width: 390, height: 844 })
   const menuButton = page.getByRole("button", { name: "Open menu" })
   await menuButton.press("Enter")
@@ -100,10 +100,36 @@ test("Start writing on the dashboard opens the New resume dialog", async ({ page
   await expect(page.getByRole("navigation", { name: "Main" })).toBeHidden()
   await page.keyboard.press("Escape")
   await expect(dialog).toBeHidden()
+  await expect(menuButton).toBeFocused()
   await menuButton.press("Enter")
   await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Start writing" }).press("Enter")
   await dialog.getByLabel("Name").fill("From the header")
   await dialog.getByRole("button", { name: "Create" }).click()
   await expect(page).toHaveURL(/\/create\/new\//)
+  expect(errors).toEqual([])
+})
+
+test("closing a dialog puts focus back on what opened it, however it's closed", async ({ page }) => {
+  const errors = pageErrors(page)
+  await dashboardWith(page, [resume("a", "Short one")])
+  const newResume = page.getByRole("main").getByRole("button", { name: "New resume" })
+  const dialog = page.getByRole("dialog", { name: "New resume" })
+
+  await newResume.press("Enter")
+  await expect(dialog.getByLabel("Name")).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(dialog).toBeHidden()
+  await expect(newResume).toBeFocused()
+
+  await newResume.press("Enter")
+  await dialog.getByRole("button", { name: "Cancel" }).click()
+  await expect(dialog).toBeHidden()
+  await expect(newResume).toBeFocused()
+
+  // A click outside it too, where the browser would otherwise move focus to the page.
+  await newResume.press("Enter")
+  await page.mouse.click(4, 4)
+  await expect(dialog).toBeHidden()
+  await expect(newResume).toBeFocused()
   expect(errors).toEqual([])
 })
