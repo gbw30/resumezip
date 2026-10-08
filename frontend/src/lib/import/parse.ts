@@ -347,9 +347,16 @@ function continues(line: ParseLine, item: Item, wasBullet: boolean, above: Parse
   return Math.abs(line.x - item.x) <= 3 && (!/[.!?]$/.test(item.text) || /^[a-z]/.test(line.text) || afterFull)
 }
 
-/** A wrapped line joined onto the one above: a word a soft hyphen broke in two joins back up. */
+/**
+ * A wrapped line joined onto the one above: a word a soft hyphen broke in two
+ * joins back up, and so does a link or "and/or" that broke after a slash.
+ */
 const joinWrapped = (text: string, next: string) =>
-  text.endsWith(SOFT_HYPHEN) ? text.slice(0, -1) + next : /\w-$/.test(text) && /^[a-z]/.test(next) ? text + next : `${text} ${next}`
+  text.endsWith(SOFT_HYPHEN)
+    ? text.slice(0, -1) + next
+    : (/\w-$/.test(text) && /^[a-z]/.test(next)) || /\w\/$/.test(text)
+      ? text + next
+      : `${text} ${next}`
 
 /** Adds text in a style, merged into the piece before when the style is the same. */
 function addPiece(pieces: Piece[], text: string, bold: boolean, italic: boolean) {

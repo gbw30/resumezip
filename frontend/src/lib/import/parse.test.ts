@@ -360,3 +360,14 @@ describe("citations under sub-headings", () => {
     expect(unplaced).toEqual(["Conference", "Thesis"])
   })
 })
+
+describe("a link that wrapped after a slash", () => {
+  test("joins back up without a space", () => {
+    const { resume } = read("Publications", [
+      line([["[1] W. Zhang, “Sparse Experts for Retrieval,” ICLR, Vienna, 2026, doi: 10.13031/", 127]]),
+      line([["aim.202600531.", 147]]),
+      line([["[2] W. Zhang, “Reading Long Documents,” Ph.D. thesis, 2027.", 127]]),
+    ])
+    expect(resume.publicationsSection[0].publicationLink).toBe("doi.org/10.13031/aim.202600531")
+  })
+})
