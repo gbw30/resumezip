@@ -51,11 +51,16 @@ test("the left bar switches between writing and checking, and remembers which", 
 
   // The mode stays after a reload, until it's switched back. Each reload
   // waits for the preview, so the PDF compiler's download isn't cut off,
-  // which Safari logs as an error.
+  // which Safari logs as an error, and in Check for the score, so the
+  // checker's reader isn't either.
   const preview = page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()
+  const score = page.getByRole("tabpanel", { name: /^Check/ }).getByRole("region", { name: "Resume score" }).locator("[aria-live=polite]")
+  const checked = () => expect(score).toContainText(/^\d+\s*\/ 100\s*out of 100$/)
   await expect(preview).toBeVisible()
+  await checked()
   await page.reload()
   await expect(check).toHaveAttribute("aria-selected", "true")
+  await checked()
   await write.click()
   await expect(preview).toBeVisible()
   await page.reload()
@@ -64,6 +69,7 @@ test("the left bar switches between writing and checking, and remembers which", 
 
   // It's remembered for the visit, not for good: a new tab opens on Write.
   await check.click()
+  await checked()
   const later = await page.context().newPage()
   await later.goto(page.url())
   await expect(later.getByRole("tab", { name: "Write" })).toHaveAttribute("aria-selected", "true")
@@ -77,6 +83,7 @@ test("the left bar switches between writing and checking, and remembers which", 
   await page.getByRole("link", { name: "Open", exact: true }).click()
   await expect(check).toHaveAttribute("aria-selected", "true")
   await expect(preview).toBeVisible()
+  await checked()
   await page.getByRole("link", { name: "Your resumes" }).click()
   await page.getByRole("button", { name: "New resume" }).click()
   await page.getByRole("dialog").getByRole("button", { name: "Create" }).click()
@@ -87,7 +94,7 @@ test("the left bar switches between writing and checking, and remembers which", 
   expect(errors).toEqual([])
 })
 
-test("the checker asks for a name and an entry first, then scores the resume and lists its checks by category", async ({ page }) => {
+test("the checker asks for a name and an entry first, then scores the resume and lists what to fix by category", async ({ page }) => {
   const errors = pageErrors(page)
   await newResume(page)
   const write = page.getByRole("tab", { name: "Write" })
@@ -112,25 +119,29 @@ test("the checker asks for a name and an entry first, then scores the resume and
   // Screen readers are told the score as it changes.
   await expect(score.locator("[aria-live=polite]")).toContainText(/^\d+\s*\/ 100\s*out of 100$/)
 
-  // A category with nothing to fix is folded, says how many checks passed,
-  // and opens from the keyboard to list them, with what the templates guarantee.
-  const readable = panel.getByRole("button", { name: /^Readable by hiring software, \d+ of \d+ passed$/ })
-  await expect(readable).toHaveAttribute("aria-expanded", "false")
-  const guaranteed = panel.getByText("Real text that can be selected and copied")
-  await expect(guaranteed).toBeHidden()
-  await readable.focus()
+  // A category with something to fix is open, lists it, and folds from the
+  // keyboard. What passed isn't listed.
+  const contact = panel.getByRole("button", { name: /^Contact & personal details, 1 to fix/ })
+  await expect(contact).toHaveAttribute("aria-expanded", "true")
+  const email = panel.getByRole("button", { name: /Add your email address/ })
+  await expect(email).toBeVisible()
+  await contact.focus()
   await page.keyboard.press("Enter")
-  await expect(readable).toHaveAttribute("aria-expanded", "true")
-  await expect(guaranteed).toBeVisible()
-  const passed = Number((await readable.textContent())!.match(/(\d+) of/)![1])
-  const checks = page.locator(`[id="${await readable.getAttribute("aria-controls")}"]`)
-  await expect(checks.getByRole("listitem")).toHaveCount(passed)
+  await expect(contact).toHaveAttribute("aria-expanded", "false")
+  await expect(email).toBeHidden()
   await page.keyboard.press("Space")
-  await expect(readable).toHaveAttribute("aria-expanded", "false")
-  await expect(guaranteed).toBeHidden()
+  await expect(contact).toHaveAttribute("aria-expanded", "true")
+  // Once everything's checked: not the checks it passed, in Contact or anywhere,
+  // nor a category with nothing to fix, nor what the templates guarantee.
+  await expect(panel.getByRole("status")).toBeHidden()
+  await expect(panel.getByText("No Social Security number")).toHaveCount(0)
+  await expect(panel.getByText(/^Passed/)).toHaveCount(0)
+  await expect(panel.getByRole("button", { name: /^Readable by hiring software/ })).toHaveCount(0)
+  await expect(panel.getByText("Real text that can be selected and copied")).toHaveCount(0)
 
-  // A line says what the score measures, and no more.
+  // A line says what the score measures, and that a must-fix holds it down.
   await expect(score).toContainText("How well this resume follows the checks below.")
+  await expect(score).toContainText("Fix what's under “To fix” to score above 89.")
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
 
   expect(errors).toEqual([])
@@ -292,6 +303,9 @@ test.describe("on a phone", () => {
     await page.getByRole("button", { name: "Edit", exact: true }).tap()
     await expect(check).toHaveAttribute("aria-selected", "true")
 
+    // Measure the final colors, after the Edit/Preview buttons finish their
+    // color transition. Safari can otherwise capture its intermediate frame.
+    await page.getByRole("group", { name: "View" }).evaluate((group) => Promise.all(group.getAnimations({ subtree: true }).map((animation) => animation.finished)))
     expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
     expect(errors).toEqual([])
   })

@@ -1,0 +1,72 @@
+{
+  "sectionOrder": ["Work", "Education", "Awards", "Skills", "Volunteership"],
+  "headings": { "work": "Clinical Experience", "awards": "Licenses & Certifications" },
+  "summary": "Registered nurse with four years on a busy medical-surgical floor and two in the emergency department.",
+  "profileSection": {
+    "fullName": "Sam Rivera",
+    "email": "sam.rivera@example.com",
+    "phoneNumber": "(512) 555-0119",
+    "location": "Austin, TX",
+    "linkedin": "linkedin.com/in/samrivera-rn",
+    "profileGithub": "",
+    "personalWebsite": ""
+  },
+  "workExperienceSection": [
+    {
+      "workRole": "Registered Nurse, Emergency Department",
+      "companyName": "St. David’s Medical Center",
+      "workLocation": "Austin, TX",
+      "workStartDate": "Jul 2024",
+      "workEndDate": "Present",
+      "workDescription": "• Care for 4 to 6 patients a shift in a 60-bed emergency department that sees 250 visits a day\n• Triage walk-in patients using the Emergency Severity Index and start sepsis protocols within the first hour\n• Precept 2 new graduate nurses a year through their 12-week orientation"
+    },
+    {
+      "workRole": "Registered Nurse, Medical-Surgical Unit",
+      "companyName": "Ascension Seton Medical Center",
+      "workLocation": "Austin, TX",
+      "workStartDate": "Jun 2020",
+      "workEndDate": "Jun 2024",
+      "workDescription": "• Cared for 5 patients a shift on a 32-bed unit, mostly after abdominal and orthopedic surgery\n• Led the unit’s falls committee, which cut patient falls by 40% in a year with hourly rounding\n• Served as charge nurse on night shift twice a week from 2022"
+    },
+    {
+      "workRole": "Patient Care Technician",
+      "companyName": "Dell Children’s Medical Center",
+      "workLocation": "Austin, TX",
+      "workStartDate": "May 2018",
+      "workEndDate": "May 2020",
+      "workDescription": "• Took vital signs, drew blood and helped with mobility for up to 10 patients a shift while in nursing school"
+    }
+  ],
+  "educationSection": [
+    {
+      "schoolName": "The University of Texas at Austin",
+      "schoolLocation": "Austin, TX",
+      "degree": "Bachelor of Science in Nursing",
+      "gpa": "3.7/4.0",
+      "schoolStartDate": "Aug 2016",
+      "schoolEndDate": "May 2020",
+      "coursework": "",
+      "involvement": ""
+    }
+  ],
+  "awardsSection": [
+    { "awardName": "Registered Nurse License, Texas", "awardOrg": "Texas Board of Nursing", "awardDate": "Jun 2020" },
+    { "awardName": "Certified Emergency Nurse (CEN)", "awardOrg": "Board of Certification for Emergency Nursing", "awardDate": "Mar 2025" },
+    { "awardName": "Advanced Cardiovascular Life Support (ACLS)", "awardOrg": "American Heart Association", "awardDate": "Jan 2026" }
+  ],
+  "skillsSection": [
+    { "skillName": "Clinical", "skillDetails": "Triage, IV insertion, sepsis protocols, wound care, telemetry monitoring" },
+    { "skillName": "Systems", "skillDetails": "Epic, Pyxis, Cerner" },
+    { "skillName": "Languages", "skillDetails": "English, Spanish (fluent)" }
+  ],
+  "volunteerExperienceSection": [
+    {
+      "volunteerRole": "Volunteer Nurse",
+      "volunteerOrg": "People’s Community Clinic",
+      "volunteerLocation": "Austin, TX",
+      "volunteerStartDate": "Jan 2022",
+      "volunteerEndDate": "Present",
+      "volunteerDescription": "• Staff a free Saturday clinic once a month, giving vaccines and checking blood pressure for uninsured patients"
+    }
+  ]
+}

@@ -13,6 +13,9 @@ const third = "33333333-3333-4333-8333-333333333333"
 test.each(samples.map((sample) => [sample.selectedTemplate as string, sample]))("%s verifies actual new-section text without assigning it to builtin semantic sections", async (_template, sample) => {
   const resume = {
     ...sample,
+    // Upstream shares builtin defaults across templates. Exercise those actual
+    // headings as occurrence anchors rather than the samples' custom headings.
+    headings: {},
     extraSections: {
       summary: { kind: "summary", heading: "Summary", text: "Curious engineer who builds reliable software.\n\nEnjoys **literal** prose." },
       [first]: { kind: "text", heading: "Experience", text: "Personal interests outside professional work." },

@@ -57,11 +57,11 @@ test("when the browser won't let the site save anything, it still works and says
   await startWriting(page)
   await expect(notSaved(page)).toContainText("isn't letting resumezip save anything")
 
-  // Editing and downloading still work, so a PDF can keep a copy.
+  // Editing and downloading still work, so a PDF can keep a copy: the warning has a button for it.
   await page.getByLabel("Full name").fill("Ada Lovelace")
   await expect(page.getByRole("region", { name: "Live preview" }).getByText(/Ada Lovelace/i).first()).toBeVisible()
   const downloading = page.waitForEvent("download")
-  await page.getByRole("button", { name: "Download PDF" }).click()
+  await notSaved(page).getByRole("button", { name: "Download PDF" }).click()
   expect((await downloading).suggestedFilename()).toMatch(/\.pdf$/)
   // The preview is left out. With the warning above it, the page no longer
   // fits, and its scroll area can't be reached by keyboard unless the resume
@@ -94,11 +94,25 @@ test("when storage is full, the editor says the changes aren't saved until they 
   await expect(saved).toHaveCount(1)
   await expect(notSaved(page)).toHaveCount(0)
 
+  // Closing the tab straight after a change that can't be saved asks first,
+  // even before that change was due to be saved. (Browsers only let a page
+  // ask once someone has clicked in it.)
   await page.evaluate(() => (window.storageFull = true))
+  await name.click()
   await name.fill("Ada Lovelace")
+  const asking = page.waitForEvent("dialog")
+  await page.close({ runBeforeUnload: true })
+  const dialog = await asking
+  expect(dialog.type()).toBe("beforeunload")
+  await dialog.dismiss()
   await expect(notSaved(page)).toContainText("storage for resumezip is full")
   await expect(saved).toHaveCount(0)
   await expect(name).toHaveValue("Ada Lovelace")
+
+  // The warning's button keeps a copy as a PDF.
+  const downloading = page.waitForEvent("download")
+  await notSaved(page).getByRole("button", { name: "Download PDF" }).click()
+  expect((await downloading).suggestedFilename()).toMatch(/\.pdf$/)
 
   // Once there's room, the next change is saved and the warning goes.
   await page.evaluate(() => (window.storageFull = false))
@@ -106,8 +120,16 @@ test("when storage is full, the editor says the changes aren't saved until they 
   await expect(notSaved(page)).toHaveCount(0)
   await expect(saved).toHaveCount(1)
   await expect(previewShows(page.getByRole("region", { name: "Live preview" }), /Ada King/i)).toBeVisible()
+
+  // Leaving doesn't ask any more: the reload goes ahead without a question.
+  const asked: string[] = []
+  page.on("dialog", (dialog) => {
+    asked.push(dialog.type())
+    void dialog.accept()
+  })
   await page.reload()
   await expect(page.getByLabel("Full name")).toHaveValue("Ada King")
+  expect(asked).toEqual([])
 
   expect(errors).toEqual([])
 })

@@ -8,7 +8,7 @@ import type { ParsedResume } from "@/lib/import/parse"
 import { findingKey, placeExists, textAt, type Place } from "./places"
 import { viewOf, type ResumeView } from "./resume"
 import { RULES } from "./rules"
-import { AUTOMATIC_PASSES, CATEGORIES, type CategoryId, type Level } from "./settings"
+import { CATEGORIES, type CategoryId, type Level } from "./settings"
 import { readCheckState } from "./state"
 import type { ExtraPdfReading } from "./extraPdf"
 
@@ -91,7 +91,7 @@ interface RuleInfo {
   id: string
   category: CategoryId
   level: Level
-  /** What it checks, for the list of passed checks: "Your email address". */
+  /** What it checks, in a few words: "Your email address". */
   title: string
   /** Why it matters, in one line, shown with what it finds. */
   why: string
@@ -153,8 +153,6 @@ export interface Report {
   dismissed: Finding[]
   /** How each rule did, in the order the rules were given. */
   results: RuleResult[]
-  /** What the templates guarantee, always passed, with the category each is about. */
-  automatic: typeof AUTOMATIC_PASSES
   /** The resume as the rules read it; the findings' places are on it. */
   view: ResumeView
 }
@@ -193,7 +191,6 @@ export function runChecks(resume: Record<string, any>, { rules = RULES, pdf, gra
     findings: findings.filter((finding) => !finding.dismissed),
     dismissed: findings.filter((finding) => finding.dismissed),
     results,
-    automatic: AUTOMATIC_PASSES,
     view,
   }
 }

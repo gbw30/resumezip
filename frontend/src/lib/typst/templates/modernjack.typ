@@ -113,7 +113,7 @@
       subheading(v.organization, date-range(v.start, v.end), v.role, v.location, items: v.bullets)
     })))
   } else if name == "Awards" and data.awards.len() > 0 {
-    section(heading-or(hd.awards, "Awards/Certifications"), entries(gap: 7pt, data.awards.map(a => {
+    section(heading-or(hd.awards, "Awards & Certifications"), entries(gap: 7pt, data.awards.map(a => {
       row(
         {
           strong(a.name)

@@ -36,6 +36,16 @@ describe("flexible section import review", () => {
     expect(second.sectionOrder.slice(0, 2)).toEqual(["Work", "extra:summary"])
   })
 
+  test("page-number removal retains original heading and body provenance", () => {
+    const rows = [line("Mara Lin"), line("Summary", true), line("First paragraph."), line("1"), line("Summary", true), line("Second paragraph."), line("2")]
+      .map((row, index) => ({ ...row, page: index < 4 ? 1 : 2 }))
+    const parsed = parseResume(rows)
+    expect(parsed.lines.map((row) => row.text)).not.toContain("1")
+    expect(parsed.lines.map((row) => row.text)).not.toContain("2")
+    expect(parsed.extraGroups?.map((group) => group.sourceLines)).toEqual([[1, 2], [4, 5]])
+    expect(toResumeContent(parsed).extraSections.summary.text).toBe("First paragraph.\n\nSecond paragraph.")
+  })
+
   test("summary prose keeps a literal circle and bullet summaries remain reviewable", () => {
     const prose = parse("Mara Lin", ["Summary", true], "○ This is literal prose.")
     expect(toResumeContent(prose).extraSections.summary.text).toBe("○ This is literal prose.")

@@ -44,6 +44,8 @@ export interface ResumeState {
   loaded: boolean
   /** Whether the latest changes are saved in this browser, and if not, why. */
   saveStatus: SaveStatus
+  /** Whether anything changed here isn't in storage yet: waiting to be saved, or because saving failed. */
+  unsaved: boolean
   /** When a change was last written to this browser's storage (as Date.now()); 0 before any is. */
   savedAt: number
   /** Saved data that couldn't be read, kept aside instead of being saved over. */
@@ -51,7 +53,7 @@ export interface ResumeState {
 }
 
 /** Before anything has been read, as when the page is rendered on the server. */
-export const INITIAL_STATE: ResumeState = { resumes: {}, loaded: false, saveStatus: "saved", savedAt: 0, unreadable: [] }
+export const INITIAL_STATE: ResumeState = { resumes: {}, loaded: false, saveStatus: "saved", unsaved: false, savedAt: 0, unreadable: [] }
 
 /** How long typing pauses before the changes are saved, in milliseconds. */
 export const SAVE_DELAY = 400
@@ -88,8 +90,9 @@ export function createResumeStore(delay = SAVE_DELAY) {
   const deleted = new Set<string>()
   let timer: ReturnType<typeof setTimeout> | undefined
 
+  // Every change to what's waiting to be saved is followed by a setState, which notes it.
   function setState(next: Partial<ResumeState>) {
-    state = { ...state, ...next }
+    state = { ...state, ...next, unsaved: pending.size > 0 || deleted.size > 0 }
     for (const listener of listeners) listener()
   }
 

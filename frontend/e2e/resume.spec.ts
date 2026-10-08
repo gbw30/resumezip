@@ -13,6 +13,17 @@ test("a new visitor writes a resume, sees it, downloads it and opens it again", 
   // The preview shows what's typed. Jake's prints the name in small caps.
   await page.getByLabel("Full name").fill("Ada Lovelace")
   await page.getByLabel("Email").fill("ada@example.com")
+  // The browser can fill in the name, email and phone. Web addresses get a
+  // phone's keyboard for them, and no spelling marks or capital first letter.
+  await expect(page.getByLabel("Full name")).toHaveAttribute("autocomplete", "name")
+  await expect(page.getByLabel("Email")).toHaveAttribute("autocomplete", "email")
+  await expect(page.getByLabel("Phone")).toHaveAttribute("autocomplete", "tel")
+  for (const label of ["LinkedIn", "GitHub", "Website"]) {
+    const field = page.getByLabel(label, { exact: true })
+    await expect(field).toHaveAttribute("inputmode", "url")
+    await expect(field).toHaveAttribute("spellcheck", "false")
+    await expect(field).toHaveAttribute("autocapitalize", "off")
+  }
   const preview = page.getByRole("region", { name: "Live preview" })
   await expect(preview.getByText(/Ada Lovelace/i).first()).toBeVisible()
   await expect(preview.getByText("ada@example.com").first()).toBeVisible()

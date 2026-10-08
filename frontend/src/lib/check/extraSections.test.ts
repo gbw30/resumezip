@@ -121,7 +121,7 @@ describe("actual extra PDF occurrences", () => {
     expect(result.excludedLines).toEqual([])
   })
 
-  test("template-specific builtin defaults bound the preceding custom section", () => {
+  test("shared builtin defaults bound the preceding custom section", () => {
     for (const selectedTemplate of ["jake", "referme", "ian"]) {
       const source = { selectedTemplate, extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction" } }, leadershipExperienceSection: [{ leadershipRole: "President", leadershipOrg: "Student Council" }], sectionOrder: [`extra:${first}`, "Leadership"] }
       const result = matchExtraPdf([line("Interests"), line("Reading fiction"), line("Leadership Experience"), line("Student Council"), line("President")], pdfLayoutOf(viewOf(source)))

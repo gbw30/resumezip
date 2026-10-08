@@ -53,6 +53,7 @@ test("optional section lifecycle, duplicate headings, keyboard movement and v2 P
   await page.getByLabel("Credential name", { exact: true }).fill("PRIVATE_CREDENTIAL")
   await page.getByRole("checkbox", { name: "Include credential 2 in the PDF", exact: true }).uncheck()
   await expect.poll(async () => (await saved(page)).extraSections?.certifications?.entries?.length).toBe(2)
+  await nav(page).getByRole("button", { name: /^\d+ Summary$/ }).click()
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
   await page.screenshot({ path: info.outputPath("flexible-editor.png"), fullPage: true })
   const downloading = page.waitForEvent("download")

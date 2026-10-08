@@ -88,7 +88,12 @@ Scanned PDFs have no text and can't be read.
 
 ## Testing changes
 
-The parser was checked field by field against resumes rendered from known data:
-every resumezip template, browser-printed PDFs in several common styles, and Word
-files. Layouts it hadn't seen scored lower than ones it was tuned on, so test a
-change against a few real resumes before relying on it.
+`npm test` checks the parser field by field against resumes made from known
+data: every resumezip template (`roundtrip.test.ts`), and a test set of made-up
+people printed the way people really make resumes, with LaTeX, a word processor
+and browser-based builders (`corpus.test.ts`, see
+[`corpus/README.md`](corpus/README.md)). Each lists the fields it doesn't read
+right yet, and fails when a change reads any field worse, or better, so a fix
+for one layout can't quietly break another. Layouts it hasn't seen still read
+worse than ones it was tuned on: when a real resume reads wrong, add a made-up
+one shaped like it to the test set before fixing the parser.

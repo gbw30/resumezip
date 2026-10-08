@@ -7,7 +7,7 @@
 
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import { isLeftOut, isLeftOutLine } from "@/lib/leftOut"
-import { plainText, templateIdOf } from "@/lib/typst/resumeData"
+import { plainText } from "@/lib/typst/resumeData"
 import { CERTIFICATION_FIELDS, credentialIncluded, extraHasBody, extraHeading, extraKey, extrasOf, resolveSections, sectionIncluded, type ExtraSection, type SectionRef } from "@/lib/resumeSections"
 import type { Place } from "./places"
 
@@ -57,7 +57,7 @@ export interface ResumeView {
   sections: Record<SectionName, Entry[]>
   /** Each section's own title if the person renamed it, or "" for the template's. */
   headings: Record<SectionName, string>
-  /** Actual template defaults, used only for physical PDF occurrence anchors. */
+  /** Shared editor/template defaults, used only for physical PDF occurrence anchors. */
   printedHeadings: Record<SectionName, string>
   /** The sections in the order they're printed. */
   order: SectionName[]
@@ -128,14 +128,12 @@ export function viewOf(resume: Record<string, any>): ResumeView {
     const section = saved.kind === "certifications" ? { ...saved, entries: saved.entries.filter(credentialIncluded) } : saved.kind === "list" ? { ...saved, bullets: linesOf(saved.bullets).join("\n") } : saved
     return [id, { id, heading: extraHeading(section), section, bullets: saved.kind === "list" ? bulletsOf("bullets", saved.bullets) : [], blank: !extraHasBody(section) }]
   }))
-  const template = templateIdOf(resume.selectedTemplate)
-  const defaults = { ...Object.fromEntries(SECTION_NAMES.map((name) => [name, SECTIONS[name].title])), Leadership: "Leadership Experience", Volunteership: "Volunteer Experience", Awards: template === "referme" ? "Certifications & Awards" : template === "jake" || template === "modernjack" ? "Awards/Certifications" : "Awards & Certifications" } as Record<SectionName, string>
   return {
     type: resumeTypeOf(resume),
     profile: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, text(profile[field.key])])),
     sections,
     headings: titles,
-    printedHeadings: Object.fromEntries(SECTION_NAMES.map((name) => [name, titles[name] || defaults[name]])) as Record<SectionName, string>,
+    printedHeadings: Object.fromEntries(SECTION_NAMES.map((name) => [name, titles[name] || SECTIONS[name].title])) as Record<SectionName, string>,
     order: allOrder.filter((ref): ref is SectionName => extraKey(ref) === null),
     allOrder,
     extras,

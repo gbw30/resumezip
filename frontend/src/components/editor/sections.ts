@@ -24,7 +24,11 @@ export interface ChoiceDef {
 
 export interface SectionDef {
   name: SectionName
-  /** Shown in the editor; the resume uses the user's heading or the template's default. */
+  /**
+   * Shown in the editor, and printed as the section's heading unless the user
+   * writes their own: every template's default heading is this one, so the
+   * editor and the PDF never disagree (typst/headings.test.ts checks).
+   */
   title: string
   dataKey: string
   headingKey: string
@@ -37,20 +41,24 @@ export interface SectionDef {
   fromPaperLink?: boolean
 }
 
+/** A profile field: also how the browser can fill it in, and whether it's a web address. */
+type ProfileFieldDef = FieldDef & { inputType?: string; autoComplete?: string; web?: true }
+
 /** The profile's fields, stored on the resume under `profileSection`. */
-export const PROFILE_FIELDS: (FieldDef & { inputType?: string })[] = [
-  { key: "fullName", label: "Full name", placeholder: "Jake Ryan", size: "full" },
-  { key: "email", label: "Email", placeholder: "jake@example.com", size: "md", inputType: "email" },
-  { key: "phoneNumber", label: "Phone", placeholder: "123-456-7890", size: "md", inputType: "tel" },
+export const PROFILE_FIELDS: ProfileFieldDef[] = [
+  { key: "fullName", label: "Full name", placeholder: "Jake Ryan", size: "full", autoComplete: "name" },
+  { key: "email", label: "Email", placeholder: "jake@example.com", size: "md", inputType: "email", autoComplete: "email" },
+  { key: "phoneNumber", label: "Phone", placeholder: "123-456-7890", size: "md", inputType: "tel", autoComplete: "tel" },
   { key: "location", label: "Location", placeholder: "Austin, TX", size: "md" },
-  { key: "linkedin", label: "LinkedIn", placeholder: "linkedin.com/in/jake", size: "md" },
-  { key: "profileGithub", label: "GitHub", placeholder: "github.com/jake", size: "md" },
-  { key: "personalWebsite", label: "Website", placeholder: "jake.dev", size: "md" },
+  { key: "linkedin", label: "LinkedIn", placeholder: "linkedin.com/in/jake", size: "md", web: true },
+  { key: "profileGithub", label: "GitHub", placeholder: "github.com/jake", size: "md", web: true },
+  { key: "personalWebsite", label: "Website", placeholder: "jake.dev", size: "md", web: true },
 ]
 
+// The end's placeholder is a date: "Present" there read as what a blank end means, and a blank one prints nothing.
 const dates = (prefix: string): FieldDef[] => [
   { key: `${prefix}StartDate`, label: "Start", placeholder: "Jan 2024", size: "sm" },
-  { key: `${prefix}EndDate`, label: "End", placeholder: "Present", size: "sm" },
+  { key: `${prefix}EndDate`, label: "End", placeholder: "Dec 2025", size: "sm" },
 ]
 
 const bullets = (key: string): FieldDef => ({
@@ -150,7 +158,7 @@ export const SECTIONS: Record<SectionName, SectionDef> = {
   },
   Volunteership: {
     name: "Volunteership",
-    title: "Volunteering",
+    title: "Volunteer Experience",
     dataKey: "volunteerExperienceSection",
     headingKey: "volunteer",
     addLabel: "Add volunteering",
@@ -165,7 +173,7 @@ export const SECTIONS: Record<SectionName, SectionDef> = {
   },
   Leadership: {
     name: "Leadership",
-    title: "Leadership",
+    title: "Leadership Experience",
     dataKey: "leadershipExperienceSection",
     headingKey: "leadership",
     addLabel: "Add leadership",
@@ -180,7 +188,7 @@ export const SECTIONS: Record<SectionName, SectionDef> = {
   },
   Awards: {
     name: "Awards",
-    title: "Awards",
+    title: "Awards & Certifications",
     dataKey: "awardsSection",
     headingKey: "awards",
     addLabel: "Add award",

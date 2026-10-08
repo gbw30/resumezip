@@ -1,0 +1,96 @@
+{
+  "sectionOrder": ["Education", "Work", "Publications", "Awards", "Skills"],
+  "headings": { "work": "Research Experience", "awards": "Honors & Awards" },
+  "profileSection": {
+    "fullName": "Wei Zhang",
+    "email": "wei.zhang@example.com",
+    "phoneNumber": "(734) 555-0164",
+    "location": "Ann Arbor, MI",
+    "linkedin": "",
+    "profileGithub": "github.com/weizhang-ml",
+    "personalWebsite": "weizhang-ml.github.io"
+  },
+  "educationSection": [
+    {
+      "schoolName": "University of Michigan",
+      "schoolLocation": "Ann Arbor, MI",
+      "degree": "Ph.D. in Computer Science and Engineering",
+      "gpa": "",
+      "schoolStartDate": "Sep 2022",
+      "schoolEndDate": "Expected May 2027",
+      "coursework": "",
+      "involvement": ""
+    },
+    {
+      "schoolName": "Tsinghua University",
+      "schoolLocation": "Beijing, China",
+      "degree": "B.Eng. in Automation",
+      "gpa": "3.8/4.0",
+      "schoolStartDate": "Sep 2018",
+      "schoolEndDate": "Jun 2022",
+      "coursework": "",
+      "involvement": ""
+    }
+  ],
+  "workExperienceSection": [
+    {
+      "workRole": "Graduate Research Assistant",
+      "companyName": "Michigan AI Lab",
+      "workLocation": "Ann Arbor, MI",
+      "workStartDate": "Sep 2022",
+      "workEndDate": "Present",
+      "workDescription": "• Study how retrieval-augmented language models fail on long documents, advised by Prof. Maria Torres\n• Built an open benchmark of 12,000 questions over book-length texts, now used by 4 other labs\n• Designed a sparse mixture-of-experts retriever that cuts memory use by 60% at the same accuracy"
+    },
+    {
+      "workRole": "Research Intern",
+      "companyName": "Microsoft Research",
+      "workLocation": "Redmond, WA",
+      "workStartDate": "May 2025",
+      "workEndDate": "Aug 2025",
+      "workDescription": "• Added conformal prediction to a production question answering model so it abstains when unsure, cutting wrong answers by 35%"
+    },
+    {
+      "workRole": "Graduate Student Instructor, Introduction to Machine Learning",
+      "companyName": "University of Michigan",
+      "workLocation": "Ann Arbor, MI",
+      "workStartDate": "Jan 2024",
+      "workEndDate": "May 2024",
+      "workDescription": "• Taught two weekly discussion sections of 40 students and wrote 3 new homework problems on decision trees and kernels"
+    }
+  ],
+  "publicationsSection": [
+    {
+      "publicationAuthors": "W. Zhang, R. Patel, and M. Torres",
+      "publicationTitle": "Sparse Mixture-of-Experts for Long-Context Retrieval",
+      "publicationVenue": "International Conference on Learning Representations (ICLR)",
+      "publicationDetails": "",
+      "publicationDate": "2026",
+      "publicationLink": "arxiv.org/abs/2510.01234"
+    },
+    {
+      "publicationAuthors": "W. Zhang and M. Torres",
+      "publicationTitle": "Calibrating Retrieval-Augmented Models with Conformal Prediction",
+      "publicationVenue": "Advances in Neural Information Processing Systems (NeurIPS)",
+      "publicationDetails": "pp. 1123–1135",
+      "publicationDate": "Dec 2025",
+      "publicationLink": ""
+    },
+    {
+      "publicationAuthors": "J. Kim, W. Zhang, A. Gupta, and M. Torres",
+      "publicationTitle": "Benchmarking Long-Document Question Answering",
+      "publicationVenue": "Proc. Annual Meeting of the Association for Computational Linguistics (ACL)",
+      "publicationDetails": "Vienna, Austria, pp. 410–422",
+      "publicationDate": "Jul 2025",
+      "publicationLink": "10.18653/v1/2025.acl-long.33"
+    }
+  ],
+  "awardsSection": [
+    { "awardName": "NSF Graduate Research Fellowship", "awardOrg": "National Science Foundation", "awardDate": "2023" },
+    { "awardName": "Outstanding Reviewer Award", "awardOrg": "NeurIPS", "awardDate": "Dec 2024" }
+  ],
+  "skillsSection": [
+    { "skillName": "Machine Learning", "skillDetails": "PyTorch, JAX, Hugging Face Transformers, retrieval-augmented generation" },
+    { "skillName": "Programming", "skillDetails": "Python, C++, CUDA, SQL" },
+    { "skillName": "Tools", "skillDetails": "Slurm, Docker, Weights & Biases, LaTeX" }
+  ]
+}
