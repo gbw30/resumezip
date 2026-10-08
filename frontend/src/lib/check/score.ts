@@ -13,7 +13,7 @@
 
 import type { Report, Rule, RuleResult } from "./engine"
 import { hasEnoughToCheck } from "./labels"
-import { CATEGORIES, LEAST_PENALTY, LEVELS, MUST_FIX_MAX, type CategoryId } from "./settings"
+import { CATEGORIES, LEAST_PENALTY, LEVELS, MUST_FIX_MAX, SCORE_BANDS, type CategoryId } from "./settings"
 
 /** How a category did. */
 export interface CategoryScore {
@@ -96,6 +96,9 @@ export function totalOf(categories: readonly CategoryScore[]): number | null {
   const total = (100 * counted.reduce((sum, category) => sum + category.earned, 0)) / possible
   return wholePoints(hasMustFix(counted) ? Math.min(total, MUST_FIX_MAX) : total)
 }
+
+/** The word for a score out of 100 (SCORE_BANDS). */
+export const bandOf = (total: number) => SCORE_BANDS.find((band) => total >= band.least) ?? SCORE_BANDS[SCORE_BANDS.length - 1]
 
 /** The resume's score, from what the checker found (`runChecks`). */
 export function scoreOf(report: Report): Score {

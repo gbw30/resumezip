@@ -4,7 +4,7 @@ import { readBack, render, samples } from "@/lib/import/testRender"
 import { runChecks, type Outcome, type Rule } from "./engine"
 import { viewOf } from "./resume"
 import { RULES } from "./rules"
-import { checkingCategories, keepScores, scoreOf, shownScore, totalOf, wholePoints, type KeptScores, type Score } from "./score"
+import { bandOf, checkingCategories, keepScores, scoreOf, shownScore, totalOf, wholePoints, type KeptScores, type Score } from "./score"
 import { CATEGORIES, MUST_FIX_MAX, type CategoryId, type Level } from "./settings"
 import { grammarTexts } from "./spelling"
 import { addWord, CHECK_FIELD, dismiss, readCheckState } from "./state"
@@ -153,6 +153,15 @@ describe("the resume score", () => {
     expect(wholePoints(0.1 * 3 * 10)).toBe(3)
     expect(wholePoints(2.9999999999)).toBe(3)
     expect(totalOf([])).toBeNull()
+  })
+
+  test("reads as a word, and is never strong with a must-fix left", () => {
+    const words = (scores: number[]) => scores.map((total) => bandOf(total).name)
+    expect(words([100, 90])).toEqual(["Strong", "Strong"])
+    expect(words([89, 70])).toEqual(["Good", "Good"])
+    expect(words([69, 0])).toEqual(["Needs work", "Needs work"])
+    // The most a resume with a must-fix left can score.
+    expect(bandOf(MUST_FIX_MAX).name).not.toBe("Strong")
   })
 })
 
