@@ -4,6 +4,13 @@ module.exports = {
     config.module.rules.push({ test: /\.typ$/, type: "asset/source" })
     return config
   },
+  // Every resume's address gets the same editor page, built once. Resumes
+  // only exist in the visitor's browser, so there's nothing for a server to
+  // render per id, and a dynamic /create/new/[id] page ran a server function
+  // on every visit. The page reads the id from the address.
+  async rewrites() {
+    return [{ source: "/create/new/:id", destination: "/create/editor" }]
+  },
   // Files in public/ are otherwise checked with the server every time they're
   // shown. These keep their names when they change (e.g. a template's new
   // picture), so browsers keep them for a day rather than for good.

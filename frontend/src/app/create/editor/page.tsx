@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useParams } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { ArrowLeft, Check, Download, Eye, Loader2, PencilLine } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
 import { CheckProvider } from "@/components/editor/CheckContext"
@@ -35,7 +35,9 @@ const SAVED_MS = 1500
 const DOWNLOADED_MS = 2000
 
 export default function EditorPage() {
-  const { id } = useParams<{ id: string }>()
+  // next.config.js serves this one prebuilt page at every resume's address,
+  // /create/new/<id>, so the id comes from the address.
+  const id = usePathname().split("/").pop() ?? ""
   const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus, savedAt } = useResumeContext()
   const [active, setActive] = useState<ActiveSection>("Profile")
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
