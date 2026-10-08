@@ -155,11 +155,12 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
   const bullets = bulletLines(text)
   const [arranging, setArranging] = useState(false)
   // Choosing a finding here shows the text, where the cursor goes to it. Only a
-  // new choice does: the finding is found afresh each time the checker runs.
+  // new choice does: the finding is found afresh each time the checker runs,
+  // and it's gone while the person is in Write mode, then back.
   const [shownRequest, setShownRequest] = useState(request)
-  if (request !== shownRequest) {
+  if (request !== undefined && request !== shownRequest) {
     setShownRequest(request)
-    if (request !== undefined) setArranging(false)
+    setArranging(false)
   }
   // Where the cursor goes once the box shows the text it was just given.
   const selection = useRef<[number, number] | null>(null)

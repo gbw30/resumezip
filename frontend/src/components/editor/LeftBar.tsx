@@ -1,39 +1,16 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useId, useRef, useState } from "react"
+import { useId, useRef } from "react"
 import { hasEnoughToCheck } from "@/lib/check/labels"
-import { useCheck } from "./CheckContext"
+import { useCheck, type Mode } from "./CheckContext"
 import CheckPanel from "./CheckPanel"
 import { WIDE_SCREEN } from "./layout"
-
-/** What the left bar shows: the sections to write in, or what the checker found. */
-export type Mode = "write" | "check"
 
 const MODES: { id: Mode; label: string }[] = [
   { id: "write", label: "Write" },
   { id: "check", label: "Check" },
 ]
-
-// The last mode is remembered for this visit, for every resume, so a reload
-// keeps it. A later visit opens in Write, with the sections in view.
-const MODE_KEY = "editor-mode"
-
-function savedMode(): Mode {
-  try {
-    return window.sessionStorage.getItem(MODE_KEY) === "check" ? "check" : "write"
-  } catch {
-    return "write"
-  }
-}
-
-function saveMode(mode: Mode) {
-  try {
-    window.sessionStorage.setItem(MODE_KEY, mode)
-  } catch {
-    // Only a convenience: the editor opens in Write mode next time.
-  }
-}
 
 interface LeftBarProps {
   /** Hidden while small screens show the preview. */
@@ -48,13 +25,7 @@ interface LeftBarProps {
  * in Write mode so the section tabs stay at hand.
  */
 export default function LeftBar({ hidden, children }: LeftBarProps) {
-  const { report, watchPdf } = useCheck()
-  // A resume with nothing to check yet opens in Write, so its sections aren't hidden behind a request to fill them in.
-  const [mode, setMode] = useState<Mode>(() => (hasEnoughToCheck(report.view) ? savedMode() : "write"))
-  // The PDF rules start reading the preview once Check is opened.
-  useEffect(() => {
-    if (mode === "check") watchPdf()
-  }, [mode, watchPdf])
+  const { report, mode, chooseMode } = useCheck()
   const id = useId()
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const bar = useRef<HTMLElement>(null)
@@ -62,8 +33,7 @@ export default function LeftBar({ hidden, children }: LeftBarProps) {
   const open = hasEnoughToCheck(report.view) ? report.findings.length : 0
 
   const choose = (next: Mode) => {
-    setMode(next)
-    saveMode(next)
+    chooseMode(next)
     // On small screens the bar stops being pinned in Check mode, so if the
     // page was scrolled down the form, go back up to show what was found.
     if (next === "check" && !window.matchMedia(WIDE_SCREEN).matches) {

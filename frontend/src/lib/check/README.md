@@ -72,14 +72,16 @@ sent anywhere.
 - `labels.ts` says where a finding is in a few words ("Experience → Google ·
   bullet 2"), and whether there's enough of a resume to check yet.
 - `components/editor/useResumeCheck.ts` checks the open resume as it changes.
-  `CheckContext.tsx` shares that with the left bar's Check panel
-  (`CheckPanel.tsx`) and the forms. The panel shows the score, then each
+  `CheckContext.tsx` shares that, and whether the left bar is on Write or
+  Check, with the Check panel (`CheckPanel.tsx`) and the forms. The panel
+  shows the score, then each
   category with its points, what it found (fixes first) and what passed;
   categories with findings are open until folded. While the PDF or the text
   is being checked again after a change, a category keeps its points and says
   so instead of a count, so the score doesn't jump. Choosing a finding opens
   its section and entry, puts the cursor in its field (or selects its bullet),
-  and shows what's wrong and why under it until it's fixed.
+  and shows what's wrong and why under it until it's fixed. That's only while
+  Check is open: in Write mode the forms show none of it.
 
 ## Writing a rule
 

@@ -123,7 +123,7 @@ function useShownScore(report: Report, checking: ReadonlyMap<CategoryId, unknown
   return shownScore(now, kept.current, checking)
 }
 
-/** The resume score, and how it works. */
+/** The resume score, and in a line what it measures. */
 function ScoreHeader({ total }: { total: number | "checking" | null }) {
   const id = useId()
   return (
@@ -152,26 +152,7 @@ function ScoreHeader({ total }: { total: number | "checking" | null }) {
           )}
         </p>
       </div>
-      <details className="text-[13px] leading-relaxed text-ink-2">
-        <summary className="w-fit cursor-pointer select-none underline-offset-4 transition-colors hover:text-ink hover:underline">
-          How the score works
-        </summary>
-        <div className="flex flex-col gap-2 pt-2">
-          <p>
-            It's how well this resume follows the checks below, out of 100. It doesn't say whether a resume will get anyone
-            hired.
-          </p>
-          <p>
-            Each category is worth some of the 100 points:{" "}
-            {CATEGORIES.map((category) => `${category.name} ${category.points}`).join(", ")}. Its checks share them, and a
-            must-fix counts twice as much as a suggestion.
-          </p>
-          <p>
-            A check that finds something in part of the resume still gets credit for the rest. Dismissed suggestions count as
-            passed, and checks that don't apply are left out.
-          </p>
-        </div>
-      </details>
+      <p className="text-[13px] leading-relaxed text-ink-2">How well this resume follows the checks below.</p>
     </section>
   )
 }

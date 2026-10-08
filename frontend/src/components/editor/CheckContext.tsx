@@ -2,11 +2,37 @@
 
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
+import { useResumeContext } from "@/context/ResumeContext"
 import type { Finding, GrammarLint, GrammarReading, PdfReading } from "@/lib/check/engine"
+import { hasEnoughToCheck } from "@/lib/check/labels"
 import type { Place } from "@/lib/check/places"
+import { viewOf } from "@/lib/check/resume"
 import { grammarTexts } from "@/lib/check/spelling"
 import type { ActiveSection } from "./SectionNav"
 import { useResumeCheck } from "./useResumeCheck"
+
+/** What the left bar shows: the sections to write in, or what the checker found. */
+export type Mode = "write" | "check"
+
+// The last mode is remembered for this visit, for every resume, so a reload
+// keeps it. A later visit opens in Write, with the sections in view.
+const MODE_KEY = "editor-mode"
+
+function savedMode(): Mode {
+  try {
+    return window.sessionStorage.getItem(MODE_KEY) === "check" ? "check" : "write"
+  } catch {
+    return "write"
+  }
+}
+
+function saveMode(mode: Mode) {
+  try {
+    window.sessionStorage.setItem(MODE_KEY, mode)
+  } catch {
+    // Only a convenience: the editor opens in Write mode next time.
+  }
+}
 
 /**
  * A finding the person chose to fix, as the checker sees it now. `request`
@@ -18,7 +44,14 @@ export interface Target {
 }
 
 type CheckValue = ReturnType<typeof useResumeCheck> & {
-  /** The finding being fixed; null once it's fixed or dismissed. */
+  /** What the left bar shows. */
+  mode: Mode
+  /** Switches the left bar, and remembers it in this browser. */
+  chooseMode: (mode: Mode) => void
+  /**
+   * The finding being fixed, which the forms show on its field. Null once
+   * it's fixed or dismissed, and in Write mode, where it would only be noise.
+   */
   target: Target | null
   /** Opens a finding's section, and asks its form to point at the field. */
   open: (finding: Finding) => void
@@ -29,8 +62,6 @@ type CheckValue = ReturnType<typeof useResumeCheck> & {
    * field does it once, and not again when it's shown later.
    */
   claim: (request: number) => boolean
-  /** Starts reading the preview for the PDF rules, as Check is opened. */
-  watchPdf: () => void
   /**
    * Where the PDF rules stand: "reading" the current preview, "read",
    * "unreadable", or "unbuilt" when the preview itself couldn't be made.
@@ -103,7 +134,19 @@ interface CheckProviderProps {
  * since it was last checked goes to the grammar checker then too.
  */
 export function CheckProvider({ onSelect, preview, printed, unbuilt, children }: CheckProviderProps) {
+  const { formData } = useResumeContext()
+  // A resume with nothing to check yet opens in Write, so its sections aren't
+  // hidden behind a request to fill them in.
+  const [mode, setMode] = useState<Mode>(() => (hasEnoughToCheck(viewOf(formData)) ? savedMode() : "write"))
+  const chooseMode = useCallback((next: Mode) => {
+    setMode(next)
+    saveMode(next)
+  }, [])
+  // Once Check has been opened, the preview and the text are checked from then on.
   const [watching, setWatching] = useState(false)
+  useEffect(() => {
+    if (mode === "check") setWatching(true)
+  }, [mode])
   // The latest preview as read, and what it prints; null if it couldn't be read.
   const [read, setRead] = useState<{ printed: string; pdf: PdfReading | null } | null>(null)
   const readings = useRef(new Map<string, PdfReading | null>())
@@ -215,11 +258,13 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, children }:
   const live = chosen
     ? (check.report.findings.find((finding) => finding.key === chosen.finding.key) ?? check.report.findings.find((finding) => sameIssue(finding, chosen.finding)))
     : undefined
-  const target = useMemo(() => (chosen && live ? { finding: live, request: chosen.request } : null), [chosen, live])
-  const watchPdf = useCallback(() => setWatching(true), [])
+  const target = useMemo(
+    () => (chosen && live && mode === "check" ? { finding: live, request: chosen.request } : null),
+    [chosen, live, mode],
+  )
   const value = useMemo(
-    () => ({ ...check, target, open, pending, claim, watchPdf, pdf, grammar }),
-    [check, target, open, pending, claim, watchPdf, pdf, grammar],
+    () => ({ ...check, mode, chooseMode, target, open, pending, claim, pdf, grammar }),
+    [check, mode, chooseMode, target, open, pending, claim, pdf, grammar],
   )
   return <CheckContext.Provider value={value}>{children}</CheckContext.Provider>
 }
