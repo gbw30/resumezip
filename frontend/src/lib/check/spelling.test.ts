@@ -39,6 +39,7 @@ async function check(id: string, resume: Resume, { dialect = "american" as Diale
   const report = runChecks(resume, { rules: [rule], grammar, today: TODAY })
   return {
     status: report.results[0].status,
+    scoring: report.results[0].scoring,
     messages: report.findings.map((finding) => finding.message),
     findings: report.findings,
   }
@@ -58,6 +59,46 @@ describe("G1 typos", () => {
         suggestion: "Try “Received”. If it's spelled right, add the word.",
       }),
     ])
+  })
+
+  test("an unknown word is a suggestion that counts until it's dismissed or added, never a must-fix", async () => {
+    const resume = resumeWith([job(["Analyzed metagenomics samples", "Developed spintronics devices", "Recieved the team award"])])
+    const result = await check("G1", resume)
+    for (const text of ["metagenomics", "spintronics"]) {
+      const finding = result.findings.find((finding) => finding.text === text)!
+      expect(finding, text).toMatchObject({ level: "look" })
+      expect(finding.advisory, text).toBeUndefined()
+    }
+    expect(result.findings.find((finding) => finding.text === "Recieved")).toEqual(expect.objectContaining({ level: "fix" }))
+    const term = result.findings.find((finding) => finding.text === "metagenomics")!
+    const dismissed = await check("G1", { ...resume, [CHECK_FIELD]: { dismissed: [term.key] } })
+    expect(dismissed.findings.some((finding) => finding.text === "metagenomics")).toBe(false)
+
+    // On their own, unknown words cost a suggestion's points, without the must-fix cap.
+    const terms = resumeWith([job(["Analyzed metagenomics samples", "Developed spintronics devices"])])
+    expect((await check("G1", terms)).scoring).toMatchObject({ failed: true, level: "look" })
+    const keys = (await check("G1", terms)).findings.map((finding) => finding.key)
+    expect((await check("G1", { ...terms, [CHECK_FIELD]: { dismissed: keys } })).scoring).toMatchObject({ failed: false, credit: 1 })
+  })
+
+  test("offers the dictionary's guess for an unknown word as a question", async () => {
+    const [finding] = (await check("G1", resumeWith([job(["Maintained internal sofware for the team"])]))).findings
+    expect(finding).toMatchObject({ text: "sofware", level: "look", message: "The English dictionary doesn't know “sofware”" })
+    expect(finding.suggestion).toMatch(/^Did you mean “\p{L}+”\? If “sofware” is a name or a specialist term, add the word\.$/u)
+  })
+
+  test("a nearby dictionary word is not proof a specialist name is misspelled", async () => {
+    const result = await check(
+      "G1",
+      resumeWith([job(["Validated inputs with Pydantic", "Processed data with Polars", "Compiled services with Cython"])]),
+    )
+    expect(result.findings.filter((finding) => ["Pydantic", "Polars"].includes(finding.text))).toHaveLength(2)
+    expect(result.findings.every((finding) => finding.level === "look")).toBe(true)
+  })
+
+  test("capitalizing an ordinary typo doesn't hide it", async () => {
+    const result = await check("G1", resumeWith([job(["RECIEVED the company award", "Wrote SQL queries for the API"])]))
+    expect(result.findings).toEqual([expect.objectContaining({ text: "RECIEVED", level: "fix" })])
   })
 
   test("waits for the grammar checker", async () => {
@@ -136,6 +177,31 @@ describe("G1 typos", () => {
     ])
   })
 
+  test("finds short skill typos without treating nearby product names as mistakes", async () => {
+    const result = await check(
+      "G1",
+      resumeWith([], {
+        skillsSection: [{ id: 1, skillName: "Skills", skillDetails: "Finace, Writng, Excell, Redux, Kanban, Canva, Benchling" }],
+      }),
+    )
+    expect(result.findings.map((finding) => [finding.text, finding.level])).toEqual([
+      ["Finace", "fix"],
+      ["Writng", "fix"],
+      ["Excell", "fix"],
+    ])
+  })
+
+  test("involvement prose is checked and doesn't whitelist its errors elsewhere", async () => {
+    const result = await check(
+      "G1",
+      resumeWith([job(["Tutored childrn weekly"])], {
+        educationSection: [{ id: 1, schoolName: "University", involvement: "Tutored childrn weekly" }],
+      }),
+    )
+    expect(result.findings.filter((finding) => finding.text === "childrn")).toHaveLength(2)
+    expect(result.findings.every((finding) => finding.level === "fix")).toBe(true)
+  })
+
   test("a word misspelled in every English is still a typo", async () => {
     expect(
       (await check("G1", resumeWith([job(["Controled the budget", "Identifys and simplifys workflows"])]))).findings.map(
@@ -184,6 +250,11 @@ describe("G2–G4", () => {
     )
   })
 
+  test("G2 finds repeated acronyms without mistaking them for proper names", async () => {
+    expect((await check("G2", resumeWith([job(["Wrote SQL SQL queries"])]))).messages).toEqual(["“SQL” twice in a row"])
+    expect((await check("G2", resumeWith([job(["Opened the BORA BORA branch", "Opened the WALLA WALLA branch"])]))).status).toBe("passed")
+  })
+
   test("G3 finds the wrong “a” or “an”", async () => {
     expect(
       (await check("G3", resumeWith([job(["Built a HTTP server", "Hired an university student", "😀😀 Shipped a app"])]))).messages,
@@ -192,6 +263,20 @@ describe("G2–G4", () => {
 
   test("G3 leaves “an” before an acronym said letter by letter", async () => {
     expect((await check("G3", resumeWith([job(["Ran an SEO audit", "Wrote an FAQ page"])]))).status).toBe("passed")
+  })
+
+  test("G3 distinguishes spoken acronyms and permits variable pronunciations", async () => {
+    expect((await check("G3", resumeWith([job(["Built an NASA mission simulator"])]))).messages).toEqual(["“an NASA” should be “a NASA”"])
+    expect(
+      (
+        await check(
+          "G3",
+          resumeWith([
+            job(["Built a NASA mission simulator", "Wrote a SQL query", "Built an SQL database", "Wrote a FAQ page", "Wrote an FAQ page"]),
+          ]),
+        )
+      ).status,
+    ).toBe("passed")
   })
 
   test("G4 finds mixed-up words, and “loose” for “lose”", async () => {
@@ -205,6 +290,19 @@ describe("G2–G4", () => {
     expect((await check("G4", resumeWith([job(["Tried not to loose the data"])]))).messages).toEqual([
       "“to loose” should be “to lose” here",
     ])
+  })
+
+  test("G4 preserves the valid verb loose", async () => {
+    expect(
+      (
+        await check(
+          "G4",
+          resumeWith([
+            job(["Trained archers who can loose arrows safely", "Taught archers to loose arrows safely", "Worked to loose the restraints"]),
+          ]),
+        )
+      ).status,
+    ).toBe("passed")
   })
 
   test("well-written bullets pass", async () => {
@@ -239,8 +337,40 @@ describe("G5 lead for led", () => {
       "Tested soil samples for arsenic and lead",
       "Measured mercury, lead, and cadmium",
       "Improved conversion and lead quality",
+      "Tested soil for mercury and lead over three years",
     ]
     expect((await check("G5", resumeWith([job(bullets, { workEndDate: "2023" })]))).status).toBe("passed")
+  })
+
+  test("an ongoing role may describe both a finished project and present duties", async () => {
+    expect(
+      (
+        await check(
+          "G5",
+          resumeWith([job(["Built the platform last year and lead the team today", "Designed the service and lead its development now"])]),
+        )
+      ).status,
+    ).toBe("passed")
+  })
+
+  test("quoted and introduced instructions don't inherit the job's past tense", async () => {
+    expect(
+      (
+        await check(
+          "G5",
+          resumeWith([
+            job(
+              [
+                'Wrote instructions: "Design and lead the project"',
+                "Wrote instructions: Design and lead the project",
+                "Taught the course ‘Design and lead the project’",
+              ],
+              { workEndDate: "2024" },
+            ),
+          ]),
+        )
+      ).status,
+    ).toBe("passed")
   })
 })
 
@@ -264,11 +394,55 @@ describe("G6 tech names", () => {
     })
     expect((await check("G6", resume)).status).toBe("passed")
   })
+
+  test("G6 branding suggestions are unscored and avoid ordinary meanings and names", async () => {
+    const result = await check(
+      "G6",
+      resumeWith(
+        [
+          job(["Built a java coffee sales dashboard", "Studied python habitats", "Kept the code on github"], {
+            companyName: "java coffee",
+          }),
+        ],
+        {
+          skillsSection: [{ id: 1, skillName: "Languages", skillDetails: "java, python" }],
+        },
+      ),
+    )
+    expect(result.findings.map((finding) => finding.text)).toEqual(["github", "java", "python"])
+    expect(result.findings.every((finding) => finding.advisory)).toBe(true)
+    expect(result.findings.every((finding) => !finding.why.includes("don't use"))).toBe(true)
+  })
+
+  test("G6 preserves command and quoted literals without swallowing possessives", async () => {
+    const result = await check(
+      "G6",
+      resumeWith([
+        job([
+          "Ran `docker` builds",
+          'Documented the "docker" command',
+          "Documented the 'docker' command",
+          "Updated the client's github repository and the team's github guide",
+        ]),
+      ]),
+    )
+    expect(result.findings.map((finding) => finding.text)).toEqual(["github", "github"])
+  })
 })
 
 test("G7 finds other grammar mistakes, as suggestions", async () => {
   const result = await check("G7", resumeWith([job(["Could of shipped it faster"])]))
   expect(result.findings).toEqual([expect.objectContaining({ level: "look", text: "Could of", suggestion: "Try “Could have”." })])
+})
+
+test("other-language resumes skip all English rules without waiting for Harper", () => {
+  const resume = resumeWith([job(["Développé une application pour les utilisateurs", "Could of used Javascript"])], {
+    [CHECK_FIELD]: { grammarLanguage: "other" },
+  })
+  expect(grammarTexts(viewOf(resume))).toEqual([])
+  const report = runChecks(resume, { rules: SPELLING_RULES, today: TODAY })
+  expect(report.results.every((result) => result.status === "skipped")).toBe(true)
+  expect(report.findings).toEqual([])
 })
 
 test("few false typos on the template samples", async () => {
@@ -278,8 +452,7 @@ test("few false typos on the template samples", async () => {
     const report = runChecks(resume, { rules: SPELLING_RULES, grammar, today: TODAY })
     fixes.push(...report.findings.filter((finding) => finding.level === "fix").map((finding) => finding.text))
   }
-  // A product's name.
-  expect(fixes).toEqual(["Powerwall"])
+  expect(fixes).toEqual([])
 })
 
 test("a slip in typing a word leaves a letter out from inside it, swaps two, doubles one, or changes a vowel", () => {

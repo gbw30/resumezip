@@ -52,6 +52,10 @@ export interface CheckInput {
 
 /** Something a rule found wrong. */
 export interface Problem {
+  /** A more specific severity than the rule's default, when context changes it. */
+  level?: Level
+  /** Advice that does not change the score. */
+  advisory?: boolean
   place: Place
   /** What's wrong, in a few plain words: "“Responsible for” is a weak start". */
   message: string
@@ -72,9 +76,8 @@ export interface Outcome {
   problems: Problem[]
   /**
    * How much of the resume passes, from 0 to 1, when that isn't the share of
-   * what it checked that had no problem, as for "about half the bullets have
-   * a number". It stands even if some of the problems are dismissed; all of
-   * them dismissed counts as passing.
+   * what it checked that had no problem. It stands even if some problems are
+   * dismissed; all of them dismissed counts as passing.
    */
   credit?: number
   /**
@@ -90,6 +93,8 @@ interface RuleInfo {
   id: string
   category: CategoryId
   level: Level
+  /** Optional coaching, shown with findings but excluded from grading. */
+  advisory?: boolean
   /** What it checks, in a few words: "Your email address". */
   title: string
   /** Why it matters, in one line, shown with what it finds. */
@@ -113,6 +118,7 @@ export type Rule = RuleInfo &
 export interface Finding {
   rule: string
   level: Level
+  advisory?: boolean
   category: CategoryId
   place: Place
   message: string
@@ -141,6 +147,8 @@ export interface RuleResult {
   credit: number
   /** What it found, dismissed or not. */
   findings: Finding[]
+  /** Grading ignores advisory findings; null means the whole rule is advice. */
+  scoring?: { credit: number; level: Level; failed: boolean } | null
   /** It couldn't look at everything yet (`Outcome.partial`). */
   partial?: boolean
 }
@@ -206,6 +214,7 @@ function run(
   grammar: GrammarReading | undefined,
 ): RuleResult {
   const untouched = { rule, checked: 0, credit: 1, findings: [] }
+  if (rule.category === "spelling" && input.resume.grammarLanguage === "other") return { ...untouched, status: "skipped" }
   if ((rule.reads === "pdf" && !pdf) || (rule.reads === "grammar" && !grammar)) return { ...untouched, status: "waiting" }
   try {
     const outcome =
@@ -236,10 +245,13 @@ function judge(rule: Rule, outcome: Outcome, view: ResumeView, dismissed: Readon
     const count = (seen.get(first) ?? 0) + 1
     seen.set(first, count)
     const key = count === 1 ? first : `${first}|${count}`
+    const advisory = rule.advisory || problem.advisory
+    const level = advisory ? "look" : (problem.level ?? rule.level)
     return [
       {
         rule: rule.id,
-        level: rule.level,
+        level,
+        ...(advisory && { advisory: true }),
         category: rule.category,
         place: problem.place,
         message: problem.message,
@@ -248,7 +260,7 @@ function judge(rule: Rule, outcome: Outcome, view: ResumeView, dismissed: Readon
         text,
         key,
         // Only suggestions can be dismissed.
-        dismissed: rule.level === "look" && dismissed.has(key),
+        dismissed: level === "look" && dismissed.has(key),
       },
     ]
   })
@@ -264,5 +276,22 @@ function judge(rule: Rule, outcome: Outcome, view: ResumeView, dismissed: Readon
       : outcome.credit !== undefined
         ? clamp(outcome.credit)
         : clamp((checked - failed) / checked)
-  return { rule, status: open.length > 0 ? "failed" : "passed", checked, credit, findings, ...(outcome.partial && { partial: true }) }
+  const scored = open.filter((finding) => !finding.advisory)
+  const scoredPlaces = new Set(scored.map((finding) => placeId(finding.place))).size
+  const scoring = rule.advisory
+    ? null
+    : {
+        credit: findings.some((finding) => finding.advisory) ? clamp((checked - scoredPlaces) / checked) : credit,
+        level: scored.some((finding) => finding.level === "fix") ? ("fix" as const) : scored.length ? ("look" as const) : rule.level,
+        failed: scored.length > 0,
+      }
+  return {
+    rule,
+    status: open.length > 0 ? "failed" : "passed",
+    checked,
+    credit,
+    findings,
+    scoring,
+    ...(outcome.partial && { partial: true }),
+  }
 }

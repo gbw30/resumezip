@@ -48,11 +48,15 @@ export function useResumeCheck(pdf?: PdfReading, grammar?: GrammarReading) {
   const restoreFinding = useCallback((finding: Finding) => change((state) => restore(state, finding.key)), [change])
   /** Adds a word, so it isn't flagged as a typo on this resume. */
   const addKnownWord = useCallback((word: string) => change((state) => addWord(state, word)), [change])
+  const setGrammarLanguage = useCallback(
+    (grammarLanguage: "english" | "other") => change((state) => ({ ...state, grammarLanguage })),
+    [change],
+  )
 
   // The same object until the report changes, so CheckContext's value (and
   // everything reading it) doesn't change on renders that changed nothing.
   return useMemo(
-    () => ({ report, dismiss: dismissFinding, restore: restoreFinding, addWord: addKnownWord }),
-    [report, dismissFinding, restoreFinding, addKnownWord],
+    () => ({ report, dismiss: dismissFinding, restore: restoreFinding, addWord: addKnownWord, setGrammarLanguage }),
+    [report, dismissFinding, restoreFinding, addKnownWord, setGrammarLanguage],
   )
 }

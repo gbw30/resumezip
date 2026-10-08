@@ -259,7 +259,13 @@ export default function PaperFromLink({ entries, owner, onAdd, children }: Paper
             {/* One button that turns into Stop, so it keeps the keyboard's focus. */}
             <button
               type="button"
-              onClick={progress ? () => stopper.current?.abort() : () => void run()}
+              onClick={(event) => {
+                // Safari does not focus buttons on pointer clicks. Keep focus
+                // on this action as it changes between Add papers and Stop.
+                event.currentTarget.focus({ preventScroll: true })
+                if (progress) stopper.current?.abort()
+                else void run()
+              }}
               disabled={!progress && !text.trim()}
               className="h-10 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
             >

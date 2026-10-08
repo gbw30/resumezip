@@ -198,6 +198,7 @@ test("stopping keeps what wasn't looked up, and closing the box adds nothing", a
   await page.getByRole("button", { name: "Add from DOI or link" }).click()
   await box.fill(lines)
   await page.getByRole("button", { name: "Add papers" }).click()
+  await expect(page.getByRole("button", { name: "Stop" })).toBeFocused()
   await page.getByRole("button", { name: "Stop" }).click()
   await expect(page.getByRole("status").filter({ hasText: "Stopped" })).toHaveText("Stopped.")
   await expect(box).toHaveValue(lines)

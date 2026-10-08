@@ -155,7 +155,7 @@ test("the checker asks for a name and an entry first, then scores the resume and
   // that the must-fixes hold it down.
   await expect(score).toContainText("Needs work")
   await expect(score).toContainText("How well this resume follows the checks below.")
-  await expect(score).toContainText("Capped at 89 until you fix 2 items.")
+  await expect(score).toContainText("Capped at 89 until you fix 4 items.")
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
 
   expect(errors).toEqual([])
@@ -223,7 +223,7 @@ test("choosing a finding opens its field, where it shows while Check is open, fi
   const field = page.getByLabel("Email")
   await expect(field).toBeFocused()
   await expect(field).toHaveAttribute("aria-invalid", "true")
-  const why = page.getByText("Recruiters reply by email, so it has to work.")
+  const why = page.getByText("Recruiters reply by email, and application forms ask for it, so it has to work.")
   await expect(why).toBeVisible()
 
   // Back in Write mode the field is left plain, until Check is open again.
@@ -237,14 +237,17 @@ test("choosing a finding opens its field, where it shows while Check is open, fi
   await expect(email).toBeHidden()
   await expect(field).not.toHaveAttribute("aria-invalid")
 
-  // A suggestion can be dismissed, and brought back.
+  // Missing work identity is a fix; optional LinkedIn advice can be dismissed.
   const role = panel.getByRole("button", { name: /^Experience → .* No role$/ })
   await expect(role).toBeVisible()
-  await panel.getByRole("button", { name: "Dismiss: No role" }).click()
-  await expect(role).toBeHidden()
+  await expect(panel.getByRole("button", { name: "Dismiss: No role" })).toHaveCount(0)
+  const advice = panel.getByRole("button", { name: /Profile → LinkedIn Consider adding a LinkedIn profile/ })
+  await expect(advice).toBeVisible()
+  await panel.getByRole("button", { name: "Dismiss: Consider adding a LinkedIn profile" }).click()
+  await expect(advice).toBeHidden()
   await panel.getByText("Dismissed · 1").click()
-  await panel.getByRole("button", { name: "Bring back: No role" }).click()
-  await expect(role).toBeVisible()
+  await panel.getByRole("button", { name: "Bring back: Consider adding a LinkedIn profile" }).click()
+  await expect(advice).toBeVisible()
 
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
   expect(errors).toEqual([])

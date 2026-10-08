@@ -71,18 +71,24 @@ const experience: Rule = {
   reads: "form",
   title: "Experience, projects, leadership or volunteering",
   why: "It's what a recruiter reads most closely: what you've done.",
-  check: ({ resume }) => ({
-    checked: 1,
-    problems: EXPERIENCE.some((section) => filled(resume.sections[section]).length > 0)
-      ? []
-      : [
-          {
-            place: { kind: "section", section: "Work" },
-            message: "Add experience, projects, leadership or volunteering",
-            suggestion: "Class projects and clubs count.",
-          },
-        ],
-  }),
+  check: ({ resume }) => {
+    const entries = EXPERIENCE.flatMap((section) => filled(resume.sections[section]))
+    // Titles, tools and links identify an entry, but don't describe what the
+    // person did. Only printed descriptions can satisfy this essential check.
+    if (entries.some((entry) => entry.bullets.some((bullet) => /\p{L}/u.test(bullet.text)))) return { checked: 1, problems: [] }
+    const first = entries[0]
+    const description = first && SECTIONS[first.section].fields.find((field) => field.type === "bullets")?.key
+    return {
+      checked: 1,
+      problems: [
+        {
+          place: first ? at(first, description) : { kind: "section", section: "Work" },
+          message: first ? "Describe what you did in an experience or project" : "Add experience, projects, leadership or volunteering",
+          suggestion: "Describe a contribution in a job, class project, club, leadership role or volunteer experience.",
+        },
+      ],
+    }
+  },
 }
 
 const education: Rule = {
@@ -116,7 +122,21 @@ const named: Rule = {
       for (const entry of filled(resume.sections[section])) {
         checked += fields.length
         for (const field of fields.filter((key) => !entry.values[key])) {
-          problems.push({ place: at(entry, field), message: `No ${labelOf(section, field).toLowerCase()}` })
+          // An explicitly independent role already explains why there is no
+          // single employer. Ordinary job titles still need an organization.
+          if (
+            section === "Work" &&
+            field === "companyName" &&
+            /\b(?:freelanc(?:e|er)|self[ -]employed|independent contractor)\b/i.test(entry.values.workRole)
+          )
+            continue
+          problems.push({
+            place: at(entry, field),
+            message: `No ${labelOf(section, field).toLowerCase()}`,
+            ...(section === "Work" && { level: "fix" as const }),
+            ...(section === "Work" &&
+              field === "companyName" && { suggestion: "Name the employer, or identify the work as self-employed or freelance." }),
+          })
         }
       }
     }
