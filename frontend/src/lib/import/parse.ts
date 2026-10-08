@@ -36,6 +36,8 @@ type ParseLine = Line & {
   index: number
   /** The right edge of its column: the furthest any line like it reaches. */
   margin?: number
+  /** It runs to its column's edge in justified text, as every line of a paragraph but its last does. */
+  full?: boolean
   merged?: number[]
 }
 
@@ -340,7 +342,9 @@ function continues(line: ParseLine, item: Item, wasBullet: boolean, above: Parse
   if (line.page === undefined || line.bullet) return false
   if (datesEntry(line, above && item.lines.includes(above.index) ? above : undefined)) return false
   if (wasBullet) return line.left > item.left + 1 && line.x <= Math.max(item.x, item.left + 3 * item.size) + 4
-  return Math.abs(line.x - item.x) <= 3 && (!/[.!?]$/.test(item.text) || /^[a-z]/.test(line.text))
+  // A paragraph carries on after a full stop when the line above ran to the edge of justified text.
+  const afterFull = above !== undefined && item.lines.includes(above.index) && above.full === true
+  return Math.abs(line.x - item.x) <= 3 && (!/[.!?]$/.test(item.text) || /^[a-z]/.test(line.text) || afterFull)
 }
 
 /** A wrapped line joined onto the one above: a word a soft hyphen broke in two joins back up. */
@@ -410,8 +414,8 @@ function described(item: Item): string {
 }
 
 /** A long line that reads like a sentence, not an entry's title. */
-const sentence = (line: Line) =>
-  !line.bold && !hasDate(line) && (line.text.length > 85 || (/[.!?]$/.test(line.text) && words(line.text).length >= 4))
+const sentence = (line: ParseLine) =>
+  !line.bold && !hasDate(line) && (line.text.length > 85 || (/[.!?]$/.test(line.text) && words(line.text).length >= 4) || line.full === true)
 
 /** The style a line starts in ("**President** | ACM"), which is what tells entry titles apart. */
 const leadStyle = (line: Line) => {
@@ -1313,6 +1317,19 @@ export function parseResume(file: Line[]): ParsedResume {
     for (const line of page) {
       const column = page.filter((other) => Math.abs(other.left - line.left) < 60 && Math.abs(other.size - line.size) < 1.5)
       line.margin = column.reduce((edge, other) => Math.max(edge, other.box![2]), -Infinity)
+    }
+    // Justified text: most lines of a column end at the same edge, as text set
+    // ragged hardly ever does. A hyphen breaking a word can reach a little past it.
+    for (const line of page) {
+      if (line.parts.length !== 1) continue
+      const ends = page
+        .filter((other) => other.parts.length === 1 && Math.abs(other.left - line.left) < 60 && Math.abs(other.size - line.size) < 1.5)
+        .map((other) => other.box![2])
+      const counts = new Map<number, number>()
+      for (const end of ends) counts.set(Math.round(end), (counts.get(Math.round(end)) ?? 0) + 1)
+      const [edge, count] = [...counts].sort((a, b) => b[1] - a[1])[0]
+      const right = line.box![2]
+      line.full = count >= 3 && count >= 0.3 * ends.length && right >= edge - 1.5 && right <= edge + 4
     }
   }
 

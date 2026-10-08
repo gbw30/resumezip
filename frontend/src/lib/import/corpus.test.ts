@@ -80,8 +80,6 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "leadership[0].role",
   ],
   // An academic CV in Typst. The current job's title lines read as bullets.
-  // Paragraph lines of 85 letters or fewer, or starting a new sentence, read
-  // as titles.
   // Under one school, the first degree loses its date and the second the
   // school. A colon or " - " inside a title splits it. A page number and
   // sub-headings among the citations stop them reading as citations. Award
@@ -99,7 +97,6 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "work[0].bullets",
     "work[1].company",
     "work[1].role",
-    "work[4].bullets",
     "work[5].company",
     "work[5].role",
     "work[6].company",

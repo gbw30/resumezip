@@ -298,3 +298,46 @@ describe("a word broken across two lines", () => {
     expect(resume.skillsSection).toMatchObject([{ skillName: "Software", skillDetails: "Python, C++, MATLAB, SQL" }])
   })
 })
+
+describe("a paragraph", () => {
+  /** Lines down a page, each with the right edge given: 560 for one that runs to its column's edge. */
+  const edges = (lines: [Line, number][]): Line[] => lines.map(([each, right], i) => ({ ...each, box: [each.left, 100 + 12 * i, right, 110 + 12 * i] }))
+  const title = line([["2026", 36], ["Study Abroad Instructional Staff", 120], ["Sendai, Japan", 480]], { bold: true })
+
+  test("in justified text carries on through every line that runs to the edge", () => {
+    const { resume } = read(
+      "Experience",
+      edges([
+        [title, 560],
+        [line([["Supported a study abroad program to Sendai for students during Summer", 120]]), 560],
+        [line([["2026, combining language study with robotics and design courses for", 120]]), 560],
+        [line([["40 students. Guided team projects between Purdue and Tohoku students.", 120]]), 560],
+        [line([["Coordinated field trips and cultural activities in the final week.", 120]]), 420],
+      ]),
+    )
+    expect(resume.workExperienceSection).toHaveLength(1)
+    expect(resume.workExperienceSection[0]).toMatchObject({
+      workRole: "Study Abroad Instructional Staff",
+      workDescription:
+        "• Supported a study abroad program to Sendai for students during Summer 2026, combining language study with robotics and design courses for 40 students. Guided team projects between Purdue and Tohoku students. Coordinated field trips and cultural activities in the final week.",
+    })
+  })
+
+  test("doesn't take in the points after it in text that isn't justified", () => {
+    const points = [
+      "Built dashboards that the sales team checks every single morning before standup.",
+      "Cut the weekly report from two days to two hours.",
+      "Trained four analysts on SQL and Looker.",
+    ]
+    const { resume } = read(
+      "Experience",
+      edges([
+        [line([["Data Analyst", 36], ["2022 – Present", 480]], { bold: true }), 560],
+        [line([[points[0], 36]]), 560],
+        [line([[points[1], 36]]), 380],
+        [line([[points[2], 36]]), 300],
+      ]),
+    )
+    expect(resume.workExperienceSection[0].workDescription).toBe(points.map((point) => `• ${point}`).join("\n"))
+  })
+})
