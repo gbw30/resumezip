@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Menu, X } from "lucide-react"
 import Logo from "./Logo"
 import { StartWritingLink } from "./StartWriting"
@@ -11,6 +11,9 @@ const LINKS = [
   { href: "/create/dashboard", label: "Your resumes" },
   { href: "/about", label: "About" },
 ]
+
+// Tailwind's `md`, where the header's links replace the menu; in rem like Tailwind's, so the two agree.
+const WIDE_HEADER = "(min-width: 48rem)"
 
 const CTA = "label-caps items-center whitespace-nowrap bg-accent px-[18px] text-white transition-colors hover:bg-[#2550d4]"
 
@@ -24,10 +27,42 @@ interface SiteHeaderProps {
 
 export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const headerRef = useRef<HTMLElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
   const overlay = variant === "overlay"
 
+  useEffect(() => {
+    if (!menuOpen) return
+    // The menu covers the top of the page, so a tap elsewhere closes it, and what was tapped keeps the focus.
+    const onPointerDown = (event: PointerEvent) => {
+      if (!headerRef.current?.contains(event.target as Node)) setMenuOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      setMenuOpen(false)
+      buttonRef.current?.focus()
+    }
+    // Turning a phone sideways can show the header's own links, which hide the
+    // menu; it shouldn't still be open when the phone is turned back.
+    const wide = window.matchMedia(WIDE_HEADER)
+    const onResize = () => {
+      if (wide.matches) setMenuOpen(false)
+    }
+    document.addEventListener("pointerdown", onPointerDown)
+    document.addEventListener("keydown", onKeyDown)
+    wide.addEventListener("change", onResize)
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown)
+      document.removeEventListener("keydown", onKeyDown)
+      wide.removeEventListener("change", onResize)
+    }
+  }, [menuOpen])
+
   return (
-    <header className={`font-system ${overlay ? "relative z-10 text-white" : "border-b border-rule bg-paper text-ink"}`}>
+    <header
+      ref={headerRef}
+      className={`relative font-system ${overlay ? "z-10 text-white" : "z-30 border-b border-rule bg-paper text-ink"}`}
+    >
       <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-6 px-5 md:h-[72px] md:px-10">
         <Link
           href="/"
@@ -53,6 +88,7 @@ export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
           {/* Phones don't have room for it next to the logo, so it moves into the menu. */}
           <StartWritingLink className={`${CTA} hidden h-10 sm:inline-flex`}>Start writing</StartWritingLink>
           <button
+            ref={buttonRef}
             type="button"
             className="inline-flex h-10 w-10 items-center justify-center md:hidden"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -64,24 +100,28 @@ export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
         </div>
       </div>
 
-      {menuOpen && (
-        <nav
-          aria-label="Main"
-          className={`flex flex-col px-5 pb-4 md:hidden ${overlay ? "bg-black/60 backdrop-blur" : "border-t border-rule"}`}
-        >
-          {LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setMenuOpen(false)}
-              className={`label-caps py-3 ${overlay ? "text-white" : "text-ink"}`}
-            >
-              {link.label}
-            </Link>
-          ))}
-          <StartWritingLink className={`${CTA} mt-2 inline-flex h-11 justify-center sm:hidden`}>Start writing</StartWritingLink>
-        </nav>
-      )}
+      {/* Drops over the page instead of pushing it down. Once it starts to
+          close, inert keeps the keyboard out of it; once closed, visibility
+          (which changes at the end of its transition) hides it too. */}
+      <nav
+        aria-label="Main"
+        inert={!menuOpen}
+        className={`absolute inset-x-0 top-full flex flex-col px-5 pb-4 transition-[opacity,transform,visibility] duration-200 ease-out motion-reduce:transition-none md:hidden ${
+          overlay ? "bg-black/60 backdrop-blur" : "border-y border-rule bg-paper shadow-[0_18px_40px_-16px_rgba(17,19,24,0.3)]"
+        } ${menuOpen ? "" : "invisible -translate-y-2 opacity-0"}`}
+      >
+        {LINKS.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            onClick={() => setMenuOpen(false)}
+            className={`label-caps py-3 ${overlay ? "text-white" : "text-ink"}`}
+          >
+            {link.label}
+          </Link>
+        ))}
+        <StartWritingLink className={`${CTA} mt-2 inline-flex h-11 justify-center sm:hidden`}>Start writing</StartWritingLink>
+      </nav>
     </header>
   )
 }
