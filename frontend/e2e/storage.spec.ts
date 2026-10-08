@@ -94,20 +94,20 @@ test("when storage is full, the editor says the changes aren't saved until they 
   await expect(saved).toHaveCount(1)
   await expect(notSaved(page)).toHaveCount(0)
 
+  // Closing the tab straight after a change that can't be saved asks first,
+  // even before that change was due to be saved. (Browsers only let a page
+  // ask once someone has clicked in it.)
   await page.evaluate(() => (window.storageFull = true))
-  await name.fill("Ada Lovelace")
-  await expect(notSaved(page)).toContainText("storage for resumezip is full")
-  await expect(saved).toHaveCount(0)
-  await expect(name).toHaveValue("Ada Lovelace")
-
-  // Closing the tab now would lose the change, so it asks first. (Browsers
-  // only let a page ask once someone has clicked in it.)
   await name.click()
+  await name.fill("Ada Lovelace")
   const asking = page.waitForEvent("dialog")
   await page.close({ runBeforeUnload: true })
   const dialog = await asking
   expect(dialog.type()).toBe("beforeunload")
   await dialog.dismiss()
+  await expect(notSaved(page)).toContainText("storage for resumezip is full")
+  await expect(saved).toHaveCount(0)
+  await expect(name).toHaveValue("Ada Lovelace")
 
   // The warning's button keeps a copy as a PDF.
   const downloading = page.waitForEvent("download")

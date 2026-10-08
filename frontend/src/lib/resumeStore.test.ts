@@ -48,11 +48,11 @@ describe("typing", () => {
 
   test("counts as unsaved until it's saved", () => {
     const tab = openTab(memoryStorage(saved(ada)))
-    expect(tab.hasUnsavedChanges()).toBe(false)
+    expect(tab.getState().unsaved).toBe(false)
     tab.edit("a", "profileSection", { fullName: "Ada King" })
-    expect(tab.hasUnsavedChanges()).toBe(true)
+    expect(tab.getState().unsaved).toBe(true)
     vi.advanceTimersByTime(SAVE_DELAY)
-    expect(tab.hasUnsavedChanges()).toBe(false)
+    expect(tab.getState().unsaved).toBe(false)
   })
 
   test("is saved straight away when the page is hidden or closed", () => {
@@ -260,12 +260,12 @@ describe("deleting", () => {
     })
     tab.remove("a")
     expect(tab.getState().saveStatus).toBe("full")
-    expect(tab.hasUnsavedChanges()).toBe(true)
+    expect(tab.getState().unsaved).toBe(true)
 
     setItem.mockRestore()
     tab.flush()
     expect(tab.getState().saveStatus).toBe("saved")
-    expect(tab.hasUnsavedChanges()).toBe(false)
+    expect(tab.getState().unsaved).toBe(false)
     expect(storage.getItem(LEGACY_KEY)).toBe("{}")
     expect(Object.keys(openTab(storage).getState().resumes)).toEqual(["g"])
   })
@@ -319,7 +319,7 @@ describe("when storage doesn't work", () => {
     vi.advanceTimersByTime(SAVE_DELAY)
     expect(tab.getState()).toMatchObject({ loaded: true, saveStatus: "blocked" })
     expect(tab.getState().resumes[id].resumeTitle).toBe("Mine")
-    expect(tab.hasUnsavedChanges()).toBe(true)
+    expect(tab.getState().unsaved).toBe(true)
   })
 
   test("full, the status says so, and the changes are saved once there's room", () => {
@@ -331,13 +331,13 @@ describe("when storage doesn't work", () => {
     tab.edit("a", "resumeTitle", "Ada's")
     vi.advanceTimersByTime(SAVE_DELAY)
     expect(tab.getState().saveStatus).toBe("full")
-    expect(tab.hasUnsavedChanges()).toBe(true)
+    expect(tab.getState().unsaved).toBe(true)
 
     tab.edit("a", "resumeTitle", "Ada's resume")
     vi.advanceTimersByTime(SAVE_DELAY)
     expect(tab.getState().saveStatus).toBe("saved")
     expect(stored(storage, "a")?.resumeTitle).toBe("Ada's resume")
-    expect(tab.hasUnsavedChanges()).toBe(false)
+    expect(tab.getState().unsaved).toBe(false)
   })
 })
 

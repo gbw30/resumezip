@@ -68,23 +68,34 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [store]);
 
-  // While saving fails, closing or reloading the page asks first, if it would
-  // lose changes. The listener is only there while saving fails, as some
-  // browsers can't keep a page that has one for the back button.
-  const savingWorks = state.saveStatus === "saved";
+  // Closing or reloading the page with changes not saved yet saves them first,
+  // and asks if that fails. The listener is only there while something is
+  // unsaved, as some browsers can't keep a page that has one for the back
+  // button. It follows the store as it changes, not a render later, so a
+  // change made just before closing is covered.
   useEffect(() => {
-    if (savingWorks) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      // One more try first, in case there's room now.
       store.flush();
-      if (!store.hasUnsavedChanges()) return;
+      if (!store.getState().unsaved) return;
       event.preventDefault();
       // What browsers before Chrome 119 need to ask.
       event.returnValue = true;
     };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [savingWorks, store]);
+    let listening = false;
+    const follow = () => {
+      const { unsaved } = store.getState();
+      if (unsaved === listening) return;
+      listening = unsaved;
+      if (unsaved) window.addEventListener("beforeunload", onBeforeUnload);
+      else window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+    follow();
+    const unsubscribe = store.subscribe(follow);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [store]);
 
   // Once there's a resume, ask the browser not to delete it to make room;
   // once a page is enough.
