@@ -6,7 +6,7 @@ import { parseResume, toResumeContent } from "./parse"
  * A line of a PDF from its parts, as [text, x] pairs: text set apart on the
  * line, like dates on the right. A bullet's text starts 10 points after it.
  */
-function line(parts: [string, number][], { bullet = false, bold = false, italic = false, size = 10 } = {}): Line {
+function line(parts: [string, number][], { bullet = false, bold = false, italic = false, size = 10, page = 1 } = {}): Line {
   const x = parts[0][1]
   return {
     parts: parts.map(([text, at]) => ({ text, x: at, runs: [{ start: 0, end: text.length, bold, italic }] })),
@@ -18,7 +18,7 @@ function line(parts: [string, number][], { bullet = false, bold = false, italic 
     bold,
     italic,
     links: [],
-    page: 1,
+    page,
   }
 }
 
@@ -223,5 +223,24 @@ describe("a heading it doesn't know by name", () => {
     ])
     expect(resume.projectsSection).toMatchObject([{ projectName: "Volunteer Matching App" }])
     expect(resume.volunteerExperienceSection).toEqual([])
+  })
+})
+
+describe("page numbers", () => {
+  test("aren't part of the resume", () => {
+    const { resume, unplaced } = read("Skills", [
+      line([["Languages: Python, Go, SQL", 36]]),
+      line([["Tools: Docker, Kubernetes,", 36]]),
+      line([["1", 300]]),
+      line([["Terraform", 36]], { page: 2 }),
+      line([["Page 2 of 2", 300]], { page: 2 }),
+    ])
+    expect(resume.skillsSection.map((skill: Record<string, string>) => skill.skillDetails)).toEqual(["Python, Go, SQL", "Docker, Kubernetes, Terraform"])
+    expect(unplaced).toEqual([])
+  })
+
+  test("are only the page's own number, at its top or bottom", () => {
+    const { resume, unplaced } = read("Awards", [line([["Dean’s List", 36], ["2024", 480]]), line([["7", 300]])])
+    expect(JSON.stringify([resume.awardsSection, unplaced])).toContain("7")
   })
 })

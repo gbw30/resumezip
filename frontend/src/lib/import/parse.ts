@@ -1272,8 +1272,21 @@ function splitSideHeadings(lines: Line[]): Line[] {
   })
 }
 
+/** "2", "Page 2", "2 of 3", "- 2 -". */
+const PAGE_NUMBER = /^[\s\-\u2013\u2014]*(?:page\s+)?(\d{1,3})(?:\s*(?:of|\/)\s*\d{1,3})?[\s\-\u2013\u2014]*$/i
+
+/** Lines that are only a page's number, at its top or bottom: not part of the resume. */
+function withoutPageNumbers(lines: Line[]): Line[] {
+  const ends = new Set<Line>()
+  lines.forEach((line, i) => {
+    if (line.page === undefined) return
+    if (lines[i - 1]?.page !== line.page || lines[i + 1]?.page !== line.page) ends.add(line)
+  })
+  return lines.filter((line) => !(ends.has(line) && Number(line.text.match(PAGE_NUMBER)?.[1]) === line.page))
+}
+
 export function parseResume(file: Line[]): ParsedResume {
-  const input = splitSideHeadings(file)
+  const input = splitSideHeadings(withoutPageNumbers(file))
   const lines: ParseLine[] = input.map((line, index) => ({ ...line, index }))
   const body = bodySize(lines)
 

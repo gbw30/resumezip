@@ -86,8 +86,8 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // Under one school, the first degree loses its date and the second the
   // school. A colon or " - " inside a title splits it. A page number and
   // sub-headings among the citations stop them reading as citations. Award
-  // descriptions join the award's name, a page number joins a skill, and the
-  // mentoring lines read as teaching.
+  // descriptions join the award's name, and the mentoring lines read as
+  // teaching.
   "marcus/typst-academic": [
     "profile.linkedin",
     "profile.github",
@@ -123,7 +123,6 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "publications[1]",
     "publications[2]",
     "skills[0].details",
-    "skills[2].details",
     "skills[3].details",
     "leadership[0].organization",
     "leadership[0].bullets",
