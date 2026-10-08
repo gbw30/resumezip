@@ -23,29 +23,25 @@ export type CategoryId = (typeof CATEGORIES)[number]["id"]
 
 /**
  * How sure a rule is. A "fix" is clearly wrong, so it can't be dismissed; a
- * "look" is a suggestion, and can be. In the score, a fix rule counts twice
- * as much as a look rule.
+ * "look" is a suggestion, and can be. In the score, a rule that finds
+ * something takes up to `penalty` of its category's points (see score.ts).
  */
 export const LEVELS = {
-  fix: { name: "Must fix", weight: 2 },
-  look: { name: "Worth a look", weight: 1 },
+  fix: { name: "Must fix", penalty: 0.5 },
+  look: { name: "Worth a look", penalty: 0.2 },
 } as const
 
 export type Level = keyof typeof LEVELS
 
 /**
- * What every template guarantees, so it's always listed with its category's
- * passed checks. It earns no points, as it can't be got wrong.
+ * A rule that finds anything takes at least this share of its penalty,
+ * however little of the resume it's about: one typo in thirty fields is still
+ * a typo. The rest of the penalty grows with how much of the resume fails it.
  */
-export const AUTOMATIC_PASSES: readonly { category: CategoryId; title: string }[] = [
-  { category: "readable", title: "Contact details are on the page itself, not in a header or footer" },
-  { category: "readable", title: "Text reads in one order, top to bottom" },
-  { category: "readable", title: "No tables or text boxes" },
-  { category: "readable", title: "No images, icons or skill bars" },
-  { category: "readable", title: "Standard fonts" },
-  { category: "readable", title: "Real text that can be selected and copied" },
-  { category: "readable", title: "The PDF's title is your name" },
-]
+export const LEAST_PENALTY = 0.5
+
+/** The most a resume can score while a must-fix problem is left. */
+export const MUST_FIX_MAX = 89
 
 /** How many dismissed findings, and how many added words, a resume keeps. The oldest go first. */
 export const MAX_DISMISSED = 500

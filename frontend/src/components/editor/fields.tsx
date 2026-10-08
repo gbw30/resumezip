@@ -1,12 +1,24 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react"
 import type { Finding } from "@/lib/check/engine"
 import { LEVELS } from "@/lib/check/settings"
 import { plainText } from "@/lib/typst/resumeData"
-import { bulletLines, moveBullet, moveLine, newBullet, nextAnnouncement, setLeftOutLine, toggleMark, withBullets, type Edited } from "./arrange"
+import {
+  bulletLines,
+  cursorWithBullets,
+  moveBullet,
+  moveLine,
+  newBullet,
+  nextAnnouncement,
+  pastedList,
+  setLeftOutLine,
+  toggleMark,
+  withBullets,
+  type Edited,
+} from "./arrange"
 import { reducedMotion, reveal, scrollerOf } from "./layout"
 
 interface FieldProps {
@@ -22,6 +34,10 @@ interface FieldProps {
   flag?: Finding | null
   /** Counts up each time the person chooses `flag`'s finding, as the checker's requests do. */
   request?: number
+  /** What the browser can fill it in with, as "name", "email" or "tel". */
+  autoComplete?: string
+  /** A web address: phones show the keyboard for one, with no spelling marks and no capital first letter. */
+  web?: boolean
 }
 
 /**
@@ -47,7 +63,7 @@ export function FlagNote({ id, finding }: { id?: string; finding: Finding }) {
 }
 
 /** A labelled, underlined text input. */
-export function Field({ label, value, placeholder, type = "text", className = "", onChange, name, flag }: FieldProps) {
+export function Field({ label, value, placeholder, type = "text", className = "", onChange, name, flag, autoComplete, web }: FieldProps) {
   const noteId = useId()
   return (
     <div data-field={name} className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
@@ -57,6 +73,10 @@ export function Field({ label, value, placeholder, type = "text", className = ""
           type={type}
           value={value}
           placeholder={placeholder}
+          autoComplete={autoComplete}
+          inputMode={web ? "url" : undefined}
+          spellCheck={web ? false : undefined}
+          autoCapitalize={web ? "off" : undefined}
           onChange={(event) => onChange(event.target.value)}
           aria-describedby={flag ? noteId : undefined}
           aria-invalid={flag?.level === "fix" || undefined}
@@ -132,6 +152,38 @@ function fitHeight(textarea: HTMLTextAreaElement) {
   textarea.style.height = `${textarea.scrollHeight + 2}px`
 }
 
+const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff
+
+// True while typeInto types, so what it types goes in as it is.
+let typing = false
+
+/**
+ * Changes a text box's text to `next` as typing would, replacing only the part
+ * that changed, so the browser can undo it with the person's own typing.
+ * Setting the text any other way clears the browser's undo history. False if
+ * the browser can't: execCommand is deprecated, but there's nothing else yet.
+ */
+function typeInto(textarea: HTMLTextAreaElement, next: string): boolean {
+  const current = textarea.value
+  let from = 0
+  while (from < current.length && from < next.length && current[from] === next[from]) from++
+  let same = 0
+  while (same < current.length - from && same < next.length - from && current[current.length - 1 - same] === next[next.length - 1 - same]) same++
+  // Never half an emoji: a character made of two code units is replaced whole.
+  if (from > 0 && (isLowSurrogate(current.charCodeAt(from)) || isLowSurrogate(next.charCodeAt(from)))) from--
+  if (same > 0 && isLowSurrogate(current.charCodeAt(current.length - same))) same--
+  textarea.setSelectionRange(from, current.length - same)
+  const typed = next.slice(from, next.length - same)
+  typing = true
+  try {
+    return typed ? document.execCommand("insertText", false, typed) : document.execCommand("delete")
+  } catch {
+    return false
+  } finally {
+    typing = false
+  }
+}
+
 const onMac = () => /Mac|iPhone|iPad/.test(navigator.platform)
 
 // A keyboard shortcut as this device writes it: ⌘B on a Mac, Ctrl+B elsewhere.
@@ -199,15 +251,46 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
     }
   }, [arranging])
 
-  // Gives the box new text, with the cursor (or a selection) where it says.
-  const edit = (textarea: HTMLTextAreaElement, { text: next, start, end }: Edited) => {
-    if (next === text) {
+  const change = useRef(onChange)
+  change.current = onChange
+
+  // Gives the box new text, with the cursor (or a selection) where it says. It's
+  // typed in, so Ctrl+Z takes it back as it would the person's own typing. If
+  // the browser can't type it, it's set through React, which can't be undone.
+  const edit = useCallback((textarea: HTMLTextAreaElement, { text: next, start, end }: Edited) => {
+    if (next === textarea.value || typeInto(textarea, next)) {
       textarea.setSelectionRange(start, end)
       return
     }
     selection.current = [start, end]
-    onChange(next)
-  }
+    change.current(next)
+  }, [])
+
+  // Words typed or pasted on a line with no bullet get one in the same edit, so
+  // Ctrl+Z takes back both at once. (Left to React, the bullet would be added
+  // after the edit, which clears the browser's undo history.) A pasted list's
+  // own markers become its bullets, so it doesn't get two.
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const onBeforeInput = (event: InputEvent) => {
+      // Not words still being composed (Chinese, Japanese, a phone's keyboard): those are the input method's.
+      if (typing || event.isComposing || (event.inputType !== "insertText" && event.inputType !== "insertFromPaste")) return
+      const given = (event.data ?? event.dataTransfer?.getData("text/plain"))?.replace(/\r\n?/g, "\n")
+      if (!given) return
+      const { selectionStart: start, selectionEnd: end, value } = textarea
+      const words = event.inputType === "insertFromPaste" ? pastedList(given, value.slice(value.lastIndexOf("\n", start - 1) + 1, start)) : given
+      const typed = value.slice(0, start) + words + value.slice(end)
+      const next = withBullets(typed)
+      // Nothing to change: the browser puts it in as it is.
+      if (next === typed && words === given) return
+      event.preventDefault()
+      const cursor = cursorWithBullets(typed, start + words.length)
+      edit(textarea, { text: next, start: cursor, end: cursor })
+    }
+    textarea.addEventListener("beforeinput", onBeforeInput)
+    return () => textarea.removeEventListener("beforeinput", onBeforeInput)
+  }, [arranging, edit])
 
   // Moves the line the cursor is on, keeping the cursor where it was in it. False if it's at that end already.
   const moveCursorLine = (textarea: HTMLTextAreaElement, by: -1 | 1) => {

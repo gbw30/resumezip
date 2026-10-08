@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { bulletLines, moveBullet, moveLine, newBullet, nextAnnouncement, setLeftOutLine, toggleMark, withBullets } from "./arrange"
+import { bulletLines, cursorWithBullets, moveBullet, moveLine, newBullet, nextAnnouncement, pastedList, setLeftOutLine, toggleMark, withBullets } from "./arrange"
 
 const text = "• Built a loom\n\n○ Fed the cat\n• Wrote the notes"
 
@@ -81,6 +81,39 @@ describe("typing bullets", () => {
   test("Enter at the start of a line adds no line", () => {
     expect(newBullet("○ Fed the cat", 0)).toEqual(at("○ Fed the cat", 0))
     expect(newBullet("• Built a loom\n○ Fed the cat", 15)).toEqual(at("• Built a loom\n○ Fed the cat", 15))
+  })
+
+  test("words typed or pasted where a line has no bullet leave the cursor after them, and after a bullet added before them", () => {
+    // The first letter in an empty box.
+    expect(cursorWithBullets("L", 1)).toBe("• L".length)
+    // Lines pasted with no bullets: after the last one.
+    expect(cursorWithBullets("Led the team\nShipped the app", 28)).toBe("• Led the team\n• Shipped the app".length)
+    // A paste ending in a new line: the rest of the line gets a bullet, and the cursor goes after it, as with Enter.
+    expect(cursorWithBullets("• aX\nbc", 5)).toBe("• aX\n• ".length)
+    // Before a line that already has its bullet, it stays before it.
+    expect(cursorWithBullets("X\n• abc", 2)).toBe("• X\n".length)
+    // What changes after the cursor doesn't move it: here, a bullet set in from the left.
+    expect(cursorWithBullets("• ab\n  • cd", 5)).toBe("• ab\n".length)
+  })
+
+  test("a pasted list gets one bullet per line, in place of its own markers", () => {
+    expect(pastedList("- Designed accessible navigation\n* Led the team\n– Wrote the docs\n— Ran the tests\n1. Shipped it\n12) Grew it\n100. Kept it", "")).toBe(
+      "• Designed accessible navigation\n• Led the team\n• Wrote the docs\n• Ran the tests\n• Shipped it\n• Grew it\n• Kept it",
+    )
+    // Set in from the left, as nested lists are.
+    expect(pastedList("  - Led the team", "")).toBe("• Led the team")
+    // Pasted after a bullet, the first line keeps that one, printed or left out.
+    expect(pastedList("- Led the team\n- Wrote the docs", "• ")).toBe("Led the team\n• Wrote the docs")
+    expect(pastedList("- Led the team", "○ ")).toBe("Led the team")
+    // After words, the first line isn't the start of one.
+    expect(pastedList("- the team", "Led ")).toBe("- the team")
+  })
+
+  test("pasted lines that only look like a list, or start with a bullet, are left as they are", () => {
+    expect(pastedList("-5% costs\n*Bold* words\n1.5x faster\n2019 was busy\n2019. Promoted", "")).toBe(
+      "-5% costs\n*Bold* words\n1.5x faster\n2019 was busy\n2019. Promoted",
+    )
+    expect(pastedList("• Built a loom\n○ Fed the cat", "")).toBe("• Built a loom\n○ Fed the cat")
   })
 
   test("bold and italic marks go around the words, never the bullet, so a left-out bullet stays left out", () => {

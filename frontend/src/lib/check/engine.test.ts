@@ -8,7 +8,7 @@ import { runChecks, type CheckInput, type Finding, type Outcome, type PdfReading
 import type { Place } from "./places"
 import { textsOf } from "./resume"
 import { RULES } from "./rules"
-import { AUTOMATIC_PASSES, CATEGORIES, LEVELS, type CategoryId, type Level } from "./settings"
+import { CATEGORIES, LEVELS, type CategoryId, type Level } from "./settings"
 import { CHECK_FIELD, dismiss, readCheckState } from "./state"
 
 const SAMPLES = path.resolve("src/lib/typst/preview-samples")
@@ -196,10 +196,6 @@ describe("running the rules", () => {
       rules: [flag("P1", "polish", "look"), flag("C5", "contact", "look"), flag("B9", "bullets", "fix"), flag("C3", "contact", "look")],
     })
     expect(report.findings.map((finding) => finding.rule)).toEqual(["B9", "C5", "C3", "P1"])
-  })
-
-  test("lists what the templates guarantee as passed", () => {
-    expect(runChecks(ada, { rules: [] }).automatic).toEqual(AUTOMATIC_PASSES)
   })
 
   test.each(samples.map((sample) => [sample.selectedTemplate, sample]))(

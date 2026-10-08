@@ -41,26 +41,30 @@ interface Definition<Field extends string, Data extends string, Heading extends 
   fromPaperLink?: boolean
 }
 
+/** A profile field: also how the browser can fill it in, and whether it's a web address. */
+type ProfileFieldDef<Key extends string = string> = FieldDef<Key> & { inputType?: string; autoComplete?: string; web?: true }
+
 const PROFILE = [
-  { key: "fullName", label: "Full name", placeholder: "Jake Ryan", size: "full" },
-  { key: "email", label: "Email", placeholder: "jake@example.com", size: "md", inputType: "email" },
-  { key: "phoneNumber", label: "Phone", placeholder: "123-456-7890", size: "md", inputType: "tel" },
+  { key: "fullName", label: "Full name", placeholder: "Jake Ryan", size: "full", autoComplete: "name" },
+  { key: "email", label: "Email", placeholder: "jake@example.com", size: "md", inputType: "email", autoComplete: "email" },
+  { key: "phoneNumber", label: "Phone", placeholder: "123-456-7890", size: "md", inputType: "tel", autoComplete: "tel" },
   { key: "location", label: "Location", placeholder: "Austin, TX", size: "md" },
-  { key: "linkedin", label: "LinkedIn", placeholder: "linkedin.com/in/jake", size: "md" },
-  { key: "profileGithub", label: "GitHub", placeholder: "github.com/jake", size: "md" },
-  { key: "personalWebsite", label: "Website", placeholder: "jake.dev", size: "md" },
-] as const satisfies readonly (FieldDef & { inputType?: string })[]
+  { key: "linkedin", label: "LinkedIn", placeholder: "linkedin.com/in/jake", size: "md", web: true },
+  { key: "profileGithub", label: "GitHub", placeholder: "github.com/jake", size: "md", web: true },
+  { key: "personalWebsite", label: "Website", placeholder: "jake.dev", size: "md", web: true },
+] as const satisfies readonly ProfileFieldDef[]
 
 /** A profile field's key, like "email". */
 export type ProfileKey = (typeof PROFILE)[number]["key"]
 
 /** The profile's fields, stored on the resume under `profileSection`. */
-export const PROFILE_FIELDS: readonly (FieldDef<ProfileKey> & { inputType?: string })[] = PROFILE
+export const PROFILE_FIELDS: readonly ProfileFieldDef<ProfileKey>[] = PROFILE
 
+// The end's placeholder is a date: "Present" there read as what a blank end means, and a blank one prints nothing.
 const dates = <Prefix extends string>(prefix: Prefix) =>
   [
     { key: `${prefix}StartDate`, label: "Start", placeholder: "Jan 2024", size: "sm" },
-    { key: `${prefix}EndDate`, label: "End", placeholder: "Present", size: "sm" },
+    { key: `${prefix}EndDate`, label: "End", placeholder: "Dec 2025", size: "sm" },
   ] as const
 
 const bullets = <Key extends string>(key: Key) =>

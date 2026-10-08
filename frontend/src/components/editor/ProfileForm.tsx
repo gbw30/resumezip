@@ -42,6 +42,8 @@ export default function ProfileForm({ position }: { position: string }) {
             label={field.label}
             placeholder={field.placeholder}
             type={field.inputType}
+            autoComplete={field.autoComplete}
+            web={field.web}
             value={profile[field.key] ?? ""}
             onChange={(value) => updateFormData("profileSection", { ...profile, [field.key]: value })}
             className={FIELD_SPAN[field.size]}
