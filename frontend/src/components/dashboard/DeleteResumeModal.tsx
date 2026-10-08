@@ -11,7 +11,7 @@ interface DeleteResumeModalProps {
 export default function DeleteResumeModal({ resumeTitle, onClose, onDelete }: DeleteResumeModalProps) {
   return (
     <Modal title="Delete this resume?" onClose={onClose}>
-      <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+      <p className="mt-3 break-words text-[15px] leading-relaxed text-ink-2">
         <span className="text-ink">{resumeTitle || "Untitled resume"}</span> will be removed from this browser. This can't be undone.
       </p>
       <div className="mt-7 flex justify-end gap-2">
