@@ -15,9 +15,15 @@ const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {
+      // Text on the site has apostrophes and quotes as typed: "can't", “Check”.
       "react/no-unescaped-entities": "off",
-      "@typescript-eslint/no-unused-vars": "off",
-      "@typescript-eslint/no-unused-expressions": "off",
+      // Destructuring a field out to drop it ({ leftOut, ...kept }) is how this
+      // code removes one, and _ names a value that's deliberately unused.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { ignoreRestSiblings: true, argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
+      "@typescript-eslint/no-unused-expressions": "error",
     },
   },
   {
