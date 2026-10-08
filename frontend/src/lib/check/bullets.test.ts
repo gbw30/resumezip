@@ -53,7 +53,9 @@ describe("B1 weak starts", () => {
     const resume = resumeWith(job(["Responsible for the build system", "Helped launch the app", "Worked on search", "Assisted the team"]))
     expect(check("B1", resume).messages).toEqual(["“Responsible for” is a weak start", "“Worked on” is a weak start"])
     expect(check("B1", resume).findings[1].place).toEqual(bulletAt(2))
-    expect(check("B1", resume).scoring).toBeNull()
+    // A duty instead of a contribution counts as a suggestion: dismissing it gives the points back.
+    expect(check("B1", resume).findings.every((finding) => finding.level === "look" && !finding.advisory)).toBe(true)
+    expect(check("B1", resume).scoring).toMatchObject({ failed: true, level: "look", credit: 0.5 })
   })
 
   test("accepts supporting contributions without asking someone to overstate their role", () => {
@@ -112,17 +114,42 @@ describe("B3 scope and results", () => {
     expect(check("B3", resumeWith(job(bullets))).status).toBe("passed")
   })
 
-  test("offers one unscored cue per experience without scope or result evidence", () => {
+  test("counts a role without scope or result evidence as a suggestion, once per role", () => {
     const result = check("B3", resumeWith(job(["Built the search index", "Led the redesign"])))
     expect(result.findings).toEqual([
       expect.objectContaining({
         place: { kind: "entry", section: "Work", entry: 0, field: "workDescription" },
         message: "Could you add the scope or result?",
-        advisory: true,
+        level: "look",
       }),
     ])
-    expect(result.scoring).toBeNull()
+    expect(result.findings[0].advisory).toBeUndefined()
+    expect(result.scoring).toMatchObject({ failed: true, level: "look", credit: 0 })
     expect(check("B3", resumeWith(job([]))).status).toBe("skipped")
+  })
+
+  test("only advises a project, whose bullets often say what it is, and scores by the roles alone", () => {
+    const roleWithResult = job(["Cut query time by 40%"])
+    const resume = { ...resumeWith(roleWithResult), projectsSection: [project(["Interactive map of subway delays"])] }
+    const result = check("B3", resume)
+    expect(result.findings).toEqual([expect.objectContaining({ place: expect.objectContaining({ section: "Projects" }), advisory: true })])
+    expect(result.scoring).toMatchObject({ failed: false, credit: 1 })
+  })
+
+  test("takes a count of anything plural as scope", () => {
+    for (const bullet of [
+      "Built a dashboard for 1,500 robots in two warehouses",
+      "Tracked food stock across six partner pantries",
+      "Wrote a chaos test that found three ordering bugs",
+      "Open-source proxy with 900 GitHub stars",
+      "Wrote 12 APIs for the mobile app",
+    ]) {
+      expect(check("B3", resumeWith(job([bullet]))).status, bullet).toBe("passed")
+    }
+    // A count before a word that only ends in s isn't one.
+    for (const bullet of ["Led 1 campus tour", "Wrote 1 analysis", "Placed 2nd across the region", "Room 4 has a lab"]) {
+      expect(check("B3", resumeWith(job([bullet]))).status, bullet).toBe("failed")
+    }
   })
 
   test("versions, dates and identifiers do not stand in for scope", () => {

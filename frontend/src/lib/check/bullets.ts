@@ -38,7 +38,6 @@ export function pronounIn(text: string): string | null {
 
 const weakStarts: Rule = {
   id: "B1",
-  advisory: true,
   category: "bullets",
   level: "look",
   reads: "form",
@@ -94,7 +93,6 @@ const actionVerbs: Rule = {
 
 const scopeAndResults: Rule = {
   id: "B3",
-  advisory: true,
   category: "bullets",
   level: "look",
   reads: "form",
@@ -106,13 +104,18 @@ const scopeAndResults: Rule = {
       .filter((entry) => entry.bullets.length > 0)
     if (entries.length === 0) return null
     return {
-      checked: entries.length,
+      // Only roles count toward the score; for a project it's advice (below).
+      checked: entries.filter((entry) => ROLES.includes(entry.section)).length,
       problems: entries.flatMap((entry) =>
         entry.bullets.some(({ text }) => hasScope(text) || hasOutcome(text))
           ? []
           : [
               {
                 place: { kind: "entry" as const, section: entry.section, entry: entry.index, field: entry.bullets[0].field },
+                // A role with no result anywhere in it counts, though dismissing
+                // gives the points back, as the cues can miss one. A project's
+                // bullets often say what it is instead, so there it's only advice.
+                advisory: !ROLES.includes(entry.section),
                 message: "Could you add the scope or result?",
                 suggestion: "Say who used the work, what changed, or how much it covered, where you can. A clear result needs no number.",
               },

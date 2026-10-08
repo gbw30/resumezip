@@ -64,13 +64,20 @@ sent anywhere.
   says that spelling and grammar were not evaluated. This per-resume choice
   is saved under `check`; older resumes keep the English default.
 - Contact and writing preferences can be optional advice (`advisory: true`),
-  including missing social links, wording suggestions and all polish rules.
-  They are shown and can be dismissed, but never subtract points. A rule can
+  including missing social links, wording suggestions (B2, B4–B7) and all
+  polish rules, so Polish has no points. They are shown and can be
+  dismissed, but never subtract points. Advice is for choices that are
+  often right; a suggestion (`look`) is for what's usually a weakness but
+  can be a false alarm, and dismissing it gives its points back. A rule can
   also mark individual problems as advisory or give them a contextual level:
   S3 treats missing work identity as a fix while keeping other entry details
   as suggestions. B8 distinguishes missing or wholly generic descriptions
-  from optional bullet-count advice. B3 offers scope/outcome prompts without
-  a numeric quota; its heuristic cues do not establish accomplishment quality.
+  from optional bullet-count advice. B1 (a duty like "Responsible for"
+  instead of a contribution) is a suggestion. B3 asks each role for scope or
+  a result without a numeric quota: a count of anything plural ("1,500
+  robots"), a percentage or amount, or a change ("cut", "used by") counts.
+  It scores roles only, as a project's bullets often say what it is; there
+  it's advice. Its cues don't establish accomplishment quality.
 - `score.ts` works out the resume score (issue #67), out of 100: how well the
   resume follows these checks, not whether it gets anyone hired. Each
   category starts with all its points (`settings.ts`), and each rule that

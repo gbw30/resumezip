@@ -15,6 +15,15 @@ const quantity = new RegExp(
   `(?:^|[^\\p{L}\\p{N}])${count}\\s*\\+?\\s*(?:(?:${unit})|(?:[\\p{L}-]+\\s+){0,2}(?:${scope}))\\b|${count}\\s*%|[$€£]\\s*${count}`,
   "iu",
 )
+// A count of anything plural is scope too: "1,500 robots", "six partner
+// pantries", "12 APIs". The words after a count are checked in code, as a
+// case-insensitive pattern would take the "Is" of "APIs" for the -is of
+// "analysis".
+const countThenWords = new RegExp(`(?:^|[^\\p{L}\\p{N}])${count}\\+?\\s+([\\p{L}-]+(?:\\s+[\\p{L}-]+){0,2})`, "giu")
+const NOT_PLURAL = new Set(["has", "was", "its", "always", "perhaps", "towards", "yes"])
+// Ends in -s, but not -ss, -us or -is ("process", "campus", "analysis").
+const isPlural = (word: string) => /^\p{L}{2,}s$/u.test(word) && !/(?:ss|us|is)$/.test(word) && !NOT_PLURAL.has(word.toLowerCase())
+const countsSomething = (text: string) => [...text.matchAll(countThenWords)].some((match) => match[1].split(/\s+/).some(isPlural))
 const changed = /\b(?:doubled|tripled|halved)\b/i
 
 export function hasScope(text: string): boolean {
@@ -27,7 +36,7 @@ export function hasScope(text: string): boolean {
     )
     .replace(/\b\d{4}[-/]\d{1,2}(?:[-/]\d{1,2})?\b|\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b/g, "")
     .replace(/\b(?:in|during|since|until|through|year)\s+(?:19|20)\d{2}\b/gi, "")
-  return quantity.test(withoutLabels) || changed.test(withoutLabels)
+  return quantity.test(withoutLabels) || countsSomething(withoutLabels) || changed.test(withoutLabels)
 }
 
 export function hasOutcome(text: string): boolean {
