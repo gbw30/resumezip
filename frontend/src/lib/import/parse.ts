@@ -921,7 +921,16 @@ function readCitation(text: string, italics: string[] = []): Record<string, stri
  */
 function readPublications(lines: ParseLine[]): SectionResult {
   const leftover: SectionResult["leftover"] = { lines: [], text: [] }
-  const citations = lines.filter((line) => line.bullet || NUMBERED.test(line.text)).length >= lines.length / 2
+  const startsCitation = (line: Line) => line.bullet || NUMBERED.test(line.text)
+  // Citations that wrap are set in under the line they start on, so every
+  // other line sits right of the bullet or number above it.
+  let start: ParseLine | undefined
+  const hanging = lines.every((line) => {
+    if (startsCitation(line)) start = line
+    else if (!start || line.left <= start.left + 3) return false
+    return true
+  })
+  const citations = lines.filter(startsCitation).length >= lines.length / 2 || (hanging && lines.filter(startsCitation).length >= 2)
   if (citations) {
     const items: { text: string; lines: number[]; x: number; italics: string[] }[] = []
     for (const line of lines) {

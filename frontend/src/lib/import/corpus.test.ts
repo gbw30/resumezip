@@ -217,21 +217,7 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "publications[4]",
     "publications[5]",
   ],
-  // Numbered citations that wrap are split at the wrong lines.
-  "wei/latex-jake": [
-    "publications[0].title",
-    "publications[0].authors",
-    "publications[0].venue",
-    "publications[1].title",
-    "publications[1].authors",
-    "publications[1].venue",
-    "publications[1].details",
-    "publications[2].title",
-    "publications[2].authors",
-    "publications[2].venue",
-    "publications[2].details",
-    "publications[2].doi",
-  ],
+  "wei/latex-jake": [],
   "wei/writer-classic": [],
 }
 

@@ -108,3 +108,19 @@ describe("a detail line that wraps", () => {
     expect(resume.educationSection.map((entry: Record<string, string>) => entry.schoolName)).toEqual(["State University", "Austin Community College"])
   })
 })
+
+describe("publications", () => {
+  test("numbered citations that wrap under a hanging indent are read one by one", () => {
+    const { resume } = read("Publications", [
+      line([["[1] W. Zhang and M. Torres, “Sparse Experts for Retrieval,” International", 44]]),
+      line([["Conference on Learning Representations (ICLR), 2026.", 61]]),
+      line([["[2] J. Kim and W. Zhang, “Benchmarking Long Documents,” Proc. Annual Meeting", 44]]),
+      line([["of the Association for Computational Linguistics (ACL), Vienna, Austria,", 61]]),
+      line([["pp. 410–422, Jul 2025.", 61]]),
+    ])
+    expect(resume.publicationsSection.map((paper: Record<string, string>) => [paper.publicationTitle, paper.publicationDate])).toEqual([
+      ["Sparse Experts for Retrieval", "2026"],
+      ["Benchmarking Long Documents", "Jul 2025"],
+    ])
+  })
+})
