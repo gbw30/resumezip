@@ -208,13 +208,14 @@ export default function EditorPage() {
   }
 
   const download = async () => {
+    // Each try takes back the last one's "Downloaded", so it never shows
+    // beside a failure, and a second download in a row is said aloud again.
+    setDownloadedAt(0)
     setDownloading(true)
     try {
       await downloadResume({ ...formData, sectionOrder: sections })
       setFailure(null)
-      // Cleared first, so a second download in a row is said aloud again.
-      setDownloadedAt(0)
-      requestAnimationFrame(() => setDownloadedAt(Date.now()))
+      setDownloadedAt(Date.now())
     } catch (error) {
       console.error("Error downloading resume:", error)
       setFailure((previous) => nextFailure(previous, error))

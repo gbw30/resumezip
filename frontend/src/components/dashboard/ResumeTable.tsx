@@ -38,6 +38,8 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
   const [announcement, setAnnouncement] = useState("")
 
   const download = async (resume: Record<string, any>) => {
+    // Each try takes back the resume's last "Downloaded", so it never shows beside a failure.
+    setDownloaded(({ [resume.id]: _, ...others }) => others)
     setDownloading((ids) => [...ids, resume.id])
     try {
       await downloadResume(resume)

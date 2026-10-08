@@ -18,6 +18,21 @@ async function downloads(page: Page, button: ReturnType<Page["getByRole"]>) {
   expect((await downloading).suggestedFilename()).toMatch(/\.pdf$/)
 }
 
+/**
+ * Downloads again, straight after a download that worked, and has it fail:
+ * the button stops saying "Downloaded" as the new try starts, so it's never
+ * shown beside the failure. (If the page is slow, the confirmation may have
+ * gone by itself first, and this only checks the failure is shown.)
+ */
+async function failsAfterDownloading(page: Page, button: ReturnType<Page["getByRole"]>) {
+  await page.evaluate(() => (window.brokenCompiler = true))
+  await button.click()
+  await expect(downloadFailed(page)).toBeVisible()
+  // Read once, not waited for: waiting would pass once the old confirmation timed out.
+  expect(await page.getByRole("button", { name: "Downloaded" }).count()).toBe(0)
+  await page.evaluate(() => (window.brokenCompiler = false))
+}
+
 test("a failed download says so, and trying again downloads the PDF", async ({ page }) => {
   const errors = pageErrors(page)
   // While brokenCompiler is set, the compiler's worker fails each resume it's
@@ -53,6 +68,7 @@ test("a failed download says so, and trying again downloads the PDF", async ({ p
   await page.evaluate(() => (window.brokenCompiler = false))
   await downloads(page, downloadFailed(page).getByRole("button", { name: "Try again" }))
   await expect(downloadFailed(page)).toHaveCount(0)
+  await failsAfterDownloading(page, page.getByRole("button", { name: /^Download(ed| PDF)$/ }))
 
   // The dashboard.
   await page.getByRole("link", { name: "Your resumes" }).click()
@@ -65,6 +81,7 @@ test("a failed download says so, and trying again downloads the PDF", async ({ p
   await page.evaluate(() => (window.brokenCompiler = false))
   await downloads(page, downloadFailed(page).getByRole("button", { name: "Try again" }))
   await expect(downloadFailed(page)).toHaveCount(0)
+  await failsAfterDownloading(page, page.getByRole("button", { name: /^Download(ed)?$/ }))
 
   // Only the failures, logged by the editor and dashboard.
   expect(errors.filter((error) => !/^(Error downloading resume:|Failed to build PDF:)/.test(error))).toEqual([])
