@@ -128,25 +128,25 @@ describe("the resume score", () => {
   })
 
   test("takes half a category's points for a must-fix it finds, and a fifth for a suggestion", () => {
-    // Contact is worth 15: the broken email takes 7.5 of them.
+    // Contact is worth 10: the broken email takes 5 of them.
     const score = scoreWith([...passing("contact"), rule("C2", "contact", "fix", found(1))])
-    expect(category(score, "contact")).toEqual({ id: "contact", points: 15, earned: 7.5, applies: true, mustFix: true })
+    expect(category(score, "contact")).toEqual({ id: "contact", points: 10, earned: 5, applies: true, mustFix: true })
     expect(score.total).toBe(50)
-    expect(category(scoreWith([...passing("contact"), rule("C3", "contact", "look", found(1))]), "contact").earned).toBe(12)
+    expect(category(scoreWith([...passing("contact"), rule("C3", "contact", "look", found(1))]), "contact").earned).toBe(8)
   })
 
   test("gives nothing for passing, so easy passes don't make up for a problem", () => {
     const broken = rule("C2", "contact", "fix", found(1))
-    expect(category(scoreWith([...passing("contact", 3), broken]), "contact").earned).toBe(7.5)
-    expect(category(scoreWith([...passing("contact", 30), broken]), "contact").earned).toBe(7.5)
+    expect(category(scoreWith([...passing("contact", 3), broken]), "contact").earned).toBe(5)
+    expect(category(scoreWith([...passing("contact", 30), broken]), "contact").earned).toBe(5)
   })
 
   test("takes at least half the penalty for finding anything, and the rest by how much of the resume fails", () => {
     // 1 bullet in 4: half a fifth, and an eighth of the other half.
     const score = scoreWith([...passing("bullets"), rule("B1", "bullets", "look", found(4, 1))])
-    expect(category(score, "bullets").earned).toBe(17.5)
+    expect(category(score, "bullets").earned).toBe(26.25)
     expect(score.total).toBe(87)
-    expect(category(scoreWith([...passing("bullets"), rule("B1", "bullets", "look", found(4))]), "bullets").earned).toBe(16)
+    expect(category(scoreWith([...passing("bullets"), rule("B1", "bullets", "look", found(4))]), "bullets").earned).toBe(24)
   })
 
   test("earns no more than the share of a category's rules that pass, so one whose only rules fail earns nothing", () => {
@@ -185,7 +185,7 @@ describe("the resume score", () => {
     // C2 finds 1 problem in 2: it takes three quarters of its half of Contact.
     const score = scoreWith([rule("C1", "contact", "fix", passes), rule("C2", "contact", "fix", found(2, 1)), notProjects, broken, waiting])
     expect(score.categories.filter((category) => category.applies).map((category) => category.id)).toEqual(["contact"])
-    expect(category(score, "contact").earned).toBe(9.375)
+    expect(category(score, "contact").earned).toBe(6.25)
     expect(score.total).toBe(62)
   })
 
@@ -194,7 +194,7 @@ describe("the resume score", () => {
     const typo = rule("G1", "spelling", "fix", () => ({ ...found(4, 1)(), partial: true }))
     const withTypo = scoreWith([rule("C1", "contact", "fix", passes), typo])
     expect(category(withTypo, "spelling")).toMatchObject({ applies: true, earned: 10.3125, mustFix: true })
-    expect(withTypo.total).toBe(84)
+    expect(withTypo.total).toBe(81)
     // …but finding nothing in part of the text isn't a pass, so it's left out.
     const clean = rule("G1", "spelling", "fix", () => ({ ...found(4, 0)(), partial: true }))
     const score = scoreWith([rule("C1", "contact", "fix", passes), clean])
@@ -256,7 +256,7 @@ describe("while checks are under way", () => {
       applies: true,
       mustFix: false,
     })
-    expect(shown.total).toBe(40)
+    expect(shown.total).toBe(50)
     expect(shown.mustFix).toBe(true)
     // And isn't kept as it is while waiting.
     keepScores(kept, now, checking)
@@ -355,6 +355,28 @@ describe("on real resumes", () => {
     expect(await scoreOfResume(withoutIdentity)).toBeLessThan(90)
     const report = runChecks(withoutIdentity)
     expect(report.findings.some((finding) => finding.rule === "S3" && finding.level === "fix")).toBe(true)
+  })
+
+  test("bullets that list duties with no results, and a typo, cost real points", async () => {
+    const sample = samples.find((resume) => resume.selectedTemplate === "jake")!
+    const baseline = (await scoreOfResume(sample))!
+    const areas = ["checkout", "search", "profile", "admin", "billing"]
+    const duties = (typo = "") => ({
+      ...sample,
+      workExperienceSection: sample.workExperienceSection.map((entry: Record<string, unknown>, index: number) => ({
+        ...entry,
+        workDescription: [
+          `• Responsible for the ${areas[index]} website${index === 0 ? typo : ""}`,
+          `• Worked on the ${areas[index]} page with designers`,
+          `• Wrote unit tests for the ${areas[index]} code`,
+        ].join("\n"),
+      })),
+    })
+    const withDuties = (await scoreOfResume(duties()))!
+    expect(withDuties).toBeLessThanOrEqual(baseline - 8)
+    const withTypo = (await scoreOfResume(duties(" and internal sofware")))!
+    expect(withTypo).toBeLessThan(withDuties)
+    expect(bandOf(withTypo).name).toBe("Good")
   })
 
   test("each template's sample scores high, and a resume with obvious problems fails", async () => {

@@ -9,14 +9,18 @@ import type { FieldKey, ProfileKey } from "@/components/editor/sections"
  * the resume score (100 in all, see score.ts), and what each checks, in a line.
  */
 export const CATEGORIES = [
-  { id: "contact", name: "Contact & personal details", points: 15, about: "Name, email, phone and location are there, and nothing private" },
+  { id: "contact", name: "Contact & personal details", points: 10, about: "Name, email, phone and location are there, and nothing private" },
   { id: "readable", name: "Readable by hiring software", points: 15, about: "Hiring software finds your details, sections and entries" },
   { id: "sections", name: "Sections & entries", points: 10, about: "The sections a resume needs, each entry filled in" },
   { id: "dates", name: "Dates", points: 10, about: "Clear dates on every entry, written one way, newest first" },
-  { id: "bullets", name: "Bullets", points: 20, about: "Clear contributions, useful scope or results, and no repeats" },
+  { id: "bullets", name: "Bullets", points: 30, about: "Clear contributions, useful scope or results, and no repeats" },
   { id: "length", name: "Length & layout", points: 10, about: "The right length, well filled, with bullets that wrap well" },
   { id: "spelling", name: "Spelling & grammar", points: 15, about: "No typos or mixed-up words, and tech names spelled right" },
-  { id: "polish", name: "Polish", points: 5, about: "Punctuation, capitals and spacing used one way throughout" },
+  // Every polish rule is advice that doesn't change the score, so Polish has
+  // no points of its own; they went to Bullets, with 5 of Contact's, whose
+  // serious problems are must-fixes that cap the score anyway. Give Polish
+  // some back before making a polish rule count, or its bar divides by zero.
+  { id: "polish", name: "Polish", points: 0, about: "Punctuation, capitals and spacing used one way throughout" },
 ] as const
 
 export type CategoryId = (typeof CATEGORIES)[number]["id"]
