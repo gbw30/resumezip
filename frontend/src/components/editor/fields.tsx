@@ -6,7 +6,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react"
 import type { Finding } from "@/lib/check/engine"
 import { LEVELS } from "@/lib/check/settings"
 import { plainText } from "@/lib/typst/resumeData"
-import { bulletLines, moveBullet, moveLine, newBullet, nextAnnouncement, setLeftOutLine, toggleMark, withBullets, type Edited } from "./arrange"
+import { bulletLines, cursorWithBullets, moveBullet, moveLine, newBullet, nextAnnouncement, setLeftOutLine, toggleMark, withBullets, type Edited } from "./arrange"
 import { reducedMotion, reveal, scrollerOf } from "./layout"
 
 interface FieldProps {
@@ -262,8 +262,7 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
       const next = withBullets(typed)
       if (next === typed) return
       event.preventDefault()
-      // The bullets added are all before the cursor, on the lines it typed on.
-      const cursor = start + words.length + next.length - typed.length
+      const cursor = cursorWithBullets(typed, start + words.length)
       edit(textarea, { text: next, start: cursor, end: cursor })
     }
     textarea.addEventListener("beforeinput", onBeforeInput)
