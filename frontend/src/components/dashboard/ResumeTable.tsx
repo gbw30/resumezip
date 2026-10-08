@@ -25,6 +25,8 @@ const DOWNLOADED_MS = 2000
 
 const tagName = (tag: string) => RESUME_TAGS.find((option) => option.id === tag?.toLowerCase())?.name ?? tag
 
+const nameOf = (resume: ResumeWithId) => resume.resumeTitle || "Untitled resume"
+
 interface ResumeTableProps {
   resumes: ResumeWithId[]
   onDelete: (resume: ResumeWithId) => void
@@ -49,7 +51,7 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
       setDownloaded((all) => ({ ...all, [resume.id]: at }))
       // Cleared first, so a second download in a row is said aloud again.
       setAnnouncement("")
-      requestAnimationFrame(() => setAnnouncement(`Downloaded ${resume.resumeTitle || "Untitled resume"}`))
+      requestAnimationFrame(() => setAnnouncement(`Downloaded ${nameOf(resume)}`))
       // Only this download's confirmation goes; a newer one keeps its two seconds.
       setTimeout(
         () =>
@@ -123,7 +125,7 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
             <DownloadFailed
               key={`${resume.id}-${failed[resume.id].count}`}
               failure={failed[resume.id]}
-              title={resume.resumeTitle || "Untitled resume"}
+              title={nameOf(resume)}
               retrying={downloading.includes(resume.id)}
               onRetry={() => download(resume)}
             />
@@ -137,8 +139,12 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
           <li key={resume.id} className="flex gap-4 border-b border-rule pb-3 pt-5">
             {thumbnail(resume)}
             <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <Link href={`/create/new/${resume.id}`} className="truncate font-serif text-[21px] leading-tight">
-                {resume.resumeTitle || "Untitled resume"}
+              <Link
+                href={`/create/new/${resume.id}`}
+                title={nameOf(resume)}
+                className="line-clamp-2 font-serif text-[21px] leading-tight wrap-anywhere"
+              >
+                {nameOf(resume)}
               </Link>
               <span className="text-[13px] text-ink-2">
                 {[resume.resumeTag && tagName(resume.resumeTag), templateById(resume.selectedTemplate).name].filter(Boolean).join(" · ")}
@@ -172,22 +178,27 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
           <tbody>
             {resumes.map((resume) => (
               <tr key={resume.id}>
-                <td className={cell}>
+                {/* A name breaks anywhere it has to, so however long it is, it can't
+                    widen the table and push the other columns off the screen. Past
+                    two lines it's cut short, and shown in full on hover. */}
+                <td className={`${cell} pr-8`}>
                   <div className="flex items-center gap-[18px]">
                     {thumbnail(resume)}
                     <div className="flex min-w-0 flex-col gap-1">
                       <Link
                         href={`/create/new/${resume.id}`}
-                        className="font-serif text-[21px] leading-tight hover:underline hover:underline-offset-4"
+                        title={nameOf(resume)}
+                        className="line-clamp-2 font-serif text-[21px] leading-tight wrap-anywhere hover:underline hover:underline-offset-4"
                       >
-                        {resume.resumeTitle || "Untitled resume"}
+                        {nameOf(resume)}
                       </Link>
                       {resume.resumeTag && <span className="text-[13px] text-ink-2">{tagName(resume.resumeTag)}</span>}
                     </div>
                   </div>
                 </td>
-                <td className={`${cell} text-[15px]`}>{templateById(resume.selectedTemplate).name}</td>
-                <td className={`${cell} font-mono text-[13px] text-ink-2`}>{formatEdited(resume.updatedAt)}</td>
+                {/* On one line each, so the name gets the rest of the row. */}
+                <td className={`${cell} whitespace-nowrap pr-6 text-[15px]`}>{templateById(resume.selectedTemplate).name}</td>
+                <td className={`${cell} whitespace-nowrap pr-6 font-mono text-[13px] text-ink-2`}>{formatEdited(resume.updatedAt)}</td>
                 <td className={`${cell} whitespace-nowrap text-right`}>{actions(resume)}</td>
               </tr>
             ))}
