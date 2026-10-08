@@ -2,7 +2,8 @@ import { readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { describe, expect, test } from "vitest"
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
-import { cleanResume, fromAttachment, MAX_ENTRIES, MAX_LENGTH, toAttachment, TooLongError, type ResumeContent } from "./resumeFile"
+import type { Resume, ResumeContent } from "./resume"
+import { cleanResume, fromAttachment, MAX_ENTRIES, MAX_LENGTH, toAttachment, TooLongError } from "./resumeFile"
 
 const SAMPLES = path.resolve("src/lib/typst/preview-samples")
 const samples = readdirSync(SAMPLES).map((file) => JSON.parse(readFileSync(path.join(SAMPLES, file), "utf8")))
@@ -35,7 +36,7 @@ describe("the attachment in a downloaded PDF", () => {
   })
 
   test("leaves out what the person left out, so whoever gets the PDF can't read it", () => {
-    const tailored = {
+    const tailored: Resume = {
       ...editorResume({}),
       workExperienceSection: [
         { id: 1, workRole: "Engineer", workDescription: "• Built a loom\n○ Fed the cat" },
@@ -79,7 +80,7 @@ describe("the attachment in a downloaded PDF", () => {
 
   test("restores as many characters as it can open, and won't open more rather than cut them off", () => {
     const resume = editorResume({})
-    const [work] = resume.workExperienceSection
+    const [work] = resume.workExperienceSection!
     work.workDescription = ""
     work.workDescription = "x".repeat(MAX_LENGTH - toAttachment(resume).length)
     expect(toAttachment(resume)).toHaveLength(MAX_LENGTH)
@@ -108,18 +109,18 @@ describe("cleanResume", () => {
     })
     expect(clean.selectedTemplate).toBe("jake")
     expect(clean.profileSection).not.toHaveProperty("password")
-    expect(clean.profileSection.email).toBe("")
-    expect(clean.workExperienceSection[0]).toMatchObject({ id: 1, companyName: "Acme" })
-    expect(clean.workExperienceSection[0]).not.toHaveProperty("extra")
-    expect(clean.workExperienceSection[1].id).toBe(2)
-    expect(clean.sectionOrder[0]).toBe("Work")
+    expect(clean.profileSection?.email).toBe("")
+    expect(clean.workExperienceSection?.[0]).toMatchObject({ id: 1, companyName: "Acme" })
+    expect(clean.workExperienceSection?.[0]).not.toHaveProperty("extra")
+    expect(clean.workExperienceSection?.[1].id).toBe(2)
+    expect(clean.sectionOrder?.[0]).toBe("Work")
     expect(clean.sectionOrder).not.toContain("Hacking")
-    expect(new Set(clean.sectionOrder).size).toBe(clean.sectionOrder.length)
+    expect(new Set(clean.sectionOrder).size).toBe(clean.sectionOrder?.length)
   })
 
   test("turns bullets an earlier version kept as a list into lines, all of them", () => {
     const lines = Array.from({ length: 2000 }, (_, index) => `Shipped release ${index + 1}`)
     const clean = cleanResume({ workExperienceSection: [{ workDescription: lines }] })
-    expect(clean.workExperienceSection[0].workDescription).toBe(lines.map((line) => `• ${line}`).join("\n"))
+    expect(clean.workExperienceSection?.[0].workDescription).toBe(lines.map((line) => `• ${line}`).join("\n"))
   })
 })

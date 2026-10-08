@@ -1,7 +1,7 @@
 // Sections & entries (S1–S9 in issue #58): what the resume has, and whether
 // each entry says what it is.
 
-import { SECTIONS, type SectionName } from "@/components/editor/sections"
+import { SECTIONS, type FieldKey, type FieldKeyOf, type SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
 import type { Place } from "./places"
 import { textsOf, type Entry } from "./resume"
@@ -16,7 +16,7 @@ import {
   SCHOOL_YEAR_STARTS,
 } from "./settings"
 
-const at = (entry: Entry, field?: string): Place => ({ kind: "entry", section: entry.section, entry: entry.index, field })
+const at = (entry: Entry, field?: FieldKey): Place => ({ kind: "entry", section: entry.section, entry: entry.index, field })
 
 const filled = (entries: Entry[]) => entries.filter((entry) => !entry.blank)
 
@@ -24,7 +24,7 @@ const filled = (entries: Entry[]) => entries.filter((entry) => !entry.blank)
 const EXPERIENCE: SectionName[] = ["Work", "Projects", "Leadership", "Volunteership"]
 
 // What says what an entry is: its role and company, its school and degree.
-const NAMED_BY: Partial<Record<SectionName, string[]>> = {
+const NAMED_BY: { [Section in SectionName]?: FieldKeyOf<Section>[] } = {
   Education: ["schoolName", "degree"],
   Work: ["workRole", "companyName"],
   Projects: ["projectName"],
@@ -34,7 +34,7 @@ const NAMED_BY: Partial<Record<SectionName, string[]>> = {
   Awards: ["awardName"],
 }
 
-const labelOf = (section: SectionName, field: string) => SECTIONS[section].fields.find((def) => def.key === field)?.label ?? field
+const labelOf = (section: SectionName, field: FieldKey) => SECTIONS[section].fields.find((def) => def.key === field)?.label ?? field
 
 /**
  * The items in a list typed with commas, semicolons or bars, leaving those

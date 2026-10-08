@@ -16,6 +16,7 @@ import SiteFooter from "@/components/site/SiteFooter"
 import SiteHeader from "@/components/site/SiteHeader"
 import type { OpenedFile } from "@/lib/import/open"
 import { hasLeftOut } from "@/lib/leftOut"
+import type { ResumeWithId } from "@/lib/resume"
 import { loadCompiler, savingData } from "@/lib/typst/compile"
 import { templateIdOf } from "@/lib/typst/resumeData"
 
@@ -27,14 +28,14 @@ const ACCEPTED_FILES = ".pdf,.docx,application/pdf,application/vnd.openxmlformat
 type Opening =
   | { step: "reading"; fileName: string }
   | { step: "error"; message: string }
-  | { step: "conflict"; file: Extract<OpenedFile, { kind: "resumezip" }>; existing: Record<string, any> }
+  | { step: "conflict"; file: Extract<OpenedFile, { kind: "resumezip" }>; existing: ResumeWithId }
   | { step: "review"; file: Extract<OpenedFile, { kind: "parsed" }> }
 
 export default function DashboardPage() {
   const router = useRouter()
   const { resumes, loaded, saveStatus, deleteResume, createNewResume, importResume, replaceResume } = useResumeContext()
   const [creating, setCreating] = useState(false)
-  const [resumeToDelete, setResumeToDelete] = useState<Record<string, any> | null>(null)
+  const [resumeToDelete, setResumeToDelete] = useState<ResumeWithId | null>(null)
   const [opening, setOpening] = useState<Opening | null>(null)
   const [dragging, setDragging] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -52,9 +53,10 @@ export default function DashboardPage() {
 
   const sorted = useMemo(
     () =>
-      Object.values(resumes as Record<string, any>).sort(
-        (a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime(),
-      ),
+      // Each with the id it's saved under, which is what opens it.
+      Object.entries(resumes)
+        .map(([id, resume]): ResumeWithId => ({ ...resume, id }))
+        .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()),
     [resumes],
   )
 
@@ -96,7 +98,8 @@ export default function DashboardPage() {
         return
       }
       // A resumezip PDF: it restores exactly, unless this browser already has that resume.
-      const existing = opened.resume.id ? resumes[opened.resume.id] : undefined
+      const id = opened.resume.id
+      const existing = id && Object.hasOwn(resumes, id) ? { ...resumes[id], id } : undefined
       if (!existing) edit(importResume(opened.resume, opened.title))
       else if (existing.updatedAt === opened.resume.updatedAt) edit(existing.id)
       else setOpening({ step: "conflict", file: opened, existing })

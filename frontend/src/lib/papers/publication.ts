@@ -3,17 +3,11 @@
 // and doi.org's CSL JSON share their field names, but Crossref gives lists
 // where CSL gives one string, so every field is read as either.
 
+import type { FieldKeyOf } from "@/components/editor/sections"
 import { ownerMatcher } from "@/lib/typst/resumeData"
 import type { PaperId } from "./link"
 
-export interface PublicationFields {
-  publicationTitle: string
-  publicationAuthors: string
-  publicationDate: string
-  publicationVenue: string
-  publicationDetails: string
-  publicationLink: string
-}
+export type PublicationFields = Record<FieldKeyOf<"Publications">, string>
 
 type Json = Record<string, unknown>
 

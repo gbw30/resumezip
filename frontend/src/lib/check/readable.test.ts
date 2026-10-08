@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest"
+import type { Resume } from "@/lib/resume"
 import type { PdfReading } from "./engine"
 import { runChecks } from "./engine"
 import { RULES } from "./rules"
@@ -18,7 +19,7 @@ const found = {
 }
 
 /** What one rule says about a resume and its PDF. */
-function check(id: string, resume: Record<string, any>, pdf: PdfReading = reading([], found)) {
+function check(id: string, resume: Resume, pdf: PdfReading = reading([], found)) {
   const rule = RULES.find((rule) => rule.id === id)!
   const report = runChecks(resume, { rules: [rule], pdf })
   return { status: report.results[0].status, messages: report.findings.map((finding) => finding.message), findings: report.findings }

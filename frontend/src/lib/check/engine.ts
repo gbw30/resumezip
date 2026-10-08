@@ -5,6 +5,7 @@
 
 import type { Line, PageSize } from "@/lib/import/lines"
 import type { ParsedResume } from "@/lib/import/parse"
+import type { Resume } from "@/lib/resume"
 import { findingKey, placeExists, placeId, textAt, type Place } from "./places"
 import { viewOf, type ResumeView } from "./resume"
 import { RULES } from "./rules"
@@ -173,7 +174,7 @@ const LEVEL_ORDER: Record<Level, number> = { fix: 0, look: 1 }
 const CATEGORY_ORDER = new Map<string, number>(CATEGORIES.map((category, index) => [category.id, index]))
 
 /** Runs the rules over a resume, as the editor saves it, and says what they found. */
-export function runChecks(resume: Record<string, any>, { rules = RULES, pdf, grammar, today = new Date() }: CheckOptions = {}): Report {
+export function runChecks(resume: Resume, { rules = RULES, pdf, grammar, today = new Date() }: CheckOptions = {}): Report {
   const view = viewOf(resume)
   const state = readCheckState(resume)
   const dismissed = new Set(state.dismissed)

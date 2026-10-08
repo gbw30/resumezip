@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest"
 import { SECTION_NAMES } from "@/components/editor/sections"
+import { asSaved } from "@/lib/testResume"
 import { toTemplateData } from "./resumeData"
 
 const bulletsOf = (description: string) =>
@@ -56,7 +57,7 @@ describe("section order", () => {
   })
 
   test("unknown names are ignored and no section is printed twice", () => {
-    expect(toTemplateData({ sectionOrder: ["Skills", "Hobbies", "Skills", 7, "Work"] }).order).toEqual([
+    expect(toTemplateData(asSaved({ sectionOrder: ["Skills", "Hobbies", "Skills", 7, "Work"] })).order).toEqual([
       "Skills",
       "Work",
       "Education",

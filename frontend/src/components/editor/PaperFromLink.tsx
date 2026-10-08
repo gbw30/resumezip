@@ -6,6 +6,7 @@ import { Link2 } from "lucide-react"
 import { paperIdOf } from "@/lib/papers/link"
 import { lookUp } from "@/lib/papers/lookup"
 import { publicationOf, type PublicationFields } from "@/lib/papers/publication"
+import type { Entry } from "@/lib/resume"
 
 type Reason = "no-doi" | "not-found" | "unreachable"
 
@@ -31,7 +32,7 @@ function byHand(line: string): Partial<PublicationFields> {
 
 interface PaperFromLinkProps {
   /** The section's entries as they are now, to skip papers already in it. */
-  entries: () => Record<string, unknown>[]
+  entries: () => Entry[]
   /** The resume owner's name as it is now, kept in long author lists. */
   owner: () => string
   /** Adds papers as new entries. `show` brings the first into view. */
@@ -104,7 +105,7 @@ export default function PaperFromLink({ entries, owner, onAdd, children }: Paper
     setStatus("")
 
     // The DOIs in the list, read each time: entries can change while papers are looked up.
-    const listed = () => new Set(entries().map((entry) => paperIdOf(String(entry.publicationLink ?? ""))?.doi.toLowerCase()))
+    const listed = () => new Set(entries().map((entry) => paperIdOf(entry.publicationLink ?? "")?.doi.toLowerCase()))
     const found: { doi: string; fields: PublicationFields }[] = []
     const failed: Problem[] = []
     const left: string[] = []

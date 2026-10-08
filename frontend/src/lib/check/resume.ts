@@ -5,8 +5,9 @@
 // Only what's printed is here: entries and bullets the person left out of
 // the PDF (lib/leftOut.ts) aren't, so the checks don't flag them.
 
-import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
+import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type FieldKey, type ProfileKey, type SectionName } from "@/components/editor/sections"
 import { isLeftOut, isLeftOutLine } from "@/lib/leftOut"
+import type { Resume } from "@/lib/resume"
 import { plainText, sectionOrder } from "@/lib/typst/resumeData"
 import type { Place } from "./places"
 
@@ -14,14 +15,14 @@ import type { Place } from "./places"
 export type ResumeType = "professional" | "personal" | "academic"
 
 /** A resume's type. Resumes without one, or with one this version doesn't know, count as Professional. */
-export function resumeTypeOf(resume: Record<string, any>): ResumeType {
+export function resumeTypeOf(resume: Resume): ResumeType {
   const tag = resume?.resumeTag
   return tag === "academic" || tag === "personal" ? tag : "professional"
 }
 
 export interface Bullet {
   /** The field it's in, like "workDescription". */
-  field: string
+  field: FieldKey
   /** Its line in that field, counting from 0 and blank lines included, which is where the editor finds it. */
   line: number
   /** Which bullet it is in that field, from 1, counting left-out ones too, as the editor does. */
@@ -40,8 +41,8 @@ export interface Entry {
    * their place in `ResumeView.sections`.
    */
   index: number
-  /** Each of the section's fields, trimmed; "" when it's empty or missing. Bullet fields are as typed. */
-  values: Record<string, string>
+  /** Each field, trimmed; "" when it's empty, missing, or another section's. Bullet fields are as typed. */
+  values: Record<FieldKey, string>
   /** The bullets in its bullet field, in order. */
   bullets: Bullet[]
   /** Nothing typed in it at all, as when it was added but never filled in; bullet points with no words count as nothing. */
@@ -51,7 +52,7 @@ export interface Entry {
 export interface ResumeView {
   type: ResumeType
   /** Each profile field, trimmed; "" when it's empty or missing. */
-  profile: Record<string, string>
+  profile: Record<ProfileKey, string>
   /** Each section's printed entries, in the order they're saved and printed. */
   sections: Record<SectionName, Entry[]>
   /** Each section's own title if the person renamed it, or "" for the template's. */
@@ -65,6 +66,9 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "")
 
+// Every field of every section, empty, so an entry's values have them all.
+const NO_VALUES = Object.fromEntries(SECTION_NAMES.flatMap((name) => SECTIONS[name].fields.map((field) => [field.key, ""]))) as Record<FieldKey, string>
+
 // Older resumes saved bullets as a list; the editor types them one "• " line each.
 const allLinesOf = (value: unknown): string[] =>
   (Array.isArray(value) ? value : typeof value === "string" ? value.split("\n") : []).map((line) => (typeof line === "string" ? line : ""))
@@ -72,7 +76,7 @@ const allLinesOf = (value: unknown): string[] =>
 // Left-out lines are blanked rather than dropped, so the rest keep their line numbers.
 const linesOf = (value: unknown): string[] => allLinesOf(value).map((line) => (isLeftOutLine(line) ? "" : line))
 
-const bulletsOf = (field: string, value: unknown): Bullet[] => {
+const bulletsOf = (field: FieldKey, value: unknown): Bullet[] => {
   let number = 0
   return allLinesOf(value).flatMap((line, index) => {
     const raw = line.trim().replace(/^[•○]\s*/, "")
@@ -83,23 +87,27 @@ const bulletsOf = (field: string, value: unknown): Bullet[] => {
 }
 
 /** Reads a resume, as the editor saves it, for the checks. */
-export function viewOf(resume: Record<string, any>): ResumeView {
+export function viewOf(resume: Resume): ResumeView {
   const profile = isObject(resume.profileSection) ? resume.profileSection : {}
   const headings = isObject(resume.headings) ? resume.headings : {}
   const sections = {} as Record<SectionName, Entry[]>
   const titles = {} as Record<SectionName, string>
   for (const name of SECTION_NAMES) {
     const { dataKey, headingKey, fields } = SECTIONS[name]
-    const saved: unknown[] = Array.isArray(resume[dataKey]) ? resume[dataKey] : []
+    const list: unknown = resume[dataKey]
+    const saved: unknown[] = Array.isArray(list) ? list : []
     sections[name] = saved.flatMap((item, index) => {
       if (isLeftOut(item)) return []
       const entry = isObject(item) ? item : {}
-      const values = Object.fromEntries(
-        fields.map((field) => [
-          field.key,
-          field.type === "bullets" ? linesOf(entry[field.key]).join("\n").trim() : text(entry[field.key]),
-        ]),
-      )
+      const values: Record<FieldKey, string> = {
+        ...NO_VALUES,
+        ...Object.fromEntries(
+          fields.map((field) => [
+            field.key,
+            field.type === "bullets" ? linesOf(entry[field.key]).join("\n").trim() : text(entry[field.key]),
+          ]),
+        ),
+      }
       const bullets = fields
         .filter((field) => field.type === "bullets")
         .flatMap((field) => bulletsOf(field.key, entry[field.key]))
@@ -111,10 +119,10 @@ export function viewOf(resume: Record<string, any>): ResumeView {
   }
   return {
     type: resumeTypeOf(resume),
-    profile: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, text(profile[field.key])])),
+    profile: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, text(profile[field.key])])) as Record<ProfileKey, string>,
     sections,
     headings: titles,
-    order: sectionOrder(resume.sectionOrder) as SectionName[],
+    order: sectionOrder(resume.sectionOrder),
   }
 }
 

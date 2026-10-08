@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest"
 import { hasLeftOut, isLeftOutLine, printedResume } from "./leftOut"
+import { asSaved } from "./testResume"
 
-const tailored = {
+const tailored = asSaved({
   resumeTitle: "For the bank",
   profileSection: { fullName: "Ada Lovelace" },
   workExperienceSection: [
@@ -11,7 +12,7 @@ const tailored = {
     { id: 3, workRole: "Analyst", workDescription: ["Checked sums", "○ Sharpened pencils"] },
   ],
   skillsSection: [{ id: 1, skillName: "Languages", skillDetails: "English", leftOut: true }],
-}
+})
 
 describe("what's printed", () => {
   test("is everything but the entries and bullets the person left out", () => {
@@ -47,7 +48,7 @@ describe("whether anything is left out", () => {
   test("counts a left-out entry or bullet, in a list or in text", () => {
     expect(hasLeftOut(tailored)).toBe(true)
     expect(hasLeftOut({ workExperienceSection: [{ id: 1, workDescription: "• Built a loom\n○ Fed the cat" }] })).toBe(true)
-    expect(hasLeftOut({ workExperienceSection: [{ id: 1, workDescription: ["Checked sums", "○ Sharpened pencils"] }] })).toBe(true)
+    expect(hasLeftOut(asSaved({ workExperienceSection: [{ id: 1, workDescription: ["Checked sums", "○ Sharpened pencils"] }] }))).toBe(true)
     expect(hasLeftOut({ projectsSection: [{ id: 1, leftOut: true }] })).toBe(true)
   })
 

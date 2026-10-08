@@ -9,7 +9,8 @@
 // without being saved again; if both tabs changed the same resume, the fields
 // each one changed are kept.
 
-import type { ResumeContent } from "./resumeFile"
+import { SECTION_NAMES } from "@/components/editor/sections"
+import type { Resume, ResumeContent, ResumeField } from "./resume"
 import {
   changedPaths,
   deleteKeptAside,
@@ -33,9 +34,6 @@ import {
 import { numberDuplicateTitles, uniqueTitle } from "./resumeTitles"
 import { DEFAULT_TEMPLATE } from "./templates"
 
-/** A resume as the editor stores it; its fields are listed in components/editor/sections.ts. */
-export type Resume = Record<string, any>
-
 export interface ResumeState {
   /** Every resume saved in this browser, by id. */
   resumes: Record<string, Resume>
@@ -57,7 +55,7 @@ export const INITIAL_STATE: ResumeState = { resumes: {}, loaded: false, saveStat
 /** How long typing pauses before the changes are saved, in milliseconds. */
 export const SAVE_DELAY = 400
 
-const blankResume = (template: string) => ({
+const blankResume = (template: string): Resume => ({
   profileSection: {},
   headings: {},
   selectedTemplate: template,
@@ -69,7 +67,7 @@ const blankResume = (template: string) => ({
   skillsSection: [],
   leadershipExperienceSection: [],
   awardsSection: [],
-  sectionOrder: ["Education", "Work", "Skills", "Projects", "Publications", "Volunteership", "Leadership", "Awards"],
+  sectionOrder: [...SECTION_NAMES],
 })
 
 const without = (resumes: Record<string, Resume>, id: string) =>
@@ -122,7 +120,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
   }
 
   /** Changes one field of a resume. It's saved once typing pauses. */
-  function edit(id: string, field: string, value: unknown) {
+  function edit<Field extends ResumeField>(id: string, field: Field, value: Resume[Field]) {
     if (!has(id)) return
     markChanged(id, ...changedPaths(field, state.resumes[id][field], value), "updatedAt")
     const resume = { ...state.resumes[id], [field]: value, updatedAt: new Date().toISOString() }

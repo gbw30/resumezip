@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest"
+import type { Resume } from "@/lib/resume"
 import { runChecks } from "./engine"
 import { RULES } from "./rules"
 
@@ -13,7 +14,7 @@ const job = (bullets: string[], more: Record<string, string> = {}) => ({
 const resumeWith = (...jobs: ReturnType<typeof job>[]) => ({ profileSection: { fullName: "Jake Ryan" }, workExperienceSection: jobs })
 
 /** What one rule says about a resume. */
-function check(id: string, resume: Record<string, any>) {
+function check(id: string, resume: Resume) {
   const rule = RULES.find((rule) => rule.id === id)!
   const report = runChecks(resume, { rules: [rule] })
   return { status: report.results[0].status, messages: report.findings.map((finding) => finding.message), findings: report.findings }

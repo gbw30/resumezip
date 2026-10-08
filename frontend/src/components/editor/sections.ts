@@ -1,11 +1,12 @@
 // The editor's list sections. Each is an array of entries stored on the resume
 // under `dataKey`; field keys are what the PDF templates read (see
-// lib/typst/resumeData.ts), so don't rename them.
+// lib/typst/resumeData.ts), so don't rename them. The resume's types
+// (lib/resume.ts) are derived from the definitions here.
 
 export type SectionName = "Education" | "Work" | "Skills" | "Projects" | "Publications" | "Volunteership" | "Leadership" | "Awards"
 
-export interface FieldDef {
-  key: string
+export interface FieldDef<Key extends string = string> {
+  key: Key
   label: string
   placeholder: string
   /** Width in a 4-column row: sm = 1, md = 2, lg = 3, full = 4. */
@@ -15,30 +16,32 @@ export interface FieldDef {
 }
 
 /** A choice that applies to the whole section, stored on the resume under `key`. */
-export interface ChoiceDef {
-  key: string
+export interface ChoiceDef<Key extends string = string> {
+  key: Key
   label: string
   /** The first option is the default. */
-  options: { value: string; label: string; hint: string }[]
+  options: readonly { value: string; label: string; hint: string }[]
 }
 
-export interface SectionDef {
+// A section's definition, with its keys as type parameters: the definitions
+// below are checked against Definition<string, ...>, and SectionDef then has
+// the keys they define.
+interface Definition<Field extends string, Data extends string, Heading extends string, Choice extends string> {
   name: SectionName
   /** Shown in the editor; the resume uses the user's heading or the template's default. */
   title: string
-  dataKey: string
-  headingKey: string
+  dataKey: Data
+  headingKey: Heading
   addLabel: string
-  fields: FieldDef[]
+  fields: readonly FieldDef<Field>[]
   /** Fields shown, in order, when an entry is collapsed. */
-  summary: string[]
-  choice?: ChoiceDef
+  summary: readonly Field[]
+  choice?: ChoiceDef<Choice>
   /** Entries can also be added from a paper's DOI or link. */
   fromPaperLink?: boolean
 }
 
-/** The profile's fields, stored on the resume under `profileSection`. */
-export const PROFILE_FIELDS: (FieldDef & { inputType?: string })[] = [
+const PROFILE = [
   { key: "fullName", label: "Full name", placeholder: "Jake Ryan", size: "full" },
   { key: "email", label: "Email", placeholder: "jake@example.com", size: "md", inputType: "email" },
   { key: "phoneNumber", label: "Phone", placeholder: "123-456-7890", size: "md", inputType: "tel" },
@@ -46,22 +49,30 @@ export const PROFILE_FIELDS: (FieldDef & { inputType?: string })[] = [
   { key: "linkedin", label: "LinkedIn", placeholder: "linkedin.com/in/jake", size: "md" },
   { key: "profileGithub", label: "GitHub", placeholder: "github.com/jake", size: "md" },
   { key: "personalWebsite", label: "Website", placeholder: "jake.dev", size: "md" },
-]
+] as const satisfies readonly (FieldDef & { inputType?: string })[]
 
-const dates = (prefix: string): FieldDef[] => [
-  { key: `${prefix}StartDate`, label: "Start", placeholder: "Jan 2024", size: "sm" },
-  { key: `${prefix}EndDate`, label: "End", placeholder: "Present", size: "sm" },
-]
+/** A profile field's key, like "email". */
+export type ProfileKey = (typeof PROFILE)[number]["key"]
 
-const bullets = (key: string): FieldDef => ({
-  key,
-  label: "What you did · one bullet per line",
-  placeholder: "Built a service that cut page load time by 30%",
-  size: "full",
-  type: "bullets",
-})
+/** The profile's fields, stored on the resume under `profileSection`. */
+export const PROFILE_FIELDS: readonly (FieldDef<ProfileKey> & { inputType?: string })[] = PROFILE
 
-export const SECTIONS: Record<SectionName, SectionDef> = {
+const dates = <Prefix extends string>(prefix: Prefix) =>
+  [
+    { key: `${prefix}StartDate`, label: "Start", placeholder: "Jan 2024", size: "sm" },
+    { key: `${prefix}EndDate`, label: "End", placeholder: "Present", size: "sm" },
+  ] as const
+
+const bullets = <Key extends string>(key: Key) =>
+  ({
+    key,
+    label: "What you did · one bullet per line",
+    placeholder: "Built a service that cut page load time by 30%",
+    size: "full",
+    type: "bullets",
+  }) as const
+
+const DEFINITIONS = {
   Education: {
     name: "Education",
     title: "Education",
@@ -191,7 +202,24 @@ export const SECTIONS: Record<SectionName, SectionDef> = {
       { key: "awardOrg", label: "Issued by", placeholder: "Amazon Web Services", size: "md" },
     ],
   },
-}
+} as const satisfies { [Name in SectionName]: Definition<string, string, string, string> & { name: Name } }
+
+type Definitions = typeof DEFINITIONS
+
+/** A section's field keys, like "schoolName" for Education. */
+export type FieldKeyOf<Name extends SectionName> = Definitions[Name]["fields"][number]["key"]
+/** A field key of any section. */
+export type FieldKey = FieldKeyOf<SectionName>
+/** Where a section's entries are stored on the resume, like "educationSection". */
+export type DataKey = Definitions[SectionName]["dataKey"]
+/** Where a section's own title is stored in the resume's headings, like "edu". */
+export type HeadingKey = Definitions[SectionName]["headingKey"]
+/** Where a section's choice is stored on the resume, like "projectLinks". */
+export type ChoiceKey = Extract<Definitions[SectionName], { choice: unknown }>["choice"]["key"]
+
+export type SectionDef = Definition<FieldKey, DataKey, HeadingKey, ChoiceKey>
+
+export const SECTIONS: Record<SectionName, SectionDef> = DEFINITIONS
 
 export const SECTION_NAMES = Object.keys(SECTIONS) as SectionName[]
 

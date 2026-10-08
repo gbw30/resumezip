@@ -1,7 +1,7 @@
 // Dates (D1–D7 in issue #58): that each entry has them, that they make sense,
 // and that they're written one way.
 
-import type { SectionName } from "@/components/editor/sections"
+import type { FieldKey, SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
 import type { Place } from "./places"
 import { compareDates, datesOf, DATE_FIELDS, monthName, type EntryDates, type ResumeDate, type Written } from "./readDate"
@@ -11,7 +11,7 @@ import { mostCommon } from "./text"
 // Jobs, schools and roles: what has a start and an end.
 const SPANS: SectionName[] = ["Work", "Education", "Leadership", "Volunteership"]
 
-const at = (entry: Entry, field: string): Place => ({ kind: "entry", section: entry.section, entry: entry.index, field })
+const at = (entry: Entry, field: FieldKey): Place => ({ kind: "entry", section: entry.section, entry: entry.index, field })
 
 /** The dates of each entry with something in it, section by section, in the order they're printed. */
 const allDates = (resume: ResumeView, sections: readonly SectionName[] = resume.order) =>
@@ -34,7 +34,7 @@ const noDates: Rule = {
       problems: entries
         .filter((dates) => dates.filled === 0)
         .map(({ entry }) => {
-          const fields = DATE_FIELDS[entry.section] as { start: string }
+          const fields = DATE_FIELDS[entry.section] as { start: FieldKey }
           return { place: at(entry, fields.start), message: "No dates", suggestion: "Add when it started and ended." }
         }),
     }

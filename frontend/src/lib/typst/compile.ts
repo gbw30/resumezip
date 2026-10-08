@@ -1,6 +1,7 @@
 // Compiles resumes to PDF in the browser. The Typst compiler (and its large
 // WebAssembly download) is only loaded the first time a resume is compiled.
 
+import type { Resume } from "@/lib/resume"
 import { toAttachment } from "@/lib/resumeFile"
 import { templateIdOf, toTemplateData, type TemplateData, type TemplateId } from "./resumeData"
 
@@ -11,7 +12,7 @@ export interface Printed {
 }
 
 /** What a resume, in the editor's format, prints. */
-export const printedOf = (resume: Record<string, any>): Printed => ({
+export const printedOf = (resume: Resume): Printed => ({
   template: templateIdOf(resume.selectedTemplate),
   data: toTemplateData(resume),
 })
@@ -187,7 +188,7 @@ interface CompileOptions {
 }
 
 /** Compiles a resume, in the editor's format, to PDF bytes. */
-export function compileResume(resume: Record<string, any>, { attach = false }: CompileOptions = {}): Promise<Uint8Array> {
+export function compileResume(resume: Resume, { attach = false }: CompileOptions = {}): Promise<Uint8Array> {
   return send(printedOf(resume), attach ? toAttachment(resume) : undefined)
 }
 
@@ -249,7 +250,7 @@ function startNextPreview() {
 }
 
 /** Compiles a resume and saves it as "<title>.pdf", with the resume attached. */
-export async function downloadResume(resume: Record<string, any>): Promise<void> {
+export async function downloadResume(resume: Resume): Promise<void> {
   const url = toUrl(await compileResume(resume, { attach: true }))
   const link = document.createElement("a")
   link.href = url

@@ -6,6 +6,7 @@
 
 import { SECTIONS } from "@/components/editor/sections"
 import { CHECK_FIELD } from "@/lib/check/state"
+import type { Resume } from "./resume"
 
 /**
  * Saved data that can't be read is kept instead of being saved over, each
@@ -33,7 +34,6 @@ export const LEGACY_KEY = "allResumes"
 /** A copy of what was saved there, kept once when it's moved. */
 export const BACKUP_KEY = "allResumes-backup"
 
-type Resume = Record<string, any>
 type Resumes = Record<string, Resume>
 
 /**
@@ -261,7 +261,8 @@ function readEntry(value: unknown): { resume: Resume | null; complete: boolean }
     if (!readable?.complete) complete = false
     if (readable) fields.push([key, readable.value])
   }
-  return { resume: Object.fromEntries(fields), complete }
+  // Each field is in a shape the editor can show (readField), which is all a Resume promises of saved data.
+  return { resume: Object.fromEntries(fields) as Resume, complete }
 }
 
 export const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -270,8 +271,8 @@ export const isObject = (value: unknown): value is Record<string, unknown> =>
 // Fields the editor reads as lists of entries, and as objects of named
 // values (the checker's dismissals and added words are one). Older resumes
 // can lack some of them, or have them empty (null); only other shapes count.
-const ENTRY_LISTS = new Set(Object.values(SECTIONS).map((section) => section.dataKey))
-export const OBJECT_FIELDS = new Set(["profileSection", "headings", CHECK_FIELD])
+const ENTRY_LISTS: ReadonlySet<string> = new Set(Object.values(SECTIONS).map((section) => section.dataKey))
+const OBJECT_FIELDS: ReadonlySet<string> = new Set(["profileSection", "headings", CHECK_FIELD])
 
 /** A field as the editor can show it, and whether that's all of it; null if none of it. */
 function readField(key: string, value: unknown): { value: unknown; complete: boolean } | null {
@@ -372,11 +373,13 @@ function removeLegacy(storage: Storage, id: string): SaveStatus {
  */
 export function mergeResume(theirs: Resume, ours: Resume, changed: ReadonlySet<string>): Resume {
   if (changed.has(EVERY_FIELD)) return ours
-  const fields = new Map(Object.entries(theirs))
+  // Merged by field name, so fields this version doesn't know are kept too.
+  const own: Record<string, unknown> = ours
+  const fields = new Map<string, unknown>(Object.entries(theirs))
   for (const path of changed) {
     const dot = path.indexOf(".")
     if (dot < 0) {
-      if (Object.hasOwn(ours, path)) fields.set(path, ours[path])
+      if (Object.hasOwn(own, path)) fields.set(path, own[path])
       else fields.delete(path)
       continue
     }
@@ -384,13 +387,15 @@ export function mergeResume(theirs: Resume, ours: Resume, changed: ReadonlySet<s
     const field = path.slice(0, dot)
     const key = path.slice(dot + 1)
     if (changed.has(field)) continue
-    const values = new Map(Object.entries(isObject(fields.get(field)) ? (fields.get(field) as Resume) : {}))
-    const mine = isObject(ours[field]) ? (ours[field] as Resume) : {}
+    const theirValues = fields.get(field)
+    const values = new Map(Object.entries(isObject(theirValues) ? theirValues : {}))
+    const ourValues = own[field]
+    const mine = isObject(ourValues) ? ourValues : {}
     if (Object.hasOwn(mine, key)) values.set(key, mine[key])
     else values.delete(key)
     fields.set(field, Object.fromEntries(values))
   }
-  return { ...Object.fromEntries(fields), updatedAt: later(theirs.updatedAt, ours.updatedAt) }
+  return { ...(Object.fromEntries(fields) as Resume), updatedAt: later(theirs.updatedAt, ours.updatedAt) }
 }
 
 /**
@@ -415,7 +420,7 @@ const time = (value: unknown) => {
   const parsed = typeof value === "string" ? Date.parse(value) : NaN
   return Number.isNaN(parsed) ? -Infinity : parsed
 }
-const later = (a: unknown, b: unknown) => (time(a) >= time(b) ? a : b)
+const later = <T>(a: T, b: T) => (time(a) >= time(b) ? a : b)
 
 function failure(error: unknown): SaveStatus {
   if (isQuotaError(error)) return "full"

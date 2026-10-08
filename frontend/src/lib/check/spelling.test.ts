@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest"
 import { samples } from "@/lib/import/testRender"
+import type { Resume } from "@/lib/resume"
 import { runChecks } from "./engine"
 import type { DialectName } from "./dialect"
 import { viewOf } from "./resume"
@@ -27,7 +28,7 @@ const resumeWith = (jobs: ReturnType<typeof job>[], extra: Record<string, unknow
 const TODAY = new Date(2026, 9, 7)
 
 /** What one rule says about a resume, with Harper reading its text as the editor has it read. */
-async function check(id: string, resume: Record<string, any>, { dialect = "american" as DialectName, read = true } = {}) {
+async function check(id: string, resume: Resume, { dialect = "american" as DialectName, read = true } = {}) {
   const rule = RULES.find((rule) => rule.id === id)!
   const grammar = read ? await readingOf(grammarTexts(viewOf(resume)).map(({ text }) => text), dialect) : undefined
   const report = runChecks(resume, { rules: [rule], grammar, today: TODAY })

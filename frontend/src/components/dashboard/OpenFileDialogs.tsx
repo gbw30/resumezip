@@ -46,7 +46,7 @@ const formatWhen = (value: unknown) => {
 }
 
 interface ConflictDialogProps {
-  existingTitle: string
+  existingTitle?: string
   existingEdited: unknown
   fileEdited: unknown
   /** Whether the resume in this browser has something left out of the PDF, which the PDF doesn't hold. */

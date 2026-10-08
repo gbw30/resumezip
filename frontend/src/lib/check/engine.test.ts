@@ -2,6 +2,8 @@ import { readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { SECTION_NAMES } from "@/components/editor/sections"
+import type { Resume } from "@/lib/resume"
+import { asSaved } from "@/lib/testResume"
 import { runChecks, type CheckInput, type Finding, type Outcome, type PdfReading, type Problem, type Rule } from "./engine"
 import type { Place } from "./places"
 import { textsOf } from "./resume"
@@ -55,8 +57,8 @@ const realEmail = formRule(
   { category: "contact", level: "fix" },
 )
 
-const withCheck = (resume: Record<string, any>, check: unknown): Record<string, any> => ({ ...resume, [CHECK_FIELD]: check })
-const dismissed = (resume: Record<string, any>, finding: Finding): Record<string, any> =>
+const withCheck = (resume: Resume, check: unknown): Resume => asSaved({ ...resume, [CHECK_FIELD]: check })
+const dismissed = (resume: Resume, finding: Finding): Resume =>
   withCheck(resume, dismiss(readCheckState(resume), finding))
 
 const reading = (pages = 1): PdfReading => ({
@@ -171,7 +173,7 @@ describe("running the rules", () => {
   test("leaves out what a rule found at a place that isn't on the resume", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const nowhere: Problem[] = [
-      { place: { kind: "profile", field: "password" }, message: "No such field" },
+      { place: { kind: "profile", field: "password" as never }, message: "No such field" },
       { place: { kind: "entry", section: "Work", entry: 1, field: "workRole" }, message: "No second entry" },
       { place: { kind: "entry", section: "Work", entry: 0, field: "schoolName" }, message: "Not a Work field" },
       { place: bulletPlace(0, 2), message: "A blank line, not a bullet" },

@@ -2,19 +2,19 @@
 // title, a whole section, an entry (one of its fields, or one bullet), or the
 // PDF's pages. Also how a finding is told apart from others, for dismissing it.
 
-import { PROFILE_FIELDS, SECTIONS, type SectionName } from "@/components/editor/sections"
+import { PROFILE_FIELDS, SECTIONS, type FieldKey, type ProfileKey, type SectionName } from "@/components/editor/sections"
 import { entryAt, type ResumeView } from "./resume"
 
 export type Place =
   // A profile field, like "email".
-  | { kind: "profile"; field: string }
+  | { kind: "profile"; field: ProfileKey }
   // A section's title, which the person can rename.
   | { kind: "heading"; section: SectionName }
   // A whole section, as when it's missing or empty.
   | { kind: "section"; section: SectionName }
   // An entry (its place in the list, from 0), one of its fields, or one line of
   // a bullet field (a bullet's `line`).
-  | { kind: "entry"; section: SectionName; entry: number; field?: string; line?: number }
+  | { kind: "entry"; section: SectionName; entry: number; field?: FieldKey; line?: number }
   // The PDF as a whole, or one of its pages (from 1).
   | { kind: "page"; page?: number }
 
@@ -22,7 +22,15 @@ export type Place =
 export const fieldOf = (place: Place) => (place.kind === "profile" || place.kind === "entry" ? place.field : undefined)
 
 /** Fields that hold a link or an email address rather than words. */
-export const LINK_FIELDS: ReadonlySet<string> = new Set(["email", "linkedin", "profileGithub", "personalWebsite", "projectGithub", "additionalLink", "publicationLink"])
+export const LINK_FIELDS: ReadonlySet<ProfileKey | FieldKey | undefined> = new Set<ProfileKey | FieldKey>([
+  "email",
+  "linkedin",
+  "profileGithub",
+  "personalWebsite",
+  "projectGithub",
+  "additionalLink",
+  "publicationLink",
+])
 
 /** Whether a place is on this resume, so the editor can open it. `pages` is how many the PDF has. */
 export function placeExists(view: ResumeView, place: Place, pages = 0): boolean {

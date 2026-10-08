@@ -1,12 +1,13 @@
 // Contact & personal details (C1–C10 in issue #58): how a recruiter reaches
 // the person, and what to leave off.
 
+import type { ProfileKey } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
 import type { Place } from "./places"
 import { textsOf } from "./resume"
 import { LINKEDIN_RANDOM_ENDING, MIN_PHONE_DIGITS, PERSONAL_DETAILS, SSN, STREET_WORDS } from "./settings"
 
-const profile = (field: string): Place => ({ kind: "profile", field })
+const profile = (field: ProfileKey): Place => ({ kind: "profile", field })
 
 // Something before an @, and a domain with a dot and a real ending after it.
 const EMAIL = /^[^\s@]+@([^\s@.]+\.)+[a-z]{2,}$/i
@@ -144,10 +145,11 @@ const links: Rule = {
   title: "Your GitHub and website links",
   why: "A link that isn't a web address can't be opened.",
   check: ({ resume }) => {
-    const fields = [
+    const links: { field: ProfileKey; example: string }[] = [
       { field: "profileGithub", example: "github.com/jake" },
       { field: "personalWebsite", example: "jake.dev" },
-    ].filter(({ field }) => resume.profile[field])
+    ]
+    const fields = links.filter(({ field }) => resume.profile[field])
     if (fields.length === 0) return null
     return {
       checked: fields.length,

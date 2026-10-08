@@ -1,7 +1,7 @@
 // Polish (P1–P7 in issue #58): small things written one way, and spaced and
 // capitalized the usual way.
 
-import type { SectionName } from "@/components/editor/sections"
+import type { FieldKey, FieldKeyOf, SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
 import { fieldOf, LINK_FIELDS, type Place } from "./places"
 import { textsOf, type ResumeView } from "./resume"
@@ -84,7 +84,7 @@ const STATE_NAMES = new Map(
 const STATE_ABBREVIATIONS = new Map(US_STATES)
 
 // Where places are written, besides the profile's location.
-const LOCATION_FIELDS: Partial<Record<SectionName, string>> = {
+const LOCATION_FIELDS: { [Section in SectionName]?: FieldKeyOf<Section> } = {
   Education: "schoolLocation",
   Work: "workLocation",
   Volunteership: "volunteerLocation",
@@ -94,7 +94,7 @@ const LOCATION_FIELDS: Partial<Record<SectionName, string>> = {
 // "Austin, TX" or "Austin, Texas": how each place's state is written.
 function statesIn(resume: ResumeView): Way[] {
   const places: { place: Place; text: string }[] = [{ place: { kind: "profile", field: "location" }, text: resume.profile.location }]
-  for (const [section, field] of Object.entries(LOCATION_FIELDS) as [SectionName, string][]) {
+  for (const [section, field] of Object.entries(LOCATION_FIELDS) as [SectionName, FieldKey][]) {
     for (const entry of resume.sections[section]) places.push({ place: { kind: "entry", section, entry: entry.index, field }, text: entry.values[field] })
   }
   return places.flatMap(({ place, text }): Way[] => {
@@ -165,7 +165,7 @@ const spacing: Rule = {
   title: "Clean spacing",
   why: "Stray or missing spaces look careless in print.",
   check: ({ resume }) => {
-    const texts = textsOf(resume).filter(({ place }) => !LINK_FIELDS.has(fieldOf(place) ?? ""))
+    const texts = textsOf(resume).filter(({ place }) => !LINK_FIELDS.has(fieldOf(place)))
     if (texts.length === 0) return null
     return {
       checked: texts.length,
@@ -194,7 +194,7 @@ const allCaps: Rule = {
     // tools and courses, which are full of names written in capitals.
     const texts = textsOf(resume).filter(
       ({ place }) =>
-        place.kind === "entry" && place.section !== "Skills" && place.field !== "coursework" && !LINK_FIELDS.has(place.field ?? ""),
+        place.kind === "entry" && place.section !== "Skills" && place.field !== "coursework" && !LINK_FIELDS.has(place.field),
     )
     if (texts.length === 0) return null
     return {
@@ -230,7 +230,7 @@ const shorthand: Rule = {
   why: "Shorthand reads as a note to yourself, not a finished resume.",
   check: ({ resume }) => {
     // Bullets, and fields like a role or a skill ("Project Mgr"); not links.
-    const texts = textsOf(resume).filter(({ place }) => !LINK_FIELDS.has(fieldOf(place) ?? ""))
+    const texts = textsOf(resume).filter(({ place }) => !LINK_FIELDS.has(fieldOf(place)))
     if (texts.length === 0) return null
     return {
       checked: texts.length,

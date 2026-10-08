@@ -102,8 +102,8 @@ test("a school with its place on the right starts a new entry, even right after 
   const [first, second] = sample.educationSection
   const resume = { ...sample, educationSection: [{ ...first, gpa: "", coursework: "", involvement: "" }, second] }
   const { resume: got } = await readBack(await render(resume))
-  expect(got.educationSection.map((school: Record<string, string>) => school.schoolLocation)).toEqual([first.schoolLocation, second.schoolLocation])
-  expect(got.educationSection.map((school: Record<string, string>) => school.schoolName.toLowerCase())).toEqual([
+  expect(got.educationSection?.map((school) => school.schoolLocation)).toEqual([first.schoolLocation, second.schoolLocation])
+  expect(got.educationSection?.map((school) => school.schoolName?.toLowerCase())).toEqual([
     first.schoolName.toLowerCase(),
     second.schoolName.toLowerCase(),
   ])
@@ -115,7 +115,7 @@ test("bold and italic words in bullets come back marked, in every template", asy
     const [first, ...rest] = sample.workExperienceSection
     const resume = { ...sample, workExperienceSection: [{ ...first, workDescription: `• ${bullet}` }, ...rest] }
     const { resume: got } = await readBack(await render(resume))
-    expect(got.workExperienceSection[0].workDescription, sample.selectedTemplate).toBe(`• ${bullet}`)
+    expect(got.workExperienceSection?.[0].workDescription, sample.selectedTemplate).toBe(`• ${bullet}`)
   }
 })
 
@@ -123,7 +123,7 @@ test("a phone number with a plus written apart keeps the plus", async () => {
   const sample = samples.find((resume) => resume.selectedTemplate === "ian")
   const resume = { ...sample, profileSection: { ...sample.profileSection, phoneNumber: "+ (352) 284-0205" } }
   const { parsed, resume: got } = await readBack(await render(resume))
-  expect(got.profileSection.phoneNumber).toBe("+ (352) 284-0205")
+  expect(got.profileSection?.phoneNumber).toBe("+ (352) 284-0205")
   expect(parsed.unplaced).toEqual([])
 })
 

@@ -39,8 +39,8 @@ const NOT_WORDS = new Set([
   "phoneNumber",
   "gpa",
 ])
-const NAMES = new Set(NAME_FIELDS)
-const SKILLS = new Set(SKILL_FIELDS)
+const NAMES: ReadonlySet<string> = new Set(NAME_FIELDS)
+const SKILLS: ReadonlySet<string> = new Set(SKILL_FIELDS)
 
 /**
  * The typed text the grammar checker reads: every field and bullet except

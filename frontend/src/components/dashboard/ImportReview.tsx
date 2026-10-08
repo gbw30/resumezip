@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState, type RefObject } from "react"
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { ArrowLeftRight, Check, Copy } from "lucide-react"
-import { SECTIONS, type SectionName } from "@/components/editor/sections"
+import { SECTIONS, type FieldKey, type FieldKeyOf, type SectionName } from "@/components/editor/sections"
 import type { Line, PageSize } from "@/lib/import/lines"
 import type { OpenedFile } from "@/lib/import/open"
 import { entryKey, toResumeContent, type FoundEntry, type ParsedResume } from "@/lib/import/parse"
-import type { ResumeContent } from "@/lib/resumeFile"
+import type { ResumeContent } from "@/lib/resume"
 import Modal from "./Modal"
 
 type ParsedFile = Extract<OpenedFile, { kind: "parsed" }>
@@ -22,10 +22,16 @@ const range = (start?: string, end?: string) => [start, end].filter(Boolean).joi
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`
 
 // How each kind of entry is summed up, and which two fields "Swap" exchanges.
-const SHOWN: Record<
-  SectionName,
-  { primary: string; secondary: string[]; dates: (fields: Record<string, string>) => string; bullets?: string; swap?: [string, string]; swapLabel?: string }
-> = {
+const SHOWN: {
+  [Section in SectionName]: {
+    primary: FieldKeyOf<Section>
+    secondary: FieldKeyOf<Section>[]
+    dates: (fields: FoundEntry["fields"]) => string
+    bullets?: FieldKeyOf<Section>
+    swap?: [FieldKeyOf<Section>, FieldKeyOf<Section>]
+    swapLabel?: string
+  }
+} = {
   Education: {
     primary: "schoolName",
     secondary: ["degree", "gpa", "schoolLocation"],
@@ -57,13 +63,13 @@ const SHOWN: Record<
     swap: ["volunteerRole", "volunteerOrg"],
     swapLabel: "Swap role and organization",
   },
-  Projects: { primary: "projectName", secondary: ["techStack"], dates: (f) => f.projectDate, bullets: "projectDescription" },
-  Publications: { primary: "publicationTitle", secondary: ["publicationAuthors", "publicationVenue", "publicationDetails"], dates: (f) => f.publicationDate },
+  Projects: { primary: "projectName", secondary: ["techStack"], dates: (f) => f.projectDate ?? "", bullets: "projectDescription" },
+  Publications: { primary: "publicationTitle", secondary: ["publicationAuthors", "publicationVenue", "publicationDetails"], dates: (f) => f.publicationDate ?? "" },
   Skills: { primary: "skillName", secondary: ["skillDetails"], dates: () => "" },
-  Awards: { primary: "awardName", secondary: ["awardOrg"], dates: (f) => f.awardDate },
+  Awards: { primary: "awardName", secondary: ["awardOrg"], dates: (f) => f.awardDate ?? "" },
 }
 
-const swapFields = (entry: FoundEntry, [a, b]: [string, string]): FoundEntry => ({
+const swapFields = (entry: FoundEntry, [a, b]: [FieldKey, FieldKey]): FoundEntry => ({
   ...entry,
   fields: { ...entry.fields, [a]: entry.fields[b], [b]: entry.fields[a] },
 })
@@ -163,7 +169,7 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                       const primary = entry.fields[shown.primary]
                       const secondary = shown.secondary.map((field) => entry.fields[field]).filter(Boolean).join(" · ")
                       const dates = shown.dates(entry.fields)
-                      const bullets = shown.bullets ? entry.fields[shown.bullets].split("\n").filter((line) => line.trim()).length : 0
+                      const bullets = shown.bullets ? (entry.fields[shown.bullets] ?? "").split("\n").filter((line) => line.trim()).length : 0
                       return (
                         <li key={key} className="flex items-start gap-3 border-b border-rule py-3" {...point(entry.lines)}>
                           <input

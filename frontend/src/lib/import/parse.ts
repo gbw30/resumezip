@@ -4,13 +4,15 @@
 // It's still guesswork, so the import review shows the result, and whatever
 // couldn't be placed, before anything is saved.
 
-import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
-import type { ResumeContent } from "@/lib/resumeFile"
+import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type FieldKey, type FieldKeyOf, type ProfileKey, type SectionName } from "@/components/editor/sections"
+import type { ResumeContent } from "@/lib/resume"
 import type { Line, Part } from "./lines"
 
+/** An entry's values, keyed by its section's field names. */
+type Fields = Partial<Record<FieldKey, string>>
+
 export interface FoundEntry {
-  /** Values keyed by the section's field names. */
-  fields: Record<string, string>
+  fields: Fields
   /** Indexes of the lines it was read from. */
   lines: number[]
 }
@@ -23,7 +25,7 @@ export interface FoundSection {
 export interface ParsedResume {
   /** The lines that entries' `lines` index into: the file's, with side headings split off. */
   lines: Line[]
-  profile: Record<string, string>
+  profile: Partial<Record<ProfileKey, string>>
   profileLines: number[]
   /** In the order they appear in the file. */
   sections: FoundSection[]
@@ -654,13 +656,15 @@ interface SectionResult {
   leftover: { lines: number[]; text: string[] }
 }
 
-const EXPERIENCE_FIELDS: Record<"Work" | "Leadership" | "Volunteership", Record<string, string>> = {
+const EXPERIENCE_FIELDS: {
+  [Section in "Work" | "Leadership" | "Volunteership"]: Record<"role" | "org" | "location" | "start" | "end" | "bullets", FieldKeyOf<Section>>
+} = {
   Work: { role: "workRole", org: "companyName", location: "workLocation", start: "workStartDate", end: "workEndDate", bullets: "workDescription" },
   Leadership: { role: "leadershipRole", org: "leadershipOrg", location: "leadershipLocation", start: "leadershipStartDate", end: "leadershipEndDate", bullets: "leadershipDescription" },
   Volunteership: { role: "volunteerRole", org: "volunteerOrg", location: "volunteerLocation", start: "volunteerStartDate", end: "volunteerEndDate", bullets: "volunteerDescription" },
 }
 
-function blankEntry(name: SectionName): Record<string, string> {
+function blankEntry(name: SectionName): Fields {
   return Object.fromEntries(SECTIONS[name].fields.map((field) => [field.key, ""]))
 }
 
@@ -811,7 +815,7 @@ function looksLikeAuthors(text: string): boolean {
 }
 
 /** Fills title, authors and venue from bits of text, the title being the first bit that isn't authors. */
-function publicationFields(pieces: string[], fields: Record<string, string>) {
+function publicationFields(pieces: string[], fields: Fields) {
   const rest = [...pieces]
   if (rest.length > 1 && looksLikeAuthors(rest[0])) fields.publicationAuthors = rest.shift()!
   fields.publicationTitle = rest.shift() ?? ""
@@ -828,7 +832,7 @@ const tidyCitation = (text: string) => tidy(text.replace(/(\s*,\s*)+/g, ", ").re
  * "[1] A. Smith and B. Lee, “Title,” Venue, City, 2025, doi: 10.1/x."
  * `italics` is the citation's italic text, which in IEEE style is the venue.
  */
-function readCitation(text: string, italics: string[] = []): Record<string, string> {
+function readCitation(text: string, italics: string[] = []): Fields {
   const fields = blankEntry("Publications")
   let rest = text.replace(NUMBERED, "")
   // Links come out before the date, since DOIs and URLs often hold a year
@@ -945,8 +949,8 @@ function readSkills(lines: ParseLine[], category?: string): SectionResult {
     entries.push({ fields: { skillName: name, skillDetails: details }, lines: [line.index] })
   })
   for (const entry of entries) {
-    entry.fields.skillName = tidy(entry.fields.skillName)
-    entry.fields.skillDetails = tidy(entry.fields.skillDetails)
+    entry.fields.skillName = tidy(entry.fields.skillName ?? "")
+    entry.fields.skillDetails = tidy(entry.fields.skillDetails ?? "")
   }
   return { entries, leftover: { lines: [], text: [] } }
 }
@@ -1037,7 +1041,7 @@ function looksLikeName(text: string): boolean {
 }
 
 interface Contacts {
-  fields: Record<string, string>
+  fields: Partial<Record<ProfileKey, string>>
   lines: number[]
   /** Lines that were only contact details. */
   used: Set<number>
@@ -1049,14 +1053,14 @@ interface Contacts {
 const CONTACT_LABEL = /\b(?:(?:e-?mail|phone|mobile|cell|tel|telephone|linkedin|github|website|portfolio|web|site|address)\s*:?|(?:p|ph|m|t|e)\s*:)/gi
 
 function readContacts(lines: ParseLine[], isTop: (line: ParseLine) => boolean): Contacts {
-  const fields: Record<string, string> = {}
+  const fields: Contacts["fields"] = {}
   const result: Contacts = { fields, lines: [], used: new Set(), remainders: new Map() }
 
   for (const line of lines) {
     const inHeader = isTop(line)
     let text = line.text
     let found = false
-    const take = (key: string, value: string, match?: string) => {
+    const take = (key: ProfileKey, value: string, match?: string) => {
       if (!fields[key]) fields[key] = value
       if (match) text = text.replace(match, " ")
       found = true

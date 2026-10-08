@@ -5,6 +5,7 @@
 
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS } from "@/components/editor/sections"
 import { printedResume } from "@/lib/leftOut"
+import type { Entry, Headings, Profile, Resume, ResumeContent } from "@/lib/resume"
 import { templateById } from "@/lib/templates"
 
 export const ATTACHMENT_NAME = "resumezip.json"
@@ -28,16 +29,13 @@ export const MAX_ENTRIES = 10_000
 /** An attachment with more than MAX_LENGTH characters or MAX_ENTRIES entries. */
 export class TooLongError extends Error {}
 
-/** A resume in the editor's format, without the name and tag it has in this browser. */
-export type ResumeContent = Record<string, any>
-
 /**
  * The attachment for a resume: what's printed on it and how it's laid out.
  * Not the resume's name or tag, or what the person left out of it, since
  * anyone who gets the PDF can read it. Opening the PDF again brings back
  * what was printed; what was left out stays only in this browser.
  */
-export function toAttachment(resume: Record<string, any>): string {
+export function toAttachment(resume: Resume): string {
   return JSON.stringify({ format: FORMAT, version: VERSION, resume: cleanResume(printedResume(resume)) })
 }
 
@@ -104,25 +102,26 @@ export function cleanResume(input: unknown): ResumeContent {
       SECTION_NAMES.map((name) => SECTIONS[name].headingKey)
         .filter((key) => string(headings[key]).trim() !== "")
         .map((key) => [key, string(headings[key])]),
-    ),
-    profileSection: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, string(profile[field.key])])),
+    ) as Headings,
+    profileSection: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, string(profile[field.key])])) as Profile,
   }
 
   for (const name of SECTION_NAMES) {
     const { dataKey, fields, choice } = SECTIONS[name]
-    if (choice && choice.options.some((option) => option.value === resume[choice.key])) {
-      clean[choice.key] = resume[choice.key]
-    }
+    const chosen = choice && resume[choice.key]
+    if (choice && choice.options.some((option) => option.value === chosen)) clean[choice.key] = chosen as string
     const entries = Array.isArray(resume[dataKey]) ? (resume[dataKey] as unknown[]) : []
-    clean[dataKey] = entries.map((entry, index) => ({
-      id: index + 1,
-      ...Object.fromEntries(
-        fields.map((field) => [
-          field.key,
-          field.type === "bullets" ? bulletText(object(entry)[field.key]) : string(object(entry)[field.key]),
-        ]),
-      ),
-    }))
+    clean[dataKey] = entries.map(
+      (entry, index): Entry => ({
+        id: index + 1,
+        ...Object.fromEntries(
+          fields.map((field) => [
+            field.key,
+            field.type === "bullets" ? bulletText(object(entry)[field.key]) : string(object(entry)[field.key]),
+          ]),
+        ),
+      }),
+    )
   }
 
   if (typeof resume.id === "string" && resume.id.length > 0 && resume.id.length <= 100) clean.id = resume.id
