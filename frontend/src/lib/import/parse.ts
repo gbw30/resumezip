@@ -439,12 +439,33 @@ function mergeLines(a: ParseLine, b: ParseLine): ParseLine {
 }
 
 /**
+ * Whether `line` carries on a detail line ("Relevant Coursework: ...") that
+ * was cut off mid-list: it starts at the same left edge, without the indent a
+ * bullet's text has, and in the style the line above ended in.
+ */
+function detailCarriesOn(line: ParseLine, item: Item, above: ParseLine): boolean {
+  const end = item.pieces[item.pieces.length - 1]
+  const start = leadStyle(line)
+  return (
+    !line.bullet &&
+    line.parts.length === 1 &&
+    line.page === above.page &&
+    item.lines.includes(above.index) &&
+    Math.abs(line.left - item.left) < 3 &&
+    start.bold === Boolean(end?.bold) &&
+    start.italic === Boolean(end?.italic) &&
+    CONNECTOR.test(item.text)
+  )
+}
+
+/**
  * Splits a section into entries: one or more title lines (role, company,
  * dates, place) followed by bullets.
  */
 function groupEntries(lines: ParseLine[], isBody: (line: Line) => boolean = () => false): Group[] {
   const groups: Group[] = []
   let lastWasBullet = false
+  let lastWasDetail = false
   let previous: ParseLine | undefined
 
   for (const line of lines) {
@@ -453,10 +474,18 @@ function groupEntries(lines: ParseLine[], isBody: (line: Line) => boolean = () =
     const item: Item = { text: line.text, pieces: stylePieces(line), lines: [line.index], left: line.left, x: line.x, size: line.size }
     const before = previous
     previous = line
+    const wasDetail: boolean = lastWasDetail
+    lastWasDetail = false
 
     // Text wrapping under a bullet lines up with the bullet's text.
     if (last && lastWasBullet && continues(line, last, true)) {
       extendItem(last, line)
+      lastWasDetail = wasDetail
+      continue
+    }
+    if (last && wasDetail && before && !isBody(line) && detailCarriesOn(line, last, before)) {
+      extendItem(last, line)
+      lastWasDetail = true
       continue
     }
 
@@ -479,6 +508,7 @@ function groupEntries(lines: ParseLine[], isBody: (line: Line) => boolean = () =
       if (group) group.body.push(item)
       else groups.push({ header: [], body: [item] })
       lastWasBullet = true
+      lastWasDetail = !line.bullet
       continue
     }
     if (last && !lastWasBullet && continues(line, last, false)) {

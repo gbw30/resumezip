@@ -82,3 +82,29 @@ describe("an entry's date", () => {
     expect(resume.awardsSection[0].awardDate).toBe("2026")
   })
 })
+
+describe("a detail line that wraps", () => {
+  const school = [
+    line([["State University", 36], ["Aug 2022 – May 2026", 480]], { bold: true }),
+    line([["B.S. in Biology", 36], ["Austin, TX", 500]], { italic: true }),
+  ]
+
+  test("carries on at its own left edge when it was cut off mid-list", () => {
+    const { resume } = read("Education", [
+      ...school,
+      line([["Relevant Coursework: Genetics, Organic Chemistry (CHEM 2310), Statistics (STA 2023),", 36]]),
+      line([["Cell Biology (BIO 2020), Ecology", 36]]),
+    ])
+    expect(resume.educationSection).toHaveLength(1)
+    expect(resume.educationSection[0].coursework).toBe("Genetics, Organic Chemistry (CHEM 2310), Statistics (STA 2023), Cell Biology (BIO 2020), Ecology")
+  })
+
+  test("doesn't take in the next school", () => {
+    const { resume } = read("Education", [
+      ...school,
+      line([["Relevant Coursework: Genetics, Ecology,", 36]]),
+      line([["Austin Community College", 36], ["Aug 2020 – May 2022", 480]], { bold: true }),
+    ])
+    expect(resume.educationSection.map((entry: Record<string, string>) => entry.schoolName)).toEqual(["State University", "Austin Community College"])
+  })
+})
