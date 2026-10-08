@@ -13,6 +13,7 @@ npm install
 npm run dev     # http://localhost:3000
 npm test        # renders every template and reads it back (see below)
 npm run lint
+npm run format  # Prettier; CI checks it
 npm run build
 npm run test:browser   # after a build; see below
 ```
@@ -50,8 +51,8 @@ page for errors and serious accessibility problems. The first time, install the
 browsers with `npx playwright install chromium webkit`. They run on port 3100,
 so a dev server on 3000 can keep running.
 
-On every pull request, GitHub Actions type-checks, lints, runs the tests and
-builds the site (`.github/workflows/ci.yml`). The browser tests run in their
+On every pull request, GitHub Actions type-checks, lints, checks the
+formatting, runs the tests and builds the site (`.github/workflows/ci.yml`). The browser tests run in their
 own job next to it, and `main` only accepts a pull request once both pass. It
 also audits the packages that ship, as a report that doesn't block merging. Dependabot opens update pull requests weekly.
 
