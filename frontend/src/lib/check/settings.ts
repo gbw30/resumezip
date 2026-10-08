@@ -43,6 +43,17 @@ export const LEAST_PENALTY = 0.5
 /** The most a resume can score while a must-fix problem is left. */
 export const MUST_FIX_MAX = 89
 
+/**
+ * The word shown beside a score: each band's lowest score, highest first.
+ * "Strong" starts above MUST_FIX_MAX, so a resume with a must-fix left is
+ * never called strong.
+ */
+export const SCORE_BANDS = [
+  { least: 90, name: "Strong" },
+  { least: 70, name: "Good" },
+  { least: 0, name: "Needs work" },
+] as const
+
 /** How many dismissed findings, and how many added words, a resume keeps. The oldest go first. */
 export const MAX_DISMISSED = 500
 export const MAX_WORDS = 500

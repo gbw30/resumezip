@@ -4,7 +4,20 @@ import { readBack, render, samples } from "@/lib/import/testRender"
 import { runChecks, type Outcome, type Rule } from "./engine"
 import { viewOf } from "./resume"
 import { RULES } from "./rules"
-import { checkingCategories, keepScores, scoreOf, shownScore, totalOf, wholePoints, type KeptScores, type Score } from "./score"
+import {
+  bandOf,
+  checkingCategories,
+  keepFixes,
+  keepScores,
+  scoreOf,
+  shownFixes,
+  shownScore,
+  totalOf,
+  wholePoints,
+  type KeptFixes,
+  type KeptScores,
+  type Score,
+} from "./score"
 import { CATEGORIES, MUST_FIX_MAX, type CategoryId, type Level } from "./settings"
 import { grammarTexts } from "./spelling"
 import { addWord, CHECK_FIELD, dismiss, readCheckState } from "./state"
@@ -154,6 +167,15 @@ describe("the resume score", () => {
     expect(wholePoints(2.9999999999)).toBe(3)
     expect(totalOf([])).toBeNull()
   })
+
+  test("reads as a word, and is never strong with a must-fix left", () => {
+    const words = (scores: number[]) => scores.map((total) => bandOf(total).name)
+    expect(words([100, 90])).toEqual(["Strong", "Strong"])
+    expect(words([89, 70])).toEqual(["Good", "Good"])
+    expect(words([69, 0])).toEqual(["Needs work", "Needs work"])
+    // The most a resume with a must-fix left can score.
+    expect(bandOf(MUST_FIX_MAX).name).not.toBe("Strong")
+  })
 })
 
 describe("while checks are under way", () => {
@@ -205,6 +227,29 @@ describe("while checks are under way", () => {
     expect(shown.mustFix).toBe(true)
     // And it says so while another category waits to be checked for the first time.
     expect(shownScore(scoreWith(readable(found(1))), new Map(), checking)).toMatchObject({ total: "checking", mustFix: true })
+  })
+
+  test("a category being checked again counts its must-fixes as last checked, so the count agrees with the cap", () => {
+    const reportWith = (rules: Rule[]) => runChecks(ada, { rules, today: TODAY })
+    const kept: KeptFixes = new Map()
+    // The email is broken, and Length has a must-fix of its own.
+    keepFixes(kept, reportWith([rule("C2", "contact", "fix", found(1)), rule("L1", "length", "fix", found(1))]), new Map())
+    // A change is made, and Length waits for the new PDF: its must-fix isn't in the report.
+    const waiting: Rule = { ...rule("L1", "length", "fix", passes), reads: "pdf", check: found(1) }
+    const checking = new Map([["length", "pdf"]] as const)
+    const now = reportWith([rule("C2", "contact", "fix", found(1)), waiting])
+    expect(now.findings.filter((finding) => finding.level === "fix")).toHaveLength(1)
+    expect(shownFixes(now, kept, checking)).toBe(2)
+    // The email is fixed meanwhile: Length's is still counted, and still kept.
+    const fixed = reportWith([rule("C2", "contact", "fix", passes), waiting])
+    expect(shownFixes(fixed, kept, checking)).toBe(1)
+    keepFixes(kept, fixed, checking)
+    expect(kept.get("length")).toBe(1)
+    // Once Length has been read again without it, there's none.
+    expect(shownFixes(reportWith([rule("C2", "contact", "fix", passes), rule("L1", "length", "fix", passes)]), kept, new Map())).toBe(0)
+    // And counts from before the resume could be checked are let go.
+    keepFixes(kept, runChecks({}, { rules: [], today: TODAY }), new Map())
+    expect(kept.size).toBe(0)
   })
 
   test("until a category has been checked once, its points and the total wait", () => {

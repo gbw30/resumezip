@@ -2,23 +2,64 @@
 
 import type React from "react"
 import { useEffect, useId, useMemo, useRef, useState } from "react"
-import { ChevronDown, CircleAlert, Info, LoaderCircle } from "lucide-react"
+import {
+  CalendarDays,
+  ChevronDown,
+  IdCard,
+  LayoutList,
+  List,
+  LoaderCircle,
+  Lock,
+  Ruler,
+  ScanText,
+  Sparkles,
+  SpellCheck,
+  type LucideIcon,
+} from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
 import type { Finding, Report, Rule } from "@/lib/check/engine"
 import { describePlace, hasEnoughToCheck } from "@/lib/check/labels"
 import type { ResumeView } from "@/lib/check/resume"
-import { checkingCategories, keepScores, scoreOf, shownScore, wholePoints, type CategoryScore, type KeptScores } from "@/lib/check/score"
+import {
+  bandOf,
+  checkingCategories,
+  keepFixes,
+  keepScores,
+  scoreOf,
+  shownFixes,
+  shownScore,
+  wholePoints,
+  type CategoryScore,
+  type KeptFixes,
+  type KeptScores,
+} from "@/lib/check/score"
 import { CATEGORIES, MUST_FIX_MAX, type CategoryId } from "@/lib/check/settings"
 import { hasLeftOut } from "@/lib/leftOut"
 import { useCheck } from "./CheckContext"
+import { levelPill } from "./fields"
 
 // A typo can't be dismissed, but its word can be added so it isn't flagged
 // again (rule G1, issue #66).
 const TYPO_RULE = "G1"
 
-const FIX_COLOR = "text-[#b42318]"
+// Each category's icon, so categories at the same level still look apart.
+const ICONS: Record<CategoryId, LucideIcon> = {
+  contact: IdCard,
+  readable: ScanText,
+  sections: LayoutList,
+  dates: CalendarDays,
+  bullets: List,
+  length: Ruler,
+  spelling: SpellCheck,
+  polish: Sparkles,
+}
 
-const quiet = "text-[13px] text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline"
+// The score ring's circle, in the SVG's 36-unit box.
+const RING_RADIUS = 15.5
+const RING_LENGTH = 2 * Math.PI * RING_RADIUS
+
+// A small grey pill for a finding's actions: Dismiss, Add word, Bring back.
+const action = "inline-flex h-6 items-center rounded-full bg-ink/[0.05] px-2.5 text-[12px] text-ink transition-colors hover:bg-ink/[0.1]"
 
 type Category = (typeof CATEGORIES)[number]
 
@@ -39,6 +80,7 @@ export default function CheckPanel() {
     { readingPdf: pdf === "reading", checkingText: grammar === "checking" },
   )
   const score = useShownScore(report, checking)
+  const fixes = useShownFixes(report, checking)
   const shown = useShownCategories(report.findings, checking)
 
   if (!hasEnoughToCheck(view)) {
@@ -61,7 +103,7 @@ export default function CheckPanel() {
   const checkingGrammar = waitingFor("grammar") || grammar !== "ready"
   return (
     <div className="flex flex-col gap-5 px-3 py-4 xl:p-0">
-      <ScoreHeader total={score.total} mustFix={score.mustFix} />
+      <ScoreHeader total={score.total} mustFix={score.mustFix} fixes={fixes} />
       {(waitingFor("pdf") || checkingGrammar) && (
         <div role="status" className="flex flex-col gap-1 px-2 text-sm text-ink-2">
           {waitingFor("pdf") && (
@@ -84,7 +126,7 @@ export default function CheckPanel() {
       )}
 
       {shown.length > 0 ? (
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-3">
           {shown.map((category) => (
             <CategoryRow
               key={category.id}
@@ -104,10 +146,15 @@ export default function CheckPanel() {
         <Folded summary={`Dismissed · ${report.dismissed.length}`}>
           <ul className="flex flex-col">
             {report.dismissed.map((finding, index) => (
-              <li key={`${finding.key}:${index}`} className="flex flex-col items-start gap-0.5 px-2 py-1.5">
+              <li key={`${finding.key}:${index}`} className="flex flex-col items-start gap-1 px-2 py-1.5">
                 <span className="w-full truncate font-mono text-[11px] text-ink-2">{describePlace(view, finding.place)}</span>
                 <span className="text-[13px] leading-snug text-ink-2">{finding.message}</span>
-                <button type="button" onClick={() => restore(finding)} aria-label={`Bring back: ${finding.message}`} className={quiet}>
+                <button
+                  type="button"
+                  onClick={() => restore(finding)}
+                  aria-label={`Bring back: ${finding.message}`}
+                  className={`${action} mt-0.5`}
+                >
                   Bring back
                 </button>
               </li>
@@ -125,6 +172,13 @@ function useShownScore(report: Report, checking: ReadonlyMap<CategoryId, unknown
   const kept = useRef<KeptScores>(new Map())
   useEffect(() => keepScores(kept.current, now, checking))
   return shownScore(now, kept.current, checking)
+}
+
+/** How many must-fixes hold the score down (`shownFixes`), counting those being checked again as last checked. */
+function useShownFixes(report: Report, checking: ReadonlyMap<CategoryId, unknown>) {
+  const kept = useRef<KeptFixes>(new Map())
+  useEffect(() => keepFixes(kept.current, report, checking))
+  return shownFixes(report, kept.current, checking)
 }
 
 /**
@@ -145,52 +199,91 @@ function useShownCategories(findings: readonly Finding[], checking: ReadonlyMap<
   return CATEGORIES.filter(({ id }) => found.has(id) || (checking.has(id) && had.current.has(id)))
 }
 
-/** The resume score, in a line what it measures, and whether a must-fix is holding it down. */
-function ScoreHeader({ total, mustFix = false }: { total: number | "checking" | null; mustFix?: boolean }) {
+/**
+ * The resume score on a ring, a word for how it reads, in a line what it
+ * measures, and whether a must-fix is holding it down.
+ */
+function ScoreHeader({ total, mustFix = false, fixes = 0 }: { total: number | "checking" | null; mustFix?: boolean; fixes?: number }) {
   const id = useId()
+  const band = typeof total === "number" ? bandOf(total) : null
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-2 px-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id={id} className="label-mono text-ink-2">
-          Resume score
-        </h2>
-        {/* Said aloud when it changes, once the checks under way are done. */}
-        <p
-          className="flex items-baseline gap-1 text-ink"
-          aria-live="polite"
-          aria-atomic="true"
-          aria-busy={total === "checking" || undefined}
-        >
-          {typeof total === "number" ? (
-            <>
-              <span className="text-[32px] font-medium leading-none tabular-nums">{total}</span>
-              <span className="text-sm text-ink-2" aria-hidden="true">
-                / 100
-              </span>
-              <span className="sr-only">out of 100</span>
-            </>
-          ) : (
-            <>
-              <span className="text-[32px] font-medium leading-none text-ink-2" aria-hidden="true">
-                {total === "checking" ? "…" : "–"}
-              </span>
-              <span className="sr-only">{total === "checking" ? "Checking" : "Not scored yet"}</span>
-            </>
-          )}
-        </p>
+    <section aria-labelledby={id} className="flex flex-col gap-3 px-2">
+      <div className="flex items-center gap-4">
+        <ScoreRing total={total} />
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 id={id} className="label-mono text-ink-2">
+            Resume score
+          </h2>
+          {band && <p className="text-[17px] font-medium leading-tight text-ink">{band.name}</p>}
+        </div>
       </div>
       <p className="text-[13px] leading-relaxed text-ink-2">How well this resume follows the checks below.</p>
       {mustFix && (
-        <p className={`text-[13px] leading-relaxed ${FIX_COLOR}`}>{`Fix what's under “To fix” to score above ${MUST_FIX_MAX}.`}</p>
+        <p className="bg-hatch flex items-start gap-2 rounded-[4px] border border-rule bg-sheet px-3 py-2.5 text-[13px] leading-snug text-ink">
+          <Lock className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {/* The count follows the cap (`shownFixes`); the wording without one is only a fallback. */}
+          {fixes > 0
+            ? `Capped at ${MUST_FIX_MAX} until you fix ${fixes === 1 ? "1 item" : `${fixes} items`}.`
+            : `Capped at ${MUST_FIX_MAX} while something's left to fix.`}
+        </p>
       )}
     </section>
   )
 }
 
+/** The score in a ring that fills up to it. */
+function ScoreRing({ total }: { total: number | "checking" | null }) {
+  const scored = typeof total === "number"
+  return (
+    <div className="relative h-[68px] w-[68px] shrink-0">
+      <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90" aria-hidden="true">
+        <circle cx="18" cy="18" r={RING_RADIUS} fill="none" strokeWidth="3" className="stroke-rule" />
+        {scored && total > 0 && (
+          <circle
+            cx="18"
+            cy="18"
+            r={RING_RADIUS}
+            fill="none"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray={RING_LENGTH}
+            style={{ strokeDashoffset: RING_LENGTH * (1 - total / 100) }}
+            className="stroke-accent transition-[stroke-dashoffset] duration-500 ease-out motion-reduce:transition-none"
+          />
+        )}
+      </svg>
+      {/* Said aloud when it changes, once the checks under way are done. */}
+      <p
+        className="absolute inset-0 flex flex-col items-center justify-center text-ink"
+        aria-live="polite"
+        aria-atomic="true"
+        aria-busy={total === "checking" || undefined}
+      >
+        {scored ? (
+          <>
+            <span className="text-[22px] font-medium leading-none tabular-nums">{total}</span>
+            <span className="mt-0.5 font-mono text-[10px] leading-none text-ink-2" aria-hidden="true">
+              / 100
+            </span>
+            <span className="sr-only">out of 100</span>
+          </>
+        ) : (
+          <>
+            <span className="text-[22px] font-medium leading-none text-ink-2" aria-hidden="true">
+              {total === "checking" ? "…" : "–"}
+            </span>
+            <span className="sr-only">{total === "checking" ? "Checking" : "Not scored yet"}</span>
+          </>
+        )}
+      </p>
+    </div>
+  )
+}
+
 /**
- * One category with something to fix or review: an icon and a count for
- * where it stands, what it checks, its points, and, opened, its findings
- * (fixes first). It's open until folded.
+ * One category with something to fix or review, in a box of its own: its
+ * icon, a count of each level, its points, and, opened, what it checks and
+ * its findings (fixes first). It's open until folded, and slides open and shut.
  */
 function CategoryRow({
   category,
@@ -215,9 +308,11 @@ function CategoryRow({
   // Where it stands, in a few words. While its rules wait on the PDF or the
   // text, it says so instead of a count.
   const status = checking === "pdf" ? "Reading the PDF…" : checking ? "Checking…" : counts
+  const Icon = ICONS[category.id]
 
   return (
-    <section aria-labelledby={`${id}-name`} className="flex flex-col border-b border-rule last:border-b-0">
+    // Clipped to its corners, so its buttons' focus outlines are drawn inside them.
+    <section aria-labelledby={`${id}-name`} className="flex flex-col overflow-hidden rounded-[6px] border border-rule bg-sheet">
       <h2>
         <button
           type="button"
@@ -225,56 +320,76 @@ function CategoryRow({
           aria-controls={`${id}-body`}
           aria-label={`${category.name}, ${status}`}
           onClick={() => setOpen(!open)}
-          className="flex w-full items-start gap-2 rounded-[4px] px-2 pb-1 pt-3 text-left transition-colors hover:bg-sheet"
+          className="flex w-full items-start gap-2.5 px-3 pb-2 pt-3 text-left transition-colors hover:bg-ink/[0.02] focus-visible:outline-offset-[-2px]"
         >
-          {checking ? (
-            <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-ink-2 motion-reduce:animate-none" aria-hidden="true" />
-          ) : fixes.length > 0 ? (
-            <CircleAlert className={`mt-0.5 h-4 w-4 shrink-0 ${FIX_COLOR}`} aria-hidden="true" />
-          ) : (
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-          )}
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] bg-ink/[0.05] text-ink" aria-hidden="true">
+            {checking ? (
+              <LoaderCircle className="h-4 w-4 animate-spin text-ink-2 motion-reduce:animate-none" />
+            ) : (
+              <Icon className="h-4 w-4" strokeWidth={1.75} />
+            )}
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col gap-1.5">
             <span id={`${id}-name`} className="text-sm font-medium leading-snug text-ink">
               {category.name}
             </span>
-            <span className={`text-[12px] leading-snug ${checking ? "text-ink-2" : fixes.length > 0 ? FIX_COLOR : "text-accent"}`}>
-              {status}
-            </span>
+            {checking ? (
+              <span className="text-[12px] leading-snug text-ink-2">{status}</span>
+            ) : (
+              <span className="flex flex-wrap gap-1.5">
+                {fixes.length > 0 && <span className={levelPill("fix")}>{fixes.length} to fix</span>}
+                {looks.length > 0 && <span className={levelPill("look")}>{looks.length} to review</span>}
+              </span>
+            )}
           </span>
           <ChevronDown
-            className={`mt-0.5 h-4 w-4 shrink-0 text-ink-2 transition-transform ${open ? "rotate-180" : ""}`}
+            className={`mt-1.5 h-4 w-4 shrink-0 text-ink-2 transition-transform duration-300 ease-out motion-reduce:transition-none ${
+              open ? "rotate-180" : ""
+            }`}
             aria-hidden="true"
           />
         </button>
       </h2>
-      <div className="flex flex-col gap-1.5 pb-3 pl-8 pr-2">
-        <p className="text-[12px] leading-snug text-ink-2">{category.about}</p>
-        <Points name={category.name} score={score} />
+      <div className="pb-3 pl-[50px] pr-3">
+        <Points name={category.name} score={score} checking={Boolean(checking)} />
       </div>
 
-      <div id={`${id}-body`} hidden={!open} className="flex flex-col gap-3 pb-3 pl-6">
-        {fixes.length > 0 && (
-          <Group title={`To fix · ${fixes.length}`}>
-            {fixes.map((finding, index) => (
-              <FindingItem key={`${finding.key}:${index}`} finding={finding} view={view} />
-            ))}
-          </Group>
-        )}
-        {looks.length > 0 && (
-          <Group title={`To review · ${looks.length}`}>
-            {looks.map((finding, index) => (
-              <FindingItem key={`${finding.key}:${index}`} finding={finding} view={view} />
-            ))}
-          </Group>
-        )}
+      {/* Slides by its grid row. Once it starts to shut, inert keeps the keyboard
+          out of what's sliding away; once shut, visibility (which changes at the
+          end of its transition) hides it from view too. */}
+      <div
+        id={`${id}-body`}
+        inert={!open}
+        className={`grid transition-[grid-template-rows,visibility] duration-300 ease-out motion-reduce:transition-none ${
+          open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]"
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="flex flex-col border-t border-rule">
+            <p className="px-3 pt-2.5 text-[12px] leading-snug text-ink-2">{category.about}</p>
+            {fixes.length > 0 && (
+              <Group title={`To fix · ${fixes.length}`}>
+                {fixes.map((finding, index) => (
+                  <FindingItem key={`${finding.key}:${index}`} finding={finding} view={view} />
+                ))}
+              </Group>
+            )}
+            {looks.length > 0 && (
+              <Group title={`To review · ${looks.length}`}>
+                {looks.map((finding, index) => (
+                  <FindingItem key={`${finding.key}:${index}`} finding={finding} view={view} />
+                ))}
+              </Group>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   )
 }
 
 /** A category's points, as a bar. */
-function Points({ name, score }: { name: string; score: CategoryScore | null }) {
+function Points({ name, score, checking }: { name: string; score: CategoryScore | null; checking: boolean }) {
   // Not checked yet: the count says it's being checked.
   if (!score?.applies) return null
   const earned = wholePoints(score.earned)
@@ -289,7 +404,12 @@ function Points({ name, score }: { name: string; score: CategoryScore | null }) 
         aria-valuetext={`${earned} of ${score.points} points`}
         className="h-1 flex-1 overflow-hidden rounded-full bg-rule"
       >
-        <div className="h-full rounded-full bg-ink" style={{ width: `${(100 * score.earned) / score.points}%` }} />
+        <div
+          className={`h-full rounded-full transition-[width,background-color] duration-500 ease-out motion-reduce:transition-none ${
+            checking ? "bg-ink-2" : "bg-accent"
+          }`}
+          style={{ width: `${(100 * score.earned) / score.points}%` }}
+        />
       </div>
       <span className="font-mono text-[11px] tabular-nums text-ink-2" aria-hidden="true">
         {earned}/{score.points}
@@ -298,12 +418,12 @@ function Points({ name, score }: { name: string; score: CategoryScore | null }) 
   )
 }
 
-/** Some of a category's findings, under a small title. */
+/** Some of a category's findings, under a small title, as rows across its box. */
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   const id = useId()
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-0.5">
-      <h3 id={id} className="label-mono px-2 text-ink-2">
+    <section aria-labelledby={id} className="flex flex-col">
+      <h3 id={id} className="label-mono px-3 pb-1.5 pt-3 text-ink-2">
         {title}
       </h3>
       <ul className="flex flex-col">{children}</ul>
@@ -311,30 +431,36 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   )
 }
 
-/** A finding: it opens its field, and a suggestion can be dismissed. */
+/**
+ * A finding, as a row in its category's box: it opens its field, and a
+ * suggestion can be dismissed. A must-fix has a red line down its left side.
+ */
 function FindingItem({ finding, view }: { finding: Finding; view: ResumeView }) {
   const { open, dismiss, addWord } = useCheck()
   return (
-    <li className="flex flex-col">
+    // Pointing at the finding shades the whole row, its actions too.
+    <li
+      className={`flex flex-col border-t border-rule transition-colors has-[>button:first-child:hover]:bg-ink/[0.02] ${
+        finding.level === "fix" ? "shadow-[inset_3px_0_0_var(--color-alert)]" : ""
+      }`}
+    >
       <button
         type="button"
         onClick={() => open(finding)}
-        className={`flex flex-col items-start gap-0.5 rounded-r-[4px] border-l-2 px-2 py-2 text-left transition-colors hover:bg-sheet ${
-          finding.level === "fix" ? "border-[#b42318]" : "border-accent"
-        }`}
+        className="flex flex-col items-start gap-1 px-3 py-2.5 text-left focus-visible:outline-offset-[-2px]"
       >
         <span className="w-full truncate font-mono text-[11px] text-ink-2">{describePlace(view, finding.place)}</span>
         <span className="text-sm leading-snug text-ink">{finding.message}</span>
       </button>
       {(finding.level === "look" || finding.rule === TYPO_RULE) && (
-        <div className="-mt-1 flex gap-4 px-2 pb-1.5">
+        <div className="-mt-0.5 flex gap-1.5 px-3 pb-2.5">
           {finding.rule === TYPO_RULE && (
-            <button type="button" onClick={() => addWord(finding.text)} aria-label={`Add word “${finding.text}”`} className={quiet}>
+            <button type="button" onClick={() => addWord(finding.text)} aria-label={`Add word “${finding.text}”`} className={action}>
               Add word
             </button>
           )}
           {finding.level === "look" && (
-            <button type="button" onClick={() => dismiss(finding)} aria-label={`Dismiss: ${finding.message}`} className={quiet}>
+            <button type="button" onClick={() => dismiss(finding)} aria-label={`Dismiss: ${finding.message}`} className={action}>
               Dismiss
             </button>
           )}

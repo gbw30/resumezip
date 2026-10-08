@@ -11,9 +11,9 @@
 // all, earns nothing. While a must-fix is left, the score stays at
 // MUST_FIX_MAX or below.
 
-import type { Report, Rule, RuleResult } from "./engine"
+import type { Finding, Report, Rule, RuleResult } from "./engine"
 import { hasEnoughToCheck } from "./labels"
-import { CATEGORIES, LEAST_PENALTY, LEVELS, MUST_FIX_MAX, type CategoryId } from "./settings"
+import { CATEGORIES, LEAST_PENALTY, LEVELS, MUST_FIX_MAX, SCORE_BANDS, type CategoryId } from "./settings"
 
 /** How a category did. */
 export interface CategoryScore {
@@ -97,6 +97,9 @@ export function totalOf(categories: readonly CategoryScore[]): number | null {
   return wholePoints(hasMustFix(counted) ? Math.min(total, MUST_FIX_MAX) : total)
 }
 
+/** The word for a score out of 100 (SCORE_BANDS). */
+export const bandOf = (total: number) => SCORE_BANDS.find((band) => total >= band.least) ?? SCORE_BANDS[SCORE_BANDS.length - 1]
+
 /** The resume's score, from what the checker found (`runChecks`). */
 export function scoreOf(report: Report): Score {
   const categories = CATEGORIES.map(({ id }) => categoryScore(id, report.results))
@@ -138,6 +141,34 @@ export function keepScores(kept: KeptScores, now: Score, checking: ReadonlyMap<C
     return
   }
   for (const category of now.categories) if (!checking.has(category.id)) kept.set(category.id, category)
+}
+
+/** Each category's must-fix count as last checked, kept while it's checked again. */
+export type KeptFixes = Map<CategoryId, number>
+
+const fixesIn = (findings: readonly Finding[], id: CategoryId) =>
+  findings.filter((finding) => finding.category === id && finding.level === "fix").length
+
+/** Keeps each category's must-fix count while it isn't being checked, and lets go of them as `keepScores` does. */
+export function keepFixes(kept: KeptFixes, report: Report, checking: ReadonlyMap<CategoryId, unknown>): void {
+  if (!hasEnoughToCheck(report.view)) {
+    kept.clear()
+    return
+  }
+  for (const { id } of CATEGORIES) if (!checking.has(id)) kept.set(id, fixesIn(report.findings, id))
+}
+
+/**
+ * How many must-fixes hold the score down, as shown. A category being checked
+ * again counts them as last checked, or as found since if there are more, as
+ * `shownScore`'s `mustFix` does, so the count agrees with the cap while the
+ * PDF or the text is read again.
+ */
+export function shownFixes(report: Report, kept: ReadonlyMap<CategoryId, number>, checking: ReadonlyMap<CategoryId, unknown>): number {
+  return CATEGORIES.reduce((sum, { id }) => {
+    const now = fixesIn(report.findings, id)
+    return sum + (checking.has(id) ? Math.max(now, kept.get(id) ?? 0) : now)
+  }, 0)
 }
 
 /**

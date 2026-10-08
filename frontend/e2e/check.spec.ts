@@ -134,7 +134,13 @@ test("the checker asks for a name and an entry first, then scores the resume and
   await contact.focus()
   await page.keyboard.press("Enter")
   await expect(contact).toHaveAttribute("aria-expanded", "false")
+  // What's folding away can't be reached with Tab, even while it slides shut:
+  // checked at once, as it loses the focus anyway once it's shut.
+  await page.keyboard.press("Tab")
+  const folding = panel.getByRole("button", { name: /Add your email address/, includeHidden: true })
+  expect(await folding.evaluate((button) => button === document.activeElement)).toBe(false)
   await expect(email).toBeHidden()
+  await contact.focus()
   await page.keyboard.press("Space")
   await expect(contact).toHaveAttribute("aria-expanded", "true")
   // Once everything's checked: not the checks it passed, in Contact or anywhere,
@@ -145,9 +151,11 @@ test("the checker asks for a name and an entry first, then scores the resume and
   await expect(panel.getByRole("button", { name: /^Readable by hiring software/ })).toHaveCount(0)
   await expect(panel.getByText("Real text that can be selected and copied")).toHaveCount(0)
 
-  // A line says what the score measures, and that a must-fix holds it down.
+  // A word says how the score reads, a line what it measures, and another
+  // that the must-fixes hold it down.
+  await expect(score).toContainText("Needs work")
   await expect(score).toContainText("How well this resume follows the checks below.")
-  await expect(score).toContainText("Fix what's under “To fix” to score above 89.")
+  await expect(score).toContainText("Capped at 89 until you fix 2 items.")
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
 
   expect(errors).toEqual([])
