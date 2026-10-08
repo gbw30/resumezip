@@ -58,6 +58,28 @@ export function cursorWithBullets(text: string, at: number): number {
   return start + (column >= typed.length - same ? column + shown.length - typed.length : Math.min(column, shown.length - same))
 }
 
+// A list marker at the start of a line, as lists copied from elsewhere have:
+// "- ", "* ", "– ", "— ", "1. " or "1) ", up to "999. ". Not "-5%", "*bold*",
+// "1.5x", or a year, as in "2019. Promoted".
+const LIST_MARKER = /^\s*(?:[-–—*]|\d{1,3}[.)])\s+/
+
+/**
+ * Text pasted into a bullets box, with a bullet in place of each list marker
+ * that starts a line, so a pasted list gets one bullet per line, not two.
+ * `before` is the line it's pasted into, up to the cursor. After a bullet
+ * there, the first line's marker just goes; after words, it isn't at the
+ * start of a line, so it stays.
+ */
+export function pastedList(text: string, before: string): string {
+  return text
+    .split("\n")
+    .map((line, index) => {
+      if (index > 0 || !before.trim()) return line.replace(LIST_MARKER, "• ")
+      return /^\s*[•○]\s*$/.test(before) ? line.replace(LIST_MARKER, "") : line
+    })
+    .join("\n")
+}
+
 /** The bullets in a field's text, in order. */
 export function bulletLines(text: string): BulletLine[] {
   return text.split("\n").flatMap((line, index) => {
