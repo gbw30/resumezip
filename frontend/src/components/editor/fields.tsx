@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react"
 import type { Finding } from "@/lib/check/engine"
 import { LEVELS } from "@/lib/check/settings"
@@ -132,6 +132,38 @@ function fitHeight(textarea: HTMLTextAreaElement) {
   textarea.style.height = `${textarea.scrollHeight + 2}px`
 }
 
+const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff
+
+// True while typeInto types, so what it types goes in as it is.
+let typing = false
+
+/**
+ * Changes a text box's text to `next` as typing would, replacing only the part
+ * that changed, so the browser can undo it with the person's own typing.
+ * Setting the text any other way clears the browser's undo history. False if
+ * the browser can't: execCommand is deprecated, but there's nothing else yet.
+ */
+function typeInto(textarea: HTMLTextAreaElement, next: string): boolean {
+  const current = textarea.value
+  let from = 0
+  while (from < current.length && from < next.length && current[from] === next[from]) from++
+  let same = 0
+  while (same < current.length - from && same < next.length - from && current[current.length - 1 - same] === next[next.length - 1 - same]) same++
+  // Never half an emoji: a character made of two code units is replaced whole.
+  if (from > 0 && (isLowSurrogate(current.charCodeAt(from)) || isLowSurrogate(next.charCodeAt(from)))) from--
+  if (same > 0 && isLowSurrogate(current.charCodeAt(current.length - same))) same--
+  textarea.setSelectionRange(from, current.length - same)
+  const typed = next.slice(from, next.length - same)
+  typing = true
+  try {
+    return typed ? document.execCommand("insertText", false, typed) : document.execCommand("delete")
+  } catch {
+    return false
+  } finally {
+    typing = false
+  }
+}
+
 const onMac = () => /Mac|iPhone|iPad/.test(navigator.platform)
 
 // A keyboard shortcut as this device writes it: ⌘B on a Mac, Ctrl+B elsewhere.
@@ -199,15 +231,44 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
     }
   }, [arranging])
 
-  // Gives the box new text, with the cursor (or a selection) where it says.
-  const edit = (textarea: HTMLTextAreaElement, { text: next, start, end }: Edited) => {
-    if (next === text) {
+  const change = useRef(onChange)
+  change.current = onChange
+
+  // Gives the box new text, with the cursor (or a selection) where it says. It's
+  // typed in, so Ctrl+Z takes it back as it would the person's own typing. If
+  // the browser can't type it, it's set through React, which can't be undone.
+  const edit = useCallback((textarea: HTMLTextAreaElement, { text: next, start, end }: Edited) => {
+    if (next === textarea.value || typeInto(textarea, next)) {
       textarea.setSelectionRange(start, end)
       return
     }
     selection.current = [start, end]
-    onChange(next)
-  }
+    change.current(next)
+  }, [])
+
+  // Words typed or pasted on a line with no bullet get one in the same edit, so
+  // Ctrl+Z takes back both at once. (Left to React, the bullet would be added
+  // after the edit, which clears the browser's undo history.)
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const onBeforeInput = (event: InputEvent) => {
+      // Not words still being composed (Chinese, Japanese, a phone's keyboard): those are the input method's.
+      if (typing || event.isComposing || (event.inputType !== "insertText" && event.inputType !== "insertFromPaste")) return
+      const words = (event.data ?? event.dataTransfer?.getData("text/plain"))?.replace(/\r\n?/g, "\n")
+      if (!words) return
+      const { selectionStart: start, selectionEnd: end, value } = textarea
+      const typed = value.slice(0, start) + words + value.slice(end)
+      const next = withBullets(typed)
+      if (next === typed) return
+      event.preventDefault()
+      // The bullets added are all before the cursor, on the lines it typed on.
+      const cursor = start + words.length + next.length - typed.length
+      edit(textarea, { text: next, start: cursor, end: cursor })
+    }
+    textarea.addEventListener("beforeinput", onBeforeInput)
+    return () => textarea.removeEventListener("beforeinput", onBeforeInput)
+  }, [arranging, edit])
 
   // Moves the line the cursor is on, keeping the cursor where it was in it. False if it's at that end already.
   const moveCursorLine = (textarea: HTMLTextAreaElement, by: -1 | 1) => {
