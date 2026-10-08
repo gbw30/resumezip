@@ -287,6 +287,7 @@ export default function EditorPage() {
           <LeftBar hidden={view === "preview"}>
             <SectionNav
               sections={sections}
+              headings={formData.headings}
               active={active}
               onSelect={select}
               onReorder={(order) => updateFormData("sectionOrder", order)}

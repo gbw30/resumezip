@@ -23,6 +23,8 @@ interface LoadedDocument {
 
 const MAX_PAGE_WIDTH = 640
 const ZOOM_STEP = 0.1
+const MIN_ZOOM = 0.5
+const MAX_ZOOM = 2.5
 // Space between pages, matching gap-4.
 const PAGE_GAP = 16
 // How long the stand-in page takes to fade out over the first preview.
@@ -116,20 +118,34 @@ export default function PdfPreview({ pdfUrl, error }: PdfPreviewProps) {
     if (file === pdfUrl) setLoadError(true)
   }
 
-  const iconButton = "inline-flex h-8 w-8 items-center justify-center text-ink-2 transition-colors hover:text-ink disabled:opacity-30"
+  // At the smallest or largest zoom, its button stays focusable but does nothing, as MoveButtons do.
+  const iconButton =
+    "inline-flex h-8 w-8 items-center justify-center text-ink-2 transition-colors hover:text-ink aria-disabled:cursor-default aria-disabled:opacity-30 aria-disabled:hover:text-ink-2"
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 md:px-8">
         <span className="label-mono text-ink-2">Preview · updates as you type</span>
         <div className="flex items-center font-mono text-xs text-ink-2">
-          <button type="button" aria-label="Zoom out" onClick={() => setZoom((z) => clampZoom(z - ZOOM_STEP))} className={iconButton}>
+          <button
+            type="button"
+            aria-label="Zoom out"
+            aria-disabled={zoom <= MIN_ZOOM || undefined}
+            onClick={() => setZoom((z) => clampZoom(z - ZOOM_STEP))}
+            className={iconButton}
+          >
             −
           </button>
           <button type="button" onClick={() => setZoom(1)} title="Reset zoom" className="w-12 text-center hover:text-ink">
             {Math.round(zoom * 100)}%
           </button>
-          <button type="button" aria-label="Zoom in" onClick={() => setZoom((z) => clampZoom(z + ZOOM_STEP))} className={iconButton}>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            aria-disabled={zoom >= MAX_ZOOM || undefined}
+            onClick={() => setZoom((z) => clampZoom(z + ZOOM_STEP))}
+            className={iconButton}
+          >
             +
           </button>
           {numPages > 1 && <span className="ml-3">{numPages} pages</span>}
@@ -157,6 +173,8 @@ export default function PdfPreview({ pdfUrl, error }: PdfPreviewProps) {
               <div key={doc.file} className={doc === shownDocument ? "" : "invisible absolute inset-0"}>
                 <Document
                   file={doc.file}
+                  // A link in the preview, such as the person's LinkedIn, opens in a new tab rather than leaving the editor.
+                  externalLinkTarget="_blank"
                   onLoadSuccess={({ numPages }) => onLoadSuccess(doc.file, numPages)}
                   onLoadError={() => onLoadError(doc.file)}
                   loading={null}
@@ -207,5 +225,5 @@ function copyPlainText(event: ClipboardEvent) {
 }
 
 function clampZoom(zoom: number) {
-  return Math.round(Math.min(Math.max(zoom, 0.5), 2.5) * 10) / 10
+  return Math.round(Math.min(Math.max(zoom, MIN_ZOOM), MAX_ZOOM) * 10) / 10
 }

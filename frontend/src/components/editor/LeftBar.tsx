@@ -3,7 +3,6 @@
 import type React from "react"
 import { useEffect, useId, useRef, useState } from "react"
 import { hasEnoughToCheck } from "@/lib/check/labels"
-import { getStorage } from "@/lib/resumeStorage"
 import { useCheck } from "./CheckContext"
 import CheckPanel from "./CheckPanel"
 import { WIDE_SCREEN } from "./layout"
@@ -16,12 +15,13 @@ const MODES: { id: Mode; label: string }[] = [
   { id: "check", label: "Check" },
 ]
 
-// The last mode is remembered in this browser, for every resume.
+// The last mode is remembered for this visit, for every resume, so a reload
+// keeps it. A later visit opens in Write, with the sections in view.
 const MODE_KEY = "editor-mode"
 
 function savedMode(): Mode {
   try {
-    return getStorage()?.getItem(MODE_KEY) === "check" ? "check" : "write"
+    return window.sessionStorage.getItem(MODE_KEY) === "check" ? "check" : "write"
   } catch {
     return "write"
   }
@@ -29,7 +29,7 @@ function savedMode(): Mode {
 
 function saveMode(mode: Mode) {
   try {
-    getStorage()?.setItem(MODE_KEY, mode)
+    window.sessionStorage.setItem(MODE_KEY, mode)
   } catch {
     // Only a convenience: the editor opens in Write mode next time.
   }
@@ -48,8 +48,9 @@ interface LeftBarProps {
  * in Write mode so the section tabs stay at hand.
  */
 export default function LeftBar({ hidden, children }: LeftBarProps) {
-  const [mode, setMode] = useState<Mode>(savedMode)
   const { report, watchPdf } = useCheck()
+  // A resume with nothing to check yet opens in Write, so its sections aren't hidden behind a request to fill them in.
+  const [mode, setMode] = useState<Mode>(() => (hasEnoughToCheck(report.view) ? savedMode() : "write"))
   // The PDF rules start reading the preview once Check is opened.
   useEffect(() => {
     if (mode === "check") watchPdf()

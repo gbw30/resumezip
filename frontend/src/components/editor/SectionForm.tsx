@@ -229,6 +229,8 @@ export default function SectionForm({ section, position }: SectionFormProps) {
     )
 
   const title = formData.headings?.[section.headingKey] || section.title
+  // "Add experience", or "Add to Work History" once the person has renamed the section.
+  const addLabel = title === section.title ? section.addLabel : `Add to ${title}`
   const quiet = "py-2 text-sm text-ink-2 transition-colors hover:text-ink"
 
   const addButtonElement = (
@@ -239,7 +241,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
       className="inline-flex h-10 items-center gap-2 self-start rounded-[4px] border border-rule-strong px-3.5 text-sm text-ink transition-colors hover:border-ink"
     >
       <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-      {section.addLabel}
+      {addLabel}
     </button>
   )
 
