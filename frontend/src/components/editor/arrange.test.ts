@@ -97,8 +97,8 @@ describe("typing bullets", () => {
   })
 
   test("a pasted list gets one bullet per line, in place of its own markers", () => {
-    expect(pastedList("- Designed accessible navigation\n* Led the team\n– Wrote the docs\n— Ran the tests\n1. Shipped it\n12) Grew it", "")).toBe(
-      "• Designed accessible navigation\n• Led the team\n• Wrote the docs\n• Ran the tests\n• Shipped it\n• Grew it",
+    expect(pastedList("- Designed accessible navigation\n* Led the team\n– Wrote the docs\n— Ran the tests\n1. Shipped it\n12) Grew it\n100. Kept it", "")).toBe(
+      "• Designed accessible navigation\n• Led the team\n• Wrote the docs\n• Ran the tests\n• Shipped it\n• Grew it\n• Kept it",
     )
     // Set in from the left, as nested lists are.
     expect(pastedList("  - Led the team", "")).toBe("• Led the team")
@@ -110,7 +110,9 @@ describe("typing bullets", () => {
   })
 
   test("pasted lines that only look like a list, or start with a bullet, are left as they are", () => {
-    expect(pastedList("-5% costs\n*Bold* words\n1.5x faster\n2019 was busy", "")).toBe("-5% costs\n*Bold* words\n1.5x faster\n2019 was busy")
+    expect(pastedList("-5% costs\n*Bold* words\n1.5x faster\n2019 was busy\n2019. Promoted", "")).toBe(
+      "-5% costs\n*Bold* words\n1.5x faster\n2019 was busy\n2019. Promoted",
+    )
     expect(pastedList("• Built a loom\n○ Fed the cat", "")).toBe("• Built a loom\n○ Fed the cat")
   })
 

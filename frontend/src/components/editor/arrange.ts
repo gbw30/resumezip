@@ -59,8 +59,9 @@ export function cursorWithBullets(text: string, at: number): number {
 }
 
 // A list marker at the start of a line, as lists copied from elsewhere have:
-// "- ", "* ", "– ", "— ", "1. " or "1) ". Not "-5%", "*bold*" or "1.5x".
-const LIST_MARKER = /^\s*(?:[-–—*]|\d{1,2}[.)])\s+/
+// "- ", "* ", "– ", "— ", "1. " or "1) ", up to "999. ". Not "-5%", "*bold*",
+// "1.5x", or a year, as in "2019. Promoted".
+const LIST_MARKER = /^\s*(?:[-–—*]|\d{1,3}[.)])\s+/
 
 /**
  * Text pasted into a bullets box, with a bullet in place of each list marker
