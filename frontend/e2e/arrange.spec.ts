@@ -279,6 +279,12 @@ test("the checker skips what's left out, and opens the right entry after it", as
   await field.getByRole("checkbox", { name: "Include bullet 2 in the PDF" }).uncheck()
   await expect.poll(() => printedOrder(page, ["search index", "serving costs"])).toEqual(["search index"])
   await expect(field.getByRole("list", { name: BULLETS })).toBeVisible()
+  // And as Write mode hides the finding, and Check shows it again.
+  const modes = page.getByRole("tablist", { name: "Write or check" })
+  await modes.getByRole("tab", { name: "Write" }).click()
+  await modes.getByRole("tab", { name: /^Check/ }).click()
+  await expect(panel.getByRole("button", { name: weak("Google") })).toBeVisible()
+  await expect(field.getByRole("list", { name: BULLETS })).toBeVisible()
 
   // Choosing the finding again goes back to the text, at its bullet.
   await panel.getByRole("button", { name: weak("Google") }).click()

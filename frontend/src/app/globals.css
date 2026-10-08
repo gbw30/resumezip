@@ -99,6 +99,14 @@
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
+
+  /* Buttons show the hand, as links do: Tailwind's base styles give them the
+     arrow. One that can't be used right now (disabled or aria-disabled) keeps it. */
+  button:not(:disabled):not([aria-disabled="true"]),
+  [role="button"]:not(:disabled):not([aria-disabled="true"]),
+  summary {
+    cursor: pointer;
+  }
 }
 
 /* Section reordering (@hello-pangea/dnd) */

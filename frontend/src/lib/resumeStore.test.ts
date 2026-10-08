@@ -76,6 +76,28 @@ describe("typing", () => {
     expect(setItem).not.toHaveBeenCalled()
     expect(tab.getState()).toMatchObject({ loaded: true, saveStatus: "saved", resumes: { a: ada, g: grace } })
   })
+
+  test("notes when a change was written, for the editor to say it's saved", () => {
+    const storage = memoryStorage(saved(ada))
+    const tab = openTab(storage)
+    tab.flush()
+    expect(tab.getState().savedAt).toBe(0)
+
+    tab.edit("a", "resumeTitle", "Ada's")
+    expect(tab.getState().savedAt).toBe(0)
+    vi.advanceTimersByTime(SAVE_DELAY)
+    expect(tab.getState().savedAt).toBe(Date.now())
+
+    // A change that couldn't be written isn't saved.
+    const before = tab.getState().savedAt
+    vi.advanceTimersByTime(1000)
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw new DOMException("The quota has been exceeded.", "QuotaExceededError")
+    })
+    tab.edit("a", "resumeTitle", "Ada's resume")
+    tab.flush()
+    expect(tab.getState()).toMatchObject({ saveStatus: "full", savedAt: before })
+  })
 })
 
 describe("two tabs", () => {

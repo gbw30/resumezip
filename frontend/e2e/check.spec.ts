@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { pageErrors, seriousAccessibilityProblems } from "./helpers"
 
 // The editor's left bar switches between the sections (Write) and what the
-// checker found (Check), and remembers which in this browser.
+// checker found (Check), and remembers which for the visit.
 
 async function newResume(page: Page) {
   await page.goto("/")
@@ -20,8 +20,13 @@ test("the left bar switches between writing and checking, and remembers which", 
 
   // It opens on Write, with the section list as it's always been.
   await expect(write).toHaveAttribute("aria-selected", "true")
+  // A name and an entry, so there's something to check: a resume with nothing
+  // to check yet always opens on Write.
+  await page.getByLabel("Full name").fill("Ada Lovelace")
   await sections.getByRole("button", { name: /^\d+ Experience$/ }).click()
   await expect(page.getByRole("heading", { name: "Experience" })).toBeVisible()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Role").fill("Analyst")
 
   // Check puts the checker where the section list was, and leaves the form as it was.
   await check.click()
@@ -56,6 +61,28 @@ test("the left bar switches between writing and checking, and remembers which", 
   await page.reload()
   await expect(write).toHaveAttribute("aria-selected", "true")
   await expect(sections).toBeVisible()
+
+  // It's remembered for the visit, not for good: a new tab opens on Write.
+  await check.click()
+  const later = await page.context().newPage()
+  await later.goto(page.url())
+  await expect(later.getByRole("tab", { name: "Write" })).toHaveAttribute("aria-selected", "true")
+  await expect(later.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()).toBeVisible()
+  await later.close()
+
+  // In this tab Check is still remembered, so the resume opens on Check from
+  // a freshly loaded dashboard too, but a new resume, with nothing to check
+  // yet, opens on Write.
+  await page.goto("/create/dashboard")
+  await page.getByRole("link", { name: "Open", exact: true }).click()
+  await expect(check).toHaveAttribute("aria-selected", "true")
+  await expect(preview).toBeVisible()
+  await page.getByRole("link", { name: "Your resumes" }).click()
+  await page.getByRole("button", { name: "New resume" }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click()
+  await expect(page).toHaveURL(/\/create\/new\//)
+  await expect(write).toHaveAttribute("aria-selected", "true")
+  await expect(preview).toBeVisible()
 
   expect(errors).toEqual([])
 })
@@ -102,9 +129,8 @@ test("the checker asks for a name and an entry first, then scores the resume and
   await expect(readable).toHaveAttribute("aria-expanded", "false")
   await expect(guaranteed).toBeHidden()
 
-  // How the score works says what it measures.
-  await panel.getByText("How the score works").click()
-  await expect(panel.getByText("It doesn't say whether a resume will get anyone hired.", { exact: false })).toBeVisible()
+  // A line says what the score measures, and no more.
+  await expect(score).toContainText("How well this resume follows the checks below.")
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
 
   expect(errors).toEqual([])
@@ -138,10 +164,11 @@ test("the score goes up as a problem is fixed", async ({ page }) => {
   expect(errors).toEqual([])
 })
 
-test("choosing a finding opens its field, fixing it clears it, and a suggestion can be dismissed", async ({ page }) => {
+test("choosing a finding opens its field, where it shows while Check is open, fixing it clears it, and a suggestion can be dismissed", async ({ page }) => {
   const errors = pageErrors(page)
   await newResume(page)
-  const check = page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ })
+  const modes = page.getByRole("tablist", { name: "Write or check" })
+  const check = modes.getByRole("tab", { name: /^Check/ })
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
 
   // No count until there's a name and an entry to check.
@@ -160,7 +187,16 @@ test("choosing a finding opens its field, fixing it clears it, and a suggestion 
   const field = page.getByLabel("Email")
   await expect(field).toBeFocused()
   await expect(field).toHaveAttribute("aria-invalid", "true")
-  await expect(page.getByText("Recruiters reply by email, so it has to work.")).toBeVisible()
+  const why = page.getByText("Recruiters reply by email, so it has to work.")
+  await expect(why).toBeVisible()
+
+  // Back in Write mode the field is left plain, until Check is open again.
+  await modes.getByRole("tab", { name: "Write" }).click()
+  await expect(why).toBeHidden()
+  await expect(field).not.toHaveAttribute("aria-invalid")
+  await check.click()
+  await expect(why).toBeVisible()
+  await expect(field).toHaveAttribute("aria-invalid", "true")
   await field.fill("ada@example.com")
   await expect(email).toBeHidden()
   await expect(field).not.toHaveAttribute("aria-invalid")

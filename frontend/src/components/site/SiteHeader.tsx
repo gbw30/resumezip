@@ -29,7 +29,7 @@ export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
   return (
     <header className={`font-system ${overlay ? "relative z-10 text-white" : "border-b border-rule bg-paper text-ink"}`}>
       <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-6 px-5 md:h-[72px] md:px-10">
-        <Link href="/" className="flex items-center gap-2.5 font-logo text-[24px] font-medium tracking-[-0.02em]">
+        <Link href="/" className="flex items-center gap-2.5 font-logo text-[24px] font-medium tracking-[-0.02em] transition-opacity hover:opacity-80">
           <Logo className="h-5 w-auto" />
           resumezip
         </Link>
