@@ -87,7 +87,7 @@ test("the left bar switches between writing and checking, and remembers which", 
   expect(errors).toEqual([])
 })
 
-test("the checker asks for a name and an entry first, then scores the resume and lists its checks by category", async ({ page }) => {
+test("the checker asks for a name and an entry first, then scores the resume and lists what to fix by category", async ({ page }) => {
   const errors = pageErrors(page)
   await newResume(page)
   const write = page.getByRole("tab", { name: "Write" })
@@ -112,25 +112,23 @@ test("the checker asks for a name and an entry first, then scores the resume and
   // Screen readers are told the score as it changes.
   await expect(score.locator("[aria-live=polite]")).toContainText(/^\d+\s*\/ 100\s*out of 100$/)
 
-  // A category with nothing to fix is folded, says how many checks passed,
-  // and opens from the keyboard to list them, with what the templates guarantee.
-  const readable = panel.getByRole("button", { name: /^Readable by hiring software, \d+ of \d+ passed$/ })
-  await expect(readable).toHaveAttribute("aria-expanded", "false")
-  const guaranteed = panel.getByText("Real text that can be selected and copied")
-  await expect(guaranteed).toBeHidden()
-  await readable.focus()
+  // A category with something to fix is open, lists it, and folds from the
+  // keyboard. What passed isn't listed.
+  const contact = panel.getByRole("button", { name: /^Contact & personal details, 1 to fix/ })
+  await expect(contact).toHaveAttribute("aria-expanded", "true")
+  const email = panel.getByRole("button", { name: /Add your email address/ })
+  await expect(email).toBeVisible()
+  await contact.focus()
   await page.keyboard.press("Enter")
-  await expect(readable).toHaveAttribute("aria-expanded", "true")
-  await expect(guaranteed).toBeVisible()
-  const passed = Number((await readable.textContent())!.match(/(\d+) of/)![1])
-  const checks = page.locator(`[id="${await readable.getAttribute("aria-controls")}"]`)
-  await expect(checks.getByRole("listitem")).toHaveCount(passed)
+  await expect(contact).toHaveAttribute("aria-expanded", "false")
+  await expect(email).toBeHidden()
   await page.keyboard.press("Space")
-  await expect(readable).toHaveAttribute("aria-expanded", "false")
-  await expect(guaranteed).toBeHidden()
+  await expect(contact).toHaveAttribute("aria-expanded", "true")
+  await expect(panel.getByText(/^Passed/)).toHaveCount(0)
 
-  // A line says what the score measures, and no more.
+  // A line says what the score measures, and that a must-fix holds it down.
   await expect(score).toContainText("How well this resume follows the checks below.")
+  await expect(score).toContainText("Fix what's under “To fix” to score above 89.")
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
 
   expect(errors).toEqual([])

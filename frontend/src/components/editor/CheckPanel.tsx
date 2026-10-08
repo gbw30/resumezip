@@ -2,13 +2,13 @@
 
 import type React from "react"
 import { useEffect, useId, useMemo, useRef, useState } from "react"
-import { Check, ChevronDown, CircleAlert, CircleCheck, Info, LoaderCircle } from "lucide-react"
+import { ChevronDown, CircleAlert, Info, LoaderCircle } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
 import type { Finding, Report, Rule } from "@/lib/check/engine"
 import { describePlace, hasEnoughToCheck } from "@/lib/check/labels"
 import type { ResumeView } from "@/lib/check/resume"
 import { checkingCategories, keepScores, scoreOf, shownScore, wholePoints, type CategoryScore, type KeptScores } from "@/lib/check/score"
-import { CATEGORIES, type CategoryId } from "@/lib/check/settings"
+import { CATEGORIES, MUST_FIX_MAX, type CategoryId } from "@/lib/check/settings"
 import { hasLeftOut } from "@/lib/leftOut"
 import { useCheck } from "./CheckContext"
 
@@ -24,8 +24,9 @@ type Category = (typeof CATEGORIES)[number]
 
 /**
  * What the checker found on the resume, in the left bar's Check mode: the
- * resume score, then each category with its points, what it found and what
- * passed. Choosing a finding opens its field in the form.
+ * resume score, then each category with something to fix or review, its
+ * points and what it found. What passed isn't listed. Choosing a finding
+ * opens its field in the form.
  */
 export default function CheckPanel() {
   const { report, restore, pdf, grammar } = useCheck()
@@ -38,6 +39,7 @@ export default function CheckPanel() {
     { readingPdf: pdf === "reading", checkingText: grammar === "checking" },
   )
   const score = useShownScore(report, checking)
+  const shown = useShownCategories(report.findings, checking)
 
   if (!hasEnoughToCheck(view)) {
     return (
@@ -58,7 +60,7 @@ export default function CheckPanel() {
   const checkingGrammar = waitingFor("grammar") || grammar !== "ready"
   return (
     <div className="flex flex-col gap-5 px-3 py-4 xl:p-0">
-      <ScoreHeader total={score.total} />
+      <ScoreHeader total={score.total} mustFix={score.mustFix} />
       {(waitingFor("pdf") || checkingGrammar) && (
         <div role="status" className="flex flex-col gap-1 px-2 text-sm text-ink-2">
           {waitingFor("pdf") && (
@@ -76,25 +78,22 @@ export default function CheckPanel() {
         </div>
       )}
 
-      <div className="flex flex-col">
-        {CATEGORIES.map((category, index) => (
-          <CategoryRow
-            key={category.id}
-            category={category}
-            view={view}
-            findings={report.findings.filter((finding) => finding.category === category.id)}
-            passed={[
-              // A rule that hasn't looked at everything yet hasn't passed yet.
-              ...report.results
-                .filter((result) => result.rule.category === category.id && result.status === "passed" && !result.partial)
-                .map((result) => result.rule.title),
-              ...report.automatic.filter((pass) => pass.category === category.id).map((pass) => pass.title),
-            ]}
-            checking={checking.get(category.id)}
-            score={score.categories[index]}
-          />
-        ))}
-      </div>
+      {shown.length > 0 ? (
+        <div className="flex flex-col">
+          {shown.map((category) => (
+            <CategoryRow
+              key={category.id}
+              category={category}
+              view={view}
+              findings={report.findings.filter((finding) => finding.category === category.id)}
+              checking={checking.get(category.id)}
+              score={score.categories[CATEGORIES.indexOf(category)]}
+            />
+          ))}
+        </div>
+      ) : (
+        checking.size === 0 && <p className="px-2 text-sm leading-relaxed text-ink-2">Nothing to fix or review.</p>
+      )}
 
       {report.dismissed.length > 0 && (
         <Folded summary={`Dismissed · ${report.dismissed.length}`}>
@@ -123,8 +122,26 @@ function useShownScore(report: Report, checking: ReadonlyMap<CategoryId, unknown
   return shownScore(now, kept.current, checking)
 }
 
-/** The resume score, and in a line what it measures. */
-function ScoreHeader({ total }: { total: number | "checking" | null }) {
+/**
+ * The categories with something to fix or review. One being checked again
+ * stays if it had findings when last checked, rather than going while its
+ * PDF or grammar findings wait to be found again.
+ */
+function useShownCategories(findings: readonly Finding[], checking: ReadonlyMap<CategoryId, unknown>): Category[] {
+  const found = new Set(findings.map((finding) => finding.category))
+  const had = useRef(new Set<CategoryId>())
+  useEffect(() => {
+    for (const { id } of CATEGORIES) {
+      if (checking.has(id)) continue
+      if (found.has(id)) had.current.add(id)
+      else had.current.delete(id)
+    }
+  })
+  return CATEGORIES.filter(({ id }) => found.has(id) || (checking.has(id) && had.current.has(id)))
+}
+
+/** The resume score, in a line what it measures, and whether a must-fix is holding it down. */
+function ScoreHeader({ total, mustFix = false }: { total: number | "checking" | null; mustFix?: boolean }) {
   const id = useId()
   return (
     <section aria-labelledby={id} className="flex flex-col gap-2 px-2">
@@ -153,53 +170,39 @@ function ScoreHeader({ total }: { total: number | "checking" | null }) {
         </p>
       </div>
       <p className="text-[13px] leading-relaxed text-ink-2">How well this resume follows the checks below.</p>
+      {mustFix && <p className={`text-[13px] leading-relaxed ${FIX_COLOR}`}>{`Fix what's under “To fix” to score above ${MUST_FIX_MAX}.`}</p>}
     </section>
   )
 }
 
 /**
- * One category: an icon and a count for where it stands, what it checks,
- * its points, and, opened, its findings (fixes first) and what passed.
- * Categories with findings are open until folded; the rest are folded until
- * opened. While it's being checked again, it stays as it was, rather than
- * folding as its PDF findings wait for the new preview to be read.
+ * One category with something to fix or review: an icon and a count for
+ * where it stands, what it checks, its points, and, opened, its findings
+ * (fixes first). It's open until folded.
  */
 function CategoryRow({
   category,
   view,
   findings,
-  passed,
   checking,
   score,
 }: {
   category: Category
   view: ResumeView
   findings: Finding[]
-  passed: string[]
   /** What it's waiting on, while some of its rules are still being checked. */
   checking: Rule["reads"] | undefined
   /** Its points as shown; null until it has been checked once. */
   score: CategoryScore | null
 }) {
   const id = useId()
-  const [toggled, setToggled] = useState<boolean | null>(null)
-  const hadFindings = useRef(findings.length > 0)
-  useEffect(() => {
-    if (!checking) hadFindings.current = findings.length > 0
-  })
-  const open = toggled ?? (checking ? hadFindings.current : findings.length > 0)
+  const [open, setOpen] = useState(true)
   const fixes = findings.filter((finding) => finding.level === "fix")
   const looks = findings.filter((finding) => finding.level === "look")
   const counts = [fixes.length > 0 && `${fixes.length} to fix`, looks.length > 0 && `${looks.length} to review`].filter(Boolean).join(", ")
   // Where it stands, in a few words. While its rules wait on the PDF or the
   // text, it says so instead of a count.
-  const allPassed = !checking && !counts && passed.length > 0
-  const status =
-    checking === "pdf"
-      ? "Reading the PDF…"
-      : checking
-        ? "Checking…"
-        : counts || (allPassed ? `${passed.length} of ${passed.length}` : "Nothing to check")
+  const status = checking === "pdf" ? "Reading the PDF…" : checking ? "Checking…" : counts
 
   return (
     <section aria-labelledby={`${id}-name`} className="flex flex-col border-b border-rule last:border-b-0">
@@ -208,24 +211,22 @@ function CategoryRow({
           type="button"
           aria-expanded={open}
           aria-controls={`${id}-body`}
-          aria-label={`${category.name}, ${allPassed ? `${status} passed` : status}`}
-          onClick={() => setToggled(!open)}
+          aria-label={`${category.name}, ${status}`}
+          onClick={() => setOpen(!open)}
           className="flex w-full items-start gap-2 rounded-[4px] px-2 pb-1 pt-3 text-left transition-colors hover:bg-sheet"
         >
           {checking ? (
             <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-ink-2 motion-reduce:animate-none" aria-hidden="true" />
           ) : fixes.length > 0 ? (
             <CircleAlert className={`mt-0.5 h-4 w-4 shrink-0 ${FIX_COLOR}`} aria-hidden="true" />
-          ) : looks.length > 0 ? (
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
           ) : (
-            <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-ink-2" aria-hidden="true" />
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
           )}
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span id={`${id}-name`} className="text-sm font-medium leading-snug text-ink">
               {category.name}
             </span>
-            <span className={`text-[12px] leading-snug ${checking ? "text-ink-2" : fixes.length > 0 ? FIX_COLOR : looks.length > 0 ? "text-accent" : "text-ink-2"}`}>
+            <span className={`text-[12px] leading-snug ${checking ? "text-ink-2" : fixes.length > 0 ? FIX_COLOR : "text-accent"}`}>
               {status}
             </span>
           </span>
@@ -255,16 +256,6 @@ function CategoryRow({
             ))}
           </Group>
         )}
-        {passed.length > 0 && (
-          <Group title={`Passed · ${passed.length}`}>
-            {passed.map((title, index) => (
-              <li key={index} className="flex gap-2 px-2 py-0.5 text-[13px] leading-snug text-ink-2">
-                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                {title}
-              </li>
-            ))}
-          </Group>
-        )}
       </div>
     </section>
   )
@@ -273,8 +264,7 @@ function CategoryRow({
 /** A category's points, as a bar. */
 function Points({ name, score }: { name: string; score: CategoryScore | null }) {
   // Not checked yet: the count says it's being checked.
-  if (!score) return null
-  if (!score.applies) return <p className="text-[12px] text-ink-2">None of its checks apply, so it isn't scored.</p>
+  if (!score?.applies) return null
   const earned = wholePoints(score.earned)
   return (
     <div className="flex items-center gap-2">
@@ -296,7 +286,7 @@ function Points({ name, score }: { name: string; score: CategoryScore | null }) 
   )
 }
 
-/** Some of a category's findings or passed checks, under a small title. */
+/** Some of a category's findings, under a small title. */
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   const id = useId()
   return (
