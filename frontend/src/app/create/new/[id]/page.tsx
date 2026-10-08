@@ -323,7 +323,7 @@ export default function EditorPage() {
             </span>
           </div>
         </div>
-        <NotSaved className="border-t border-rule px-5 py-2.5 lg:px-6" />
+        <NotSaved className="border-t border-rule px-5 py-2.5 lg:px-6" onDownload={download} downloading={downloading} />
         {failure && (
           <DownloadFailed
             key={failure.count}

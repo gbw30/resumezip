@@ -325,6 +325,9 @@ export function createResumeStore(delay = SAVE_DELAY) {
     if (pending.size > 0) saveSoon()
   }
 
+  /** Whether anything changed here isn't in storage yet: waiting to be saved, or because saving failed. */
+  const hasUnsavedChanges = () => pending.size > 0 || deleted.size > 0
+
   /** Deletes the saved data kept aside, which makes room, so anything waiting is saved. */
   function deleteUnreadable() {
     deleteKeptAside(storage)
@@ -349,6 +352,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
     replace,
     remove,
     flush,
+    hasUnsavedChanges,
     receive,
     deleteUnreadable,
   }
