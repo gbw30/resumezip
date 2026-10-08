@@ -54,6 +54,12 @@ doesn't read right yet. The test fails when that list changes:
 A change that fixes some fields and breaks others shows both, so you can
 decide whether it's worth it.
 
+Fields are compared entry by entry, in order. So when a change finds an
+entry that was missing, every entry after it moves up one, and a field that
+matched before only by chance, under the wrong entry, can show up as
+newlyWrong. Check each one by what it says, not by its path, before deciding
+a change made things worse.
+
 ## Adding a resume
 
 1. Add a person: a folder with a `resume.json`, or use one that's here.

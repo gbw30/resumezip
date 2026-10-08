@@ -48,14 +48,13 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // The company splits as in diego/latex-jake, and "Stanford Code in Place -
   // Student" swapped.
   "diego/writer-classic": ["work[0].company", "leadership[2].organization", "leadership[2].role"],
-  // "Honors & Certifications" isn't a heading it knows, so the awards go to
-  // "Couldn't place". "Degree. GPA 3.6/4.0" leaves the degree's full stop on.
-  "jordan/html-harvard": ["education[0].degree", "awards[0]", "awards[1]"],
-  "jordan/html-modern": ["awards[0]", "awards[1]"],
+  // "Degree. GPA 3.6/4.0" leaves the degree's full stop on.
+  "jordan/html-harvard": ["education[0].degree"],
+  "jordan/html-modern": [],
   // Headings in a margin column, level with the first line beside them, aren't
   // found, so almost everything goes to "Couldn't place".
   "jordan/html-side-headings": ["education[0]", "work[0]", "work[1]", "work[2]", "skills[0]", "skills[1]", "volunteer[0]", "awards[0]", "awards[1]"],
-  "jordan/writer-modern": ["awards[0]", "awards[1]"],
+  "jordan/writer-modern": [],
   // "Sprout – HackGT 2026" splits at the dash, so "HackGT 2026" reads as a
   // tool. "GT Solar Racing Engineering" reads as the role. "Role, Company"
   // on one line all reads as the role.
@@ -80,16 +79,15 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "leadership[0].organization",
     "leadership[0].role",
   ],
-  // An academic CV in Typst. "Current Employment", "Research Interests",
-  // "Academic Service" and "Teaching and Mentoring Experience" aren't headings
-  // it knows, and it won't guess them from their look, since there are more
-  // than two: so the current job is lost and every job after it shifts,
-  // "Research Interests" reads as a school, and everything after the
-  // citations reads as more citations. A link to tel: reads as the website,
-  // and links behind icons are lost. The second degree under one school
-  // loses the school, a colon splits "Study Abroad, Purdue in Japan:
-  // Robotics & Society", award descriptions join the award's name, and a
-  // skill wrapped as "MAT-" and "LAB" keeps its hyphen.
+  // An academic CV in Typst. A link to tel: reads as the website, and links
+  // behind icons are lost. The current job's title lines read as bullets.
+  // Paragraph lines of 85 letters or fewer, or starting a new sentence, read
+  // as titles, and hyphens Typst added to break words ("Grade-scope") stay.
+  // Under one school, the first degree loses its date and the second the
+  // school. A colon or " - " inside a title splits it. A page number and
+  // sub-headings among the citations stop them reading as citations. Award
+  // descriptions join the award's name, a page number joins a skill, and the
+  // mentoring lines read as teaching.
   "marcus/typst-academic": [
     "profile.linkedin",
     "profile.github",
@@ -101,65 +99,37 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "education[2].degree",
     "education[2].end",
     "education[3]",
-    "education[4]",
-    "work[0].company",
-    "work[0].location",
     "work[0].role",
-    "work[0].end",
     "work[0].bullets",
-    "work[1].location",
+    "work[1].company",
     "work[1].role",
-    "work[1].start",
-    "work[1].end",
-    "work[1].bullets",
-    "work[2].company",
-    "work[2].location",
-    "work[2].role",
-    "work[2].start",
-    "work[2].end",
     "work[2].bullets",
-    "work[3].role",
-    "work[3].end",
     "work[3].bullets",
-    "work[4]",
-    "work[5]",
-    "work[6]",
-    "work[7]",
+    "work[4].bullets",
+    "work[5].company",
+    "work[5].role",
+    "work[6].company",
+    "work[6].role",
+    "work[7].company",
+    "work[7].role",
+    "work[7].bullets",
+    "work[8]",
     "publications[0].title",
     "publications[0].authors",
     "publications[0].venue",
     "publications[0].details",
     "publications[0].date",
     "publications[0].doi",
-    "publications[1].title",
-    "publications[1].authors",
-    "publications[1].venue",
-    "publications[1].details",
-    "publications[1].date",
-    "publications[2].title",
-    "publications[2].authors",
-    "publications[2].venue",
-    "publications[2].details",
-    "publications[2].link",
-    "publications[3]",
-    "publications[4]",
-    "publications[5]",
-    "publications[6]",
-    "publications[7]",
-    "publications[8]",
-    "publications[9]",
-    "skills[0].name",
+    "publications[1]",
+    "publications[2]",
     "skills[0].details",
-    "skills[1].name",
-    "skills[1].details",
-    "skills[2].name",
     "skills[2].details",
-    "skills[3]",
-    "leadership[0]",
-    "leadership[1]",
-    "leadership[2]",
-    "leadership[3]",
-    "leadership[4]",
+    "skills[3].details",
+    "leadership[0].organization",
+    "leadership[0].bullets",
+    "leadership[3].organization",
+    "leadership[3].role",
+    "leadership[3].bullets",
     "awards[0].name",
     "awards[1].name",
     "awards[2].name",
@@ -209,11 +179,11 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "priya/latex-jake": ["awards[0].name", "awards[0].organization"],
   // As in priya/latex-jake, and "Zillow" with "Software Engineer II" swapped.
   "priya/writer-modern": ["work[1].company", "work[1].role", "awards[0].name", "awards[0].organization"],
-  // "Clinical Experience" isn't a heading it knows, so the jobs go to
-  // "Couldn't place". A comma inside an award's name ("Registered Nurse
-  // License, Texas") reads as the start of the organization. The degree
-  // keeps its full stop, as in jordan/html-harvard.
-  "sam/html-harvard": ["education[0].degree", "work[0]", "work[1]", "work[2]", "awards[0].name", "awards[0].organization"],
+  // The degree keeps its full stop, as in jordan/html-harvard. The first job's
+  // role and hospital read swapped: "nurse" isn't a word it knows in job titles.
+  // A comma inside an award's name ("Registered Nurse License, Texas") reads
+  // as the start of the organization.
+  "sam/html-harvard": ["education[0].degree", "work[0].company", "work[0].role", "awards[0].name", "awards[0].organization"],
   // As in jordan/html-side-headings.
   "sam/html-side-headings": [
     "education[0]",
@@ -228,11 +198,9 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "awards[1]",
     "awards[2]",
   ],
-  // As in sam/html-harvard, and award names that wrap split where they wrap.
+  // Award names that wrap in the narrow column split where they wrap, and a
+  // comma inside one reads as the start of the organization.
   "sam/html-sidebar": [
-    "work[0]",
-    "work[1]",
-    "work[2]",
     "awards[0].name",
     "awards[0].organization",
     "awards[1].name",
@@ -240,7 +208,8 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "awards[2].name",
     "awards[2].organization",
   ],
-  "sam/writer-classic": ["work[0]", "work[1]", "work[2]", "awards[0].name", "awards[0].organization"],
+  // A comma inside an award's name reads as the start of the organization.
+  "sam/writer-classic": ["awards[0].name", "awards[0].organization"],
   // As in priya/html-dates-left, and citations with their date in the left
   // column split into several.
   "wei/html-dates-left": [

@@ -143,6 +143,31 @@ const lookupHeading = (text: string) => {
   return HEADING_LOOKUP.get(normal) ?? HEADING_LOOKUP_COMPACT.get(normal.replace(/ /g, ""))
 }
 
+/**
+ * Headings it doesn't know by name, known instead by a word that says what
+ * the section holds: "Clinical Experience", "Honors & Certifications",
+ * "Current Employment". The first that matches wins, so "Volunteer
+ * Experience" would be volunteering. Only for lines that look like the
+ * headings it knows by name: an entry's title can hold these words too.
+ */
+const HEADING_WORDS: [HeadingMeaning, RegExp][] = [
+  [{ section: "Education" }, /\b(?:education|degrees?|schooling)\b/],
+  [{ section: "Publications" }, /\b(?:publications?|papers|articles)\b/],
+  [{ section: "Projects" }, /\bprojects?\b/],
+  [{ section: "Skills" }, /\b(?:skills|technologies|competencies|proficiencies)\b/],
+  [{ section: "Awards" }, /\b(?:awards?|honou?rs|certifications?|certificates?|licen[cs]es?|scholarships?|fellowships?|grants|achievements|distinctions|recognition)\b/],
+  [{ section: "Volunteership" }, /\b(?:volunteer\w*|community)\b/],
+  [{ section: "Leadership" }, /\b(?:leadership|activities|involvement|service|extracurriculars?|organi[sz]ations)\b/],
+  [{ section: "Work" }, /\b(?:experience|employment|work|positions|internships?|teaching|appointments|career)\b/],
+  [{ section: "Skills", category: "Interests" }, /\binterests\b/],
+]
+
+/** A heading's meaning from a word in it, keeping its own words as a skill category: "Research Interests". */
+function headingByWord(text: string): HeadingMeaning | undefined {
+  const meaning = HEADING_WORDS.find(([, pattern]) => pattern.test(normalizeHeading(text)))?.[0]
+  return meaning && "category" in meaning ? { ...meaning, category: titleCase(tidy(text.replace(/:$/, ""))) } : meaning
+}
+
 /** "E D U C A T I O N": letter-spaced text reads as one letter (or kerned pair) per word. */
 const unspace = (text: string) => {
   const tokens = text.trim().split(/\s+/)
@@ -1303,6 +1328,14 @@ export function parseResume(file: Line[]): ParsedResume {
       sameX
     )
   }
+  // Headings it doesn't know by name, but known by a word in them, when they
+  // look like the ones it does know.
+  lines.forEach((line, i) => {
+    if (i === 0 || known.has(line.index) || !headingShaped(line) || !headingStyle(line)) return
+    const meaning = headingByWord(line.text)
+    if (meaning) known.set(line.index, meaning)
+  })
+  knownLines = lines.filter((line) => known.has(line.index))
   // Unknown headings are only guessed from their style when it sets them apart:
   // if entry titles look the same (all bold, same size), it doesn't.
   const lookalikes = lines.filter((line, i) => i > 0 && !known.has(line.index) && headingShaped(line) && headingStyle(line))

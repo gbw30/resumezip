@@ -192,3 +192,36 @@ describe("publications", () => {
     ])
   })
 })
+
+describe("a heading it doesn't know by name", () => {
+  const heading = (text: string) => line([[text, 36]], { size: 12, bold: true })
+  const school = [line([["State University", 36], ["2016 – 2020", 480]], { bold: true }), line([["Bachelor of Science in Nursing", 36]], { italic: true })]
+
+  test("is known by a word that says what it holds, when it looks like the others", () => {
+    const { resume } = read("Education", [
+      ...school,
+      heading("Clinical Experience"),
+      line([["Registered Nurse", 36], ["2020 – Present", 480]], { bold: true }),
+      line([["St. David’s Medical Center", 36]], { italic: true }),
+      line([["Cared for 5 patients a shift", 54]], { bullet: true }),
+      heading("Honors & Certifications"),
+      line([["Certified Emergency Nurse, BCEN", 36], ["2025", 480]]),
+    ])
+    expect(resume.workExperienceSection).toMatchObject([{ workRole: "Registered Nurse", companyName: "St. David’s Medical Center" }])
+    expect(resume.awardsSection).toMatchObject([{ awardName: "Certified Emergency Nurse", awardOrg: "BCEN", awardDate: "2025" }])
+  })
+
+  test("about interests keeps its words as the skill's name", () => {
+    const { resume } = read("Education", [...school, heading("Research Interests"), line([["Mobile Robotics, Embedded Systems", 36]])])
+    expect(resume.skillsSection).toMatchObject([{ skillName: "Research Interests", skillDetails: "Mobile Robotics, Embedded Systems" }])
+  })
+
+  test("isn't a line that only shares a word with one", () => {
+    const { resume } = read("Projects", [
+      line([["Volunteer Matching App", 36]], { bold: true }),
+      line([["Matched 300 volunteers with shifts at local food banks", 54]], { bullet: true }),
+    ])
+    expect(resume.projectsSection).toMatchObject([{ projectName: "Volunteer Matching App" }])
+    expect(resume.volunteerExperienceSection).toEqual([])
+  })
+})
