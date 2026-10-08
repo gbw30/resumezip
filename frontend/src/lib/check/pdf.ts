@@ -10,13 +10,7 @@ import { bulletsIn, type PlacedBullet } from "./text"
 // names in capitals: "Strauß" prints as "STRAUSS", and only comparing that
 // way round finds them the same. A capital ẞ doesn't change when upper-cased,
 // so a ß left at the end is spelled out too.
-const fold = (text: string) =>
-  text
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toUpperCase()
-    .toLowerCase()
-    .replace(/ß/g, "ss")
+const fold = (text: string) => text.normalize("NFKD").replace(/\p{M}/gu, "").toUpperCase().toLowerCase().replace(/ß/g, "ss")
 
 /**
  * Text as compared between the PDF and the editor: letters and digits only,

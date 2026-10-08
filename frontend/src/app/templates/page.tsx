@@ -32,9 +32,7 @@ export default function TemplatesPage() {
               </div>
               <div className="flex items-baseline justify-between gap-3 border-t border-rule pt-3">
                 <span className="text-[15px]">{template.name}</span>
-                <span className="text-sm text-ink-2 underline-offset-4 group-hover:text-ink group-hover:underline">
-                  Use template
-                </span>
+                <span className="text-sm text-ink-2 underline-offset-4 group-hover:text-ink group-hover:underline">Use template</span>
               </div>
             </StartWritingLink>
           ))}

@@ -64,7 +64,11 @@ const SHOWN: {
     swapLabel: "Swap role and organization",
   },
   Projects: { primary: "projectName", secondary: ["techStack"], dates: (f) => f.projectDate ?? "", bullets: "projectDescription" },
-  Publications: { primary: "publicationTitle", secondary: ["publicationAuthors", "publicationVenue", "publicationDetails"], dates: (f) => f.publicationDate ?? "" },
+  Publications: {
+    primary: "publicationTitle",
+    secondary: ["publicationAuthors", "publicationVenue", "publicationDetails"],
+    dates: (f) => f.publicationDate ?? "",
+  },
   Skills: { primary: "skillName", secondary: ["skillDetails"], dates: () => "" },
   Awards: { primary: "awardName", secondary: ["awardOrg"], dates: (f) => f.awardDate ?? "" },
 }
@@ -97,7 +101,14 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
 
   const parsed = withSwaps(file.parsed, swapped)
   const { profile } = parsed
-  const contact = [profile.location, profile.email, profile.phoneNumber, profile.linkedin, profile.profileGithub, profile.personalWebsite].filter(Boolean)
+  const contact = [
+    profile.location,
+    profile.email,
+    profile.phoneNumber,
+    profile.linkedin,
+    profile.profileGithub,
+    profile.personalWebsite,
+  ].filter(Boolean)
   const leftovers = parsed.unplaced.reduce((sum, group) => sum + group.text.length, 0)
   const foundNothing = !profile.fullName && parsed.sections.length === 0
   // Most of a file that wasn't placed was likely read wrong, so it's said up
@@ -169,8 +180,8 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                 <div className="min-w-0 text-sm leading-relaxed">
                   <p className="font-medium text-ink">We couldn&apos;t place {share >= 0.5 ? "most" : "a lot"} of this file.</p>
                   <p className="mt-1 text-ink-2">
-                    Its layout may be one we don&apos;t read well yet. Nothing&apos;s lost: it&apos;s all under Couldn&apos;t place, to copy into
-                    the editor.
+                    Its layout may be one we don&apos;t read well yet. Nothing&apos;s lost: it&apos;s all under Couldn&apos;t place, to copy
+                    into the editor.
                   </p>
                   <button type="button" onClick={showUnplaced} className="mt-2 font-medium text-accent underline-offset-2 hover:underline">
                     Show what we couldn&apos;t place
@@ -199,9 +210,14 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                       const key = entryKey(section.name, index)
                       const off = skipped.has(key)
                       const primary = entry.fields[shown.primary]
-                      const secondary = shown.secondary.map((field) => entry.fields[field]).filter(Boolean).join(" · ")
+                      const secondary = shown.secondary
+                        .map((field) => entry.fields[field])
+                        .filter(Boolean)
+                        .join(" · ")
                       const dates = shown.dates(entry.fields)
-                      const bullets = shown.bullets ? (entry.fields[shown.bullets] ?? "").split("\n").filter((line) => line.trim()).length : 0
+                      const bullets = shown.bullets
+                        ? (entry.fields[shown.bullets] ?? "").split("\n").filter((line) => line.trim()).length
+                        : 0
                       return (
                         <li key={key} className="flex items-start gap-3 border-b border-rule py-3" {...point(entry.lines)}>
                           <input
@@ -316,14 +332,27 @@ function PdfPages({ doc, pages, lines, highlight }: { doc: PDFDocumentProxy; pag
           doc={doc}
           number={i + 1}
           size={size}
-          boxes={highlight.map((index) => lines[index]).filter((line) => line?.page === i + 1 && line.box).map((line) => line.box!)}
+          boxes={highlight
+            .map((index) => lines[index])
+            .filter((line) => line?.page === i + 1 && line.box)
+            .map((line) => line.box!)}
         />
       ))}
     </div>
   )
 }
 
-function PdfPage({ doc, number, size, boxes }: { doc: PDFDocumentProxy; number: number; size: PageSize; boxes: [number, number, number, number][] }) {
+function PdfPage({
+  doc,
+  number,
+  size,
+  boxes,
+}: {
+  doc: PDFDocumentProxy
+  number: number
+  size: PageSize
+  boxes: [number, number, number, number][]
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {

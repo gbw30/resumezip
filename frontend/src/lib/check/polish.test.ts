@@ -46,7 +46,13 @@ describe("P2 a lowercase start", () => {
   })
 
   test("leaves names written in lower case on purpose, and numbers", () => {
-    const bullets = ["iOS app for 3,000 students", "npm package with 9k weekly downloads", "eBay listings scraper", "pandas pipeline for sales data", "50% fewer pages"]
+    const bullets = [
+      "iOS app for 3,000 students",
+      "npm package with 9k weekly downloads",
+      "eBay listings scraper",
+      "pandas pipeline for sales data",
+      "50% fewer pages",
+    ]
     expect(check("P2", resumeWith(job(bullets))).status).toBe("passed")
   })
 })
@@ -55,7 +61,10 @@ describe("P3 states and degrees written one way", () => {
   test("flags a state written out among abbreviations, with the place rewritten", () => {
     const resume = {
       profileSection: { fullName: "Jake Ryan", location: "Austin, TX" },
-      workExperienceSection: [job(["Built it"], { workLocation: "Seattle, WA" }), job(["Led it"], { workLocation: "Boston, Massachusetts" })],
+      workExperienceSection: [
+        job(["Built it"], { workLocation: "Seattle, WA" }),
+        job(["Led it"], { workLocation: "Boston, Massachusetts" }),
+      ],
     }
     expect(check("P3", resume).findings).toEqual([
       expect.objectContaining({
@@ -107,7 +116,9 @@ describe("P3 states and degrees written one way", () => {
 
 describe("P4 spacing", () => {
   test("flags two spaces, a space before punctuation, and a missing space after a comma or period", () => {
-    const resume = resumeWith(job(["Built the  index", "Led the team , then the org", "Used Python,SQL and Go", "Grew users.Built the app"]))
+    const resume = resumeWith(
+      job(["Built the  index", "Led the team , then the org", "Used Python,SQL and Go", "Grew users.Built the app"]),
+    )
     expect(check("P4", resume).findings.map(({ message, suggestion }) => [message, suggestion])).toEqual([
       ["Two spaces in a row", "Use one space."],
       ["A space before punctuation", "Write “team,”."],
@@ -150,7 +161,13 @@ describe("P5 words in capitals", () => {
 
 describe("P6 shorthand", () => {
   test("flags shorthand, with the word to write", () => {
-    const bullets = ["Built it w/ React", "Led the mgmt team", "Cut costs approx. 40%", "Design & build the API", "Cut builds from 10 hrs to 2"]
+    const bullets = [
+      "Built it w/ React",
+      "Led the mgmt team",
+      "Cut costs approx. 40%",
+      "Design & build the API",
+      "Cut builds from 10 hrs to 2",
+    ]
     expect(check("P6", resumeWith(job(bullets))).findings.map(({ message, suggestion }) => [message, suggestion])).toEqual([
       ["“w/” is shorthand", "Write “with”."],
       ["“mgmt” is shorthand", "Write “management”."],
@@ -172,14 +189,27 @@ describe("P6 shorthand", () => {
   })
 
   test("leaves names and acronyms with an & or the same letters alone", () => {
-    const bullets = ["Ran R&D for AT&T", "Partnered with Procter & Gamble", "Trained the HR team", "Wrote ESP32 firmware", "Worked with I/O drivers"]
+    const bullets = [
+      "Ran R&D for AT&T",
+      "Partnered with Procter & Gamble",
+      "Trained the HR team",
+      "Wrote ESP32 firmware",
+      "Worked with I/O drivers",
+    ]
     expect(check("P6", resumeWith(job(bullets))).status).toBe("passed")
   })
 })
 
 describe("P7 numbers written one way", () => {
   test("flags small numbers and percentages written the less usual way", () => {
-    const bullets = ["Led 5 engineers", "Ran 3 sprints", "Mentored five interns", "Cut costs by 40%", "Grew users 30%", "Raised margins 12 percent"]
+    const bullets = [
+      "Led 5 engineers",
+      "Ran 3 sprints",
+      "Mentored five interns",
+      "Cut costs by 40%",
+      "Grew users 30%",
+      "Raised margins 12 percent",
+    ]
     expect(check("P7", resumeWith(job(bullets))).findings.map(({ place, message, suggestion }) => [place, message, suggestion])).toEqual([
       [bulletAt(2), "“five” here, digits elsewhere", "Write “5”."],
       [bulletAt(5), "“12 percent” here, “%” elsewhere", "Write “12%”."],
@@ -187,7 +217,9 @@ describe("P7 numbers written one way", () => {
   })
 
   test("leaves large numbers in digits next to small ones in words", () => {
-    expect(check("P7", resumeWith(job(["Led five engineers", "Served 15 teams", "Grew sales 3x", "Shipped v2 of the app"]))).status).toBe("passed")
+    expect(check("P7", resumeWith(job(["Led five engineers", "Served 15 teams", "Grew sales 3x", "Shipped v2 of the app"]))).status).toBe(
+      "passed",
+    )
   })
 
   test("leaves versions and labels out, but counts a digit after the first word", () => {
@@ -201,7 +233,9 @@ describe("P7 numbers written one way", () => {
       "Led three engineers",
     ]
     expect(check("P7", resumeWith(job(versions))).status).toBe("passed")
-    expect(check("P7", resumeWith(job(["Led 3 engineers", "Ran 4 sprints", "Mentored five interns"]))).messages).toEqual(["“five” here, digits elsewhere"])
+    expect(check("P7", resumeWith(job(["Led 3 engineers", "Ran 4 sprints", "Mentored five interns"]))).messages).toEqual([
+      "“five” here, digits elsewhere",
+    ])
     // Labels written as words aren't counts either.
     expect(check("P7", resumeWith(job(["Led 3 engineers", "Ran phase three trials", "Shipped level two support"]))).status).toBe("passed")
   })

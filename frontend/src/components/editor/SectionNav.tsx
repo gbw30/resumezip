@@ -72,7 +72,12 @@ export default function SectionNav({ sections, headings, active, onSelect, onReo
     >
       <span className="label-mono hidden px-2 pb-3 text-ink-2 xl:block">Sections</span>
 
-      <button type="button" onClick={() => onSelect("Profile")} className={item(active === "Profile")} aria-current={active === "Profile" || undefined}>
+      <button
+        type="button"
+        onClick={() => onSelect("Profile")}
+        className={item(active === "Profile")}
+        aria-current={active === "Profile" || undefined}
+      >
         <span className="hidden w-3.5 xl:block" aria-hidden="true" />
         <span className={`font-mono text-[11px] ${active === "Profile" ? "text-accent" : ""}`}>01</span>
         Profile

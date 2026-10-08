@@ -5,7 +5,11 @@ import { pageErrors, seriousAccessibilityProblems } from "./helpers"
 
 const RESUME = ["Mara Lin", "mara@example.com", "EDUCATION", "State University"]
 const pdf = (pages: string[][]) => ({ name: "Mara Lin.pdf", mimeType: "application/pdf", buffer: textPdf(pages) })
-const docx = (buffer: Buffer) => ({ name: "Mara Lin.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer })
+const docx = (buffer: Buffer) => ({
+  name: "Mara Lin.docx",
+  mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  buffer,
+})
 
 /**
  * The workers that opening a file starts, like "pdf.js running" or "import
@@ -203,7 +207,9 @@ test(`a PDF of ${MAX_PAGES} pages opens, and a longer one says why it can't`, as
   await page.goto("/create/dashboard")
   await page.locator('input[type="file"]').setInputFiles(pdf(pages(MAX_PAGES + 1)))
   const error = page.getByRole("dialog", { name: "Couldn't open that file" })
-  await expect(error).toContainText(`This PDF has ${MAX_PAGES + 1} pages, too many for a resume. Open one with ${MAX_PAGES} pages or fewer.`)
+  await expect(error).toContainText(
+    `This PDF has ${MAX_PAGES + 1} pages, too many for a resume. Open one with ${MAX_PAGES} pages or fewer.`,
+  )
 
   const choosing = page.waitForEvent("filechooser")
   await error.getByRole("button", { name: "Choose another file" }).click()

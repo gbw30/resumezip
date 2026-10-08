@@ -29,7 +29,10 @@ export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
   return (
     <header className={`font-system ${overlay ? "relative z-10 text-white" : "border-b border-rule bg-paper text-ink"}`}>
       <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-6 px-5 md:h-[72px] md:px-10">
-        <Link href="/" className="flex items-center gap-2.5 font-logo text-[24px] font-medium tracking-[-0.02em] transition-opacity hover:opacity-80">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 font-logo text-[24px] font-medium tracking-[-0.02em] transition-opacity hover:opacity-80"
+        >
           <Logo className="h-5 w-auto" />
           resumezip
         </Link>
@@ -48,9 +51,7 @@ export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
 
         <div className="flex items-center gap-2">
           {/* Phones don't have room for it next to the logo, so it moves into the menu. */}
-          <StartWritingLink className={`${CTA} hidden h-10 sm:inline-flex`}>
-            Start writing
-          </StartWritingLink>
+          <StartWritingLink className={`${CTA} hidden h-10 sm:inline-flex`}>Start writing</StartWritingLink>
           <button
             type="button"
             className="inline-flex h-10 w-10 items-center justify-center md:hidden"
@@ -78,9 +79,7 @@ export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
               {link.label}
             </Link>
           ))}
-          <StartWritingLink className={`${CTA} mt-2 inline-flex h-11 justify-center sm:hidden`}>
-            Start writing
-          </StartWritingLink>
+          <StartWritingLink className={`${CTA} mt-2 inline-flex h-11 justify-center sm:hidden`}>Start writing</StartWritingLink>
         </nav>
       )}
     </header>

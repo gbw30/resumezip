@@ -24,7 +24,9 @@ export function pdfOf(contents: string[]): Buffer {
   const kids: string[] = []
   for (const content of contents) {
     objects.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`)
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${objects.length} 0 R >>`)
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${objects.length} 0 R >>`,
+    )
     kids.push(`${objects.length} 0 R`)
   }
   objects[1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${contents.length} >>`

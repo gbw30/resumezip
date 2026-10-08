@@ -257,7 +257,8 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, chi
   // changes while it's being fixed: one rule can find more than one thing at
   // a place, as two typos in a bullet.
   const live = chosen
-    ? (check.report.findings.find((finding) => finding.key === chosen.finding.key) ?? check.report.findings.find((finding) => sameIssue(finding, chosen.finding)))
+    ? (check.report.findings.find((finding) => finding.key === chosen.finding.key) ??
+      check.report.findings.find((finding) => sameIssue(finding, chosen.finding)))
     : undefined
   const target = useMemo(
     () => (chosen && live && mode === "check" ? { finding: live, request: chosen.request } : null),

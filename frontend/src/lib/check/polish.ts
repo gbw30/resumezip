@@ -95,7 +95,8 @@ const LOCATION_FIELDS: { [Section in SectionName]?: FieldKeyOf<Section> } = {
 function statesIn(resume: ResumeView): Way[] {
   const places: { place: Place; text: string }[] = [{ place: { kind: "profile", field: "location" }, text: resume.profile.location }]
   for (const [section, field] of Object.entries(LOCATION_FIELDS) as [SectionName, FieldKey][]) {
-    for (const entry of resume.sections[section]) places.push({ place: { kind: "entry", section, entry: entry.index, field }, text: entry.values[field] })
+    for (const entry of resume.sections[section])
+      places.push({ place: { kind: "entry", section, entry: entry.index, field }, text: entry.values[field] })
   }
   return places.flatMap(({ place, text }): Way[] => {
     const parts = text.split(",")
@@ -154,7 +155,11 @@ const SPACING: { pattern: RegExp; message: string; suggestion: (found: RegExpExe
   { pattern: /(\S+) +([,.;:])(?=\s|$)/, message: "A space before punctuation", suggestion: (found) => `Write “${found[1]}${found[2]}”.` },
   { pattern: /([\p{L}\p{N})]+),(\p{L}+)/u, message: "No space after a comma", suggestion: (found) => `Write “${found[1]}, ${found[2]}”.` },
   // "users.Built", but not "Node.js", "ASP.NET" or "U.S.".
-  { pattern: /(\p{Ll}{2,})\.(\p{Lu}\p{Ll}+)/u, message: "No space after a period", suggestion: (found) => `Write “${found[1]}. ${found[2]}”.` },
+  {
+    pattern: /(\p{Ll}{2,})\.(\p{Lu}\p{Ll}+)/u,
+    message: "No space after a period",
+    suggestion: (found) => `Write “${found[1]}. ${found[2]}”.`,
+  },
 ]
 
 const spacing: Rule = {
@@ -193,8 +198,7 @@ const allCaps: Rule = {
     // Not the profile (a name can be in capitals on purpose), or the lists of
     // tools and courses, which are full of names written in capitals.
     const texts = textsOf(resume).filter(
-      ({ place }) =>
-        place.kind === "entry" && place.section !== "Skills" && place.field !== "coursework" && !LINK_FIELDS.has(place.field),
+      ({ place }) => place.kind === "entry" && place.section !== "Skills" && place.field !== "coursework" && !LINK_FIELDS.has(place.field),
     )
     if (texts.length === 0) return null
     return {
@@ -255,7 +259,11 @@ const DIGIT = new RegExp(String.raw`(?<![\p{L}\p{N}$€£.,/-])[2-9]${COUNTED}`,
 const LABELS = new Set(NUMBER_LABELS)
 
 // The word before a number in a text.
-const wordBefore = (text: string, index: number) => text.slice(0, index).trimEnd().match(/[\p{L}\p{N}.-]+$/u)?.[0] ?? ""
+const wordBefore = (text: string, index: number) =>
+  text
+    .slice(0, index)
+    .trimEnd()
+    .match(/[\p{L}\p{N}.-]+$/u)?.[0] ?? ""
 
 // A digit counting something ("Led 3 engineers"), but not a version or a
 // label: not after a name ("Python 2", "iOS 7", "Java 8 services"), or after
@@ -319,7 +327,9 @@ const numbersOneWay: Rule = {
         const word = ways.word(placed.bullet.text)?.trim()
         return digit || word ? [{ ...placed, digit, word }] : []
       })
-      const oneWay = written.filter(({ digit, word }) => !digit !== !word).map(({ digit }) => (digit ? ("digit" as const) : ("word" as const)))
+      const oneWay = written
+        .filter(({ digit, word }) => !digit !== !word)
+        .map(({ digit }) => (digit ? ("digit" as const) : ("word" as const)))
       const usual = mostCommon(oneWay) ?? ways.usually
       for (const { place, bullet, digit, word } of written) {
         const key = `${fieldOf(place)}|${bullet.line}|${place.kind === "entry" ? `${place.section}.${place.entry}` : ""}`

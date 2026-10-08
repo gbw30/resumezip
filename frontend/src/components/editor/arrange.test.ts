@@ -1,11 +1,24 @@
 import { describe, expect, test } from "vitest"
-import { bulletLines, cursorWithBullets, moveBullet, moveLine, newBullet, nextAnnouncement, pastedList, setLeftOutLine, toggleMark, withBullets } from "./arrange"
+import {
+  bulletLines,
+  cursorWithBullets,
+  moveBullet,
+  moveLine,
+  newBullet,
+  nextAnnouncement,
+  pastedList,
+  setLeftOutLine,
+  toggleMark,
+  withBullets,
+} from "./arrange"
 
 const text = "• Built a loom\n\n○ Fed the cat\n• Wrote the notes"
 
 describe("the text box", () => {
   test("starts every line with a bullet, keeping ones left out as they are", () => {
-    expect(withBullets("Built a loom\n•Fed the cat\n○Wrote the notes\n\n• Kept")).toBe("• Built a loom\n• Fed the cat\n○ Wrote the notes\n\n• Kept")
+    expect(withBullets("Built a loom\n•Fed the cat\n○Wrote the notes\n\n• Kept")).toBe(
+      "• Built a loom\n• Fed the cat\n○ Wrote the notes\n\n• Kept",
+    )
     expect(withBullets("•\n○\n  ")).toBe("•\n○\n  ")
   })
 
@@ -19,7 +32,9 @@ describe("the text box", () => {
   })
 
   test("counts a bullet followed by a tab or another kind of space, as pasted lists have, the same", () => {
-    expect(withBullets("○\tFed the cat\n•\tBuilt a loom\n○\u00A0Wrote the notes")).toBe("○\tFed the cat\n•\tBuilt a loom\n○\u00A0Wrote the notes")
+    expect(withBullets("○\tFed the cat\n•\tBuilt a loom\n○\u00A0Wrote the notes")).toBe(
+      "○\tFed the cat\n•\tBuilt a loom\n○\u00A0Wrote the notes",
+    )
     expect(bulletLines(withBullets("○\tFed the cat\n•\tBuilt a loom"))).toEqual([
       { line: 0, words: "Fed the cat", leftOut: true },
       { line: 1, words: "Built a loom", leftOut: false },
@@ -97,9 +112,12 @@ describe("typing bullets", () => {
   })
 
   test("a pasted list gets one bullet per line, in place of its own markers", () => {
-    expect(pastedList("- Designed accessible navigation\n* Led the team\n– Wrote the docs\n— Ran the tests\n1. Shipped it\n12) Grew it\n100. Kept it", "")).toBe(
-      "• Designed accessible navigation\n• Led the team\n• Wrote the docs\n• Ran the tests\n• Shipped it\n• Grew it\n• Kept it",
-    )
+    expect(
+      pastedList(
+        "- Designed accessible navigation\n* Led the team\n– Wrote the docs\n— Ran the tests\n1. Shipped it\n12) Grew it\n100. Kept it",
+        "",
+      ),
+    ).toBe("• Designed accessible navigation\n• Led the team\n• Wrote the docs\n• Ran the tests\n• Shipped it\n• Grew it\n• Kept it")
     // Set in from the left, as nested lists are.
     expect(pastedList("  - Led the team", "")).toBe("• Led the team")
     // Pasted after a bullet, the first line keeps that one, printed or left out.

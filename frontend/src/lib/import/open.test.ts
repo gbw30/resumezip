@@ -16,7 +16,13 @@ const failure = (promise: Promise<unknown>) =>
   )
 
 /** A line of text as pdf.js reads it, `index` lines down its page. */
-const textItem = (str: string, index: number) => ({ str, transform: [12, 0, 0, 12, 72, 720 - 16 * index], width: str.length * 6, height: 12, fontName: "F1" })
+const textItem = (str: string, index: number) => ({
+  str,
+  transform: [12, 0, 0, 12, 72, 720 - 16 * index],
+  width: str.length * 6,
+  height: 12,
+  fontName: "F1",
+})
 
 /** A page of text, a line per entry, as pdf.js reads it: a line at a time. */
 const page = (lines: string[]) => ({
@@ -112,7 +118,8 @@ beforeEach(async () => {
         opened.push(file)
         const doc = {
           numPages: pages.length,
-          getAttachments: async () => (attachment === null ? null : { [ATTACHMENT_NAME]: { content: new TextEncoder().encode(attachment) } }),
+          getAttachments: async () =>
+            attachment === null ? null : { [ATTACHMENT_NAME]: { content: new TextEncoder().encode(attachment) } },
           getPage: async (number: number) => {
             pagesRead++
             return pages[number - 1]
@@ -146,7 +153,9 @@ describe("a resumezip PDF", () => {
     attachment = toAttachment({ ...resume, profileSection: { fullName: "x".repeat(MAX_LENGTH) } })
     const opening = openResumeFile(pdf())
     await expect(opening).rejects.toThrow(OpenFileError)
-    await expect(opening).rejects.toThrow("This resume is longer than resumezip can open (more than 10,000 entries or 10,000,000 characters).")
+    await expect(opening).rejects.toThrow(
+      "This resume is longer than resumezip can open (more than 10,000 entries or 10,000,000 characters).",
+    )
     expect(opened).toEqual([{ closed: true }])
   })
 })
@@ -158,7 +167,12 @@ describe("a PDF from another app", () => {
 
   test("is sorted into fields in a worker, which is ended, and stays open for the review", async () => {
     const file = await openResumeFile(pdf())
-    expect(file).toMatchObject({ kind: "parsed", title: "Mara Lin", fileName: "Mara Lin.pdf", pdf: { pages: [{ width: 612, height: 792 }] } })
+    expect(file).toMatchObject({
+      kind: "parsed",
+      title: "Mara Lin",
+      fileName: "Mara Lin.pdf",
+      pdf: { pages: [{ width: 612, height: 792 }] },
+    })
     expect(file.kind === "parsed" && file.parsed.profile).toMatchObject({ fullName: "Mara Lin", email: "mara@example.com" })
     expect(workers.map((worker) => worker.ended)).toEqual([true])
     expect(opened).toEqual([{ closed: false }])
@@ -286,7 +300,9 @@ test(`reading stops after ${TIME_LIMIT_MS / 1000} seconds`, async () => {
   attachment = null
   pages = [never]
   const opening = openResumeFile(pdf())
-  const failed = expect(opening).rejects.toThrow(new OpenFileError("This file took too long to read. Try a PDF or Word copy of just your resume."))
+  const failed = expect(opening).rejects.toThrow(
+    new OpenFileError("This file took too long to read. Try a PDF or Word copy of just your resume."),
+  )
   await vi.advanceTimersByTimeAsync(TIME_LIMIT_MS)
   await failed
   expect(opened).toEqual([{ closed: true }])

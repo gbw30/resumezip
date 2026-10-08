@@ -34,6 +34,7 @@ It uses Node 24. There are no accounts, keys or settings to set up.
    ```bash
    npx tsc --noEmit
    npm run lint
+   npx prettier --check .   # npm run format fixes it
    npm test
    npm run build
    npm run test:browser   # the first time: npx playwright install chromium webkit

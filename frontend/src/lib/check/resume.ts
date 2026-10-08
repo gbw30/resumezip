@@ -61,13 +61,15 @@ export interface ResumeView {
   order: SectionName[]
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value)
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "")
 
 // Every field of every section, empty, so an entry's values have them all.
-const NO_VALUES = Object.fromEntries(SECTION_NAMES.flatMap((name) => SECTIONS[name].fields.map((field) => [field.key, ""]))) as Record<FieldKey, string>
+const NO_VALUES = Object.fromEntries(SECTION_NAMES.flatMap((name) => SECTIONS[name].fields.map((field) => [field.key, ""]))) as Record<
+  FieldKey,
+  string
+>
 
 // Older resumes saved bullets as a list; the editor types them one "• " line each.
 const allLinesOf = (value: unknown): string[] =>
@@ -108,11 +110,11 @@ export function viewOf(resume: Resume): ResumeView {
           ]),
         ),
       }
-      const bullets = fields
-        .filter((field) => field.type === "bullets")
-        .flatMap((field) => bulletsOf(field.key, entry[field.key]))
+      const bullets = fields.filter((field) => field.type === "bullets").flatMap((field) => bulletsOf(field.key, entry[field.key]))
       // A bullet field with only a "•" in it, as the editor can leave one, is empty too.
-      const blank = fields.every((field) => (field.type === "bullets" ? !bullets.some((bullet) => bullet.field === field.key) : !values[field.key]))
+      const blank = fields.every((field) =>
+        field.type === "bullets" ? !bullets.some((bullet) => bullet.field === field.key) : !values[field.key],
+      )
       return [{ section: name, index, values, bullets, blank }]
     })
     titles[name] = text(headings[headingKey])

@@ -39,7 +39,17 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "jordan/html-modern": [],
   // Headings in a margin column, level with the first line beside them, aren't
   // found, so almost everything goes to "Couldn't place".
-  "jordan/html-side-headings": ["education[0]", "work[0]", "work[1]", "work[2]", "skills[0]", "skills[1]", "volunteer[0]", "awards[0]", "awards[1]"],
+  "jordan/html-side-headings": [
+    "education[0]",
+    "work[0]",
+    "work[1]",
+    "work[2]",
+    "skills[0]",
+    "skills[1]",
+    "volunteer[0]",
+    "awards[0]",
+    "awards[1]",
+  ],
   "jordan/writer-modern": [],
   // "Sprout – HackGT 2026" splits at the dash, so "HackGT 2026" reads as a
   // tool. "Role, Company" on one line all reads as the role.
@@ -208,7 +218,8 @@ const KNOWN_GAPS: Record<string, string[]> = {
 function printed(resume: Record<string, unknown>) {
   const { headings, order, ...data } = toTemplateData(resume)
   const plain = (bullets: { text: string }[][]) => bullets.map((runs) => runs.map((run) => run.text).join(""))
-  const withPlainBullets = <T extends { bullets: { text: string }[][] }>(entries: T[]) => entries.map((entry) => ({ ...entry, bullets: plain(entry.bullets) }))
+  const withPlainBullets = <T extends { bullets: { text: string }[][] }>(entries: T[]) =>
+    entries.map((entry) => ({ ...entry, bullets: plain(entry.bullets) }))
   return {
     ...data,
     education: data.education.map((school) => ({ ...school, gpa: school.gpa.replace(/\s+/g, "") })),
@@ -216,7 +227,10 @@ function printed(resume: Record<string, unknown>) {
     projects: withPlainBullets(data.projects),
     leadership: withPlainBullets(data.leadership),
     volunteer: withPlainBullets(data.volunteer),
-    publications: data.publications.map((publication) => ({ ...publication, authors: publication.authors.map((piece) => piece.text).join("") })),
+    publications: data.publications.map((publication) => ({
+      ...publication,
+      authors: publication.authors.map((piece) => piece.text).join(""),
+    })),
   }
 }
 
@@ -239,7 +253,9 @@ describe.each(files)("%s", (file) => {
     const show = (value: unknown) => JSON.stringify(value) ?? "nothing"
     expect({
       // A change made these worse.
-      newlyWrong: wrong.filter((field) => !known.includes(field)).map((field) => `${field}: want ${show(valueAt(want, field))}, got ${show(valueAt(got, field))}`),
+      newlyWrong: wrong
+        .filter((field) => !known.includes(field))
+        .map((field) => `${field}: want ${show(valueAt(want, field))}, got ${show(valueAt(got, field))}`),
       // A change fixed these: delete them from KNOWN_GAPS.
       nowRight: known.filter((field) => !wrong.includes(field)),
     }).toEqual({ newlyWrong: [], nowRight: [] })

@@ -19,12 +19,9 @@ export default function AboutPage() {
     <div className="flex min-h-screen flex-col bg-paper">
       <SiteHeader />
       <main className="mx-auto w-full max-w-[1440px] flex-1 px-5 pb-24 pt-16 md:px-10 md:pt-20">
-        <PageIntro
-          label="About"
-          title="Hi, I’m Ian."
-        >
-          I built resumezip because formatting a resume shouldn’t be harder than writing it. It’s free, there’s no
-          sign-up, and your resume never leaves your browser.
+        <PageIntro label="About" title="Hi, I’m Ian.">
+          I built resumezip because formatting a resume shouldn’t be harder than writing it. It’s free, there’s no sign-up, and your resume
+          never leaves your browser.
         </PageIntro>
 
         <section className={SECTION}>

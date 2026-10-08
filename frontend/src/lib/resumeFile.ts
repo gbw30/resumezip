@@ -111,17 +111,15 @@ export function cleanResume(input: unknown): ResumeContent {
     const chosen = choice && resume[choice.key]
     if (choice && choice.options.some((option) => option.value === chosen)) clean[choice.key] = chosen as string
     const entries = Array.isArray(resume[dataKey]) ? (resume[dataKey] as unknown[]) : []
-    clean[dataKey] = entries.map(
-      (entry, index): Entry => ({
-        id: index + 1,
-        ...Object.fromEntries(
-          fields.map((field) => [
-            field.key,
-            field.type === "bullets" ? bulletText(object(entry)[field.key]) : string(object(entry)[field.key]),
-          ]),
-        ),
-      }),
-    )
+    clean[dataKey] = entries.map((entry, index): Entry => ({
+      id: index + 1,
+      ...Object.fromEntries(
+        fields.map((field) => [
+          field.key,
+          field.type === "bullets" ? bulletText(object(entry)[field.key]) : string(object(entry)[field.key]),
+        ]),
+      ),
+    }))
   }
 
   if (typeof resume.id === "string" && resume.id.length > 0 && resume.id.length <= 100) clean.id = resume.id

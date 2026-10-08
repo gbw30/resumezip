@@ -57,7 +57,9 @@ const weakStarts: Rule = {
       checked: bullets.length,
       problems: bullets.flatMap(({ bullet, place }) => {
         const found = WEAK.exec(opening(bullet.text))
-        return found ? [{ place, message: `“${found[1]}” is a weak start`, suggestion: "Start with what you did, like “Led” or “Built”." }] : []
+        return found
+          ? [{ place, message: `“${found[1]}” is a weak start`, suggestion: "Start with what you did, like “Led” or “Built”." }]
+          : []
       }),
     }
   },
@@ -79,7 +81,9 @@ const actionVerbs: Rule = {
         const text = opening(bullet.text)
         // A number first ("50% faster…") is fine; weak starts and "I" have rules of their own.
         if (!text || /^\p{N}/u.test(text) || WEAK.test(text) || pronounIn(firstWord(text)) !== null) return []
-        return verbOf(firstWord(text)) ? [] : [{ place, message: "Doesn't start with an action verb", suggestion: "Start with what you did, like “Built” or “Led”." }]
+        return verbOf(firstWord(text))
+          ? []
+          : [{ place, message: "Doesn't start with an action verb", suggestion: "Start with what you did, like “Built” or “Led”." }]
       }),
     }
   },
@@ -188,7 +192,12 @@ const sameStart: Rule = {
       problems.push({
         place,
         message: `“${word}” starts ${totals.get(verb.base)} bullets`,
-        suggestion: others.length ? `Try ${others.map((other) => `“${other}”`).join(", ").replace(/, ([^,]*)$/, " or $1")}.` : "Try a different verb.",
+        suggestion: others.length
+          ? `Try ${others
+              .map((other) => `“${other}”`)
+              .join(", ")
+              .replace(/, ([^,]*)$/, " or $1")}.`
+          : "Try a different verb.",
       })
     }
     return { checked: starts.length, problems }
@@ -216,7 +225,13 @@ const pastTense: Rule = {
         const word = firstWord(bullet.text)
         const verb = verbOf(word)
         if (verb?.tense !== "present" || !verb.past) return []
-        return [{ place, message: `“${word}” is present tense, but this has ended`, suggestion: `Try “${inTenseOf(verb.base, { ...verb, tense: "past" })}”.` }]
+        return [
+          {
+            place,
+            message: `“${word}” is present tense, but this has ended`,
+            suggestion: `Try “${inTenseOf(verb.base, { ...verb, tense: "past" })}”.`,
+          },
+        ]
       }),
     }
   },
@@ -236,7 +251,13 @@ const bulletCount: Rule = {
       checked: jobs.length,
       problems: jobs.flatMap((entry): Problem[] => {
         if (entry.bullets.length === 0) {
-          return [{ place: { kind: "entry", section: "Work", entry: entry.index, field: "workDescription" }, message: "No bullets", suggestion: "Add 3 or more lines on what you did." }]
+          return [
+            {
+              place: { kind: "entry", section: "Work", entry: entry.index, field: "workDescription" },
+              message: "No bullets",
+              suggestion: "Add 3 or more lines on what you did.",
+            },
+          ]
         }
         if (entry.bullets.length <= MAX_BULLETS) return []
         const extra = entry.bullets[MAX_BULLETS]
@@ -297,7 +318,11 @@ const repeated: Rule = {
       const limit = Math.floor(text.length / NEAR_DUPLICATE_LENGTH)
       const closest = Math.min(...seen.map((other) => distance(text, other, limit)), limit + 1)
       if (closest <= limit) {
-        problems.push({ place, message: closest === 0 ? "Same as another bullet" : "Almost the same as another bullet", suggestion: "Change or delete one of them." })
+        problems.push({
+          place,
+          message: closest === 0 ? "Same as another bullet" : "Almost the same as another bullet",
+          suggestion: "Change or delete one of them.",
+        })
       }
       seen.push(text)
     }
@@ -305,4 +330,14 @@ const repeated: Rule = {
   },
 }
 
-export const BULLET_RULES: readonly Rule[] = [weakStarts, actionVerbs, numbers, pronouns, buzzwords, sameStart, pastTense, bulletCount, repeated]
+export const BULLET_RULES: readonly Rule[] = [
+  weakStarts,
+  actionVerbs,
+  numbers,
+  pronouns,
+  buzzwords,
+  sameStart,
+  pastTense,
+  bulletCount,
+  repeated,
+]

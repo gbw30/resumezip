@@ -64,8 +64,7 @@ export default function Home() {
         <div className="relative mx-auto flex w-full max-w-[1440px] flex-1 flex-wrap items-end justify-between gap-8 px-5 pb-6 pt-12 md:px-10 md:pb-10">
           <div className="flex w-full max-w-[420px] flex-col gap-7 bg-white px-7 pb-5 pt-7 text-[#171717]">
             <p className="text-xl leading-[1.35] tracking-[-0.015em]">
-              resumezip is a free, open-source resume builder that runs in your browser. Pick a template, write, and
-              download the PDF.
+              resumezip is a free, open-source resume builder that runs in your browser. Pick a template, write, and download the PDF.
             </p>
             <StartWritingLink className="group flex items-center justify-between gap-4 border-t border-[#171717] pt-4">
               <span className="label-caps decoration-2 underline-offset-4 group-hover:underline">Start writing</span>
@@ -160,9 +159,7 @@ export default function Home() {
               }`}
             >
               <dt className="font-serif text-[32px] leading-none tracking-[-0.03em] md:text-[44px]">{item.question}</dt>
-              <dd className="max-w-[420px] text-base leading-[1.35] tracking-[-0.015em] text-[#5c5c5c] md:text-xl">
-                {item.answer}
-              </dd>
+              <dd className="max-w-[420px] text-base leading-[1.35] tracking-[-0.015em] text-[#5c5c5c] md:text-xl">{item.answer}</dd>
             </div>
           ))}
         </dl>

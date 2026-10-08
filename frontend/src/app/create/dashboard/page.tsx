@@ -242,8 +242,7 @@ export default function DashboardPage() {
         <div className="flex max-w-[720px] flex-wrap items-baseline gap-x-8 gap-y-3">
           <span className="label-mono text-accent">Stored locally</span>
           <p className="min-w-0 flex-[1_1_320px] text-sm leading-relaxed text-ink-2">
-            Resumes live in this browser only. Every PDF you download carries its resume, so you can open it here again on
-            any computer.
+            Resumes live in this browser only. Every PDF you download carries its resume, so you can open it here again on any computer.
           </p>
         </div>
       </main>

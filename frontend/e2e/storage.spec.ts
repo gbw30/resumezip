@@ -59,7 +59,12 @@ test("when the browser won't let the site save anything, it still works and says
 
   // Editing and downloading still work, so a PDF can keep a copy: the warning has a button for it.
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  await expect(page.getByRole("region", { name: "Live preview" }).getByText(/Ada Lovelace/i).first()).toBeVisible()
+  await expect(
+    page
+      .getByRole("region", { name: "Live preview" })
+      .getByText(/Ada Lovelace/i)
+      .first(),
+  ).toBeVisible()
   const downloading = page.waitForEvent("download")
   await notSaved(page).getByRole("button", { name: "Download PDF" }).click()
   expect((await downloading).suggestedFilename()).toMatch(/\.pdf$/)
@@ -333,7 +338,12 @@ test("the browser is asked to keep saved resumes once there is one, and only onc
   await startWriting(page)
   await expect.poll(requests).toBe(1)
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  await expect(page.getByRole("region", { name: "Live preview" }).getByText(/Ada Lovelace/i).first()).toBeVisible()
+  await expect(
+    page
+      .getByRole("region", { name: "Live preview" })
+      .getByText(/Ada Lovelace/i)
+      .first(),
+  ).toBeVisible()
   expect(await requests()).toBe(1)
   // After a no, it waits a week before asking again.
   await expect.poll(() => page.evaluate(() => localStorage.getItem("storage-persist-asked"))).not.toBeNull()

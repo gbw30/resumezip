@@ -15,7 +15,9 @@ const at = (entry: Entry, field: FieldKey): Place => ({ kind: "entry", section: 
 
 /** The dates of each entry with something in it, section by section, in the order they're printed. */
 const allDates = (resume: ResumeView, sections: readonly SectionName[] = resume.order) =>
-  resume.order.filter((section) => sections.includes(section)).map((section) => resume.sections[section].filter((entry) => !entry.blank).map(datesOf))
+  resume.order
+    .filter((section) => sections.includes(section))
+    .map((section) => resume.sections[section].filter((entry) => !entry.blank).map(datesOf))
 
 const writtenIn = (dates: EntryDates) => [dates.start, dates.end].filter((date): date is Written => date !== undefined)
 
@@ -104,7 +106,8 @@ const lengthOf = (written: MonthDate) => {
   const full = monthName(written.date.month!, { long: true }).toLowerCase()
   return spelling === full && spelling.length <= 4 ? undefined : spelling.length >= 5 ? "long" : "short"
 }
-const isShortened = (written: MonthDate) => isName(written) && spellingOf(written) !== monthName(written.date.month!, { long: true }).toLowerCase()
+const isShortened = (written: MonthDate) =>
+  isName(written) && spellingOf(written) !== monthName(written.date.month!, { long: true }).toLowerCase()
 const isDotted = (written: MonthDate) => written.date.style.kind === "name" && written.date.style.dotted
 
 function houseStyle(dates: MonthDate[]): HouseStyle {
@@ -113,7 +116,12 @@ function houseStyle(dates: MonthDate[]): HouseStyle {
   const september = shortened.filter((written) => written.date.month === 9)
   return {
     numbers: mostCommon(dates.filter((written) => written.date.style.kind !== "season").map((written) => !isName(written))),
-    long: mostCommon(names.map(lengthOf).filter((length) => length !== undefined).map((length) => length === "long")),
+    long: mostCommon(
+      names
+        .map(lengthOf)
+        .filter((length) => length !== undefined)
+        .map((length) => length === "long"),
+    ),
     dotted: mostCommon(shortened.map(isDotted)),
     sept: mostCommon(september.map((written) => spellingOf(written) === "sept")),
   }
@@ -127,7 +135,8 @@ function followsHouse(written: MonthDate, house: HouseStyle): boolean {
   const length = lengthOf(written)
   if (house.long !== undefined && length !== undefined && house.long !== (length === "long")) return false
   if (isShortened(written) && house.dotted !== undefined && house.dotted !== isDotted(written)) return false
-  if (isShortened(written) && written.date.month === 9 && house.sept !== undefined && house.sept !== (spellingOf(written) === "sept")) return false
+  if (isShortened(written) && written.date.month === 9 && house.sept !== undefined && house.sept !== (spellingOf(written) === "sept"))
+    return false
   return true
 }
 
@@ -168,7 +177,10 @@ const mixedFormats: Rule = {
       if (withMonths === 0 || yearsOnly === 0) continue
       for (const date of written) {
         if (yearsOnly <= withMonths && !hasMonth(date)) {
-          flag(date, { message: "No month, unlike the rest of this section", suggestion: "Add the month, or use only years in this section." })
+          flag(date, {
+            message: "No month, unlike the rest of this section",
+            suggestion: "Add the month, or use only years in this section.",
+          })
         } else if (yearsOnly > withMonths && hasMonth(date)) {
           flag(date, { message: "Has a month, unlike the rest of this section", suggestion: `Write just the year: “${date.date.year}”.` })
         }

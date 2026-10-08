@@ -237,7 +237,10 @@ export default function PaperFromLink({ entries, owner, onAdd, children }: Paper
           {problems.length > 0 && (
             <ul className="flex flex-col gap-3">
               {problems.map((problem, index) => (
-                <li key={`${index}:${problem.line}`} className="flex flex-col gap-1 border-l-2 border-[#b42318] pl-3 text-[13px] leading-normal">
+                <li
+                  key={`${index}:${problem.line}`}
+                  className="flex flex-col gap-1 border-l-2 border-[#b42318] pl-3 text-[13px] leading-normal"
+                >
                   <span className="break-all font-mono text-ink">{problem.line}</span>
                   <span className="text-ink-2">{MESSAGES[problem.reason]}</span>
                   <button

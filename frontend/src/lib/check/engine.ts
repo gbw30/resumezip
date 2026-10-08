@@ -183,8 +183,7 @@ export function runChecks(resume: Resume, { rules = RULES, pdf, grammar, today =
     .flatMap((result) => result.findings)
     .sort(
       (a, b) =>
-        LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] ||
-        (CATEGORY_ORDER.get(a.category) ?? 0) - (CATEGORY_ORDER.get(b.category) ?? 0),
+        LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || (CATEGORY_ORDER.get(a.category) ?? 0) - (CATEGORY_ORDER.get(b.category) ?? 0),
     )
   return {
     findings: findings.filter((finding) => !finding.dismissed),
@@ -210,7 +209,11 @@ function run(
   if ((rule.reads === "pdf" && !pdf) || (rule.reads === "grammar" && !grammar)) return { ...untouched, status: "waiting" }
   try {
     const outcome =
-      rule.reads === "pdf" ? rule.check({ ...input, pdf: pdf! }) : rule.reads === "grammar" ? rule.check({ ...input, grammar: grammar! }) : rule.check(input)
+      rule.reads === "pdf"
+        ? rule.check({ ...input, pdf: pdf! })
+        : rule.reads === "grammar"
+          ? rule.check({ ...input, grammar: grammar! })
+          : rule.check(input)
     return outcome ? judge(rule, outcome, input.resume, dismissed, pdf) : { ...untouched, status: "skipped" }
   } catch (error) {
     console.warn(`The ${rule.id} check failed:`, error)

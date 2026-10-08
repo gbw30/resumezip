@@ -270,9 +270,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
         />
       )}
 
-      {entries.length === 0 && (
-        <p className="border-t border-ink pt-5 text-[15px] text-ink-2">Nothing here yet.</p>
-      )}
+      {entries.length === 0 && <p className="border-t border-ink pt-5 text-[15px] text-ink-2">Nothing here yet.</p>}
 
       {entries.length > 0 && (
         <div className="flex flex-col">
@@ -281,8 +279,10 @@ export default function SectionForm({ section, position }: SectionFormProps) {
             const confirming = entry.id === confirmingId
             // Its first filled field stands in when the usual ones are empty, like a paper's link added by hand.
             const summary =
-              section.summary.map((key) => entry[key]?.trim()).filter(Boolean).join(", ") ||
-              section.fields.map((field) => entry[field.key]?.trim()).find(Boolean)
+              section.summary
+                .map((key) => entry[key]?.trim())
+                .filter(Boolean)
+                .join(", ") || section.fields.map((field) => entry[field.key]?.trim()).find(Boolean)
             const name = `entry ${index + 1}`
             const leftOut = isLeftOut(entry)
 
@@ -299,9 +299,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
               >
                 {/* Room on the sides so focus outlines aren't clipped while it slides. */}
                 <section className="-mx-1 min-h-0 overflow-hidden px-1">
-                  <div
-                    className={`border-t pb-7 pt-4 transition-colors duration-300 ${isOpen ? "border-ink" : "border-rule"}`}
-                  >
+                  <div className={`border-t pb-7 pt-4 transition-colors duration-300 ${isOpen ? "border-ink" : "border-rule"}`}>
                     <div className="flex items-start justify-between gap-4">
                       {/* A closed entry also opens with a click on its summary. Its Edit button is the way in from the keyboard. */}
                       <div
@@ -366,13 +364,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                             <span key="question" className="py-2 text-sm text-ink" role="status">
                               Delete this entry?
                             </span>
-                            <button
-                              key="cancel"
-                              ref={cancelButton}
-                              type="button"
-                              onClick={() => cancelDelete(entry.id)}
-                              className={quiet}
-                            >
+                            <button key="cancel" ref={cancelButton} type="button" onClick={() => cancelDelete(entry.id)} className={quiet}>
                               Cancel
                             </button>
                             <button

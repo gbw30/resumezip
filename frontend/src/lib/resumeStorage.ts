@@ -300,13 +300,7 @@ export interface Saved {
  * the fields this tab changed on top. Saved text that can't be fully read is
  * kept aside before it's saved over; if that fails, nothing is saved.
  */
-export function saveResume(
-  storage: Storage | null,
-  id: string,
-  resume: Resume,
-  changed: ReadonlySet<string>,
-  seen: string | null,
-): Saved {
+export function saveResume(storage: Storage | null, id: string, resume: Resume, changed: ReadonlySet<string>, seen: string | null): Saved {
   if (!storage) return { status: "blocked" }
   const key = keyOf(id)
   let current: string | null

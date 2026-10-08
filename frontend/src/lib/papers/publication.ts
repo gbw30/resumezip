@@ -28,7 +28,7 @@ const TAG = /<\/?[a-z][\w:.-]*(?:\s[^<>]*)?\/?>/gi
 
 // Tags are removed until none are left, so one split by another ("<i<b>>") goes too.
 function withoutTags(value: string) {
-  for (let previous = ""; value !== previous; ) {
+  for (let previous = ""; value !== previous;) {
     previous = value
     value = value.replace(TAG, "")
   }
@@ -113,7 +113,9 @@ function venueOf(work: Json, paper: PaperId): string {
     return server ? `${server} preprint` : "Preprint"
   }
   // A chapter's book comes after its series: ["Lecture Notes in Computer Science", "Computer Vision – ECCV 2020"].
-  const containers = list(work["container-title"]).map((title) => clean(str(title))).filter(Boolean)
+  const containers = list(work["container-title"])
+    .map((title) => clean(str(title)))
+    .filter(Boolean)
   const venue =
     containers[containers.length - 1] ||
     clean(str(record(work.event).name) || str(work.event)) ||
@@ -128,7 +130,13 @@ function detailsOf(work: Json, paper: PaperId): string {
   const issue = clean(str(work.issue))
   const pages = clean(str(work.page)).replace(/\s*[-–—]+\s*/, "–")
   const number = clean(str(work["article-number"]))
-  const where = pages ? (pages.includes("–") ? `pp. ${pages}` : /^\d+$/.test(pages) ? `p. ${pages}` : `Art. no. ${pages}`) : number && `Art. no. ${number}`
+  const where = pages
+    ? pages.includes("–")
+      ? `pp. ${pages}`
+      : /^\d+$/.test(pages)
+        ? `p. ${pages}`
+        : `Art. no. ${pages}`
+    : number && `Art. no. ${number}`
   return [volume && `vol. ${volume}`, issue && `no. ${issue}`, where].filter(Boolean).join(", ")
 }
 

@@ -69,7 +69,10 @@ const WORD = /[\p{L}\p{N}][\p{L}\p{N}'’.+#&-]*/gu
 // splits "Node.js" into "Node" and "js", and "Ph.D." into "Ph" and "D".
 const wordsIn = (text: string) =>
   (text.match(WORD) ?? []).flatMap((word) => {
-    const whole = word.replace(/['’]s$/, "").replace(/[.'’-]+$/, "").toLowerCase()
+    const whole = word
+      .replace(/['’]s$/, "")
+      .replace(/[.'’-]+$/, "")
+      .toLowerCase()
     return [whole, ...whole.split(/[-/.]/)]
   })
 
@@ -104,9 +107,15 @@ const ALWAYS_KNOWN: ReadonlySet<string> = new Set(
 export function knownWords(view: ResumeView, added: ReadonlySet<string>, skills = true): ReadonlySet<string> {
   const isName = (field: string) => NAMES.has(field) && (skills || !SKILLS.has(field))
   const names = [
-    ...Object.entries(view.profile).filter(([field]) => isName(field)).map(([, value]) => value),
+    ...Object.entries(view.profile)
+      .filter(([field]) => isName(field))
+      .map(([, value]) => value),
     ...Object.values(view.sections).flatMap((entries) =>
-      entries.flatMap((entry) => Object.entries(entry.values).filter(([field]) => isName(field)).map(([, value]) => value)),
+      entries.flatMap((entry) =>
+        Object.entries(entry.values)
+          .filter(([field]) => isName(field))
+          .map(([, value]) => value),
+      ),
     ),
   ]
   return new Set([...ALWAYS_KNOWN, ...names.flatMap(wordsIn), ...[...added].flatMap(wordsIn)])
@@ -182,7 +191,10 @@ function grammarRule(
         problems: read.flatMap(({ place, text, lints }) => {
           const inSkills = SKILLS.has(fieldOf(place) ?? "")
           const knownHere = inSkills ? knownBesideSkills : knownNow
-          return [...lints.flatMap((lint) => problemsOf(lint, text, knownHere, inSkills)), ...alsoIn(text, lints)].map((problem) => ({ place, ...problem }))
+          return [...lints.flatMap((lint) => problemsOf(lint, text, knownHere, inSkills)), ...alsoIn(text, lints)].map((problem) => ({
+            place,
+            ...problem,
+          }))
         }),
         ...(partial && { partial }),
       }
@@ -221,11 +233,22 @@ const slipInSkills = (lint: GrammarLint) =>
   lint.text.length >= MIN_SKILL_SLIP ? lint.suggestions.find((suggestion) => typedSlip(lint.text, suggestion)) : undefined
 
 const repeated = grammarRule(
-  { id: "G2", category: "spelling", level: "fix", title: "No word written twice in a row", why: "It reads as a slip, and was easy to miss while editing." },
+  {
+    id: "G2",
+    category: "spelling",
+    level: "fix",
+    title: "No word written twice in a row",
+    why: "It reads as a slip, and was easy to miss while editing.",
+  },
   (lint) => {
     const words = lint.text.split(/\s+/)
     // A name ("Walla Walla", "Bora Bora"), or a word that can be right twice ("had had").
-    if (!GRAMMAR_RULES.repeated.includes(lint.rule) || words.every((word) => /^\p{Lu}/u.test(word)) || FINE_TWICE.includes(words[0].toLowerCase())) return []
+    if (
+      !GRAMMAR_RULES.repeated.includes(lint.rule) ||
+      words.every((word) => /^\p{Lu}/u.test(word)) ||
+      FINE_TWICE.includes(words[0].toLowerCase())
+    )
+      return []
     return [{ text: lint.text, message: `“${words[0]}” twice in a row`, suggestion: "Delete one." }]
   },
 )
@@ -234,7 +257,13 @@ const repeated = grammarRule(
 const LETTER_BY_LETTER = /^[AEFHILMNORSX][A-Z0-9]*$/
 
 const aAn = grammarRule(
-  { id: "G3", category: "spelling", level: "fix", title: "“A” and “an” used right", why: "“An” goes before a vowel sound, “a” before the rest: “an API”, “a user”." },
+  {
+    id: "G3",
+    category: "spelling",
+    level: "fix",
+    title: "“A” and “an” used right",
+    why: "“An” goes before a vowel sound, “a” before the rest: “an API”, “a user”.",
+  },
   (lint, text) => {
     const instead = lint.suggestions[0]
     if (!GRAMMAR_RULES.aAn.includes(lint.rule) || !instead) return []
@@ -242,12 +271,23 @@ const aAn = grammarRule(
     // Before an acronym said letter by letter from one with a vowel sound
     // ("an SEO audit", "an FAQ"), "an" is right; Harper can take it for a word.
     if (instead.toLowerCase() === "a" && LETTER_BY_LETTER.test(next)) return []
-    return [{ text: `${lint.text} ${next}`.trim(), message: next ? `“${lint.text} ${next}” should be “${instead} ${next}”` : `Should be “${instead}”` }]
+    return [
+      {
+        text: `${lint.text} ${next}`.trim(),
+        message: next ? `“${lint.text} ${next}” should be “${instead} ${next}”` : `Should be “${instead}”`,
+      },
+    ]
   },
 )
 
 const mixUps = grammarRule(
-  { id: "G4", category: "spelling", level: "fix", title: "No mixed-up words, like its and it's", why: "Its/it's, their/there, then/than and lose/loose are easy to swap, and change what a sentence says." },
+  {
+    id: "G4",
+    category: "spelling",
+    level: "fix",
+    title: "No mixed-up words, like its and it's",
+    why: "Its/it's, their/there, then/than and lose/loose are easy to swap, and change what a sentence says.",
+  },
   (lint) => {
     const instead = lint.suggestions[0]
     if (!GRAMMAR_RULES.mixUps.includes(lint.rule) || !instead) return []
@@ -259,7 +299,9 @@ const mixUps = grammarRule(
     alsoIn: (text, lints) =>
       [...text.matchAll(LOOSE_FOR_LOSE)].flatMap((match) => {
         const at = match.index + match[0].length - match[1].length
-        const found = lints.some((lint) => GRAMMAR_RULES.mixUps.includes(lint.rule) && lint.start <= at && at < lint.start + lint.text.length)
+        const found = lints.some(
+          (lint) => GRAMMAR_RULES.mixUps.includes(lint.rule) && lint.start <= at && at < lint.start + lint.text.length,
+        )
         return found ? [] : [{ text: match[1], message: `“${match[1]}” should be “lose” here` }]
       }),
   },
@@ -304,7 +346,12 @@ const ledNotLead: Rule = {
 
 // Each tech name by how it's spelled in lower case, and without its dots
 // ("nodejs" for "Node.js").
-const TECH = new Map(TECH_NAMES.flatMap((name) => [[name.toLowerCase(), name], [name.toLowerCase().replace(/\./g, ""), name]]))
+const TECH = new Map(
+  TECH_NAMES.flatMap((name) => [
+    [name.toLowerCase(), name],
+    [name.toLowerCase().replace(/\./g, ""), name],
+  ]),
+)
 
 // A name, as written: letters and digits, with dots, "+", "#" and hyphens inside.
 const NAME_TOKEN = /[\p{L}\p{N}+#][\p{L}\p{N}.+#-]*[\p{L}\p{N}+#]|[\p{L}\p{N}]/gu
@@ -337,7 +384,13 @@ const techNames: Rule = {
 }
 
 const otherGrammar = grammarRule(
-  { id: "G7", category: "spelling", level: "look", title: "No other grammar mistakes", why: "The grammar checker found something that may be wrong." },
+  {
+    id: "G7",
+    category: "spelling",
+    level: "look",
+    title: "No other grammar mistakes",
+    why: "The grammar checker found something that may be wrong.",
+  },
   (lint) => {
     if (OURS.has(lint.rule) || KINDS_OFF.has(lint.kind)) return []
     const instead = lint.suggestions[0]

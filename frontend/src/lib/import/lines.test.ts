@@ -32,7 +32,8 @@ function zip64(zip: Buffer): Buffer {
 }
 
 async function withPdf(pdf: Buffer, check: (doc: PDFDocumentProxy) => Promise<void>) {
-  const doc = (await getDocument({ data: new Uint8Array(pdf), isEvalSupported: false, fontExtraProperties: true }).promise) as unknown as PDFDocumentProxy
+  const doc = (await getDocument({ data: new Uint8Array(pdf), isEvalSupported: false, fontExtraProperties: true })
+    .promise) as unknown as PDFDocumentProxy
   try {
     await check(doc)
   } finally {
@@ -42,7 +43,7 @@ async function withPdf(pdf: Buffer, check: (doc: PDFDocumentProxy) => Promise<vo
 
 describe("cleanLink", () => {
   test("drops what pdf.js adds to a LaTeX link written without https://", () => {
-    expect(cleanLink("www.linkedin.com/in/someone/.pdf#[0,{\"name\":\"Fit\"}]")).toBe("www.linkedin.com/in/someone")
+    expect(cleanLink('www.linkedin.com/in/someone/.pdf#[0,{"name":"Fit"}]')).toBe("www.linkedin.com/in/someone")
     expect(cleanLink("http://www.linkedin.com/in/someone/.pdf#[0,{%22name%22:%22Fit%22}]")).toBe("http://www.linkedin.com/in/someone")
   })
 
@@ -55,7 +56,9 @@ describe("cleanLink", () => {
 
 describe("reading a PDF", () => {
   test(`one of ${MAX_PAGES} full pages comes back whole, in order`, async () => {
-    const pages = Array.from({ length: MAX_PAGES }, (_, page) => Array.from({ length: 45 }, (_, line) => `Page ${page + 1}, line ${line + 1}`))
+    const pages = Array.from({ length: MAX_PAGES }, (_, page) =>
+      Array.from({ length: 45 }, (_, line) => `Page ${page + 1}, line ${line + 1}`),
+    )
     await withPdf(textPdf(pages), async (doc) => {
       const lines = linesFromPages(await readPdf(doc))
       expect(lines.map((line) => line.text)).toEqual(pages.flat())
@@ -131,7 +134,10 @@ describe("reading a Word file", () => {
 
   test("its paragraphs become lines", async () => {
     vi.mocked(convertToHtml).mockClear()
-    await expect(linesFromDocx(bytes(wordFile(["Mara Lin", "mara@example.com"])))).resolves.toMatchObject([{ text: "Mara Lin" }, { text: "mara@example.com" }])
+    await expect(linesFromDocx(bytes(wordFile(["Mara Lin", "mara@example.com"])))).resolves.toMatchObject([
+      { text: "Mara Lin" },
+      { text: "mara@example.com" },
+    ])
     expect(convertToHtml).toHaveBeenCalledTimes(1)
   })
 })

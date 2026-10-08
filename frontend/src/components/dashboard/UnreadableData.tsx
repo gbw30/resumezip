@@ -51,9 +51,7 @@ export default function UnreadableData() {
 
       {deleting && (
         <Modal title="Delete the copy?" onClose={() => setDeleting(false)}>
-          <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
-            It will be removed from this browser. This can&apos;t be undone.
-          </p>
+          <p className="mt-3 text-[15px] leading-relaxed text-ink-2">It will be removed from this browser. This can&apos;t be undone.</p>
           <div className="mt-7 flex justify-end gap-2">
             <button type="button" onClick={() => setDeleting(false)} className={quiet}>
               Cancel

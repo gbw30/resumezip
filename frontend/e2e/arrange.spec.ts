@@ -82,7 +82,10 @@ async function openSection(page: Page, section: string, resume: { id: string } &
   )
   await page.goto(`/create/new/${resume.id}`)
   await previewShown(page)
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: new RegExp(`^\\d+ ${section}$`) }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: new RegExp(`^\\d+ ${section}$`) })
+    .click()
 }
 
 test("entries move up and down from the keyboard, and stay moved", async ({ page }) => {
@@ -104,11 +107,9 @@ test("entries move up and down from the keyboard, and stay moved", async ({ page
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
 
   // It's saved, so it's still moved after a reload.
-  await expect.poll(async () => (await saved(page)).workExperienceSection.map((entry: { companyName: string }) => entry.companyName)).toEqual([
-    "Initech",
-    "Hooli",
-    "Google",
-  ])
+  await expect
+    .poll(async () => (await saved(page)).workExperienceSection.map((entry: { companyName: string }) => entry.companyName))
+    .toEqual(["Initech", "Hooli", "Google"])
   await page.reload()
   await previewShown(page)
   await expect.poll(() => printedOrder(page, ["Google", "Initech", "Hooli"])).toEqual(["Initech", "Hooli", "Google"])
@@ -116,7 +117,10 @@ test("entries move up and down from the keyboard, and stay moved", async ({ page
   expect(errors).toEqual([])
 })
 
-test("an entry left out isn't printed, or in the PDF's copy of the resume, and comes back when it's put back", async ({ page, browser }, testInfo) => {
+test("an entry left out isn't printed, or in the PDF's copy of the resume, and comes back when it's put back", async ({
+  page,
+  browser,
+}, testInfo) => {
   const errors = pageErrors(page)
   await openSection(page, "Experience")
 
@@ -156,7 +160,10 @@ test("an entry left out isn't printed, or in the PDF's copy of the resume, and c
   // Here it's kept, left out, and put back with a tick.
   await page.goto(`/create/new/${RESUME.id}`)
   await previewShown(page)
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   const include = page.getByRole("checkbox", { name: "Include entry 2 in the PDF" })
   await expect(include).not.toBeChecked()
   await include.check()
@@ -196,9 +203,9 @@ test("bullets are moved and left out from the Arrange list, or moved with Alt an
   await box.evaluate((textarea: HTMLTextAreaElement) => textarea.setSelectionRange(0, 0))
   await page.keyboard.press("Alt+ArrowDown")
   await expect(box).toHaveValue("• Built the search index\n• Cut serving costs by 30%\n○ Mentored four interns")
-  await expect.poll(async () => (await saved(page)).workExperienceSection[0].workDescription).toBe(
-    "• Built the search index\n• Cut serving costs by 30%\n○ Mentored four interns",
-  )
+  await expect
+    .poll(async () => (await saved(page)).workExperienceSection[0].workDescription)
+    .toBe("• Built the search index\n• Cut serving costs by 30%\n○ Mentored four interns")
 
   // Enter in a left-out bullet: the words moved to the new line stay left out.
   const split = "• Built the search index\n• Cut serving costs by 30%\n○ Mentored four".length
@@ -241,9 +248,9 @@ test("a bullet keeps the focus as it moves, even past one with the same words", 
   await expect(rows.nth(1).getByRole("checkbox")).toBeChecked()
   await page.keyboard.press("Enter")
   await expect(rows.nth(2).getByRole("button", { name: "Move bullet 3 down" })).toBeFocused()
-  await expect.poll(async () => (await saved(page)).workExperienceSection[0].workDescription).toBe(
-    "○ Led the team\n• Wrote the docs\n• Led the team",
-  )
+  await expect
+    .poll(async () => (await saved(page)).workExperienceSection[0].workDescription)
+    .toBe("○ Led the team\n• Wrote the docs\n• Led the team")
 
   expect(errors).toEqual([])
 })
@@ -256,11 +263,19 @@ test("the checker skips what's left out, and opens the right entry after it", as
     id: "tailored-check",
     workExperienceSection: [
       { id: 1, workRole: "Intern", companyName: "Initech", workDescription: "• Responsible for the reports", leftOut: true },
-      { id: 2, workRole: "Engineer", companyName: "Google", workDescription: "• Responsible for the search index\n• Cut serving costs by 30%" },
+      {
+        id: 2,
+        workRole: "Engineer",
+        companyName: "Google",
+        workDescription: "• Responsible for the search index\n• Cut serving costs by 30%",
+      },
     ],
   })
 
-  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+  await page
+    .getByRole("tablist", { name: "Write or check" })
+    .getByRole("tab", { name: /^Check/ })
+    .click()
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
   await expect(panel.getByRole("button", { name: weak("Google") })).toBeVisible()
   await expect(panel.getByRole("button", { name: /Initech/ })).toHaveCount(0)
@@ -270,7 +285,8 @@ test("the checker skips what's left out, and opens the right entry after it", as
   await expect(page.getByRole("button", { name: "Done editing entry 2" })).toBeVisible()
   const field = page.locator('[data-field="workDescription"]').nth(1)
   const box = field.getByLabel(BULLETS)
-  const selected = () => box.evaluate((textarea: HTMLTextAreaElement) => textarea.value.slice(textarea.selectionStart, textarea.selectionEnd))
+  const selected = () =>
+    box.evaluate((textarea: HTMLTextAreaElement) => textarea.value.slice(textarea.selectionStart, textarea.selectionEnd))
   await expect(box).toBeFocused()
   expect(await selected()).toBe("Responsible for the search index")
 
@@ -310,7 +326,9 @@ test("the text box shows every bullet after arranging, and a deleted entry's mod
   await page.getByRole("button", { name: "Delete", exact: true }).click()
   await expect(page.getByRole("button", { name: "Edit entry 3" })).toHaveCount(0)
   await page.getByRole("button", { name: "Edit entry 1" }).click()
-  await expect(page.locator('[data-field="workDescription"]').first().getByRole("textbox", { name: BULLETS })).toHaveValue("• Filed the reports")
+  await expect(page.locator('[data-field="workDescription"]').first().getByRole("textbox", { name: BULLETS })).toHaveValue(
+    "• Filed the reports",
+  )
 
   expect(errors).toEqual([])
 })

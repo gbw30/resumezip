@@ -8,7 +8,8 @@ const ada = { id: "a", resumeTitle: "Ada", profileSection: { fullName: "Ada Love
 const grace = { id: "g", resumeTitle: "Grace", profileSection: { fullName: "Grace Hopper" }, updatedAt: "2026-10-06T10:00:00.000Z" }
 
 /** localStorage contents with these resumes saved, each under its own key. */
-const saved = (...resumes: { id: string; [field: string]: unknown }[]) => Object.fromEntries(resumes.map((resume) => [keyOf(resume.id), JSON.stringify(resume)]))
+const saved = (...resumes: { id: string; [field: string]: unknown }[]) =>
+  Object.fromEntries(resumes.map((resume) => [keyOf(resume.id), JSON.stringify(resume)]))
 const stored = (storage: Storage, id: string) => readResume(storage.getItem(keyOf(id)) ?? "").resume
 
 /**

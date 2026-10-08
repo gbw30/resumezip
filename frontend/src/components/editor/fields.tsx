@@ -168,7 +168,8 @@ function typeInto(textarea: HTMLTextAreaElement, next: string): boolean {
   let from = 0
   while (from < current.length && from < next.length && current[from] === next[from]) from++
   let same = 0
-  while (same < current.length - from && same < next.length - from && current[current.length - 1 - same] === next[next.length - 1 - same]) same++
+  while (same < current.length - from && same < next.length - from && current[current.length - 1 - same] === next[next.length - 1 - same])
+    same++
   // Never half an emoji: a character made of two code units is replaced whole.
   if (from > 0 && (isLowSurrogate(current.charCodeAt(from)) || isLowSurrogate(next.charCodeAt(from)))) from--
   if (same > 0 && isLowSurrogate(current.charCodeAt(current.length - same))) same--
@@ -279,7 +280,8 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
       const given = (event.data ?? event.dataTransfer?.getData("text/plain"))?.replace(/\r\n?/g, "\n")
       if (!given) return
       const { selectionStart: start, selectionEnd: end, value } = textarea
-      const words = event.inputType === "insertFromPaste" ? pastedList(given, value.slice(value.lastIndexOf("\n", start - 1) + 1, start)) : given
+      const words =
+        event.inputType === "insertFromPaste" ? pastedList(given, value.slice(value.lastIndexOf("\n", start - 1) + 1, start)) : given
       const typed = value.slice(0, start) + words + value.slice(end)
       const next = withBullets(typed)
       // Nothing to change: the browser puts it in as it is.

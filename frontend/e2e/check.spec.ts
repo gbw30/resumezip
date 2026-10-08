@@ -54,7 +54,10 @@ test("the left bar switches between writing and checking, and remembers which", 
   // which Safari logs as an error, and in Check for the score, so the
   // checker's reader isn't either.
   const preview = page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()
-  const score = page.getByRole("tabpanel", { name: /^Check/ }).getByRole("region", { name: "Resume score" }).locator("[aria-live=polite]")
+  const score = page
+    .getByRole("tabpanel", { name: /^Check/ })
+    .getByRole("region", { name: "Resume score" })
+    .locator("[aria-live=polite]")
   const checked = () => expect(score).toContainText(/^\d+\s*\/ 100\s*out of 100$/)
   await expect(preview).toBeVisible()
   await checked()
@@ -110,7 +113,10 @@ test("the checker asks for a name and an entry first, then scores the resume and
   // The form stays beside the checker, so the name can be typed straight in.
   await page.getByLabel("Full name").fill("Ada Lovelace")
   await write.click()
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
   await check.click()
@@ -153,10 +159,16 @@ test("the score goes up as a problem is fixed", async ({ page }) => {
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
   await page.getByLabel("Full name").fill("Ada Lovelace")
   await page.getByLabel("Email").fill("ada@example")
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
-  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+  await page
+    .getByRole("tablist", { name: "Write or check" })
+    .getByRole("tab", { name: /^Check/ })
+    .click()
 
   // The contact category is open, as it has something to fix, and lists it.
   const contact = panel.getByRole("button", { name: /^Contact & personal details, 1 to fix/ })
@@ -175,7 +187,9 @@ test("the score goes up as a problem is fixed", async ({ page }) => {
   expect(errors).toEqual([])
 })
 
-test("choosing a finding opens its field, where it shows while Check is open, fixing it clears it, and a suggestion can be dismissed", async ({ page }) => {
+test("choosing a finding opens its field, where it shows while Check is open, fixing it clears it, and a suggestion can be dismissed", async ({
+  page,
+}) => {
   const errors = pageErrors(page)
   await newResume(page)
   const modes = page.getByRole("tablist", { name: "Write or check" })
@@ -186,7 +200,10 @@ test("choosing a finding opens its field, where it shows while Check is open, fi
   await expect(check).toHaveAccessibleName("Check")
   await page.getByLabel("Full name").fill("Ada Lovelace")
   await page.getByLabel("Email").fill("ada@example")
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
   await expect(check).toHaveAccessibleName(/^Check, \d+ to look at$/)
@@ -232,7 +249,10 @@ test("with Check open, the PDF is read too: a bullet that runs three lines is fl
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
 
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
   const bullets = page.getByLabel(/^What you did/)
@@ -267,11 +287,17 @@ test("when the preview can't be built, the checker says its PDF checks are left 
   })
   await newResume(page)
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
 
-  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+  await page
+    .getByRole("tablist", { name: "Write or check" })
+    .getByRole("tab", { name: /^Check/ })
+    .click()
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
   await expect(panel.getByRole("status")).toContainText("The preview couldn't be built, so the checks on the PDF are left out.")
   expect(errors).toEqual([])
