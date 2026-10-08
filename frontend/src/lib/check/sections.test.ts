@@ -43,10 +43,45 @@ describe("S1 and S2 experience and education", () => {
     expect(check("S1", resume).findings).toEqual([expect.objectContaining({ level: "fix", place: { kind: "section", section: "Work" } })])
     for (const section of ["projectsSection", "leadershipExperienceSection", "volunteerExperienceSection"]) {
       expect(
-        check("S1", { ...resume, [section]: [{ id: 1, projectName: "Club", leadershipRole: "Lead", volunteerRole: "Tutor" }] }).status,
+        check("S1", {
+          ...resume,
+          [section]: [
+            {
+              id: 1,
+              projectName: "Club",
+              leadershipRole: "Lead",
+              volunteerRole: "Tutor",
+              projectDescription: "Built a club website",
+              leadershipDescription: "Organized club events",
+              volunteerDescription: "Tutored students",
+            },
+          ],
+        }).status,
         section,
       ).toBe("passed")
     }
+  })
+
+  test("S1 requires printed descriptions, beyond entry titles, tools, dates and links", () => {
+    const resume = {
+      ...jake,
+      workExperienceSection: [{ id: 1, workRole: "Engineer", companyName: "Google" }],
+      projectsSection: [{ id: 1, projectName: "Website", techStack: "HTML", projectGithub: "github.com/jake/site" }],
+    }
+    expect(check("S1", resume).findings).toEqual([
+      expect.objectContaining({ level: "fix", place: { kind: "entry", section: "Work", entry: 0, field: "workDescription" } }),
+    ])
+    expect(
+      check("S1", { ...resume, workExperienceSection: [{ ...resume.workExperienceSection[0], workDescription: "○ Built a search index" }] })
+        .status,
+    ).toBe("failed")
+    expect(check("S1", { ...resume, workExperienceSection: [{ ...jake.workExperienceSection[0], leftOut: true }] }).status).toBe("failed")
+    expect(
+      check("S1", {
+        ...resume,
+        projectsSection: [{ ...resume.projectsSection[0], projectDescription: "Built a website for a local club" }],
+      }).status,
+    ).toBe("passed")
   })
 
   test("S2 suggests adding education", () => {
@@ -65,8 +100,8 @@ describe("S3 and S4 entries", () => {
       workExperienceSection: [{ id: 1, companyName: "Google", workDescription: "• Built a search index" }],
     }
     expect(check("S3", resume).findings.map(({ place, message }) => ({ place, message }))).toEqual([
-      { place: { kind: "entry", section: "Education", entry: 0, field: "degree" }, message: "No degree" },
       { place: { kind: "entry", section: "Work", entry: 0, field: "workRole" }, message: "No role" },
+      { place: { kind: "entry", section: "Education", entry: 0, field: "degree" }, message: "No degree" },
     ])
   })
 
@@ -76,6 +111,36 @@ describe("S3 and S4 entries", () => {
     expect(check("S4", resume).findings).toEqual([
       expect.objectContaining({ place: { kind: "entry", section: "Work", entry: 1 }, message: "Empty entry" }),
     ])
+  })
+
+  test("S3 requires work role and employer as fixes without changing education suggestions", () => {
+    const resume = {
+      ...jake,
+      educationSection: [{ id: 1, schoolName: "University of Texas at Austin" }],
+      workExperienceSection: [{ id: 1, workDescription: "Built a search index" }],
+    }
+    expect(check("S3", resume).findings.map(({ place, level }) => ({ place, level }))).toEqual([
+      { place: { kind: "entry", section: "Work", entry: 0, field: "workRole" }, level: "fix" },
+      { place: { kind: "entry", section: "Work", entry: 0, field: "companyName" }, level: "fix" },
+      { place: { kind: "entry", section: "Education", entry: 0, field: "degree" }, level: "look" },
+    ])
+  })
+
+  test("S3 accommodates explicitly independent work while requiring a role", () => {
+    for (const workRole of ["Freelance designer", "Self-employed developer", "Independent contractor"]) {
+      expect(
+        check("S3", { ...jake, workExperienceSection: [{ id: 1, workRole, workDescription: "Built client websites" }] }).status,
+        workRole,
+      ).toBe("passed")
+    }
+    expect(
+      check("S3", { ...jake, workExperienceSection: [{ id: 1, companyName: "Self-employed", workDescription: "Built client websites" }] })
+        .findings[0],
+    ).toMatchObject({ level: "fix", message: "No role" })
+    expect(
+      check("S3", { ...jake, workExperienceSection: [{ id: 1, workRole: "Engineer", workDescription: "Built client websites" }] })
+        .findings[0],
+    ).toMatchObject({ level: "fix", message: "No company" })
   })
 
   test("skip a resume with no entries at all", () => {

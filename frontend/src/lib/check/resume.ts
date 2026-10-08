@@ -10,6 +10,7 @@ import { isLeftOut, isLeftOutLine } from "@/lib/leftOut"
 import type { Resume } from "@/lib/resume"
 import { plainText, sectionOrder } from "@/lib/typst/resumeData"
 import type { Place } from "./places"
+import { readCheckState } from "./state"
 
 /** Chosen when the resume was made (RESUME_TAGS in components/dashboard/CreateResumeModal.tsx). */
 export type ResumeType = "professional" | "personal" | "academic"
@@ -50,6 +51,7 @@ export interface Entry {
 }
 
 export interface ResumeView {
+  grammarLanguage: "english" | "other"
   type: ResumeType
   /** Each profile field, trimmed; "" when it's empty or missing. */
   profile: Record<ProfileKey, string>
@@ -121,6 +123,7 @@ export function viewOf(resume: Resume): ResumeView {
   }
   return {
     type: resumeTypeOf(resume),
+    grammarLanguage: readCheckState(resume).grammarLanguage ?? "english",
     profile: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, text(profile[field.key])])) as Record<ProfileKey, string>,
     sections,
     headings: titles,

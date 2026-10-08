@@ -141,11 +141,10 @@ describe("P4 spacing", () => {
 })
 
 describe("P5 words in capitals", () => {
-  test("flags a word in capitals, in a bullet or a field", () => {
+  test("flags ordinary capitalized prose while leaving official job titles alone", () => {
     const resume = resumeWith(job(["Built a MASSIVE cache"], { workRole: "SOFTWARE ENGINEER" }))
     expect(check("P5", resume).findings.map(({ message, suggestion }) => [message, suggestion])).toEqual([
-      ["“SOFTWARE” in capitals", "Unless it's an acronym, write it “Software”."],
-      ["“MASSIVE” in capitals", "Unless it's an acronym, write it “massive”."],
+      ["“MASSIVE” in capitals", "If this is ordinary prose, consider “massive”. Keep the case of names and acronyms."],
     ])
   })
 
@@ -173,19 +172,15 @@ describe("P6 shorthand", () => {
       ["“mgmt” is shorthand", "Write “management”."],
       ["“approx.” is shorthand", "Write “about”."],
       ["“&” is shorthand", "Write “and”."],
-      ["“hrs” is shorthand", "Write “hours”."],
     ])
   })
 
-  test("flags shorthand in fields too, like a role or a skill", () => {
+  test("preserves official titles and skill terminology", () => {
     const resume = {
       ...resumeWith(job(["Built the index"], { workRole: "Project Mgr" })),
       skillsSection: [{ id: 1, skillName: "Business", skillDetails: "Project mgmt, budgeting" }],
     }
-    expect(check("P6", resume).findings.map(({ place, message, suggestion }) => [place, message, suggestion])).toEqual([
-      [{ kind: "entry", section: "Work", entry: 0, field: "workRole" }, "“Mgr” is shorthand", "Write “Manager”."],
-      [{ kind: "entry", section: "Skills", entry: 0, field: "skillDetails" }, "“mgmt” is shorthand", "Write “management”."],
-    ])
+    expect(check("P6", resume).findings).toEqual([])
   })
 
   test("leaves names and acronyms with an & or the same letters alone", () => {
@@ -197,6 +192,40 @@ describe("P6 shorthand", () => {
       "Worked with I/O drivers",
     ]
     expect(check("P6", resumeWith(job(bullets))).status).toBe("passed")
+  })
+})
+
+describe("contextual polish advice", () => {
+  test("keeps separate entries' punctuation styles and abbreviated endings", () => {
+    const resume = resumeWith(job(["Built the index.", "Wrote the docs."]), job(["Led the team", "Coached interns", "Supported Acme Inc."]))
+    expect(check("P1", resume).findings).toEqual([])
+  })
+
+  test("recognizes the resume's own organization and product names", () => {
+    const resume = resumeWith(job(["UNIQLO retail integration", "bluestack handles store inventory"], { companyName: "UNIQLO" }))
+    const named = { ...resume, projectsSection: [{ id: 1, projectName: "bluestack" }] }
+    expect(check("P5", named).findings).toEqual([])
+    expect(check("P2", named).findings).toEqual([])
+  })
+
+  test("preserves code, quoted terminology, units and deliberate alignment", () => {
+    const resume = resumeWith(
+      job([
+        'Used `foo(bar,baz)` and "mgmt" labels',
+        "Used 'mgmt' labels",
+        "Latency    5 ms",
+        "Saved 5  ms",
+        "Ran for 2 hrs",
+        "Ran for three hrs",
+      ]),
+    )
+    expect(check("P4", resume).findings).toEqual([])
+    expect(check("P6", resume).findings).toEqual([])
+    expect(check("P2", resumeWith(job(['"bluestack" handles store inventory']))).findings).toEqual([])
+  })
+
+  test("allows words for numbers at the start of a sentence", () => {
+    expect(check("P7", resumeWith(job(["Led 3 teams", "Ran 4 projects", "Five engineers joined the team"]))).findings).toEqual([])
   })
 })
 

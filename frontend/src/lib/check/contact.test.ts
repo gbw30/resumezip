@@ -37,31 +37,100 @@ describe("C1 name", () => {
       expect.objectContaining({ level: "fix", place: { kind: "profile", field: "fullName" }, message: "Add your name" }),
     ])
   })
+
+  test("accepts mononyms, initials and names in any script", () => {
+    for (const fullName of ["Sukarno", "A. B. de la Cruz", "Nguyễn Thị Minh", "王小明", "فاطمة الزهراء", "María-José O’Neill"]) {
+      expect(check("C1", withProfile({ fullName })).status, fullName).toBe("passed")
+    }
+  })
 })
 
 describe("C2 email", () => {
   test("flags a missing or partial address", () => {
-    expect(check("C2", withProfile({ email: "" })).messages).toEqual(["Add your email address"])
-    for (const email of ["jake@gmail", "jake.gmail.com", "jake@gmail.c", "jake @gmail.com", "@gmail.com"]) {
+    expect(check("C2", withProfile({ email: "" })).findings).toEqual([
+      expect.objectContaining({ message: "Consider adding an email address", level: "look", advisory: true }),
+    ])
+    for (const email of [
+      "jake@gmail",
+      "jake.gmail.com",
+      "jake@gmail.c",
+      "jake @gmail.com",
+      "@gmail.com",
+      ".jake@example.com",
+      "jake..ryan@example.com",
+      "jake.@example.com",
+      "jake@-example.com",
+      "jake@example-.com",
+      "jake@exam_ple.com",
+      "jake@example.com/path",
+    ]) {
       expect(check("C2", withProfile({ email })).messages, email).toEqual(["Not a whole email address"])
     }
   })
 
   test("takes any whole address", () => {
-    for (const email of ["jake.ryan+jobs@cs.utexas.edu", "j@mail.example.co.uk", "JAKE@GMAIL.COM"]) {
+    for (const email of [
+      "jake.ryan+jobs@cs.utexas.edu",
+      "j@mail.example.co.uk",
+      "JAKE@GMAIL.COM",
+      "o'neill@example.com",
+      "用户@例子.中国",
+      '"jake ryan"@example.com',
+    ]) {
       expect(check("C2", withProfile({ email })).status, email).toBe("passed")
     }
+  })
+
+  test("requires a usable contact channel even when unusable values are present", () => {
+    for (const changes of [
+      { email: "", phoneNumber: "" },
+      { email: "not-an-email", phoneNumber: "123" },
+      { email: "", phoneNumber: "9".repeat(30) },
+    ]) {
+      expect(check("C2", withProfile(changes)).findings).toEqual([
+        expect.objectContaining({ message: "Add a usable email address or phone number", level: "fix" }),
+      ])
+    }
+    expect(check("C2", withProfile({ email: "", phoneNumber: "+298 35 60 20" })).findings[0]).toMatchObject({
+      level: "look",
+      advisory: true,
+    })
+    expect(check("C2", withProfile({ email: "wrong", phoneNumber: "+298 35 60 20" })).findings[0]).toMatchObject({ level: "fix" })
   })
 })
 
 describe("C3 phone", () => {
-  test("flags a missing number, or one without an area code", () => {
-    expect(check("C3", withProfile({ phoneNumber: "" })).messages).toEqual(["Add a phone number"])
-    expect(check("C3", withProfile({ phoneNumber: "555-0142" })).messages).toEqual(["Phone number looks too short"])
+  test("treats a missing phone as optional and flags implausible supplied numbers", () => {
+    expect(check("C3", withProfile({ phoneNumber: "" })).findings[0]).toMatchObject({
+      message: "Consider adding a phone number",
+      advisory: true,
+    })
+    for (const phoneNumber of [
+      "123",
+      "9".repeat(30),
+      "0000000000",
+      "+0 123456789",
+      "call me at 5125550142",
+      "+1 512 555 0142 ext. nope",
+      "123456 ext. 12345678901",
+    ]) {
+      expect(check("C3", withProfile({ phoneNumber })).messages, phoneNumber).toEqual(["Check this phone number"])
+    }
   })
 
-  test("takes 10 digits or more, however they're written", () => {
-    for (const phoneNumber of ["512-555-0142", "5125550142", "+1 512 555 0142", "+44 20 7946 0958", "512.555.0142 ext. 12"]) {
+  test("accepts international numbers, shorter national plans and extensions outside the number's length limit", () => {
+    for (const phoneNumber of [
+      "512-555-0142",
+      "5125550142",
+      "+1 512 555 0142",
+      "+44 20 7946 0958",
+      "512.555.0142 ext. 12",
+      "+298 35 60 20",
+      "356020",
+      "+123456789012345 x123",
+      "+44 20 7946 0958 extension 123",
+      "5125550142#12",
+    ]) {
       expect(check("C3", withProfile({ phoneNumber })).status, phoneNumber).toBe("passed")
     }
   })
@@ -69,15 +138,25 @@ describe("C3 phone", () => {
 
 describe("C4 location", () => {
   test("flags it when it's missing", () => {
-    expect(check("C4", withProfile({ location: "" })).messages).toEqual(["Add your city and state"])
+    expect(check("C4", withProfile({ location: "" })).findings[0]).toMatchObject({
+      message: "Consider adding your location or work availability",
+      advisory: true,
+    })
+    for (const location of ["Remote", "Open to relocation", "Helsinki, Finland", "Singapore"]) {
+      expect(check("C4", withProfile({ location })).status).toBe("passed")
+    }
   })
 })
 
 describe("C5 and C6 LinkedIn", () => {
   test("flags a missing link, or one that isn't a profile", () => {
-    expect(check("C5", withProfile({ linkedin: "" })).messages).toEqual(["Add your LinkedIn"])
+    expect(check("C5", withProfile({ linkedin: "" })).findings[0]).toMatchObject({
+      message: "Consider adding a LinkedIn profile",
+      advisory: true,
+    })
     for (const linkedin of ["linkedin.com/feed", "linkedin.com/in/", "jake-ryan", "linkedin.com/company/google"]) {
       expect(check("C5", withProfile({ linkedin })).messages, linkedin).toEqual(["Not a link to a LinkedIn profile"])
+      expect(check("C5", withProfile({ linkedin })).findings[0].advisory).not.toBe(true)
     }
   })
 
@@ -94,7 +173,10 @@ describe("C5 and C6 LinkedIn", () => {
 
   test("flags the ending LinkedIn makes up, but not one the person chose", () => {
     for (const linkedin of ["linkedin.com/in/jake-ryan-8a7b6c123", "linkedin.com/in/jake-ryan-123456789/"]) {
-      expect(check("C6", withProfile({ linkedin })).messages, linkedin).toEqual(["LinkedIn link ends in random letters and numbers"])
+      expect(check("C6", withProfile({ linkedin })).findings[0], linkedin).toMatchObject({
+        message: "Consider a shorter LinkedIn link",
+        advisory: true,
+      })
     }
     for (const linkedin of [
       "linkedin.com/in/jake-ryan",
@@ -127,13 +209,54 @@ describe("C7 GitHub and website", () => {
     )
     expect(check("C7", withProfile({ profileGithub: "", personalWebsite: "" })).status).toBe("skipped")
   })
+
+  test("accepts Unicode domains, ports and paths, while rejecting malformed domain labels and unsupported links", () => {
+    for (const personalWebsite of [
+      "https://münchen.de",
+      "例子.中国/作品",
+      "https://example.com:8443/work?q=1#demo",
+      "https://203.0.113.12/project",
+    ]) {
+      expect(check("C7", withProfile({ personalWebsite })).status, personalWebsite).toBe("passed")
+    }
+    for (const personalWebsite of [
+      "https://-example.com",
+      "example-.com",
+      "exam_ple.com",
+      "https://example.com:99999",
+      "javascript:alert(1)",
+      "https://jake:password@example.com",
+      "https://example.com/my project",
+    ]) {
+      expect(check("C7", withProfile({ personalWebsite })).messages, personalWebsite).toEqual(["Not a web address"])
+    }
+  })
+
+  test("checks both project links and preserves indices when projects are left out", () => {
+    const resume = {
+      ...jake,
+      projectsSection: [
+        { id: 1, projectName: "Hidden", projectGithub: "bad", leftOut: true as const },
+        { id: 2, projectName: "Portfolio", projectGithub: "github.com/jake/site", additionalLink: "portfolio" },
+        { id: 3, projectName: "Library", projectGithub: "github/jake/lib", additionalLink: "https://例子.中国" },
+      ],
+    }
+    expect(check("C7", resume).findings.map(({ place }) => place)).toEqual([
+      { kind: "entry", section: "Projects", entry: 1, field: "additionalLink" },
+      { kind: "entry", section: "Projects", entry: 2, field: "projectGithub" },
+    ])
+  })
 })
 
 describe("C8 street address or ZIP code", () => {
-  test("flags a street address or ZIP code", () => {
-    expect(check("C8", withProfile({ location: "1234 Elm St, Austin, TX" })).messages).toEqual(["Leave off your street address"])
-    expect(check("C8", withProfile({ location: "500 W 2nd Street Apt 4" })).messages).toEqual(["Leave off your street address"])
-    expect(check("C8", withProfile({ location: "Austin, TX 78701" })).messages).toEqual(["Leave off your ZIP code"])
+  test("offers unscored privacy advice for a street address, while allowing postal codes", () => {
+    for (const location of ["1234 Elm St, Austin, TX", "500 W 2nd Street Apt 4"]) {
+      expect(check("C8", withProfile({ location })).findings[0]).toMatchObject({
+        message: "Consider leaving off your street address",
+        advisory: true,
+      })
+    }
+    expect(check("C8", withProfile({ location: "Austin, TX 78701" })).status).toBe("passed")
   })
 
   test("takes a city and state, or a city and country", () => {
@@ -192,11 +315,29 @@ describe("C9 personal details", () => {
           "• Migrated a 15-year-old codebase to a single-page app",
           "• Tutored students age 12 to 15",
           "• Ran user studies with male and female participants",
+          "• Built date of birth validation for user registration",
+          "• Designed support for married parents",
+          "• Supported divorced and widowed clients",
+          "• Tutored 14-year-old students",
+          "• Authored a publication on gender: social and technical effects",
         ].join("\n"),
       },
     ]
     const education = [{ id: 1, schoolName: "University of Texas at Austin", involvement: "Female Founders Club" }]
     expect(check("C9", { ...jake, workExperienceSection: work, educationSection: education }).status).toBe("passed")
+  })
+
+  test("distinguishes explicit personal disclosures from descriptions of other people", () => {
+    for (const location of [
+      "Date of birth: January 12, 2003",
+      "Born on 12 Jan 2003",
+      "My age: 24",
+      "I'm 24 years old",
+      "Gender: non-binary",
+      "Marital status: Married",
+    ]) {
+      expect(check("C9", withProfile({ location })).status, location).toBe("failed")
+    }
   })
 })
 
@@ -208,8 +349,14 @@ describe("C10 Social Security number", () => {
   })
 
   test("flags one written with spaces, or as nine digits after its name", () => {
-    for (const location of ["123 45 6789", "SSN: 123456789", "Social Security No. 123456789"]) {
+    for (const location of ["SSN: 123456789", "Social Security No. 123456789", "Social Security number: 123 45 6789"]) {
       expect(check("C10", withProfile({ location })).messages, location).toEqual(["Leave off your Social Security number"])
+    }
+  })
+
+  test("states uncertainty when a number is formatted like an SSN but has no SSN label", () => {
+    for (const location of ["123 45 6789", "Reference ID 123-45-6789"]) {
+      expect(check("C10", withProfile({ location })).messages, location).toEqual(["Possible Social Security number"])
     }
   })
 

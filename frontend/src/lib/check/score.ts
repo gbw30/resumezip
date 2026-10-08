@@ -40,7 +40,15 @@ export interface Score {
 // grammar checker failed partway. One that doesn't apply, broke, is still
 // waiting for the PDF or the grammar checker, or has seen only part of the
 // text (partial) and found nothing there is left out: that's no pass yet.
-const counts = (result: RuleResult) => result.status === "failed" || (result.status === "passed" && !result.partial)
+const counts = (result: RuleResult) =>
+  !result.rule.advisory &&
+  result.scoring !== null &&
+  (result.status === "failed" || result.status === "passed") &&
+  (!result.partial || failed(result))
+
+const creditOf = (result: RuleResult) => result.scoring?.credit ?? result.credit
+const levelOf = (result: RuleResult) => result.scoring?.level ?? result.rule.level
+const failed = (result: RuleResult) => result.scoring?.failed ?? result.status === "failed"
 
 /**
  * What a rule takes from its category, as a share of its points: nothing when
@@ -48,8 +56,8 @@ const counts = (result: RuleResult) => result.status === "failed" || (result.sta
  * LEAST_PENALTY of it and the rest by how much of the resume fails it.
  */
 function penaltyOf(result: RuleResult): number {
-  if (result.status !== "failed") return 0
-  return LEVELS[result.rule.level].penalty * (LEAST_PENALTY + (1 - LEAST_PENALTY) * (1 - result.credit))
+  if (!failed(result)) return 0
+  return LEVELS[levelOf(result)].penalty * (LEAST_PENALTY + (1 - LEAST_PENALTY) * (1 - creditOf(result)))
 }
 
 /**
@@ -59,6 +67,8 @@ function penaltyOf(result: RuleResult): number {
  */
 export const wholePoints = (points: number) => Math.floor(points + 1e-9)
 
+// Coverage weights stay fixed when a contextual finding is resolved. Otherwise
+// fixing an issue can lower the passing share by shrinking its denominator.
 const weight = (result: RuleResult) => LEVELS[result.rule.level].penalty
 
 /**
@@ -72,13 +82,13 @@ export function categoryScore(id: CategoryId, results: readonly RuleResult[]): C
   if (ran.length === 0) return { id, points, earned: 0, applies: false, mustFix: false }
   const left = Math.max(0, 1 - ran.reduce((sum, result) => sum + penaltyOf(result), 0))
   const passing =
-    ran.reduce((sum, result) => sum + weight(result) * result.credit, 0) / ran.reduce((sum, result) => sum + weight(result), 0)
+    ran.reduce((sum, result) => sum + weight(result) * creditOf(result), 0) / ran.reduce((sum, result) => sum + weight(result), 0)
   return {
     id,
     points,
     earned: points * Math.min(left, passing),
     applies: true,
-    mustFix: ran.some((result) => result.status === "failed" && result.rule.level === "fix"),
+    mustFix: ran.some((result) => failed(result) && levelOf(result) === "fix"),
   }
 }
 

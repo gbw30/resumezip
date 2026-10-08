@@ -25,6 +25,22 @@ const suggestion = (key: string, rule = "B1"): Finding => ({
 })
 
 describe("what the checker saves on a resume", () => {
+  test("language preferences survive storage and merge independently of words", () => {
+    const storage = memoryStorage()
+    const tab = createResumeStore()
+    tab.load(storage)
+    const id = tab.create("Ada", "professional")
+    tab.edit(id, CHECK_FIELD, { grammarLanguage: "other", words: ["spintronics"] })
+    tab.flush()
+    const reloaded = createResumeStore()
+    reloaded.load(storage)
+    expect(readCheckState(reloaded.getState().resumes[id])).toMatchObject({ grammarLanguage: "other", words: ["spintronics"] })
+    const ours = { ...sample, [CHECK_FIELD]: changeCheck(sample, (state) => ({ ...state, grammarLanguage: "other" })) }
+    const theirs = { ...sample, [CHECK_FIELD]: changeCheck(sample, (state) => addWord(state, "Typst")) }
+    const changed = new Set(changedPaths(CHECK_FIELD, sample[CHECK_FIELD], ours[CHECK_FIELD]))
+    expect(mergeResume(theirs, ours, changed)[CHECK_FIELD]).toEqual({ grammarLanguage: "other", words: ["Typst"] })
+    expect(readCheckState(asSaved({ check: { grammarLanguage: 42 } }))).not.toHaveProperty("grammarLanguage")
+  })
   test("is nothing dismissed and no words when there's none, or it's in another shape", () => {
     for (const check of [undefined, null, "B1", ["B1|x|y"], { dismissed: "B1|x|y", words: { Kubernetes: true } }]) {
       expect(readCheckState(asSaved({ [CHECK_FIELD]: check }))).toEqual({ dismissed: [], words: [] })

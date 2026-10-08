@@ -214,6 +214,6 @@ describe("what the person left out", () => {
     expect(tailored).toEqual([])
     // Printed, the same resume has too many bullets in one job and none in the other.
     const whole = tooMany({ workExperienceSection: [{ ...job, workDescription: bullets(8, "•").join("\n") }, internship] })
-    expect(whole.map((finding) => finding.message)).toEqual(["8 bullets", "No bullets"])
+    expect(whole.map((finding) => finding.message)).toEqual(["8 bullets to review", "No description"])
   })
 })

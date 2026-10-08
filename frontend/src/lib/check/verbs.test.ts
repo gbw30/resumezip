@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import { firstWord } from "./text"
-import { alternativesTo, inTenseOf, thirdPersonOf, verbOf } from "./verbs"
+import { alternativesTo, inTenseOf, thirdPersonOf, verbAtStart, verbOf } from "./verbs"
 
 const tense = (word: string) => verbOf(word)?.tense ?? null
 
@@ -19,10 +19,14 @@ describe("reading a verb", () => {
     for (const word of ["Cut", "Set", "Forecast"]) expect(tense(word), word).toBe("either")
   })
 
-  test("knows any word ending in -ed or -ing, listed or not", () => {
+  test("allows new past-tense actions but requires a known stem for -ing", () => {
     expect(verbOf("Spearheaded")).toMatchObject({ tense: "past" })
     expect(verbOf("Containerized")).toEqual({ base: "containerized", tense: "past", thirdPerson: false })
     expect(tense("Building")).toBe("ing")
+    expect(verbOf("Running")).toMatchObject({ base: "run", tense: "ing" })
+    expect(verbOf("Planning")).toMatchObject({ base: "plan", tense: "ing" })
+    expect(verbOf("Creating")).toMatchObject({ base: "create", tense: "ing" })
+    for (const word of ["Nothing", "Something", "During", "Marketing"]) expect(verbOf(word), word).toBeNull()
   })
 
   test("reads British spellings and the verb after a hyphen", () => {
@@ -62,6 +66,13 @@ describe("suggesting other verbs", () => {
 })
 
 describe("a bullet's first word", () => {
+  test("reads introductory adverbs without treating a noun subject as an action", () => {
+    expect(verbAtStart("Successfully built the parser")).toMatchObject({ word: "built", verb: { base: "build", tense: "past" } })
+    expect(verbAtStart("Independently lead the migration")).toMatchObject({ word: "lead", verb: { base: "lead", tense: "present" } })
+    expect(verbAtStart("Research findings informed policy")).toBeNull()
+    expect(verbAtStart("Support tickets fell after migration")).toBeNull()
+  })
+
   test("skips quotes and dashes before it, and keeps hyphens inside it", () => {
     expect(firstWord("Co-founded a club")).toBe("Co-founded")
     expect(firstWord("“Led” the team")).toBe("Led")

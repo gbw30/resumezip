@@ -70,14 +70,14 @@ type Category = (typeof CATEGORIES)[number]
  * opens its field in the form.
  */
 export default function CheckPanel() {
-  const { report, restore, pdf, grammar } = useCheck()
+  const { report, restore, pdf, grammar, setGrammarLanguage } = useCheck()
   const { formData } = useResumeContext()
   // The resume as last checked, so places are named as the findings saw them.
   const view = report.view
 
   const checking = checkingCategories(
     report.results.map((result) => result.rule),
-    { readingPdf: pdf === "reading", checkingText: grammar === "checking" },
+    { readingPdf: pdf === "reading", checkingText: grammar === "checking" && view.grammarLanguage !== "other" },
   )
   const score = useShownScore(report, checking)
   const fixes = useShownFixes(report, checking)
@@ -100,10 +100,23 @@ export default function CheckPanel() {
   const waitingFor = (reads: "pdf" | "grammar") =>
     report.results.some((result) => result.status === "waiting" && result.rule.reads === reads)
   // Grammar rules check text as it's typed, so they're behind until it's all been checked.
-  const checkingGrammar = waitingFor("grammar") || grammar !== "ready"
+  const checkingGrammar = view.grammarLanguage !== "other" && (waitingFor("grammar") || grammar !== "ready")
   return (
     <div className="flex flex-col gap-5 px-3 py-4 xl:p-0">
       <ScoreHeader total={score.total} mustFix={score.mustFix} fixes={fixes} />
+      <div className="flex flex-col gap-1.5 px-2 text-sm text-ink-2">
+        <label htmlFor="grammar-language">Spelling and grammar language</label>
+        <select
+          id="grammar-language"
+          value={view.grammarLanguage}
+          onChange={(event) => setGrammarLanguage(event.target.value === "other" ? "other" : "english")}
+          className="rounded border border-rule bg-sheet px-2 py-1.5 text-ink"
+        >
+          <option value="english">English</option>
+          <option value="other">Another language</option>
+        </select>
+        {view.grammarLanguage === "other" && <p>Spelling and grammar are not evaluated for this language.</p>}
+      </div>
       {(waitingFor("pdf") || checkingGrammar) && (
         <div role="status" className="flex flex-col gap-1 px-2 text-sm text-ink-2">
           {waitingFor("pdf") && (
@@ -451,6 +464,7 @@ function FindingItem({ finding, view }: { finding: Finding; view: ResumeView }) 
       >
         <span className="w-full truncate font-mono text-[11px] text-ink-2">{describePlace(view, finding.place)}</span>
         <span className="text-sm leading-snug text-ink">{finding.message}</span>
+        {finding.advisory && <span className="text-[11px] text-ink-2">Optional advice · no score impact</span>}
       </button>
       {(finding.level === "look" || finding.rule === TYPO_RULE) && (
         <div className="-mt-0.5 flex gap-1.5 px-3 pb-2.5">

@@ -61,6 +61,56 @@ afterEach(() => {
 })
 
 describe("the resume score", () => {
+  test("style advice stays visible without changing the score, even after dismissal", () => {
+    const base = rule("C1", "contact", "fix", passes)
+    const advice = { ...rule("P1", "polish", "look", found(1)), advisory: true }
+    const report = runChecks(ada, { rules: [base, advice] })
+    expect(report.findings).toHaveLength(1)
+    expect(report.findings[0]).toMatchObject({ advisory: true, level: "look" })
+    expect(scoreOf(report).total).toBe(100)
+    const dismissed = { ...ada, [CHECK_FIELD]: dismiss(readCheckState(ada), report.findings[0]) }
+    expect(scoreWith([base, advice], dismissed).total).toBe(100)
+  })
+
+  test("unknown vocabulary does not hide clear typos or impose a score cap", () => {
+    const base = passing("spelling")
+    const vocabulary = rule("G1", "spelling", "fix", () => ({
+      checked: 2,
+      problems: [{ place: { kind: "profile", field: "fullName" }, message: "Unfamiliar word", level: "look", advisory: true }],
+    }))
+    const report = runChecks(ada, { rules: [...base, vocabulary] })
+    expect(scoreOf(report).total).toBe(100)
+    expect(report.findings[0].level).toBe("look")
+    const mixed = rule("G1", "spelling", "fix", () => ({
+      checked: 2,
+      problems: [
+        { place: { kind: "profile", field: "fullName" }, message: "Unfamiliar word", level: "look", advisory: true },
+        { place: { kind: "profile", field: "email" }, message: "Clear typo" },
+      ],
+    }))
+    const mixedScore = scoreWith([...base, mixed])
+    expect(category(mixedScore, "spelling").mustFix).toBe(true)
+    expect(category(mixedScore, "spelling").earned).toBe(9.375)
+  })
+
+  test("a contextual must-fix overrides its rule's default suggestion level", () => {
+    const missingTitle = rule("S3", "sections", "look", () => ({
+      checked: 1,
+      problems: [{ place: { kind: "profile", field: "fullName" }, message: "Missing title", level: "fix" }],
+    }))
+    expect(category(scoreWith([...passing("sections"), missingTitle]), "sections").mustFix).toBe(true)
+  })
+
+  test("resolving a contextual fix cannot lower a category's score", () => {
+    const identity = (missing: boolean) =>
+      rule("S3", "sections", "look", () => ({
+        checked: 10,
+        problems: missing ? [{ place: { kind: "profile", field: "fullName" }, message: "Missing identity", level: "fix" }] : [],
+      }))
+    const other = rule("S2", "sections", "look", found(1))
+    expect(scoreWith([identity(false), other]).total).toBeGreaterThanOrEqual(scoreWith([identity(true), other]).total!)
+  })
+
   test("waits for a name and an entry", () => {
     const rules = [rule("C1", "contact", "fix", passes)]
     expect(scoreWith(rules, {}).total).toBeNull()
@@ -289,6 +339,24 @@ describe("on real resumes", () => {
     return scoreOf(runChecks(resume, { pdf: { lines: parsed.lines, pages, parsed }, grammar, today: TODAY })).total
   }
 
+  test("missing work identity matters more than omitting an optional LinkedIn profile", async () => {
+    const sample = samples.find((resume) => resume.selectedTemplate === "jake")!
+    const baseline = (await scoreOfResume(sample))!
+    const withoutLinkedIn = { ...sample, profileSection: { ...sample.profileSection, linkedin: "" } }
+    const withoutIdentity = {
+      ...sample,
+      workExperienceSection: sample.workExperienceSection.map((entry: Record<string, unknown>) => ({
+        ...entry,
+        workRole: "",
+        companyName: "",
+      })),
+    }
+    expect(await scoreOfResume(withoutLinkedIn)).toBe(baseline)
+    expect(await scoreOfResume(withoutIdentity)).toBeLessThan(90)
+    const report = runChecks(withoutIdentity)
+    expect(report.findings.some((finding) => finding.rule === "S3" && finding.level === "fix")).toBe(true)
+  })
+
   test("each template's sample scores high, and a resume with obvious problems fails", async () => {
     // A product's name the spelling checker doesn't know is added as a word, as a person would (see spelling.test.ts).
     for (const sample of samples) {
@@ -318,7 +386,9 @@ describe("on real resumes", () => {
         },
       ],
     }
-    expect(await scoreOfResume(sloppy)).toBeLessThanOrEqual(50)
+    // Optional wording and cosmetic advice no longer subtract points. The
+    // substantive failures must still keep this resume in Needs work.
+    expect(bandOf((await scoreOfResume(sloppy))!).name).toBe("Needs work")
 
     // A name, a broken email and a company, and nothing else: no role, dates, bullets, education or skills.
     const bare = {

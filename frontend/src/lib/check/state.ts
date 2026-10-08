@@ -13,6 +13,8 @@ import { MAX_DISMISSED, MAX_WORD_LENGTH, MAX_WORDS } from "./settings"
 export const CHECK_FIELD = "check"
 
 export interface CheckState {
+  /** Harper supports English; other languages can opt out of its checks. */
+  grammarLanguage?: "english" | "other"
   /** The keys of the dismissed findings, oldest first. */
   dismissed: string[]
   /** The added words, as typed, oldest first. */
@@ -20,7 +22,7 @@ export interface CheckState {
 }
 
 /** What's saved under CHECK_FIELD, which readCheckState checks before using. */
-export type SavedCheck = { dismissed?: unknown; words?: unknown }
+export type SavedCheck = { dismissed?: unknown; words?: unknown; grammarLanguage?: unknown }
 
 const strings = (value: unknown, max: number, longest: number) =>
   (Array.isArray(value) ? value : [])
@@ -41,6 +43,7 @@ export function readCheckState(resume: Resume): CheckState {
   return {
     dismissed: strings(check.dismissed, MAX_DISMISSED, MAX_KEY_LENGTH),
     words: strings(check.words, MAX_WORDS, MAX_WORD_LENGTH),
+    ...((check.grammarLanguage === "english" || check.grammarLanguage === "other") && { grammarLanguage: check.grammarLanguage }),
   }
 }
 
@@ -59,6 +62,7 @@ export function changeCheck(resume: Resume, change: (state: CheckState) => Check
     ...savedOn(resume),
     ...(after.dismissed !== before.dismissed && { dismissed: after.dismissed }),
     ...(after.words !== before.words && { words: after.words }),
+    ...(after.grammarLanguage !== before.grammarLanguage && { grammarLanguage: after.grammarLanguage }),
   }
 }
 
