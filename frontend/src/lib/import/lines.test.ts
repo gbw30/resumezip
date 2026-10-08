@@ -5,7 +5,7 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs"
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { MAX_CHARACTERS, MAX_PAGES, MAX_WORD_XML_BYTES, TooMuchTextError } from "./limits"
 import { cleanLink, linesFromDocx, linesFromPages, readPdf, UnreadableWordFileError, unzippedXmlSize } from "./lines"
-import { textPdf, wordFile } from "./testFiles"
+import { pdfOf, textPdf, wordFile } from "./testFiles"
 
 // mammoth as it is, with its converter watched.
 vi.mock("mammoth", async (importOriginal) => {
@@ -143,6 +143,24 @@ describe("hyphens", () => {
       const texts = linesFromPages(await readPdf(doc)).map((line) => line.text)
       expect(texts.some((text) => text.endsWith(" coor\u00AD"))).toBe(true)
       expect(texts.some((text) => text.endsWith(" motion-"))).toBe(true)
+    })
+  })
+
+  test("one alone in a span is soft however many spans are around it, and one sharing a span isn't", async () => {
+    const depth = 5000
+    const content = [
+      "BT /F1 12 Tf 72 720 Td",
+      "/P << >> BDC ".repeat(depth),
+      "(It helps coor) Tj /Span << /ActualText <FEFF00AD> >> BDC (-) Tj EMC",
+      "0 -16 Td (dinate the team) Tj",
+      // A hyphen in a span with a span of text in it isn't alone.
+      "0 -16 Td (Not so well) Tj /Span << >> BDC (-) Tj 0 -16 Td /Span << >> BDC (known) Tj EMC EMC",
+      "EMC ".repeat(depth),
+      "ET",
+    ].join(" ")
+    await withPdf(pdfOf([content]), async (doc) => {
+      const texts = linesFromPages(await readPdf(doc)).map((line) => line.text)
+      expect(texts).toEqual(["It helps coor\u00AD", "dinate the team", "Not so well-", "known"])
     })
   })
 })

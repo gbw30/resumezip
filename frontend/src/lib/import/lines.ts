@@ -256,17 +256,24 @@ export async function readPdf(doc: PDFDocumentProxy, signal?: AbortSignal): Prom
     const items: Item[] = []
     // Marked spans of text, open around the current one. A hyphen a
     // typesetter added to break a word is marked as a soft hyphen in a span
-    // of its own; pdf.js gives the hyphen, but not what it's marked as.
-    const spans: Item[][] = []
+    // of its own; pdf.js gives the hyphen, but not what it's marked as. So
+    // each span counts the pieces of text in it, keeping the first, and
+    // passes them on to the span around it when it ends.
+    const spans: { count: number; first?: Item }[] = []
     const reader = (page.streamTextContent({ includeMarkedContent: true }) as ReadableStream<TextContent>).getReader()
     try {
       for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
         for (const item of chunk.value.items) {
           if ("type" in item) {
-            if (item.type === "beginMarkedContent" || item.type === "beginMarkedContentProps") spans.push([])
+            if (item.type === "beginMarkedContent" || item.type === "beginMarkedContentProps") spans.push({ count: 0 })
             else if (item.type === "endMarkedContent") {
               const span = spans.pop()
-              if (span?.length === 1 && /^[-\u2010]$/.test(span[0].text)) span[0].soft = true
+              if (span?.count === 1 && /^[-\u2010]$/.test(span.first!.text)) span.first!.soft = true
+              const outer = spans[spans.length - 1]
+              if (span?.first && outer) {
+                outer.first ??= span.first
+                outer.count += span.count
+              }
             }
             continue
           }
@@ -285,7 +292,11 @@ export async function readPdf(doc: PDFDocumentProxy, signal?: AbortSignal): Prom
             ...styleOf(item.fontName),
           }
           items.push(read)
-          for (const span of spans) span.push(read)
+          const span = spans[spans.length - 1]
+          if (span) {
+            span.first ??= read
+            span.count++
+          }
         }
       }
     } catch (error) {
