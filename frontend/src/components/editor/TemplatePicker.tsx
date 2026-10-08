@@ -80,9 +80,11 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
       </button>
 
       {open && (
-        // Below 1024px this covers the screen, and a click around the gallery closes it.
+        // Below 1024px this covers the screen, and a click around the gallery
+        // closes it. It fades in (`starting:` is CSS @starting-style): the
+        // dialog grows into place, and the panel on wider screens drops into it.
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 lg:absolute lg:inset-auto lg:right-0 lg:top-12 lg:z-30 lg:block lg:bg-transparent lg:p-0"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 transition-opacity duration-200 ease-out motion-reduce:transition-none starting:opacity-0 lg:absolute lg:inset-auto lg:right-0 lg:top-12 lg:z-30 lg:block lg:bg-transparent lg:p-0"
           onClick={(event) => {
             if (event.target === event.currentTarget) close()
           }}
@@ -92,7 +94,7 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
             role="dialog"
             aria-modal="true"
             aria-label="Choose a template"
-            className="flex max-h-full w-full max-w-[560px] flex-col rounded-[4px] bg-paper shadow-[0_18px_40px_-16px_rgba(17,19,24,0.3)] ring-1 ring-rule lg:max-h-[calc(100dvh-6rem)] lg:w-[560px]"
+            className="flex max-h-full w-full max-w-[560px] flex-col rounded-[4px] bg-paper shadow-[0_18px_40px_-16px_rgba(17,19,24,0.3)] ring-1 ring-rule transition-[scale,translate] duration-200 ease-out motion-reduce:transition-none starting:scale-[0.98] lg:max-h-[calc(100dvh-6rem)] lg:w-[560px] lg:starting:-translate-y-1 lg:starting:scale-100"
           >
             <div className="flex items-center justify-between gap-4 px-5 pt-5">
               <span className="label-mono text-ink-2">Templates</span>
