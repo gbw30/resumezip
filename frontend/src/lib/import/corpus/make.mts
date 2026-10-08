@@ -1,8 +1,9 @@
 // Makes the test set's PDFs (see README.md) from each person's resume.json,
-// with the tools people really make resumes with: LaTeX, a word processor
-// and a browser. Only needed to add or change a file; the tests read the PDFs
-// as they are. Needs pdflatex (with TeX Live's latex-extra packages),
-// LibreOffice and Playwright's Chromium. Run it from frontend/:
+// with the tools people really make resumes with: LaTeX, a word processor,
+// a browser and Typst. A few are written by hand instead, as a Typst file
+// beside the PDF. Only needed to add or change a file; the tests read the
+// PDFs as they are. Needs pdflatex (with TeX Live's latex-extra packages),
+// LibreOffice, Playwright's Chromium and a Japanese font. Run it from frontend/:
 //
 //   node src/lib/import/corpus/make.mts            every file
 //   node src/lib/import/corpus/make.mts maya       one person's files
@@ -10,9 +11,11 @@
 // Set CHROMIUM to a Chromium executable to use that instead of Playwright's.
 
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { CompileFormatEnum, createTypstCompiler, type TypstCompiler } from "@myriaddreamin/typst.ts/compiler"
+import { loadFonts } from "@myriaddreamin/typst.ts/options.init"
 import { chromium, type Browser } from "@playwright/test"
 
 /** Each person, and the layouts their resume is printed in. */
@@ -27,6 +30,8 @@ const FILES: Record<string, Layout[]> = {
   jordan: ["writer-modern", "html-side-headings", "html-harvard", "html-modern"],
   wei: ["latex-jake", "html-dates-left", "writer-classic"],
   sam: ["html-harvard", "writer-classic", "html-sidebar", "html-side-headings"],
+  // Like an academic CV made in Typst, written by hand: see marcus/typst-academic.typ.
+  marcus: ["typst-academic"],
 }
 
 type Layout =
@@ -39,11 +44,16 @@ type Layout =
   | "html-dates-left"
   | "html-side-headings"
   | "html-harvard"
+  | "typst-academic"
 
 type Resume = Record<string, any>
 
 const HERE = import.meta.dirname
 const FONTS = path.resolve(HERE, "../../typst/fonts")
+const TYPST_WASM = path.resolve(HERE, "../../../../node_modules/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm")
+
+/** Layouts written by hand, as `<person>/<layout>.typ`, for shapes too particular to print from resume.json. */
+const handWritten = (layout: Layout): layout is "typst-academic" => layout === "typst-academic"
 
 // ---------------------------------------------------------------- the resume
 
@@ -758,14 +768,43 @@ async function print(browser: Browser, source: string, dir: string): Promise<Buf
   }
 }
 
+// ---------------------------------------------------------------- Typst
+
+let typst: Promise<TypstCompiler> | null = null
+
+/** The Typst compiler resumezip's templates use, with their fonts and a Japanese one from the system. */
+function typstCompiler(): Promise<TypstCompiler> {
+  typst ??= (async () => {
+    const japanese = execFileSync("fc-match", ["-f", "%{file}", "IPAGothic:lang=ja"], { encoding: "utf8" }).trim()
+    const files = [...readdirSync(FONTS).filter((file) => /\.(ttf|otf)$/.test(file)).map((file) => path.join(FONTS, file)), japanese]
+    const compiler = createTypstCompiler()
+    await compiler.init({
+      getModule: () => readFileSync(TYPST_WASM),
+      beforeBuild: [loadFonts(files.map((file) => new Uint8Array(readFileSync(file))), { assets: false })],
+    })
+    return compiler
+  })()
+  return typst
+}
+
+async function typstPdf(source: string): Promise<Buffer> {
+  const compiler = await typstCompiler()
+  compiler.addSource("/resume.typ", source)
+  const { result, diagnostics } = await compiler.compile({ mainFilePath: "/resume.typ", format: CompileFormatEnum.pdf, diagnostics: "unix" })
+  if (!result) throw new Error(diagnostics?.join("\n") || "Typst made no PDF")
+  return Buffer.from(result)
+}
+
 // ---------------------------------------------------------------- making the files
 
 async function make(browser: Browser, person: string, layout: Layout) {
-  const resume = JSON.parse(readFileSync(path.join(HERE, person, "resume.json"), "utf8"))
+  // A hand-written layout is made from its own file; the others print the resume.
+  const resume = handWritten(layout) ? {} : JSON.parse(readFileSync(path.join(HERE, person, "resume.json"), "utf8"))
   const dir = mkdtempSync(path.join(tmpdir(), "resumezip-corpus-"))
   try {
     let pdf: Buffer
-    if (layout === "latex-jake" || layout === "latex-jake-company-first") pdf = pdflatex(jake(resume, layout === "latex-jake-company-first"), dir)
+    if (handWritten(layout)) pdf = await typstPdf(readFileSync(path.join(HERE, person, `${layout}.typ`), "utf8"))
+    else if (layout === "latex-jake" || layout === "latex-jake-company-first") pdf = pdflatex(jake(resume, layout === "latex-jake-company-first"), dir)
     else if (layout === "writer-classic" || layout === "writer-modern") pdf = libreOffice(writer(resume, layout === "writer-classic" ? "classic" : "modern"), dir)
     else pdf = await print(browser, HTML_LAYOUTS[layout](resume), dir)
     writeFileSync(path.join(HERE, person, `${layout}.pdf`), pdf)

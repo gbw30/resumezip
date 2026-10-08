@@ -19,6 +19,10 @@ Each folder is one person:
   answer the parser should find. `summary`, and `tech` on a job, are printed by
   some layouts but aren't fields in the editor, so they aren't checked.
 - Each PDF is that resume in one layout, named after the layout.
+- A layout can also be written by hand, as a Typst file beside its PDF, for a
+  shape too particular to print from `resume.json`. Its `resume.json` is then
+  what someone would type into the editor to print the same, and the top of
+  the Typst file says how its sections map to the editor's.
 
 | Layout | Made with | Like |
 | --- | --- | --- |
@@ -31,10 +35,12 @@ Each folder is one person:
 | `html-dates-left` | Chromium | dates in a column on the left, as in a European CV |
 | `html-side-headings` | Chromium | section headings in a margin column |
 | `html-harvard` | Chromium | Harvard's career office template |
+| `typst-academic` | Typst, by hand | a three-page academic CV: dates on the left, paragraphs, sub-headings |
 
-`maya` and `diego` copy the shapes of two real resumes the parser got wrong:
-a project with a hackathon's year in its name, a coursework line that wraps,
-and an "80/20" in a wrapped bullet.
+`maya`, `diego` and `marcus` copy the shapes of real resumes the parser got
+wrong: a project with a hackathon's year in its name, a coursework line that
+wraps, an "80/20" in a wrapped bullet, and an academic CV with headings it
+doesn't know, page numbers and links behind icons.
 
 ## When the test fails
 
@@ -60,8 +66,9 @@ decide whether it's worth it.
    node src/lib/import/corpus/make.mts maya   # just that person's files
    ```
 
-   This needs pdflatex with TeX Live's `latex-extra` packages, LibreOffice and
-   Playwright's Chromium (or set `CHROMIUM` to a Chromium executable). Only
-   make the files you changed, since making one again changes its bytes.
+   This needs pdflatex with TeX Live's `latex-extra` packages, LibreOffice,
+   Playwright's Chromium (or set `CHROMIUM` to a Chromium executable) and a
+   Japanese font. Only make the files you changed, since making one again
+   changes its bytes.
 4. Look at each PDF, then run `npm test` and add what comes back as
    newlyWrong to `KNOWN_GAPS`, with a line saying why it reads wrong.
