@@ -68,7 +68,7 @@ export function ConflictDialog({
 }: ConflictDialogProps) {
   return (
     <Modal title="You already have this resume" onClose={onCancel}>
-      <p className="mt-4 text-[15px] leading-relaxed text-ink-2">
+      <p className="mt-4 break-words text-[15px] leading-relaxed text-ink-2">
         &ldquo;{existingTitle || "Untitled resume"}&rdquo; is in this browser, last edited {formatWhen(existingEdited)}. The PDF is from{" "}
         {formatWhen(fileEdited)}.{existingLeftOut && " What you left out of the PDF isn't in the file, so replacing deletes it."}
       </p>

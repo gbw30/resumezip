@@ -56,6 +56,13 @@ test("a long resume name wraps in the table, and every resume's buttons stay on 
     expect(await cutShort(link)).toBe(true)
   }
   expect(await cutShort(table.getByRole("link", { name: "Short one" }))).toBe(false)
+
+  // Asked whether to delete it, the whole name fits the dialog.
+  const row = table.getByRole("row").filter({ has: page.getByRole("link", { name: unbroken, exact: true }) })
+  await row.getByRole("button", { name: "Delete" }).click()
+  const dialog = page.getByRole("dialog", { name: "Delete this resume?" })
+  await expect(dialog).toContainText(unbroken)
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
   expect(errors).toEqual([])
 })
 
