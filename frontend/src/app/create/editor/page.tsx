@@ -38,6 +38,13 @@ export default function EditorPage() {
   // next.config.js serves this one prebuilt page at every resume's address,
   // /create/new/<id>, so the id comes from the address.
   const id = usePathname().split("/").pop() ?? ""
+  // Going back or forward from one resume straight to another stays on this
+  // page; keyed by resume, the editor starts afresh rather than keeping the
+  // last one's open section, preview and messages.
+  return <Editor key={id} id={id} />
+}
+
+function Editor({ id }: { id: string }) {
   const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus, savedAt } = useResumeContext()
   const [active, setActive] = useState<ActiveSection>("Profile")
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
