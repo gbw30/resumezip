@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { bulletLines, cursorWithBullets, moveBullet, moveLine, newBullet, nextAnnouncement, setLeftOutLine, toggleMark, withBullets } from "./arrange"
+import { bulletLines, cursorWithBullets, moveBullet, moveLine, newBullet, nextAnnouncement, pastedList, setLeftOutLine, toggleMark, withBullets } from "./arrange"
 
 const text = "• Built a loom\n\n○ Fed the cat\n• Wrote the notes"
 
@@ -94,6 +94,24 @@ describe("typing bullets", () => {
     expect(cursorWithBullets("X\n• abc", 2)).toBe("• X\n".length)
     // What changes after the cursor doesn't move it: here, a bullet set in from the left.
     expect(cursorWithBullets("• ab\n  • cd", 5)).toBe("• ab\n".length)
+  })
+
+  test("a pasted list gets one bullet per line, in place of its own markers", () => {
+    expect(pastedList("- Designed accessible navigation\n* Led the team\n– Wrote the docs\n— Ran the tests\n1. Shipped it\n12) Grew it", "")).toBe(
+      "• Designed accessible navigation\n• Led the team\n• Wrote the docs\n• Ran the tests\n• Shipped it\n• Grew it",
+    )
+    // Set in from the left, as nested lists are.
+    expect(pastedList("  - Led the team", "")).toBe("• Led the team")
+    // Pasted after a bullet, the first line keeps that one, printed or left out.
+    expect(pastedList("- Led the team\n- Wrote the docs", "• ")).toBe("Led the team\n• Wrote the docs")
+    expect(pastedList("- Led the team", "○ ")).toBe("Led the team")
+    // After words, the first line isn't the start of one.
+    expect(pastedList("- the team", "Led ")).toBe("- the team")
+  })
+
+  test("pasted lines that only look like a list, or start with a bullet, are left as they are", () => {
+    expect(pastedList("-5% costs\n*Bold* words\n1.5x faster\n2019 was busy", "")).toBe("-5% costs\n*Bold* words\n1.5x faster\n2019 was busy")
+    expect(pastedList("• Built a loom\n○ Fed the cat", "")).toBe("• Built a loom\n○ Fed the cat")
   })
 
   test("bold and italic marks go around the words, never the bullet, so a left-out bullet stays left out", () => {
