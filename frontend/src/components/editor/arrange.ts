@@ -37,6 +37,27 @@ export function withBullets(text: string): string {
     .join("\n")
 }
 
+/**
+ * Where a cursor at `at` in `text` goes once `withBullets` has given its lines
+ * their bullets. Bullets only change the start of a line: past that, the
+ * cursor moves along with the words, so it ends up after a bullet added at
+ * the start of its line. Within it, it stays where it was, so it's never moved
+ * by what changes after it.
+ */
+export function cursorWithBullets(text: string, at: number): number {
+  const before = text.slice(0, at).split("\n")
+  const line = before.length - 1
+  const column = before[line].length
+  const typed = text.split("\n")[line]
+  const lines = withBullets(text).split("\n")
+  const shown = lines[line]
+  // How much of the line's end is as typed: the rest is its start, changed.
+  let same = 0
+  while (same < typed.length && same < shown.length && typed[typed.length - 1 - same] === shown[shown.length - 1 - same]) same++
+  const start = lines.slice(0, line).reduce((total, words) => total + words.length + 1, 0)
+  return start + (column >= typed.length - same ? column + shown.length - typed.length : Math.min(column, shown.length - same))
+}
+
 /** The bullets in a field's text, in order. */
 export function bulletLines(text: string): BulletLine[] {
   return text.split("\n").flatMap((line, index) => {
