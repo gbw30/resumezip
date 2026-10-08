@@ -44,7 +44,8 @@ type ParseLine = Line & {
 const MONTH = "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?"
 const SEASON = "(?:spring|summer|fall|autumn|winter)"
 const YEAR = "(?:19|20)\\d{2}"
-const ONE_DATE = `(?:(?:${MONTH}|${SEASON})\\s*,?\\s*(?:${YEAR}|['\u2019]\\d{2})|\\d{1,2}\\s*/\\s*(?:${YEAR}|\\d{2})|${YEAR})`
+// "06/2024" and "6/24", but not "80/20": a month written as a number is 1 to 12.
+const ONE_DATE = `(?:(?:${MONTH}|${SEASON})\\s*,?\\s*(?:${YEAR}|['\u2019]\\d{2})|(?:0?[1-9]|1[0-2])\\s*/\\s*(?:${YEAR}|\\d{2})|${YEAR})`
 const END_DATE = `(?:${ONE_DATE}|present|current|now|ongoing|today)`
 const EXPECTED = "(?:expected|anticipated|exp\\.)"
 const RANGE = `(${ONE_DATE}|${MONTH}|${SEASON})\\s*(?:-|\u2013|\u2014|\u2212|to|until)\\s*((?:${EXPECTED}\\s+)?${END_DATE})`

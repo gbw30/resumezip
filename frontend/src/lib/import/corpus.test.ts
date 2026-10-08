@@ -29,43 +29,17 @@ const files = readdirSync(CORPUS, { withFileTypes: true })
  * differing and isn't listed fails the test.
  */
 const KNOWN_GAPS: Record<string, string[]> = {
-  // "80/20" in a wrapped bullet reads as a date and starts a made-up job,
-  // which pushes the jobs after it down one. The coursework's second line
-  // reads as another school. "Broward College - Crop Disease Classification
-  // Research" splits at the dash, the rest going to "Couldn't place".
-  "diego/latex-jake": [
-    "education[1].coursework",
-    "education[2]",
-    "work[0].company",
-    "work[0].bullets",
-    "work[1].company",
-    "work[1].location",
-    "work[1].role",
-    "work[1].start",
-    "work[1].end",
-    "work[1].bullets",
-    "work[2].company",
-    "work[2].role",
-    "work[2].bullets",
-    "work[3]",
-  ],
-  // As in diego/latex-jake. "Stanford Code in Place - Student" reads with
-  // the role and organization swapped, and a project's "Name, tech" isn't split.
+  // The coursework's second line reads as another school. "Broward College -
+  // Crop Disease Classification Research" splits at the dash, the rest going
+  // to "Couldn't place". pdfTeX prints "~90%" with a math tilde, "∼90%".
+  "diego/latex-jake": ["education[1].coursework", "education[2]", "work[0].company", "work[0].bullets"],
+  // The coursework and the company read as in diego/latex-jake. "Stanford Code
+  // in Place - Student" reads with the role and organization swapped, and a
+  // project's "Name, tech" isn't split.
   "diego/html-harvard": [
     "education[1].coursework",
     "education[2]",
     "work[0].company",
-    "work[0].bullets",
-    "work[1].company",
-    "work[1].location",
-    "work[1].role",
-    "work[1].start",
-    "work[1].end",
-    "work[1].bullets",
-    "work[2].company",
-    "work[2].role",
-    "work[2].bullets",
-    "work[3]",
     "projects[0].name",
     "projects[0].techStack",
     "projects[1].name",
@@ -73,25 +47,9 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "leadership[2].organization",
     "leadership[2].role",
   ],
-  // As in diego/latex-jake, and "Stanford Code in Place - Student" swapped.
-  "diego/writer-classic": [
-    "education[1].coursework",
-    "education[2]",
-    "work[0].company",
-    "work[0].bullets",
-    "work[1].company",
-    "work[1].location",
-    "work[1].role",
-    "work[1].start",
-    "work[1].end",
-    "work[1].bullets",
-    "work[2].company",
-    "work[2].role",
-    "work[2].bullets",
-    "work[3]",
-    "leadership[2].organization",
-    "leadership[2].role",
-  ],
+  // The coursework and the company read as in diego/latex-jake, and "Stanford
+  // Code in Place - Student" swapped.
+  "diego/writer-classic": ["education[1].coursework", "education[2]", "work[0].company", "leadership[2].organization", "leadership[2].role"],
   // "Honors & Certifications" isn't a heading it knows, so the awards go to
   // "Couldn't place". "Degree. GPA 3.6/4.0" leaves the degree's full stop on.
   "jordan/html-harvard": ["education[0].degree", "awards[0]", "awards[1]"],
