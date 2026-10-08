@@ -89,7 +89,10 @@ function stallTimer(url: string, idleMs: number) {
 }
 
 /** A stream's bytes and their SHA-384 in subresource-integrity form, calling `onData` with the number of bytes each time some arrives. */
-async function sha384(stream: ReadableStream<Uint8Array>, onData: (bytes: number) => void): Promise<{ hash: string; bytes: Uint8Array<ArrayBuffer> }> {
+async function sha384(
+  stream: ReadableStream<Uint8Array>,
+  onData: (bytes: number) => void,
+): Promise<{ hash: string; bytes: Uint8Array<ArrayBuffer> }> {
   const chunks: Uint8Array[] = []
   let size = 0
   const reader = stream.getReader()

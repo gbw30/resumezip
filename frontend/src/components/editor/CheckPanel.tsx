@@ -55,7 +55,8 @@ export default function CheckPanel() {
     )
   }
 
-  const waitingFor = (reads: "pdf" | "grammar") => report.results.some((result) => result.status === "waiting" && result.rule.reads === reads)
+  const waitingFor = (reads: "pdf" | "grammar") =>
+    report.results.some((result) => result.status === "waiting" && result.rule.reads === reads)
   // Grammar rules check text as it's typed, so they're behind until it's all been checked.
   const checkingGrammar = waitingFor("grammar") || grammar !== "ready"
   return (
@@ -73,7 +74,11 @@ export default function CheckPanel() {
             </p>
           )}
           {checkingGrammar && (
-            <p>{grammar === "failed" ? "Spelling and grammar couldn't all be checked, so what wasn't is left out." : "Checking spelling and grammar…"}</p>
+            <p>
+              {grammar === "failed"
+                ? "Spelling and grammar couldn't all be checked, so what wasn't is left out."
+                : "Checking spelling and grammar…"}
+            </p>
           )}
         </div>
       )}
@@ -150,7 +155,12 @@ function ScoreHeader({ total, mustFix = false }: { total: number | "checking" | 
           Resume score
         </h2>
         {/* Said aloud when it changes, once the checks under way are done. */}
-        <p className="flex items-baseline gap-1 text-ink" aria-live="polite" aria-atomic="true" aria-busy={total === "checking" || undefined}>
+        <p
+          className="flex items-baseline gap-1 text-ink"
+          aria-live="polite"
+          aria-atomic="true"
+          aria-busy={total === "checking" || undefined}
+        >
           {typeof total === "number" ? (
             <>
               <span className="text-[32px] font-medium leading-none tabular-nums">{total}</span>
@@ -170,7 +180,9 @@ function ScoreHeader({ total, mustFix = false }: { total: number | "checking" | 
         </p>
       </div>
       <p className="text-[13px] leading-relaxed text-ink-2">How well this resume follows the checks below.</p>
-      {mustFix && <p className={`text-[13px] leading-relaxed ${FIX_COLOR}`}>{`Fix what's under “To fix” to score above ${MUST_FIX_MAX}.`}</p>}
+      {mustFix && (
+        <p className={`text-[13px] leading-relaxed ${FIX_COLOR}`}>{`Fix what's under “To fix” to score above ${MUST_FIX_MAX}.`}</p>
+      )}
     </section>
   )
 }

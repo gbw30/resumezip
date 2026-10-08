@@ -66,10 +66,7 @@ export default function CreateResumeModal({ onClose, onCreate }: CreateResumeMod
           <button type="button" onClick={onClose} className="h-10 px-4 text-sm text-ink-2 hover:text-ink">
             Cancel
           </button>
-          <button
-            type="submit"
-            className="h-10 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black"
-          >
+          <button type="submit" className="h-10 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black">
             Create
           </button>
         </div>

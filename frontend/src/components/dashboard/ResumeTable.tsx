@@ -141,9 +141,7 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
                 {resume.resumeTitle || "Untitled resume"}
               </Link>
               <span className="text-[13px] text-ink-2">
-                {[resume.resumeTag && tagName(resume.resumeTag), templateById(resume.selectedTemplate).name]
-                  .filter(Boolean)
-                  .join(" · ")}
+                {[resume.resumeTag && tagName(resume.resumeTag), templateById(resume.selectedTemplate).name].filter(Boolean).join(" · ")}
               </span>
               <span className="font-mono text-[12px] text-ink-2">{formatEdited(resume.updatedAt)}</span>
               <div className="-ml-2 mt-1 flex flex-wrap">{actions(resume)}</div>

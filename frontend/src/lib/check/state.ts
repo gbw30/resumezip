@@ -76,7 +76,9 @@ export function dismiss(state: CheckState, finding: Finding, report?: Report): C
     // the resume may not have seen what a dismissal is about, so their
     // dismissals stay.
     const ran = new Set(
-      report.results.filter((result) => (result.status === "passed" || result.status === "failed") && !result.partial).map((result) => result.rule.id),
+      report.results
+        .filter((result) => (result.status === "passed" || result.status === "failed") && !result.partial)
+        .map((result) => result.rule.id),
     )
     // What's still found counts, dismissed or not: the report can be from
     // before the last dismissal, while the checker catches up.

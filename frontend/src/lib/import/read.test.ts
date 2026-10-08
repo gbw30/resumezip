@@ -17,7 +17,9 @@ describe("the import worker", () => {
   })
 
   test("finds no text on a page with none", async () => {
-    await expect(readFile({ kind: "pdf", pages: [{ width: 612, height: 792, items: [], links: [] }] })).resolves.toEqual({ problem: "no text" })
+    await expect(readFile({ kind: "pdf", pages: [{ width: 612, height: 792, items: [], links: [] }] })).resolves.toEqual({
+      problem: "no text",
+    })
   })
 
   test("doesn't blame the file when mammoth fails to download", async () => {

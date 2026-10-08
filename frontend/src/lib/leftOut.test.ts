@@ -54,6 +54,11 @@ describe("whether anything is left out", () => {
 
   test("is nothing on a resume without any, whatever else starts with ○", () => {
     expect(hasLeftOut({})).toBe(false)
-    expect(hasLeftOut({ profileSection: { fullName: "○ Ada" }, workExperienceSection: [{ id: 1, workRole: "○ Engineer", workDescription: "• Built a loom" }] })).toBe(false)
+    expect(
+      hasLeftOut({
+        profileSection: { fullName: "○ Ada" },
+        workExperienceSection: [{ id: 1, workRole: "○ Engineer", workDescription: "• Built a loom" }],
+      }),
+    ).toBe(false)
   })
 })

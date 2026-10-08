@@ -80,5 +80,4 @@ export function fontsFor(family: string, text: string): string[] {
 }
 
 /** Every font, for typst.ts's loadFonts, with `data` asked for a file's bytes only when Typst prints with it. */
-export const lazyFonts = (data: (file: string) => Uint8Array) =>
-  FONT_FILES.map((file) => ({ ...FONT_INFO[file], blob: () => data(file) }))
+export const lazyFonts = (data: (file: string) => Uint8Array) => FONT_FILES.map((file) => ({ ...FONT_INFO[file], blob: () => data(file) }))

@@ -105,7 +105,11 @@ function runs(line: string, bold = false, italic = false): Run[] {
   for (const match of line.matchAll(MARKED)) {
     add(line.slice(at, match.index))
     const [, both, strong, emph] = match
-    for (const run of both !== undefined ? runs(both, true, true) : strong !== undefined ? runs(strong, true, italic) : runs(emph, bold, true)) {
+    for (const run of both !== undefined
+      ? runs(both, true, true)
+      : strong !== undefined
+        ? runs(strong, true, italic)
+        : runs(emph, bold, true)) {
       const last = out[out.length - 1]
       if (last && last.bold === run.bold && last.italic === run.italic) last.text += run.text
       else out.push(run)
@@ -136,7 +140,9 @@ export function ownerMatcher(owner: string): (name: string) => boolean {
   const names = plain(owner).split(/\s+/).filter(Boolean)
   const last = names[names.length - 1]
   return (name) => {
-    const words = plain(name).split(/[\s.,]+/).filter(Boolean)
+    const words = plain(name)
+      .split(/[\s.,]+/)
+      .filter(Boolean)
     if (names.length < 2) return names.length === 1 && words.length === 1 && words[0] === last
     return words.includes(last) && words.some((word) => word !== last && word[0] === names[0][0])
   }

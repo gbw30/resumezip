@@ -13,7 +13,11 @@ const job = (bullets: string[], workEndDate = "Present", companyName = "Google")
   workDescription: bullets.map((bullet) => `• ${bullet}`).join("\n"),
 })
 
-const project = (bullets: string[]) => ({ id: 1, projectName: "Gitlytics", projectDescription: bullets.map((bullet) => `• ${bullet}`).join("\n") })
+const project = (bullets: string[]) => ({
+  id: 1,
+  projectName: "Gitlytics",
+  projectDescription: bullets.map((bullet) => `• ${bullet}`).join("\n"),
+})
 
 const resumeWith = (...jobs: ReturnType<typeof job>[]) => ({ profileSection: { fullName: "Jake Ryan" }, workExperienceSection: jobs })
 
@@ -56,32 +60,50 @@ describe("B1 weak starts", () => {
   })
 
   test("doesn't flag words that only start the same way", () => {
-    expect(check("B1", resumeWith(job(["Helpdesk tickets fell by half after the redesign", "Assistant coach for the robotics team"]))).status).toBe("passed")
+    expect(
+      check("B1", resumeWith(job(["Helpdesk tickets fell by half after the redesign", "Assistant coach for the robotics team"]))).status,
+    ).toBe("passed")
   })
 })
 
 describe("B2 action verbs", () => {
   test("flags a job's bullet that doesn't start with a verb", () => {
-    expect(check("B2", resumeWith(job(["The dashboard was used by 40 teams", "Built the search index", "Experienced in Python and Go"]))).findings).toEqual([
+    expect(
+      check("B2", resumeWith(job(["The dashboard was used by 40 teams", "Built the search index", "Experienced in Python and Go"])))
+        .findings,
+    ).toEqual([
       expect.objectContaining({ place: bulletAt(0), message: "Doesn't start with an action verb" }),
       expect.objectContaining({ place: bulletAt(2) }),
     ])
   })
 
   test("takes any tense, British spellings, and bullets that start with a number", () => {
-    const bullets = ["Lead a team of 4", "Optimised the build", "Co-founded the club", "Building a new parser", "50% fewer pages after the redesign", "$2M saved in cloud costs"]
+    const bullets = [
+      "Lead a team of 4",
+      "Optimised the build",
+      "Co-founded the club",
+      "Building a new parser",
+      "50% fewer pages after the redesign",
+      "$2M saved in cloud costs",
+    ]
     expect(check("B2", resumeWith(job(bullets))).status).toBe("passed")
   })
 
   test("leaves projects, weak starts and “I” to other rules", () => {
-    const resume = { ...resumeWith(job(["Responsible for the build system", "I built the search index"])), projectsSection: [project(["Interactive map of subway delays"])] }
+    const resume = {
+      ...resumeWith(job(["Responsible for the build system", "I built the search index"])),
+      projectsSection: [project(["Interactive map of subway delays"])],
+    }
     expect(check("B2", resume).status).toBe("passed")
   })
 })
 
 describe("B3 bullets with a number", () => {
   test("gives partial credit below half, with one finding for the section", () => {
-    const result = check("B3", resumeWith(job(["Built the search index", "Led the redesign", "Wrote the API docs", "Cut query time by 40%"])))
+    const result = check(
+      "B3",
+      resumeWith(job(["Built the search index", "Led the redesign", "Wrote the API docs", "Cut query time by 40%"])),
+    )
     expect(result.findings).toEqual([
       expect.objectContaining({ place: { kind: "section", section: "Work" }, message: "1 of 4 bullets have a number" }),
     ])
@@ -100,12 +122,22 @@ describe("B3 bullets with a number", () => {
 
 describe("B4 “I” and “we”", () => {
   test("flags each bullet that uses them", () => {
-    const resume = resumeWith(job(["I built the search index", "Grew our user base", "Led my team", "We shipped weekly", "Built it so i could test it"]))
+    const resume = resumeWith(
+      job(["I built the search index", "Grew our user base", "Led my team", "We shipped weekly", "Built it so i could test it"]),
+    )
     expect(check("B4", resume).messages).toEqual(["Uses “I”", "Uses “our”", "Uses “my”", "Uses “We”", "Uses “i”"])
   })
 
   test("doesn't take other words for them", () => {
-    for (const text of ["Wrote I/O drivers", "Ran a Phase I trial", "Raised funds for Save Our Seas", "Ran IT support", "Grew US sales", "Cut costs, i.e. hosting", "Taught ME 101"]) {
+    for (const text of [
+      "Wrote I/O drivers",
+      "Ran a Phase I trial",
+      "Raised funds for Save Our Seas",
+      "Ran IT support",
+      "Grew US sales",
+      "Cut costs, i.e. hosting",
+      "Taught ME 101",
+    ]) {
       expect(pronounIn(text), text).toBeNull()
     }
   })
@@ -118,7 +150,12 @@ describe("B5 buzzwords and vague words", () => {
   })
 
   test("doesn't flag technical words that look like them", () => {
-    const bullets = ["Used dynamic programming to cut costs", "Built an Internet of Things gateway", "Led a variety show", "Made the build faster and more reliable"]
+    const bullets = [
+      "Used dynamic programming to cut costs",
+      "Built an Internet of Things gateway",
+      "Led a variety show",
+      "Made the build faster and more reliable",
+    ]
     expect(check("B5", resumeWith(job(bullets))).status).toBe("passed")
   })
 })
@@ -127,13 +164,27 @@ describe("B6 the same first verb", () => {
   test("flags the third bullet on, whatever the tense, with other verbs to try", () => {
     const resume = resumeWith(job(["Built the index", "Build the parser", "Built the cache", "Built the queue", "Led the team"]))
     expect(check("B6", resume).findings).toEqual([
-      expect.objectContaining({ place: bulletAt(2), message: "“Built” starts 4 bullets", suggestion: "Try “Created”, “Developed” or “Engineered”." }),
+      expect.objectContaining({
+        place: bulletAt(2),
+        message: "“Built” starts 4 bullets",
+        suggestion: "Try “Created”, “Developed” or “Engineered”.",
+      }),
       expect.objectContaining({ place: bulletAt(3) }),
     ])
   })
 
   test("counts verbs only", () => {
-    const bullets = ["The index", "The parser", "The cache", "Building a queue", "Building a cache", "Building a log", "Built X", "Led Y", "Wrote Z"]
+    const bullets = [
+      "The index",
+      "The parser",
+      "The cache",
+      "Building a queue",
+      "Building a cache",
+      "Building a log",
+      "Built X",
+      "Led Y",
+      "Wrote Z",
+    ]
     expect(check("B6", resumeWith(job(bullets))).status).toBe("passed")
   })
 })
@@ -148,14 +199,19 @@ describe("B7 present tense on what has ended", () => {
 
   test("counts a season to its last month: fall runs to December", () => {
     expect(check("B7", resumeWith(job(["Lead a team of 4"], "Fall 2026"))).status).toBe("skipped")
-    expect(check("B7", resumeWith(job(["Lead a team of 4"], "Spring 2026"))).messages).toEqual(["“Lead” is present tense, but this has ended"])
+    expect(check("B7", resumeWith(job(["Lead a team of 4"], "Spring 2026"))).messages).toEqual([
+      "“Lead” is present tense, but this has ended",
+    ])
   })
 
   test("leaves jobs that haven't ended, verbs the same in both tenses, and projects", () => {
     expect(check("B7", resumeWith(job(["Lead a team of 4"], "Present"))).status).toBe("skipped")
     expect(check("B7", resumeWith(job(["Lead a team of 4"], "2026"))).status).toBe("skipped")
     expect(check("B7", resumeWith(job(["Cut costs by 40%", "Set up CI"], "Dec 2023"))).status).toBe("passed")
-    const resume = { ...resumeWith(job(["Built the index"], "Dec 2023")), projectsSection: [{ ...project(["Scrapes 9,000 listings"]), projectDate: "2021" }] }
+    const resume = {
+      ...resumeWith(job(["Built the index"], "Dec 2023")),
+      projectsSection: [{ ...project(["Scrapes 9,000 listings"]), projectDate: "2021" }],
+    }
     expect(check("B7", resume).status).toBe("passed")
   })
 })
@@ -188,8 +244,6 @@ describe("B9 repeated bullets", () => {
 
   test("flags a bullet that's the same as one before it, case and punctuation aside", () => {
     const resume = resumeWith(job(["Built the search index."]), { ...job(["Led the team", "built the Search Index"]), id: 2 })
-    expect(check("B9", resume).findings).toEqual([
-      expect.objectContaining({ place: bulletAt(1, 1), message: "Same as another bullet" }),
-    ])
+    expect(check("B9", resume).findings).toEqual([expect.objectContaining({ place: bulletAt(1, 1), message: "Same as another bullet" })])
   })
 })

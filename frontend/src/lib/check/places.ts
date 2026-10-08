@@ -113,7 +113,8 @@ function fingerprint(text: string): string {
 }
 
 /** Identifies a place exactly, bullet line included: equal ids mean the same place. */
-export const placeId = (place: Place) => (place.kind === "entry" && place.line !== undefined ? `${pathOf(place)}.${place.line}` : pathOf(place))
+export const placeId = (place: Place) =>
+  place.kind === "entry" && place.line !== undefined ? `${pathOf(place)}.${place.line}` : pathOf(place)
 
 /** What tells a finding apart: its rule, the field it's in, and the text it flagged. */
 export const findingKey = (rule: string, place: Place, text: string) => `${rule}|${pathOf(place)}|${fingerprint(text)}`

@@ -40,13 +40,12 @@ test("a whole resume passes every sections rule", () => {
 describe("S1 and S2 experience and education", () => {
   test("S1 is a fix when there's no experience, projects, leadership or volunteering", () => {
     const resume = { ...jake, workExperienceSection: [{ id: 1 }], projectsSection: [] }
-    expect(check("S1", resume).findings).toEqual([
-      expect.objectContaining({ level: "fix", place: { kind: "section", section: "Work" } }),
-    ])
+    expect(check("S1", resume).findings).toEqual([expect.objectContaining({ level: "fix", place: { kind: "section", section: "Work" } })])
     for (const section of ["projectsSection", "leadershipExperienceSection", "volunteerExperienceSection"]) {
-      expect(check("S1", { ...resume, [section]: [{ id: 1, projectName: "Club", leadershipRole: "Lead", volunteerRole: "Tutor" }] }).status, section).toBe(
-        "passed",
-      )
+      expect(
+        check("S1", { ...resume, [section]: [{ id: 1, projectName: "Club", leadershipRole: "Lead", volunteerRole: "Tutor" }] }).status,
+        section,
+      ).toBe("passed")
     }
   })
 
@@ -96,7 +95,10 @@ describe("S5 skills", () => {
       { id: 2, skillName: "Tools" },
     ]
     expect(check("S5", { ...jake, skillsSection: skills }).findings).toEqual([
-      expect.objectContaining({ place: { kind: "entry", section: "Skills", entry: 1, field: "skillDetails" }, message: "No skills in this group" }),
+      expect.objectContaining({
+        place: { kind: "entry", section: "Skills", entry: 1, field: "skillDetails" },
+        message: "No skills in this group",
+      }),
     ])
     expect(check("S5", { ...jake, skillsSection: [{ id: 1, skillName: "Languages", skillDetails: " , " }] }).messages).toEqual([
       "No skills in this group",
@@ -105,7 +107,9 @@ describe("S5 skills", () => {
 
   test("flags a line of 15 or more", () => {
     const many = Array.from({ length: 15 }, (_, i) => `Tool ${i + 1}`).join(", ")
-    expect(check("S5", { ...jake, skillsSection: [{ id: 1, skillName: "Tools", skillDetails: many }] }).messages).toEqual(["15 skills on one line"])
+    expect(check("S5", { ...jake, skillsSection: [{ id: 1, skillName: "Tools", skillDetails: many }] }).messages).toEqual([
+      "15 skills on one line",
+    ])
     const fewer = Array.from({ length: 14 }, (_, i) => `Tool ${i + 1}`).join(", ")
     expect(check("S5", { ...jake, skillsSection: [{ id: 1, skillName: "Tools", skillDetails: fewer }] }).status).toBe("passed")
   })
@@ -116,7 +120,11 @@ describe("S5 skills", () => {
       { id: 2, skillName: "Data", skillDetails: "sql; Pandas" },
     ]
     expect(check("S5", { ...jake, skillsSection: skills }).findings).toEqual([
-      expect.objectContaining({ place: { kind: "entry", section: "Skills", entry: 1, field: "skillDetails" }, message: "“sql” is listed twice", text: "sql" }),
+      expect.objectContaining({
+        place: { kind: "entry", section: "Skills", entry: 1, field: "skillDetails" },
+        message: "“sql” is listed twice",
+        text: "sql",
+      }),
     ])
   })
 
@@ -134,7 +142,10 @@ describe("S6 projects", () => {
       { id: 3, projectName: "Blog", additionalLink: "jake.dev" },
     ]
     expect(check("S6", { ...jake, projectsSection: projects }).findings).toEqual([
-      expect.objectContaining({ place: { kind: "entry", section: "Projects", entry: 0, field: "techStack" }, message: "No link or tech stack" }),
+      expect.objectContaining({
+        place: { kind: "entry", section: "Projects", entry: 0, field: "techStack" },
+        message: "No link or tech stack",
+      }),
     ])
   })
 
@@ -178,7 +189,10 @@ describe("S8 coursework", () => {
   test("flags more than 8 courses", () => {
     const courses = (count: number) => Array.from({ length: count }, (_, i) => `Course ${i + 1}`).join(", ")
     expect(check("S8", { ...jake, educationSection: [{ ...college, coursework: courses(9) }] }).findings).toEqual([
-      expect.objectContaining({ place: { kind: "entry", section: "Education", entry: 0, field: "coursework" }, message: "9 courses listed" }),
+      expect.objectContaining({
+        place: { kind: "entry", section: "Education", entry: 0, field: "coursework" },
+        message: "9 courses listed",
+      }),
     ])
     expect(check("S8", { ...jake, educationSection: [{ ...college, coursework: courses(8) }] }).status).toBe("passed")
   })

@@ -16,7 +16,9 @@ export function textPdf(pages: string[][], { size = 12 } = {}): Buffer {
     const text = lines.map((line) => `(${line.replace(/[\\()]/g, "\\$&")}) Tj 0 -${(size * 4) / 3} Td`).join(" ")
     const content = `BT /F1 ${size} Tf 72 720 Td ${text} ET`
     objects.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`)
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${objects.length} 0 R >>`)
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${objects.length} 0 R >>`,
+    )
     kids.push(`${objects.length} 0 R`)
   }
   objects[1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${pages.length} >>`

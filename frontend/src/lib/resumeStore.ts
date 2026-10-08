@@ -70,8 +70,7 @@ const blankResume = (template: string): Resume => ({
   sectionOrder: [...SECTION_NAMES],
 })
 
-const without = (resumes: Record<string, Resume>, id: string) =>
-  Object.fromEntries(Object.entries(resumes).filter(([key]) => key !== id))
+const without = (resumes: Record<string, Resume>, id: string) => Object.fromEntries(Object.entries(resumes).filter(([key]) => key !== id))
 
 export type ResumeStore = ReturnType<typeof createResumeStore>
 
@@ -154,7 +153,10 @@ export function createResumeStore(delay = SAVE_DELAY) {
 
   // A new resume is saved straight away. A repeated name gets a number, e.g. "Untitled resume 2".
   function add(id: string, title: string, resume: Resume) {
-    const resumeTitle = uniqueTitle(title, Object.values(state.resumes).map((other) => other?.resumeTitle))
+    const resumeTitle = uniqueTitle(
+      title,
+      Object.values(state.resumes).map((other) => other?.resumeTitle),
+    )
     deleted.delete(id)
     markChanged(id, EVERY_FIELD)
     setState({ resumes: { ...state.resumes, [id]: { ...resume, resumeTitle } } })

@@ -8,7 +8,19 @@ import type { PdfReading } from "./engine"
 /** A line of text on a page, `top` points from the page's top. */
 export function line(text: string, { page = 1, top = 100, bullet = false, size = 10 } = {}): Line {
   const left = bullet ? 57 : 70
-  return { parts: [{ text, x: 70, runs: [] }], text, bullet, left, x: 70, size, bold: false, italic: false, links: [], page, box: [left, top, 560, top + 12] }
+  return {
+    parts: [{ text, x: 70, runs: [] }],
+    text,
+    bullet,
+    left,
+    x: 70,
+    size,
+    bold: false,
+    italic: false,
+    links: [],
+    page,
+    box: [left, top, 560, top + 12],
+  }
 }
 
 /** A reading of `lines` on letter-size pages, with what the resume reader found. */

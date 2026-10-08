@@ -64,7 +64,15 @@ beforeEach(async () => {
   FakeWorker.loading = []
   // A fresh module each time, so no worker carries over.
   vi.resetModules()
-  ;({ compileResume, compilePreview, printedOf, loadCompiler: loadAhead, compilerStatus, onCompilerStatus, savingData } = await import("./compile"))
+  ;({
+    compileResume,
+    compilePreview,
+    printedOf,
+    loadCompiler: loadAhead,
+    compilerStatus,
+    onCompilerStatus,
+    savingData,
+  } = await import("./compile"))
 })
 
 afterEach(() => {

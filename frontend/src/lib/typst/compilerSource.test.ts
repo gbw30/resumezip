@@ -4,7 +4,15 @@ import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import path from "node:path"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
-import { COMPILER_FILE, COMPILER_INTEGRITY, COMPILER_PACKAGE, COMPILER_SIZE, COMPILER_VERSION, compileChecked, downloadChecked } from "./compilerSource"
+import {
+  COMPILER_FILE,
+  COMPILER_INTEGRITY,
+  COMPILER_PACKAGE,
+  COMPILER_SIZE,
+  COMPILER_VERSION,
+  compileChecked,
+  downloadChecked,
+} from "./compilerSource"
 
 // After updating the compiler package, update COMPILER_VERSION, COMPILER_INTEGRITY and COMPILER_SIZE to match.
 test("the compiler loaded from jsDelivr is the installed one", () => {
@@ -33,10 +41,15 @@ describe("downloading the compiler", () => {
     else quarters.forEach((piece, i) => setTimeout(() => (i === 3 ? res.end(piece) : res.write(piece)), (i + 1) * 100))
   })
   let base = ""
-  beforeAll(() => new Promise<void>((done) => server.listen(0, "127.0.0.1", () => {
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-    done()
-  })))
+  beforeAll(
+    () =>
+      new Promise<void>((done) =>
+        server.listen(0, "127.0.0.1", () => {
+          base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+          done()
+        }),
+      ),
+  )
   afterAll(() => {
     server.closeAllConnections()
     server.close()

@@ -128,8 +128,17 @@ test("papers pasted as links are added as new entries, sending only their DOIs",
     publicationDetails: "vol. 585, no. 7825, pp. 357–362",
     publicationLink: "10.1038/s41586-020-2649-2",
   })
-  expect(arxiv).toMatchObject({ publicationVenue: "arXiv preprint", publicationDate: "Feb 2022", publicationLink: "10.48550/arXiv.2202.01037" })
-  await expect(page.getByRole("region", { name: "Live preview" }).getByText(/Array programming with NumPy/).first()).toBeVisible()
+  expect(arxiv).toMatchObject({
+    publicationVenue: "arXiv preprint",
+    publicationDate: "Feb 2022",
+    publicationLink: "10.48550/arXiv.2202.01037",
+  })
+  await expect(
+    page
+      .getByRole("region", { name: "Live preview" })
+      .getByText(/Array programming with NumPy/)
+      .first(),
+  ).toBeVisible()
 
   // Only the DOIs went out: the IEEE link has none, and the repeat wasn't looked up.
   expect(lookups.asked.map((lookup) => decodeURI(lookup.url))).toEqual([
@@ -148,10 +157,9 @@ test("papers pasted as links are added as new entries, sending only their DOIs",
   await page.getByRole("button", { name: "Add by hand" }).click()
   await expect(box).toBeHidden()
   await expect(page.getByLabel("Title").last()).toBeFocused()
-  await expect.poll(() => saved(page).then((entries) => entries.slice(3).map((entry) => entry.publicationLink))).toEqual([
-    "https://ieeexplore.ieee.org/document/9157091",
-    "10.1145/9999999.0000001",
-  ])
+  await expect
+    .poll(() => saved(page).then((entries) => entries.slice(3).map((entry) => entry.publicationLink)))
+    .toEqual(["https://ieeexplore.ieee.org/document/9157091", "10.1145/9999999.0000001"])
 
   // The browser logs the lookups that found nothing.
   expect(errors.filter((error) => !error.includes("404"))).toEqual([])

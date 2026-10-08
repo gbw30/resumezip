@@ -8,11 +8,14 @@ import { line, reading } from "./testPdf"
 const resumeWith = (bullets: string[], resumeTag = "professional") => ({
   resumeTag,
   profileSection: { fullName: "Jake Ryan" },
-  workExperienceSection: [{ id: 1, workRole: "Engineer", companyName: "Google", workDescription: bullets.map((bullet) => `• ${bullet}`).join("\n") }],
+  workExperienceSection: [
+    { id: 1, workRole: "Engineer", companyName: "Google", workDescription: bullets.map((bullet) => `• ${bullet}`).join("\n") },
+  ],
 })
 
 // Lines down a page from the top, one every 14 points.
-const lines = (count: number, { page = 1, from = 40 } = {}) => Array.from({ length: count }, (_, i) => line(`Line ${i + 1}`, { page, top: from + i * 14 }))
+const lines = (count: number, { page = 1, from = 40 } = {}) =>
+  Array.from({ length: count }, (_, i) => line(`Line ${i + 1}`, { page, top: from + i * 14 }))
 
 /** What one rule says about a resume and its PDF. */
 function check(id: string, resume: Resume, pdf: PdfReading) {
@@ -27,7 +30,9 @@ const full = (bullet: ReturnType<typeof line>[]) => reading([...lines(40), ...bu
 describe("L1 pages", () => {
   test("flags more than one page, unless it's an academic CV", () => {
     const twoPages = reading([...lines(50), ...lines(20, { page: 2 })], {}, 2)
-    expect(check("L1", resumeWith(["Built it"]), twoPages).findings).toEqual([expect.objectContaining({ place: { kind: "page", page: 2 }, message: "2 pages" })])
+    expect(check("L1", resumeWith(["Built it"]), twoPages).findings).toEqual([
+      expect.objectContaining({ place: { kind: "page", page: 2 }, message: "2 pages" }),
+    ])
     expect(check("L1", resumeWith(["Built it"], "academic"), twoPages).status).toBe("skipped")
     expect(check("L1", resumeWith(["Built it"]), full([])).status).toBe("passed")
   })
@@ -44,7 +49,9 @@ describe("L1 pages", () => {
 
 describe("L2 a few lines on the last page", () => {
   test("flags 5 lines or fewer on the last page", () => {
-    expect(check("L2", resumeWith(["Built it"]), reading([...lines(50), ...lines(3, { page: 2 })], {}, 2)).messages).toEqual(["Only 3 lines on page 2"])
+    expect(check("L2", resumeWith(["Built it"]), reading([...lines(50), ...lines(3, { page: 2 })], {}, 2)).messages).toEqual([
+      "Only 3 lines on page 2",
+    ])
     expect(check("L2", resumeWith(["Built it"]), reading([...lines(50), ...lines(20, { page: 2 })], {}, 2)).status).toBe("passed")
     expect(check("L2", resumeWith(["Built it"]), full([])).status).toBe("skipped")
   })
@@ -54,15 +61,24 @@ describe("L3 and L4 how a bullet wraps", () => {
   const bullet = "Built a search index that cut query time by 40% for the whole team"
 
   test("L3 flags a bullet whose last line has 1 to 4 words", () => {
-    const pdf = full([line("Built a search index that cut query time by 40% for the", { bullet: true, top: 600 }), line("whole team", { top: 612 })])
+    const pdf = full([
+      line("Built a search index that cut query time by 40% for the", { bullet: true, top: 600 }),
+      line("whole team", { top: 612 }),
+    ])
     expect(check("L3", resumeWith([bullet]), pdf).findings).toEqual([
-      expect.objectContaining({ place: { kind: "entry", section: "Work", entry: 0, field: "workDescription", line: 0 }, message: "2 words on its last line" }),
+      expect.objectContaining({
+        place: { kind: "entry", section: "Work", entry: 0, field: "workDescription", line: 0 },
+        message: "2 words on its last line",
+      }),
     ])
   })
 
   test("L3 leaves one-line bullets and last lines with more words", () => {
     expect(check("L3", resumeWith([bullet]), full([line(bullet, { bullet: true, top: 600 })])).status).toBe("passed")
-    const pdf = full([line("Built a search index that cut query", { bullet: true, top: 600 }), line("time by 40% for the whole team", { top: 612 })])
+    const pdf = full([
+      line("Built a search index that cut query", { bullet: true, top: 600 }),
+      line("time by 40% for the whole team", { top: 612 }),
+    ])
     expect(check("L3", resumeWith([bullet]), pdf).status).toBe("passed")
   })
 

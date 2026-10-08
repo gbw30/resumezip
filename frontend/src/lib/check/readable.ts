@@ -97,7 +97,8 @@ const KEY_FIELDS: { [Section in SectionName]: FieldKeyOf<Section>[] } = {
   Awards: ["awardName", "awardDate"],
 }
 
-const labelOf = (section: SectionName, field: FieldKey) => SECTIONS[section].fields.find((def) => def.key === field)?.label.toLowerCase() ?? field
+const labelOf = (section: SectionName, field: FieldKey) =>
+  SECTIONS[section].fields.find((def) => def.key === field)?.label.toLowerCase() ?? field
 
 // A year, or a month and a year, as in "2024" or "Jan 2024".
 const HAS_DATE = /\b(?:19|20)\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+'?\d/i
@@ -159,7 +160,10 @@ const entriesRead: Rule = {
           if (words.length === 0) continue
           checked++
           if (words.every((word) => read.has(word))) continue
-          problems.push({ place: { kind: "entry", section, entry: entry.index, field: key }, ...entryAdvice(section, key, entry.values[key]) })
+          problems.push({
+            place: { kind: "entry", section, entry: entry.index, field: key },
+            ...entryAdvice(section, key, entry.values[key]),
+          })
         }
       })
     }
@@ -179,7 +183,11 @@ const MIN_MATCH = 8
  * be one field printed beside another ("B.S. in Economics    Ann Arbor, MI").
  * Either way, a field in the section it was found under comes first.
  */
-function fieldOf(texts: { place: Place; text: string; section: SectionName | null }[], line: string, under: SectionName | null): Place | undefined {
+function fieldOf(
+  texts: { place: Place; text: string; section: SectionName | null }[],
+  line: string,
+  under: SectionName | null,
+): Place | undefined {
   const inSection = (section: SectionName | null) => (section !== null && section === under ? 1 : 0)
   const whole = texts.filter(({ text }) => text.includes(line))
   if (whole.length > 0) return whole.reduce((best, next) => (inSection(next.section) > inSection(best.section) ? next : best)).place
@@ -265,7 +273,9 @@ const typedBullets: Rule = {
       checked: bullets.length,
       problems: bullets.flatMap(({ bullet, place }) => {
         const found = TYPED_BULLET.exec(bullet.raw)?.[0]
-        return found ? [{ place, message: `Starts with “${found}”, so it shows two bullets`, suggestion: "Delete it: the template adds the bullet." }] : []
+        return found
+          ? [{ place, message: `Starts with “${found}”, so it shows two bullets`, suggestion: "Delete it: the template adds the bullet." }]
+          : []
       }),
     }
   },

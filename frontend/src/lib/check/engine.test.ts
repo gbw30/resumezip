@@ -58,8 +58,7 @@ const realEmail = formRule(
 )
 
 const withCheck = (resume: Resume, check: unknown): Resume => asSaved({ ...resume, [CHECK_FIELD]: check })
-const dismissed = (resume: Resume, finding: Finding): Resume =>
-  withCheck(resume, dismiss(readCheckState(resume), finding))
+const dismissed = (resume: Resume, finding: Finding): Resume => withCheck(resume, dismiss(readCheckState(resume), finding))
 
 const reading = (pages = 1): PdfReading => ({
   lines: [],

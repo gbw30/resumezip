@@ -94,7 +94,10 @@ const education: Rule = {
   why: "Most job posts ask for a degree or school, so recruiters look for it.",
   check: ({ resume }) => ({
     checked: 1,
-    problems: filled(resume.sections.Education).length > 0 ? [] : [{ place: { kind: "section", section: "Education" }, message: "Add your education" }],
+    problems:
+      filled(resume.sections.Education).length > 0
+        ? []
+        : [{ place: { kind: "section", section: "Education" }, message: "Add your education" }],
   }),
 }
 

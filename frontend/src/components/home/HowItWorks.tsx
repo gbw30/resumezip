@@ -88,9 +88,7 @@ export default function HowItWorks() {
                 : "flex flex-col items-center gap-5 px-5 py-16 text-center"
             }
           >
-            <p className="font-serif text-5xl leading-[0.95] tracking-[-0.04em] md:text-[80px] md:leading-[0.92]">
-              Pick. Write. Send.
-            </p>
+            <p className="font-serif text-5xl leading-[0.95] tracking-[-0.04em] md:text-[80px] md:leading-[0.92]">Pick. Write. Send.</p>
             <p className="text-xl leading-[1.35] tracking-[-0.015em] text-[#5c5c5c]">From a blank page to a finished PDF.</p>
           </div>
 
@@ -109,9 +107,7 @@ export default function HowItWorks() {
                     {/* On phones the number sits beside the word, leaving the step's text room to fit. */}
                     <div className="flex items-baseline gap-3 md:flex-col md:items-start">
                       <span className="font-serif text-[36px] leading-none text-accent md:text-[64px]">{index + 1}</span>
-                      <span className="font-serif text-[44px] leading-[0.95] tracking-[-0.03em] md:text-[80px]">
-                        {step.word}
-                      </span>
+                      <span className="font-serif text-[44px] leading-[0.95] tracking-[-0.03em] md:text-[80px]">{step.word}</span>
                     </div>
                     <p className="mt-1 max-w-[300px] text-base leading-[1.35] tracking-[-0.015em] text-[#5c5c5c] md:mt-2 md:text-xl">
                       {step.text}

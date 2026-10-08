@@ -64,7 +64,11 @@ const SHOWN: {
     swapLabel: "Swap role and organization",
   },
   Projects: { primary: "projectName", secondary: ["techStack"], dates: (f) => f.projectDate ?? "", bullets: "projectDescription" },
-  Publications: { primary: "publicationTitle", secondary: ["publicationAuthors", "publicationVenue", "publicationDetails"], dates: (f) => f.publicationDate ?? "" },
+  Publications: {
+    primary: "publicationTitle",
+    secondary: ["publicationAuthors", "publicationVenue", "publicationDetails"],
+    dates: (f) => f.publicationDate ?? "",
+  },
   Skills: { primary: "skillName", secondary: ["skillDetails"], dates: () => "" },
   Awards: { primary: "awardName", secondary: ["awardOrg"], dates: (f) => f.awardDate ?? "" },
 }
@@ -96,7 +100,14 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
 
   const parsed = withSwaps(file.parsed, swapped)
   const { profile } = parsed
-  const contact = [profile.location, profile.email, profile.phoneNumber, profile.linkedin, profile.profileGithub, profile.personalWebsite].filter(Boolean)
+  const contact = [
+    profile.location,
+    profile.email,
+    profile.phoneNumber,
+    profile.linkedin,
+    profile.profileGithub,
+    profile.personalWebsite,
+  ].filter(Boolean)
   const leftovers = parsed.unplaced.reduce((sum, group) => sum + group.text.length, 0)
   const foundNothing = !profile.fullName && parsed.sections.length === 0
 
@@ -167,9 +178,14 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                       const key = entryKey(section.name, index)
                       const off = skipped.has(key)
                       const primary = entry.fields[shown.primary]
-                      const secondary = shown.secondary.map((field) => entry.fields[field]).filter(Boolean).join(" · ")
+                      const secondary = shown.secondary
+                        .map((field) => entry.fields[field])
+                        .filter(Boolean)
+                        .join(" · ")
                       const dates = shown.dates(entry.fields)
-                      const bullets = shown.bullets ? (entry.fields[shown.bullets] ?? "").split("\n").filter((line) => line.trim()).length : 0
+                      const bullets = shown.bullets
+                        ? (entry.fields[shown.bullets] ?? "").split("\n").filter((line) => line.trim()).length
+                        : 0
                       return (
                         <li key={key} className="flex items-start gap-3 border-b border-rule py-3" {...point(entry.lines)}>
                           <input
@@ -281,14 +297,27 @@ function PdfPages({ doc, pages, lines, highlight }: { doc: PDFDocumentProxy; pag
           doc={doc}
           number={i + 1}
           size={size}
-          boxes={highlight.map((index) => lines[index]).filter((line) => line?.page === i + 1 && line.box).map((line) => line.box!)}
+          boxes={highlight
+            .map((index) => lines[index])
+            .filter((line) => line?.page === i + 1 && line.box)
+            .map((line) => line.box!)}
         />
       ))}
     </div>
   )
 }
 
-function PdfPage({ doc, number, size, boxes }: { doc: PDFDocumentProxy; number: number; size: PageSize; boxes: [number, number, number, number][] }) {
+function PdfPage({
+  doc,
+  number,
+  size,
+  boxes,
+}: {
+  doc: PDFDocumentProxy
+  number: number
+  size: PageSize
+  boxes: [number, number, number, number][]
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {

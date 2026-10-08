@@ -34,7 +34,7 @@ function decoded(text: string) {
 /** A DOI found in a link or a citation, without what comes after it. */
 function doiIn(text: string): string {
   let doi = text.match(DOI_IN_TEXT)?.[1] ?? ""
-  for (let previous = ""; doi !== previous; ) {
+  for (let previous = ""; doi !== previous;) {
     previous = doi
     doi = doi.replace(AFTER_DOI, "")
     // A closing bracket that isn't the DOI's own, as in "(doi: 10.1/x)".

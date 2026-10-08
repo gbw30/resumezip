@@ -4,7 +4,15 @@
 // It's still guesswork, so the import review shows the result, and whatever
 // couldn't be placed, before anything is saved.
 
-import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type FieldKey, type FieldKeyOf, type ProfileKey, type SectionName } from "@/components/editor/sections"
+import {
+  PROFILE_FIELDS,
+  SECTION_NAMES,
+  SECTIONS,
+  type FieldKey,
+  type FieldKeyOf,
+  type ProfileKey,
+  type SectionName,
+} from "@/components/editor/sections"
 import type { ResumeContent } from "@/lib/resume"
 import type { Line, Part } from "./lines"
 
@@ -43,7 +51,8 @@ type ParseLine = Line & {
 
 // ---------------------------------------------------------------- patterns
 
-const MONTH = "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?"
+const MONTH =
+  "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?"
 const SEASON = "(?:spring|summer|fall|autumn|winter)"
 const YEAR = "(?:19|20)\\d{2}"
 const ONE_DATE = `(?:(?:${MONTH}|${SEASON})\\s*,?\\s*(?:${YEAR}|['\u2019]\\d{2})|\\d{1,2}\\s*/\\s*(?:${YEAR}|\\d{2})|${YEAR})`
@@ -61,9 +70,11 @@ const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
 const PHONE = /(?:\+\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)|\+\d{1,3}(?:[\s.-]?\(?\d{1,4}\)?){2,5}(?!\d)/
 const LINKEDIN = /(?:https?:\/\/)?(?:[a-z]{2,3}\.)?linkedin\.com\/(?:in|pub)\/[^\s|,;)]+/i
 const GITHUB_PROFILE = /(?:https?:\/\/)?(?:www\.)?github\.com\/[A-Za-z0-9-]+\/?(?![\w/.-])/i
-const URL = /(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|io|dev|me|org|net|co|ai|app|xyz|tech|site|page|us|ca|edu|info|so|sh|gg|design|codes|blog|cc|tv|uk|in|de)(?:\/[^\s|,;)]*)?/i
+const URL =
+  /(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|io|dev|me|org|net|co|ai|app|xyz|tech|site|page|us|ca|edu|info|so|sh|gg|design|codes|blog|cc|tv|uk|in|de)(?:\/[^\s|,;)]*)?/i
 
-const US_STATES = "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY"
+const US_STATES =
+  "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY"
 // prettier-ignore
 const PLACES = new Set(
   [
@@ -109,15 +120,21 @@ function peelLocation(text: string): { rest: string; location: string } | null {
   return null
 }
 
-const TITLE_WORDS = /\b(?:engineer(?:ing)?|developer|intern(?:ship)?|manager|analyst|assistant|associate|lead|director|designer|scientist|researcher|consultant|specialist|coordinator|president|vice|founder|co-?founder|officer|chair(?:man|person|woman)?|member|volunteer|tutor|mentor|captain|treasurer|secretary|head|representative|administrator|technician|architect|programmer|fellow|instructor|teacher|ambassador|organizer|editor|writer|owner|contractor|freelancer?|cashier|server|barista|leader|trainee|apprentice|advis[eo]r|counselor|supervisor|executive|vp|cto|ceo|cfo|coo|principal|sde|swe|sre|tester|operator|agent|clerk|receptionist|lifeguard|coach|host|ta|ra|delegate|chief|staff)\b/i
-const ORG_WORDS = /\bco\.|\b(?:inc|llc|ltd|corp|corporation|company|labs?|laboratory|technologies|technology|systems|solutions|group|bank|foundation|association|society|club|council|hospital|center|centre|agency|department|dept|studios?|partners|capital|ventures|health|network|government|committee|organi[sz]ation|federation|union|church|ministry|museum|library|university|college|institute|school|academy|startup|consulting|software|bureau|service|services)\b/i
-const SCHOOL_WORDS = /\b(?:university|college|institute|school|academy|polytechnic|conservatory|universit[\u00E9e]|universidad|hochschule)\b|\bU(?:C|T)\s|\bMIT\b/i
-const DEGREE_WORDS = /\b(?:bachelor|master|associate['\u2019]?s?|doctor(?:ate)?|ph\.?\s?d|mba|m\.b\.a|diploma|certificate|degree|major|minor|honou?rs|ged|a\.?a\.?s?|b\.?\s?(?:s|a|sc|eng|e|ed|fa|tech|com|ba)\.?|m\.?\s?(?:s|a|sc|eng|ed|fa|tech|phil)\.?)(?=[\s,.:()]|$)/i
+const TITLE_WORDS =
+  /\b(?:engineer(?:ing)?|developer|intern(?:ship)?|manager|analyst|assistant|associate|lead|director|designer|scientist|researcher|consultant|specialist|coordinator|president|vice|founder|co-?founder|officer|chair(?:man|person|woman)?|member|volunteer|tutor|mentor|captain|treasurer|secretary|head|representative|administrator|technician|architect|programmer|fellow|instructor|teacher|ambassador|organizer|editor|writer|owner|contractor|freelancer?|cashier|server|barista|leader|trainee|apprentice|advis[eo]r|counselor|supervisor|executive|vp|cto|ceo|cfo|coo|principal|sde|swe|sre|tester|operator|agent|clerk|receptionist|lifeguard|coach|host|ta|ra|delegate|chief|staff)\b/i
+const ORG_WORDS =
+  /\bco\.|\b(?:inc|llc|ltd|corp|corporation|company|labs?|laboratory|technologies|technology|systems|solutions|group|bank|foundation|association|society|club|council|hospital|center|centre|agency|department|dept|studios?|partners|capital|ventures|health|network|government|committee|organi[sz]ation|federation|union|church|ministry|museum|library|university|college|institute|school|academy|startup|consulting|software|bureau|service|services)\b/i
+const SCHOOL_WORDS =
+  /\b(?:university|college|institute|school|academy|polytechnic|conservatory|universit[\u00E9e]|universidad|hochschule)\b|\bU(?:C|T)\s|\bMIT\b/i
+const DEGREE_WORDS =
+  /\b(?:bachelor|master|associate['\u2019]?s?|doctor(?:ate)?|ph\.?\s?d|mba|m\.b\.a|diploma|certificate|degree|major|minor|honou?rs|ged|a\.?a\.?s?|b\.?\s?(?:s|a|sc|eng|e|ed|fa|tech|com|ba)\.?|m\.?\s?(?:s|a|sc|eng|ed|fa|tech|phil)\.?)(?=[\s,.:()]|$)/i
 // "BSE in Computer Science", "MPH in Epidemiology": capitals matter, so this is its own pattern.
 const DEGREE_ABBREVIATION = /\b(?:[BM]\.?[A-Z][A-Za-z]{0,3}\.?|Ph\.?D\.?|J\.?D\.?|M\.?D\.?|A\.?[AB]\.?|S\.?[BM]\.?|Ing\.)\s+(?:in|of)\s/
 const isDegree = (text: string) => DEGREE_WORDS.test(text) || DEGREE_ABBREVIATION.test(text)
-const GPA = /\(?\s*(?:cumulative\s+|overall\s+|major\s+)?(?:gpa|grade point average)\s*[:\-]?\s*(\d(?:\.\d{1,3})?(?:\s*\/\s*\d(?:\.\d{1,2})?)?)\s*\)?|\(?\s*(\d\.\d{1,3}\s*\/\s*[45](?:\.0{1,2})?)\s*(?:gpa)?\s*\)?/i
-const LABEL = /^(relevant\s+)?(coursework|courses|involvements?|activities|organizations|clubs|tech(?:nologies|nical)?(?:\s+stack)?|stack|tools|built\s+with|languages)\s*:\s*/i
+const GPA =
+  /\(?\s*(?:cumulative\s+|overall\s+|major\s+)?(?:gpa|grade point average)\s*[:\-]?\s*(\d(?:\.\d{1,3})?(?:\s*\/\s*\d(?:\.\d{1,2})?)?)\s*\)?|\(?\s*(\d\.\d{1,3}\s*\/\s*[45](?:\.0{1,2})?)\s*(?:gpa)?\s*\)?/i
+const LABEL =
+  /^(relevant\s+)?(coursework|courses|involvements?|activities|organizations|clubs|tech(?:nologies|nical)?(?:\s+stack)?|stack|tools|built\s+with|languages)\s*:\s*/i
 
 // ---------------------------------------------------------------- headings
 
@@ -153,7 +170,12 @@ const unspace = (text: string) => {
 }
 
 const normalizeHeading = (text: string) =>
-  unspace(text).toLowerCase().replace(/&/g, " and ").replace(/[^a-z ]+/g, " ").replace(/\s+/g, " ").trim()
+  unspace(text)
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
 
 const words = (text: string) => text.split(/\s+/).filter(Boolean)
 const isAllCaps = (text: string) => /[A-Z]/.test(text) && !/[a-z]/.test(text) && text.replace(/[^A-Z]/g, "").length >= 3
@@ -194,7 +216,9 @@ const bare = (url: string) =>
     .replace(/\/$/, "")
 
 const titleCase = (text: string) =>
-  isAllCaps(text) ? text.toLowerCase().replace(/(^|[\s\-'\u2019.])(\S)/g, (_, before, letter: string) => before + letter.toUpperCase()) : text
+  isAllCaps(text)
+    ? text.toLowerCase().replace(/(^|[\s\-'\u2019.])(\S)/g, (_, before, letter: string) => before + letter.toUpperCase())
+    : text
 
 interface Fragment {
   text: string
@@ -274,7 +298,12 @@ function joinWrappedDates(lines: ParseLine[]): ParseLine[] {
       const year = line.parts[rest].text.match(YEAR_FIRST)![0]
       const abovePart = above.parts[cut]
       const aboveParts = above.parts.map((part, i) => (i === cut ? { ...abovePart, text: `${abovePart.text} ${year}` } : part))
-      joined[joined.length - 1] = { ...above, parts: aboveParts, text: aboveParts.map((part) => part.text).join(" "), merged: [...(above.merged ?? []), line.index] }
+      joined[joined.length - 1] = {
+        ...above,
+        parts: aboveParts,
+        text: aboveParts.map((part) => part.text).join(" "),
+        merged: [...(above.merged ?? []), line.index],
+      }
       const left = line.parts[rest].text.slice(year.length).trim()
       const parts = line.parts.flatMap((part, i) => (i !== rest ? [part] : left ? [{ ...part, text: left, runs: [] }] : []))
       if (parts.length > 0) {
@@ -319,8 +348,7 @@ function continues(line: Line, item: Item, wasBullet: boolean): boolean {
   return Math.abs(line.x - item.x) <= 3 && (!/[.!?]$/.test(item.text) || /^[a-z]/.test(line.text))
 }
 
-const joinWrapped = (text: string, next: string) =>
-  /\w-$/.test(text) && /^[a-z]/.test(next) ? text + next : `${text} ${next}`
+const joinWrapped = (text: string, next: string) => (/\w-$/.test(text) && /^[a-z]/.test(next) ? text + next : `${text} ${next}`)
 
 /** Adds text in a style, merged into the piece before when the style is the same. */
 function addPiece(pieces: Piece[], text: string, bold: boolean, italic: boolean) {
@@ -426,7 +454,8 @@ function wrapsInto(line: ParseLine, next: ParseLine): boolean {
   return line.box[2] + (word.length + 1) * charWidth * 1.15 >= line.margin - 2
 }
 
-const CONNECTOR = /(?:[,;:&/-]|\b(?:and|or|of|in|for|the|a|an|at|with|to|by|on|from|into|using|via|across|through|as|including|such|than|while|that|which))$/i
+const CONNECTOR =
+  /(?:[,;:&/-]|\b(?:and|or|of|in|for|the|a|an|at|with|to|by|on|from|into|using|via|across|through|as|including|such|than|while|that|which))$/i
 
 /** Joins a line onto the end of the one before it. */
 function mergeLines(a: ParseLine, b: ParseLine): ParseLine {
@@ -438,7 +467,13 @@ function mergeLines(a: ParseLine, b: ParseLine): ParseLine {
     runs: [...end.runs, ...b.parts[0].runs.map((run) => ({ ...run, start: run.start + shift, end: run.end + shift }))],
   }
   const parts = [...a.parts.slice(0, -1), joined, ...b.parts.slice(1)]
-  return { ...a, parts, text: parts.map((part) => part.text).join(" "), links: [...a.links, ...b.links], merged: [...(a.merged ?? []), b.index, ...(b.merged ?? [])] }
+  return {
+    ...a,
+    parts,
+    text: parts.map((part) => part.text).join(" "),
+    links: [...a.links, ...b.links],
+    merged: [...(a.merged ?? []), b.index, ...(b.merged ?? [])],
+  }
 }
 
 /**
@@ -649,7 +684,10 @@ const bulletField = (items: string[]) =>
     .map((item) => `• ${item}`)
     .join("\n")
 
-const linesOf = (group: Group) => [...group.header.flatMap((line) => [line.index, ...(line.merged ?? [])]), ...group.body.flatMap((item) => item.lines)]
+const linesOf = (group: Group) => [
+  ...group.header.flatMap((line) => [line.index, ...(line.merged ?? [])]),
+  ...group.body.flatMap((item) => item.lines),
+]
 
 // ---------------------------------------------------------------- sections
 
@@ -699,8 +737,16 @@ function splitDegreeAndSchool(fragment: Fragment): Fragment[] {
   if (pieces.length < 2) return [fragment]
   const at = pieces.findIndex((piece) => SCHOOL_WORDS.test(piece) && !isDegree(piece))
   if (at < 0 || !pieces.some((piece, i) => i !== at && isDegree(piece))) return [fragment]
-  if (at === 0) return [{ ...fragment, text: pieces[0] }, { ...fragment, text: pieces.slice(1).join(", ") }]
-  if (at === pieces.length - 1) return [{ ...fragment, text: pieces.slice(0, -1).join(", ") }, { ...fragment, text: pieces[at] }]
+  if (at === 0)
+    return [
+      { ...fragment, text: pieces[0] },
+      { ...fragment, text: pieces.slice(1).join(", ") },
+    ]
+  if (at === pieces.length - 1)
+    return [
+      { ...fragment, text: pieces.slice(0, -1).join(", ") },
+      { ...fragment, text: pieces[at] },
+    ]
   return [fragment]
 }
 
@@ -801,7 +847,11 @@ function sentencesOf(text: string): string[] {
   const pieces: string[] = []
   let start = 0
   for (const match of text.matchAll(/\.\s+(?=[A-Z0-9À-Þ"“(])/g)) {
-    const before = text.slice(start, match.index).split(/[\s,]+/).pop() ?? ""
+    const before =
+      text
+        .slice(start, match.index)
+        .split(/[\s,]+/)
+        .pop() ?? ""
     if (/^[A-ZÀ-Þ]$/.test(before) || ABBREVIATIONS.has(before.toLowerCase())) continue
     // "et al." keeps its full stop; it ends the authors.
     pieces.push(text.slice(start, match.index) + (/\bet al$/.test(text.slice(start, match.index)) ? "." : ""))
@@ -853,7 +903,7 @@ function readCitation(text: string, italics: string[] = []): Fields {
   }
   // The year usually comes last; a year in a title shouldn't count.
   let date: ReturnType<typeof findDate> = null
-  for (let found = findDate(rest), offset = 0; found; ) {
+  for (let found = findDate(rest), offset = 0; found;) {
     date = { ...found, index: found.index + offset }
     offset = date.index + date.length
     found = findDate(rest.slice(offset))
@@ -892,7 +942,9 @@ function readPublications(lines: ParseLine[]): SectionResult {
       const starts = line.bullet || NUMBERED.test(line.text) || !last || line.x <= last.x - 3
       // Italic runs, joined with the one before when it carries on from the end of the line above.
       const italics = line.parts.flatMap((part) =>
-        part.runs.filter((run) => run.italic).map((run) => ({ text: part.text.slice(run.start, run.end), start: run.start === 0 && part === line.parts[0] })),
+        part.runs
+          .filter((run) => run.italic)
+          .map((run) => ({ text: part.text.slice(run.start, run.end), start: run.start === 0 && part === line.parts[0] })),
       )
       if (starts) items.push({ text: line.text, lines: [line.index], x: line.x, italics: italics.map((italic) => italic.text) })
       else {
@@ -931,7 +983,10 @@ function readSkills(lines: ParseLine[], category?: string): SectionResult {
   const entries: FoundEntry[] = []
   if (category) {
     const text = lines.map((line, i) => (i === 0 || /,$/.test(lines[i - 1].text) ? "" : ", ") + line.text).join("")
-    return { entries: [{ fields: { skillName: category, skillDetails: tidy(text) }, lines: lines.map((line) => line.index) }], leftover: { lines: [], text: [] } }
+    return {
+      entries: [{ fields: { skillName: category, skillDetails: tidy(text) }, lines: lines.map((line) => line.index) }],
+      leftover: { lines: [], text: [] },
+    }
   }
   lines.forEach((line, i) => {
     const last = entries[entries.length - 1]
@@ -942,8 +997,21 @@ function readSkills(lines: ParseLine[], category?: string): SectionResult {
     }
     // "Languages: Java, Python", or a table with the category in its first cell.
     const colon = line.text.match(/^([^:]{1,40}):\s*(.*)$/)
-    const name = colon && words(colon[1]).length <= 5 ? colon[1] : line.parts.length > 1 && words(line.parts[0].text).length <= 4 ? line.parts[0].text : ""
-    const details = colon && name === colon[1] ? colon[2] : name ? line.parts.slice(1).map((part) => part.text).join(" ") : line.text
+    const name =
+      colon && words(colon[1]).length <= 5
+        ? colon[1]
+        : line.parts.length > 1 && words(line.parts[0].text).length <= 4
+          ? line.parts[0].text
+          : ""
+    const details =
+      colon && name === colon[1]
+        ? colon[2]
+        : name
+          ? line.parts
+              .slice(1)
+              .map((part) => part.text)
+              .join(" ")
+          : line.text
     if (!name && last && !line.bullet) {
       // Wrapped from the line above.
       last.fields.skillDetails = `${last.fields.skillDetails} ${details}`.trim()
@@ -982,7 +1050,10 @@ function readAwards(lines: ParseLine[]): SectionResult {
       return {
         fields: {
           awardName: header.texts[0]?.text ?? "",
-          awardOrg: header.texts.slice(1).map((fragment) => fragment.text).join(", "),
+          awardOrg: header.texts
+            .slice(1)
+            .map((fragment) => fragment.text)
+            .join(", "),
           awardDate: header.date?.text ?? "",
         },
         lines: block.flatMap((line) => [line.index, ...(line.merged ?? [])]),
@@ -1007,7 +1078,10 @@ function readAwards(lines: ParseLine[]): SectionResult {
     }
     const header = readHeader([line])
     let name = header.texts[0]?.text ?? ""
-    let org = header.texts.slice(1).map((fragment) => fragment.text).join(", ")
+    let org = header.texts
+      .slice(1)
+      .map((fragment) => fragment.text)
+      .join(", ")
     const comma = name.indexOf(", ")
     if (!org && comma > 0) {
       // "**Name**, Organization": the name is the bold text before the comma.
@@ -1054,7 +1128,8 @@ interface Contacts {
 }
 
 // Labels in front of contact details, including short ones with a colon ("P: 555-0100", "E: me@x.com").
-const CONTACT_LABEL = /\b(?:(?:e-?mail|phone|mobile|cell|tel|telephone|linkedin|github|website|portfolio|web|site|address)\s*:?|(?:p|ph|m|t|e)\s*:)/gi
+const CONTACT_LABEL =
+  /\b(?:(?:e-?mail|phone|mobile|cell|tel|telephone|linkedin|github|website|portfolio|web|site|address)\s*:?|(?:p|ph|m|t|e)\s*:)/gi
 
 function readContacts(lines: ParseLine[], isTop: (line: ParseLine) => boolean): Contacts {
   const fields: Contacts["fields"] = {}
@@ -1073,7 +1148,8 @@ function readContacts(lines: ParseLine[], isTop: (line: ParseLine) => boolean): 
     for (const link of line.links) {
       if (/^mailto:/i.test(link)) take("email", bare(link))
       else if (LINKEDIN.test(link)) take("linkedin", bare(link))
-      else if (GITHUB_PROFILE.test(link) && /^(?:https?:\/\/)?(?:www\.)?github\.com\/[^/]+\/?$/i.test(link)) take("profileGithub", bare(link))
+      else if (GITHUB_PROFILE.test(link) && /^(?:https?:\/\/)?(?:www\.)?github\.com\/[^/]+\/?$/i.test(link))
+        take("profileGithub", bare(link))
       else if (inHeader && !/github\.com\/[^/]+\/[^/]+/i.test(link)) take("personalWebsite", bare(link))
     }
     const email = text.match(EMAIL)
@@ -1151,7 +1227,11 @@ function bodySize(lines: Line[]): number {
  */
 function splitSideHeadings(lines: Line[]): Line[] {
   const candidate = (line: Line) =>
-    line.parts.length > 1 && !line.bullet && lookupHeading(line.parts[0].text) !== undefined && words(line.parts[0].text).length <= 4 && line.parts[1].x - line.parts[0].x >= 40
+    line.parts.length > 1 &&
+    !line.bullet &&
+    lookupHeading(line.parts[0].text) !== undefined &&
+    words(line.parts[0].text).length <= 4 &&
+    line.parts[1].x - line.parts[0].x >= 40
   // Only when the margin holds nothing but headings: a column of dates or
   // skill categories ("Languages", "Tools") can look the same.
   const sides = lines.filter(candidate)
@@ -1165,13 +1245,35 @@ function splitSideHeadings(lines: Line[]): Line[] {
     const [first, ...rest] = line.parts
     const restyle = (parts: Part[]) => {
       const chars = (bold: boolean | null, italic: boolean | null) =>
-        parts.reduce((sum, part) => sum + part.runs.filter((run) => (bold === null || run.bold === bold) && (italic === null || run.italic === italic)).reduce((n, run) => n + run.end - run.start, 0), 0)
+        parts.reduce(
+          (sum, part) =>
+            sum +
+            part.runs
+              .filter((run) => (bold === null || run.bold === bold) && (italic === null || run.italic === italic))
+              .reduce((n, run) => n + run.end - run.start, 0),
+          0,
+        )
       const total = chars(null, null) || 1
       return { bold: chars(true, null) / total > 0.6, italic: chars(null, true) / total > 0.6 }
     }
     const box = line.box
-    const heading: Line = { ...line, parts: [first], text: first.text, links: [], ...restyle([first]), box: box && [box[0], box[1], rest[0].x - 4, box[3]] }
-    const entry: Line = { ...line, parts: rest, text: rest.map((part) => part.text).join(" "), left: rest[0].x, x: rest[0].x, ...restyle(rest), box: box && [rest[0].x, box[1], box[2], box[3]] }
+    const heading: Line = {
+      ...line,
+      parts: [first],
+      text: first.text,
+      links: [],
+      ...restyle([first]),
+      box: box && [box[0], box[1], rest[0].x - 4, box[3]],
+    }
+    const entry: Line = {
+      ...line,
+      parts: rest,
+      text: rest.map((part) => part.text).join(" "),
+      left: rest[0].x,
+      x: rest[0].x,
+      ...restyle(rest),
+      box: box && [rest[0].x, box[1], box[2], box[3]],
+    }
     return [heading, entry]
   })
 }
@@ -1294,7 +1396,11 @@ export function parseResume(file: Line[]): ParsedResume {
 
   // Anything at the top that isn't the name or contact details, like a tagline or address.
   const topRest = lines.filter((line) => line.index < firstHeading && content(line))
-  addUnplaced("Top of the resume", topRest.map((line) => line.index), topRest.map(textOf))
+  addUnplaced(
+    "Top of the resume",
+    topRest.map((line) => line.index),
+    topRest.map(textOf),
+  )
 
   const sections: FoundSection[] = []
   const sectionFor = (name: SectionName) => {
@@ -1314,7 +1420,11 @@ export function parseResume(file: Line[]): ParsedResume {
       lines
         .slice(start.index + 1, end)
         .filter(content)
-        .map((line) => (contacts.remainders.has(line.index) ? { ...line, text: textOf(line), parts: [{ ...line.parts[0], text: textOf(line), runs: [] }] } : line)),
+        .map((line) =>
+          contacts.remainders.has(line.index)
+            ? { ...line, text: textOf(line), parts: [{ ...line.parts[0], text: textOf(line), runs: [] }] }
+            : line,
+        ),
     )
     if (sectionLines.length === 0) return
 
@@ -1326,7 +1436,11 @@ export function parseResume(file: Line[]): ParsedResume {
         education.entries[0].lines.push(...sectionLines.map((line) => line.index))
         return
       }
-      addUnplaced(titleCase(label), sectionLines.map((line) => line.index), sectionLines.map((line) => line.text))
+      addUnplaced(
+        titleCase(label),
+        sectionLines.map((line) => line.index),
+        sectionLines.map((line) => line.text),
+      )
       return
     }
 
@@ -1338,11 +1452,11 @@ export function parseResume(file: Line[]): ParsedResume {
           ? readProjects(sectionLines)
           : name === "Publications"
             ? readPublications(sectionLines)
-          : name === "Skills"
-            ? readSkills(sectionLines, "category" in meaning ? meaning.category : undefined)
-            : name === "Awards"
-              ? readAwards(sectionLines)
-              : readExperience(name, sectionLines)
+            : name === "Skills"
+              ? readSkills(sectionLines, "category" in meaning ? meaning.category : undefined)
+              : name === "Awards"
+                ? readAwards(sectionLines)
+                : readExperience(name, sectionLines)
     const entries = result.entries.filter((entry) => Object.values(entry.fields).some((value) => value.trim() !== ""))
     if (entries.length) sectionFor(name).entries.push(...entries)
     addUnplaced(titleCase(label), result.leftover.lines, result.leftover.text)
@@ -1352,7 +1466,11 @@ export function parseResume(file: Line[]): ParsedResume {
   // below the top of the resume couldn't be sorted, so it's listed as it is.
   if (starts.length === 0) {
     const rest = lines.filter((line) => line.index >= firstHeading && content(line))
-    addUnplaced("Everything else", rest.map((line) => line.index), rest.map(textOf))
+    addUnplaced(
+      "Everything else",
+      rest.map((line) => line.index),
+      rest.map(textOf),
+    )
   }
 
   return { lines: input, profile, profileLines, sections, unplaced }

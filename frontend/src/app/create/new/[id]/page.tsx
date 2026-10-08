@@ -203,7 +203,10 @@ export default function EditorPage() {
   // Once a rename is done, number the name if another resume already has it.
   const commitTitle = () => {
     const others = Object.entries(resumes).filter(([key]) => key !== id)
-    const title = uniqueTitle(formData.resumeTitle ?? "", others.map(([, resume]) => resume?.resumeTitle))
+    const title = uniqueTitle(
+      formData.resumeTitle ?? "",
+      others.map(([, resume]) => resume?.resumeTitle),
+    )
     if (title !== formData.resumeTitle) updateFormData("resumeTitle", title)
   }
 
@@ -351,9 +354,7 @@ export default function EditorPage() {
 
           <main
             ref={mainRef}
-            className={`min-w-0 flex-1 px-5 pb-28 pt-9 sm:px-10 xl:block xl:overflow-y-auto xl:pb-16 ${
-              view === "preview" ? "hidden" : ""
-            }`}
+            className={`min-w-0 flex-1 px-5 pb-28 pt-9 sm:px-10 xl:block xl:overflow-y-auto xl:pb-16 ${view === "preview" ? "hidden" : ""}`}
           >
             {/* A container, so the fields fit the form's own width rather than the window's. */}
             <div className="@container mx-auto max-w-[640px]">

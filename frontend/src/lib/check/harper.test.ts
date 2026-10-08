@@ -29,7 +29,15 @@ describe("checking text with Harper", () => {
 
   test("finds typos, with what to write instead", async () => {
     const [lints] = await harperLints(["Recieved an award"])
-    expect(lints).toEqual([expect.objectContaining({ rule: "SpellCheck", kind: "Spelling", text: "Recieved", start: 0, suggestions: expect.arrayContaining(["Received"]) })])
+    expect(lints).toEqual([
+      expect.objectContaining({
+        rule: "SpellCheck",
+        kind: "Spelling",
+        text: "Recieved",
+        start: 0,
+        suggestions: expect.arrayContaining(["Received"]),
+      }),
+    ])
   })
 
   test("lets through forms of words it knows, though its dictionary leaves them out", async () => {

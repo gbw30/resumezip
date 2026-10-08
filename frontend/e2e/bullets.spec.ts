@@ -48,7 +48,10 @@ test("each of the bullets box's own edits is undone and redone, as typing is", a
   await page.goto(`/create/new/${RESUME.id}`)
   // The preview first, so the PDF compiler's download isn't cut off, which Safari logs as an error.
   await expect(page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()).toBeVisible()
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   const box = page.getByLabel(LABEL)
   await box.focus()
 

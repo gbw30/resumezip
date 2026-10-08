@@ -306,7 +306,12 @@ describe("loading resumes saved under keys of their own", () => {
     const setItem = vi.spyOn(storage, "setItem")
     const loaded = loadSaved(storage)
     expect(loaded.resumes).toEqual({ a: ada, g: grace })
-    expect(loaded.texts).toEqual(new Map([["a", text(ada)], ["g", text(grace)]]))
+    expect(loaded.texts).toEqual(
+      new Map([
+        ["a", text(ada)],
+        ["g", text(grace)],
+      ]),
+    )
     expect(loaded.status).toBe("saved")
     expect(setItem).not.toHaveBeenCalled()
   })

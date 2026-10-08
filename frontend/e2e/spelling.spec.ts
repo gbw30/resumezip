@@ -14,12 +14,18 @@ test("a typo is found once Check is open, and Add word clears it everywhere, wit
   await page.getByRole("link", { name: "Start writing" }).first().click()
   await expect(page).toHaveURL(/\/create\/new\//)
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
   await page.getByLabel(/^What you did/).fill("Wrote the Zorbly notes on the Qwexy engine\nTaught Zorbly methods to the the society")
 
-  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+  await page
+    .getByRole("tablist", { name: "Write or check" })
+    .getByRole("tab", { name: /^Check/ })
+    .click()
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
   const typos = panel.getByRole("button", { name: /“Zorbly” may be misspelled/ })
   await expect(typos).toHaveCount(2)

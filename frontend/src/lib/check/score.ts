@@ -71,7 +71,8 @@ export function categoryScore(id: CategoryId, results: readonly RuleResult[]): C
   const ran = results.filter((result) => result.rule.category === id && counts(result))
   if (ran.length === 0) return { id, points, earned: 0, applies: false, mustFix: false }
   const left = Math.max(0, 1 - ran.reduce((sum, result) => sum + penaltyOf(result), 0))
-  const passing = ran.reduce((sum, result) => sum + weight(result) * result.credit, 0) / ran.reduce((sum, result) => sum + weight(result), 0)
+  const passing =
+    ran.reduce((sum, result) => sum + weight(result) * result.credit, 0) / ran.reduce((sum, result) => sum + weight(result), 0)
   return {
     id,
     points,

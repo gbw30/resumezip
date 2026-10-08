@@ -52,7 +52,12 @@ test("a failed download says so, and trying again downloads the PDF", async ({ p
   await expect(page).toHaveURL(/\/create\/new\//)
   await page.getByLabel("Resume name").fill("Ada's resume")
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  await expect(page.getByRole("region", { name: "Live preview" }).getByText(/Ada Lovelace/i).first()).toBeVisible()
+  await expect(
+    page
+      .getByRole("region", { name: "Live preview" })
+      .getByText(/Ada Lovelace/i)
+      .first(),
+  ).toBeVisible()
 
   // The editor.
   await page.evaluate(() => (window.brokenCompiler = true))

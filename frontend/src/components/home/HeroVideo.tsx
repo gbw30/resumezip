@@ -54,9 +54,7 @@ export default function HeroVideo() {
       playsInline
       preload="auto"
       aria-hidden="true"
-      className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
-        visible ? "opacity-100" : "opacity-0"
-      }`}
+      className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`}
     />
   )
 }

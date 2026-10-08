@@ -30,10 +30,9 @@ const hanging = (async (_url: string, init: RequestInit) =>
 
 // A service that answers at once, then never finishes sending its record, until the request is stopped.
 const stalling = (async (_url: string, init: RequestInit) =>
-  new Response(
-    new ReadableStream({ start: (body) => init.signal!.addEventListener("abort", () => body.error(init.signal!.reason)) }),
-    { status: 200 },
-  )) as unknown as typeof fetch
+  new Response(new ReadableStream({ start: (body) => init.signal!.addEventListener("abort", () => body.error(init.signal!.reason)) }), {
+    status: 200,
+  })) as unknown as typeof fetch
 
 afterEach(() => {
   vi.useRealTimers()
@@ -56,7 +55,10 @@ describe("looking up a paper", () => {
 
   test("arXiv papers come from doi.org, as CSL JSON", async () => {
     const { fetcher, requests } = fakeFetch(json(arxiv))
-    expect(await lookUp({ doi: "10.48550/arXiv.2202.01037", arxiv: "2202.01037" }, undefined, fetcher)).toEqual({ found: true, work: arxiv })
+    expect(await lookUp({ doi: "10.48550/arXiv.2202.01037", arxiv: "2202.01037" }, undefined, fetcher)).toEqual({
+      found: true,
+      work: arxiv,
+    })
     expect(requests.map((request) => request.url)).toEqual(["https://doi.org/10.48550/arXiv.2202.01037"])
     expect(requests[0].init.headers).toEqual({ Accept: "application/vnd.citationstyles.csl+json" })
   })
@@ -78,7 +80,12 @@ describe("looking up a paper", () => {
   })
 
   test("busy, failing or offline services can't be reached", async () => {
-    for (const answers of [[status(429)], [status(503)], [status(404), status(500)], [() => Promise.reject(new TypeError("Failed to fetch"))]]) {
+    for (const answers of [
+      [status(429)],
+      [status(503)],
+      [status(404), status(500)],
+      [() => Promise.reject(new TypeError("Failed to fetch"))],
+    ]) {
       expect(await lookUp({ doi: "10.1/x" }, undefined, fakeFetch(...answers).fetcher)).toEqual({ found: false, reason: "unreachable" })
     }
     expect(await lookUp({ doi: "10.1/x" }, undefined, fakeFetch(new Response("<html>", { status: 200 })).fetcher)).toEqual({
@@ -88,12 +95,18 @@ describe("looking up a paper", () => {
   })
 
   test("an answer without a paper's record isn't a paper", async () => {
-    expect(await lookUp({ doi: "10.1/x" }, undefined, fakeFetch(json({ status: "ok" })).fetcher)).toEqual({ found: false, reason: "not-found" })
+    expect(await lookUp({ doi: "10.1/x" }, undefined, fakeFetch(json({ status: "ok" })).fetcher)).toEqual({
+      found: false,
+      reason: "not-found",
+    })
     expect(await lookUp({ doi: "10.1/x" }, undefined, fakeFetch(json({ message: { title: [] } })).fetcher)).toEqual({
       found: false,
       reason: "not-found",
     })
-    expect(await lookUp({ doi: "10.1/x" }, undefined, fakeFetch(status(404), json(null)).fetcher)).toEqual({ found: false, reason: "not-found" })
+    expect(await lookUp({ doi: "10.1/x" }, undefined, fakeFetch(status(404), json(null)).fetcher)).toEqual({
+      found: false,
+      reason: "not-found",
+    })
   })
 
   test("a lookup gives up when there's no answer in time", async () => {
@@ -119,7 +132,8 @@ describe("looking up a paper", () => {
       stop.abort()
       return status(404)
     }) as unknown as typeof fetch
-    const fetcher = ((url: string, init: RequestInit) => (url.includes("crossref") ? crossrefMissesThenStop : hanging)(url, init)) as typeof fetch
+    const fetcher = ((url: string, init: RequestInit) =>
+      (url.includes("crossref") ? crossrefMissesThenStop : hanging)(url, init)) as typeof fetch
     const lookup = lookUp({ doi: "10.1/x" }, stop.signal, fetcher)
     const settled = vi.fn()
     lookup.then(settled, settled)

@@ -47,7 +47,9 @@ function stemsOf(word: string): string[] {
   const lower = word.toLowerCase()
   // "verifys" isn't built on "verify": that's "verifies".
   if (lower.length < 5 || /[^aeiou]ys$/.test(lower)) return []
-  return STEMS.flatMap(([ending, replacements]) => (ending.test(lower) ? replacements.map((replacement) => lower.replace(ending, replacement)) : []))
+  return STEMS.flatMap(([ending, replacements]) =>
+    ending.test(lower) ? replacements.map((replacement) => lower.replace(ending, replacement)) : [],
+  )
 }
 
 // Whether Harper's suggestions hold the same word spelled another way, one

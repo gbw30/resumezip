@@ -29,7 +29,12 @@ function typst(): Promise<TypstCompiler> {
     const created = createTypstCompiler()
     await created.init({
       getModule: () => readFileSync(WASM),
-      beforeBuild: [loadFonts(readdirSync(FONTS).map((file) => new Uint8Array(readFileSync(path.join(FONTS, file)))), { assets: false })],
+      beforeBuild: [
+        loadFonts(
+          readdirSync(FONTS).map((file) => new Uint8Array(readFileSync(path.join(FONTS, file)))),
+          { assets: false },
+        ),
+      ],
     })
     for (const file of readdirSync(path.join(TYPST, "templates"))) {
       created.addSource(`/${file}`, readFileSync(path.join(TYPST, "templates", file), "utf8"))

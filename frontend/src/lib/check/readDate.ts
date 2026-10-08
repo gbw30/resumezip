@@ -85,17 +85,32 @@ export function readDate(text: string, { monthOnly = false } = {}): ResumeDate |
     const season = SEASONS[match[1].toLowerCase()]
     if (season) return { present: false, year, month: season, style: { kind: "season" }, shortYear }
     const month = monthOf(match[1])
-    return month && { present: false, year, month: month.month, style: { kind: "name", spelling: month.spelling, dotted: month.dotted }, shortYear }
+    return (
+      month && {
+        present: false,
+        year,
+        month: month.month,
+        style: { kind: "name", spelling: month.spelling, dotted: month.dotted },
+        shortYear,
+      }
+    )
   }
   if ((match = NUMBERS.exec(value))) return numbered(Number(match[1]), Number(match[2]))
   if ((match = YEAR_FIRST.exec(value))) return numbered(Number(match[2]), Number(match[1]))
   if ((match = NUMBERS_SHORT_YEAR.exec(value))) return numbered(Number(match[1]), fullYear(Number(match[2])))
-  if ((match = YEAR_ONLY.exec(value))) return { present: false, year: yearOf(match[1]), style: { kind: "year" }, shortYear: /^['’‘]/.test(match[1]) }
+  if ((match = YEAR_ONLY.exec(value)))
+    return { present: false, year: yearOf(match[1]), style: { kind: "year" }, shortYear: /^['’‘]/.test(match[1]) }
   if (monthOnly) {
     const season = SEASONS[value.toLowerCase()]
     if (season) return { present: false, month: season, style: { kind: "season" }, shortYear: false }
     const month = monthOf(value)
-    if (month) return { present: false, month: month.month, style: { kind: "name", spelling: month.spelling, dotted: month.dotted }, shortYear: false }
+    if (month)
+      return {
+        present: false,
+        month: month.month,
+        style: { kind: "name", spelling: month.spelling, dotted: month.dotted },
+        shortYear: false,
+      }
   }
   return null
 }
@@ -241,6 +256,12 @@ export function datesOf(entry: Entry): EntryDates {
 export function hasEnded(entry: Entry, today: Date): boolean {
   const end = datesOf(entry).end?.date
   if (end === undefined || end.present) return false
-  const now: ResumeDate = { present: false, year: today.getFullYear(), month: today.getMonth() + 1, style: { kind: "number" }, shortYear: false }
+  const now: ResumeDate = {
+    present: false,
+    year: today.getFullYear(),
+    month: today.getMonth() + 1,
+    style: { kind: "number" },
+    shortYear: false,
+  }
   return compareDates(latestOf(end), now) < 0
 }

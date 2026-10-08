@@ -29,12 +29,16 @@ const found =
   (checked: number, wrong = checked): (() => Outcome) =>
   () => ({
     checked,
-    problems: PROFILE_FIELDS.slice(0, wrong).map(({ key }) => ({ place: { kind: "profile", field: key } as const, message: "Something's off" })),
+    problems: PROFILE_FIELDS.slice(0, wrong).map(({ key }) => ({
+      place: { kind: "profile", field: key } as const,
+      message: "Something's off",
+    })),
   })
 const passes = found(1, 0)
 
 // Suggestions in a category that pass, as most of a category's rules do on a good resume.
-const passing = (category: CategoryId, count = 8) => Array.from({ length: count }, (_, index) => rule(`${category}${index}`, category, "look", passes))
+const passing = (category: CategoryId, count = 8) =>
+  Array.from({ length: count }, (_, index) => rule(`${category}${index}`, category, "look", passes))
 
 const scoreWith = (rules: Rule[], resume: Record<string, unknown> = ada) => scoreOf(runChecks(resume, { rules, today: TODAY }))
 const category = (score: Score, id: CategoryId) => score.categories.find((category) => category.id === id)!
@@ -54,7 +58,9 @@ describe("the resume score", () => {
   test("is out of the categories' points, 100 in all", () => {
     expect(CATEGORIES.reduce((sum, category) => sum + category.points, 0)).toBe(100)
     const score = scoreWith(CATEGORIES.map((category, index) => rule(`X${index}`, category.id, "look", passes)))
-    expect(score.categories.map(({ id, points, earned }) => [id, points, earned])).toEqual(CATEGORIES.map(({ id, points }) => [id, points, points]))
+    expect(score.categories.map(({ id, points, earned }) => [id, points, earned])).toEqual(
+      CATEGORIES.map(({ id, points }) => [id, points, points]),
+    )
     expect(score.total).toBe(100)
   })
 
@@ -88,7 +94,11 @@ describe("the resume score", () => {
   })
 
   test("adds up what each rule takes, down to nothing", () => {
-    const score = scoreWith([rule("C2", "contact", "fix", found(1)), rule("C10", "contact", "fix", found(1)), rule("C3", "contact", "look", found(1))])
+    const score = scoreWith([
+      rule("C2", "contact", "fix", found(1)),
+      rule("C10", "contact", "fix", found(1)),
+      rule("C3", "contact", "look", found(1)),
+    ])
     expect(category(score, "contact").earned).toBe(0)
     expect(score.total).toBe(0)
   })
@@ -151,7 +161,10 @@ describe("while checks are under way", () => {
   const waitingForPdf: Rule = { ...rule("L5", "length", "look", passes), reads: "pdf", check: found(1) }
 
   test("a category is being checked while the PDF or the text it reads is, whatever the report says so far", () => {
-    expect(Object.fromEntries(checkingCategories(RULES, { readingPdf: true, checkingText: false }))).toEqual({ readable: "pdf", length: "pdf" })
+    expect(Object.fromEntries(checkingCategories(RULES, { readingPdf: true, checkingText: false }))).toEqual({
+      readable: "pdf",
+      length: "pdf",
+    })
     expect(Object.fromEntries(checkingCategories(RULES, { readingPdf: false, checkingText: true }))).toEqual({ spelling: "grammar" })
     expect(checkingCategories(RULES, { readingPdf: false, checkingText: false }).size).toBe(0)
   })
@@ -164,7 +177,13 @@ describe("while checks are under way", () => {
     const now = scoreWith([rule("C2", "contact", "fix", found(1)), waitingForPdf])
     const checking = new Map([["length", "pdf"]] as const)
     const shown = shownScore(now, kept, checking)
-    expect(shown.categories.find((category) => category?.id === "length")).toEqual({ id: "length", points: 10, earned: 10, applies: true, mustFix: false })
+    expect(shown.categories.find((category) => category?.id === "length")).toEqual({
+      id: "length",
+      points: 10,
+      earned: 10,
+      applies: true,
+      mustFix: false,
+    })
     expect(shown.total).toBe(40)
     expect(shown.mustFix).toBe(true)
     // And isn't kept as it is while waiting.

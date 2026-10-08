@@ -96,7 +96,12 @@ describe("C5 and C6 LinkedIn", () => {
     for (const linkedin of ["linkedin.com/in/jake-ryan-8a7b6c123", "linkedin.com/in/jake-ryan-123456789/"]) {
       expect(check("C6", withProfile({ linkedin })).messages, linkedin).toEqual(["LinkedIn link ends in random letters and numbers"])
     }
-    for (const linkedin of ["linkedin.com/in/jake-ryan", "linkedin.com/in/jakeryan2024", "linkedin.com/in/jake-ryan-2024", "linkedin.com/in/ryan-anderson"]) {
+    for (const linkedin of [
+      "linkedin.com/in/jake-ryan",
+      "linkedin.com/in/jakeryan2024",
+      "linkedin.com/in/jake-ryan-2024",
+      "linkedin.com/in/ryan-anderson",
+    ]) {
       expect(check("C6", withProfile({ linkedin })).status, linkedin).toBe("passed")
     }
   })
@@ -110,12 +115,16 @@ describe("C5 and C6 LinkedIn", () => {
 describe("C7 GitHub and website", () => {
   test("flags what isn't a web address, field by field", () => {
     const { findings } = check("C7", withProfile({ profileGithub: "jakeryan", personalWebsite: "jakeryan.dev" }))
-    expect(findings).toEqual([expect.objectContaining({ place: { kind: "profile", field: "profileGithub" }, message: "Not a web address" })])
+    expect(findings).toEqual([
+      expect.objectContaining({ place: { kind: "profile", field: "profileGithub" }, message: "Not a web address" }),
+    ])
     expect(check("C7", withProfile({ personalWebsite: "my site" })).messages).toEqual(["Not a web address"])
   })
 
   test("takes web addresses with or without https, and skips when there are none", () => {
-    expect(check("C7", withProfile({ profileGithub: "https://github.com/jake-ryan/", personalWebsite: "www.jake.io/blog" })).status).toBe("passed")
+    expect(check("C7", withProfile({ profileGithub: "https://github.com/jake-ryan/", personalWebsite: "www.jake.io/blog" })).status).toBe(
+      "passed",
+    )
     expect(check("C7", withProfile({ profileGithub: "", personalWebsite: "" })).status).toBe("skipped")
   })
 })
@@ -138,7 +147,10 @@ describe("C9 personal details", () => {
   test("flags date of birth, age, gender and marital status, wherever they are", () => {
     expect(check("C9", withProfile({ location: "Austin, TX · DOB: 04/12/2003" })).messages).toEqual(["Leave off your date of birth"])
     expect(check("C9", withProfile({ location: "Born in 2003" })).messages).toEqual(["Leave off your date of birth"])
-    expect(check("C9", withProfile({ location: "Age: 22, Gender: Male" })).messages).toEqual(["Leave off your age", "Leave off your gender"])
+    expect(check("C9", withProfile({ location: "Age: 22, Gender: Male" })).messages).toEqual([
+      "Leave off your age",
+      "Leave off your gender",
+    ])
     const skills = { ...jake, skillsSection: [{ id: 1, skillName: "Personal", skillDetails: "Married, 24 years old" }] }
     expect(check("C9", skills).messages).toEqual(["Leave off your age", "Leave off your marital status"])
   })

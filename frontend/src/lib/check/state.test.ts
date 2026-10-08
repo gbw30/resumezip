@@ -111,7 +111,15 @@ describe("dismissing and restoring", () => {
 
   test("keeps the dismissals of a rule that has only looked at part of the resume", () => {
     // G7 has only seen some of the text, as while the grammar checker catches up after an edit.
-    const partway: Rule = { id: "G7", category: "spelling", level: "look", title: "G7", why: "G7", reads: "form", check: () => ({ checked: 1, problems: [], partial: true }) }
+    const partway: Rule = {
+      id: "G7",
+      category: "spelling",
+      level: "look",
+      title: "G7",
+      why: "G7",
+      reads: "form",
+      check: () => ({ checked: 1, problems: [], partial: true }),
+    }
     const report = runChecks(sample, { rules: [partway] })
     const state = { dismissed: ["G7|bullet|could of"], words: [] }
     expect(dismiss(state, suggestion("G6|a|b", "G6"), report).dismissed).toEqual(["G7|bullet|could of", "G6|a|b"])

@@ -199,9 +199,7 @@ async function compile({ id, template, data, attachment }: CompileRequest) {
       format: CompileFormatEnum.pdf,
       diagnostics: "unix",
     })
-    response = result
-      ? { id, pdf: result }
-      : { id, error: diagnostics?.join("\n") || "Typst produced no output", failure: "resume" }
+    response = result ? { id, pdf: result } : { id, error: diagnostics?.join("\n") || "Typst produced no output", failure: "resume" }
   } catch (error) {
     // Without a compiler, it couldn't be downloaded. With one, the compiler
     // itself broke, and the page replaces this worker.

@@ -72,7 +72,9 @@ describe("reading a resume for the checks", () => {
   })
 
   test("doesn't break on fields in shapes the editor doesn't save", () => {
-    const view = viewOf(asSaved({ profileSection: "Ada", headings: [], workExperienceSection: { companyName: "Acme" }, educationSection: [null, "junk"] }))
+    const view = viewOf(
+      asSaved({ profileSection: "Ada", headings: [], workExperienceSection: { companyName: "Acme" }, educationSection: [null, "junk"] }),
+    )
     expect(view.profile.fullName).toBe("")
     expect(view.sections.Work).toEqual([])
     expect(view.sections.Education.map((entry) => entry.blank)).toEqual([true, true])
@@ -109,9 +111,7 @@ describe("places on a resume", () => {
     expect(textAt(view, { kind: "profile", field: "email" })).toBe("ada@example.com")
     expect(textAt(view, { kind: "heading", section: "Work" })).toBe("Engines")
     expect(textAt(view, bullet)).toBe("Wrote the notes")
-    expect(textAt(view, { kind: "entry", section: "Work", entry: 0, field: "workDescription", line: 0 })).toBe(
-      "**Built** a *faster* loom",
-    )
+    expect(textAt(view, { kind: "entry", section: "Work", entry: 0, field: "workDescription", line: 0 })).toBe("**Built** a *faster* loom")
     expect(textAt(view, { kind: "entry", section: "Work", entry: 0, field: "workRole" })).toBe("Engineer")
     // A whole entry reads as it does when collapsed in the editor.
     expect(textAt(view, { kind: "entry", section: "Work", entry: 0 })).toBe("Engineer, Analytical Engines")
@@ -153,7 +153,12 @@ describe("what the person left out", () => {
   const tailored: Resume = {
     workExperienceSection: [
       { id: 1, workRole: "Intern", companyName: "Initech", leftOut: true },
-      { id: 2, workRole: "Engineer", companyName: "Analytical Engines", workDescription: "• Built a loom\n○ Fed the cat\n• Wrote the notes" },
+      {
+        id: 2,
+        workRole: "Engineer",
+        companyName: "Analytical Engines",
+        workDescription: "• Built a loom\n○ Fed the cat\n• Wrote the notes",
+      },
     ],
   }
   const view = viewOf(tailored)
@@ -201,7 +206,10 @@ describe("what the person left out", () => {
 
     // 6 bullets printed and 2 left out is no more than 6; a left-out job isn't missing bullets.
     const tailored = tooMany({
-      workExperienceSection: [{ ...job, workDescription: [...bullets(6, "•"), ...bullets(2, "○")].join("\n") }, { ...internship, leftOut: true }],
+      workExperienceSection: [
+        { ...job, workDescription: [...bullets(6, "•"), ...bullets(2, "○")].join("\n") },
+        { ...internship, leftOut: true },
+      ],
     })
     expect(tailored).toEqual([])
     // Printed, the same resume has too many bullets in one job and none in the other.

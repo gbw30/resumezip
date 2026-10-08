@@ -50,7 +50,8 @@ export interface PageSize {
 }
 
 /** Characters that start a bullet: the usual ones, symbols, and those Word puts in its own fonts. */
-export const BULLET_CHARS = "\u2022\u25CF\u25AA\u25A0\u25E6\u2023\u2219\u00B7\u25CB\u25C6\u25BA\u25B8\u27A2\u27A4\u2713\u2714\u2605\u2043\uF0B7\uF0A7\uF076\uF0D8\uF0FC\uF0A8\uF06C"
+export const BULLET_CHARS =
+  "\u2022\u25CF\u25AA\u25A0\u25E6\u2023\u2219\u00B7\u25CB\u25C6\u25BA\u25B8\u27A2\u27A4\u2713\u2714\u2605\u2043\uF0B7\uF0A7\uF076\uF0D8\uF0FC\uF0A8\uF06C"
 // Symbol bullets may touch the text; dashes and asterisks need a space after them.
 const BULLET = new RegExp(`^(?:[${BULLET_CHARS}]\\s*|[-\\u2013\\u2014*]\\s+)`)
 const BULLET_ONLY = new RegExp(`^[${BULLET_CHARS}\\-\\u2013\\u2014*]$`)
@@ -311,9 +312,7 @@ export function linesFromPages(pages: PdfPage[]): Line[] {
       const group = groups[groups.length - 1]
       const anchor = group?.[0]
       const sameLine =
-        anchor &&
-        anchor.column === item.column &&
-        Math.abs(anchor.baseline - item.baseline) <= 0.45 * Math.max(anchor.size, item.size)
+        anchor && anchor.column === item.column && Math.abs(anchor.baseline - item.baseline) <= 0.45 * Math.max(anchor.size, item.size)
       if (sameLine) group.push(item)
       else groups.push([item])
     }
@@ -326,7 +325,10 @@ export function linesFromPages(pages: PdfPage[]): Line[] {
       // only gaps wider than those are spaces between words.
       let letterGap = 0
       if (group.length >= 4 && group.filter((item) => item.text.trim().length <= 2).length / group.length >= 0.6) {
-        const gaps = group.slice(1).map((item, i) => item.x - group[i].right).sort((a, b) => a - b)
+        const gaps = group
+          .slice(1)
+          .map((item, i) => item.x - group[i].right)
+          .sort((a, b) => a - b)
         const median = gaps[Math.floor(gaps.length / 2)]
         // Small caps also come out a letter or two at a time, but with the letters touching.
         if (median > 0.08 * size) letterGap = median + 0.2 * size
@@ -454,7 +456,11 @@ export function linesFromHtml(html: string): Line[] {
         const height = Math.max(0, ...cells.map((c) => c.length))
         for (let i = 0; i < height; i++) {
           const parts = cells.flatMap((c, column) => (c[i] ? toParts(c[i].pieces, column * 200) : []))
-          const line = toLine(parts, BODY_SIZE, cells.flatMap((c) => c[i]?.links ?? []))
+          const line = toLine(
+            parts,
+            BODY_SIZE,
+            cells.flatMap((c) => c[i]?.links ?? []),
+          )
           if (line) lines.push(line)
         }
         state.row = null
@@ -512,7 +518,10 @@ export function unzippedXmlSize(data: ArrayBuffer): number | null {
 }
 
 interface Mammoth {
-  convertToHtml: (input: { arrayBuffer: ArrayBuffer; buffer: ArrayBuffer }, options: { convertImage: unknown }) => Promise<{ value: string }>
+  convertToHtml: (
+    input: { arrayBuffer: ArrayBuffer; buffer: ArrayBuffer },
+    options: { convertImage: unknown },
+  ) => Promise<{ value: string }>
   images: { imgElement: (attributes: () => { src: string }) => unknown }
 }
 
