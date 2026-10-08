@@ -179,3 +179,22 @@ test("crossing 1280px keeps the form where it was scrolled to", async ({ page })
 
   expect(errors).toEqual([])
 })
+
+test("a field chosen while a new entry slides open keeps the cursor", async ({ page }) => {
+  const errors = pageErrors(page)
+  await page.goto("/")
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page).toHaveURL(/\/create\/new\//)
+  await experience(page).click()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  // Into Company straight away, before the entry has finished sliding open.
+  const company = page.getByLabel("Company", { exact: true })
+  await company.focus()
+  // Past the slide, when a new entry puts the cursor in its first field.
+  await page.waitForTimeout(600)
+  await expect(company).toBeFocused()
+  await page.keyboard.type("Analytical Engines")
+  await expect(company).toHaveValue("Analytical Engines")
+  await expect(page.getByLabel("Role", { exact: true })).toHaveValue("")
+  expect(errors).toEqual([])
+})

@@ -116,10 +116,17 @@ export default function SectionForm({ section, position }: SectionFormProps) {
 
   const save = (next: Entry[]) => updateFormData(section.dataKey, next)
 
-  /** Puts the cursor in an entry's first field, except on touch screens where it would pop up the keyboard. */
+  /**
+   * Puts the cursor in an entry's first field, except on touch screens where it
+   * would pop up the keyboard, and except when it's already in one of the
+   * entry's fields: someone who clicked into a field while the entry slid
+   * open keeps typing there.
+   */
   const focusFirstField = (id: number) => {
     if (!window.matchMedia("(pointer: fine)").matches) return
-    elements.current.get(id)?.querySelector<HTMLElement>(FIRST_FIELD)?.focus({ preventScroll: true })
+    const element = elements.current.get(id)
+    if (document.activeElement?.matches(FIRST_FIELD) && element?.contains(document.activeElement)) return
+    element?.querySelector<HTMLElement>(FIRST_FIELD)?.focus({ preventScroll: true })
   }
 
   /**
