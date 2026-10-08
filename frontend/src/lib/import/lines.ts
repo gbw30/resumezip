@@ -318,6 +318,9 @@ export function linesFromPages(pages: PdfPage[]): Line[] {
       else groups.push([item])
     }
 
+    // Each line, with where it sits, for links that no text sits on.
+    const placed: { line: Line; baseline: number; left: number; right: number; size: number }[] = []
+    const claimed = new Set<Link>()
     for (const group of groups) {
       group.sort((p, q) => p.x - q.x)
       const size = Math.max(...group.map((item) => item.size))
@@ -355,14 +358,28 @@ export function linesFromPages(pages: PdfPage[]): Line[] {
       const right = Math.max(...group.map((item) => item.right))
       const baseline = group[0].baseline
       const box: [number, number, number, number] = [left, height - baseline - size * 0.85, right, height - baseline + size * 0.3]
-      const lineLinks = links
-        .filter((link) => baseline >= link.y0 - 3 && baseline <= link.y1 + 1 && link.x1 >= left - 2 && link.x0 <= right + 2)
-        .map((link) => link.url)
+      const onLine = links.filter((link) => baseline >= link.y0 - 3 && baseline <= link.y1 + 1 && link.x1 >= left - 2 && link.x0 <= right + 2)
+      for (const link of onLine) claimed.add(link)
+      const lineLinks = onLine.map((link) => link.url)
 
       // A bullet drawn as its own piece of text: the line's text starts at the next piece.
       const textX = BULLET_ONLY.test(group[0].text.trim()) && group.length > 1 ? group[1].x : undefined
       const line = toLine(parts, size, lineLinks, { page: pageNumber, box, x: textX })
-      if (line) lines.push(line)
+      if (line) {
+        lines.push(line)
+        placed.push({ line, baseline, left, right, size })
+      }
+    }
+
+    // A link with no text on it, like an icon, belongs to the closest line just
+    // above or below it: icons for LinkedIn and GitHub under the phone number.
+    for (const link of links) {
+      if (claimed.has(link)) continue
+      const distance = (at: (typeof placed)[number]) => (at.baseline < link.y0 ? link.y0 - at.baseline : at.baseline > link.y1 ? at.baseline - link.y1 : 0)
+      const nearest = placed
+        .filter((at) => distance(at) <= 1.5 * at.size && at.right >= link.x0 - 40 && at.left <= link.x1 + 40)
+        .sort((a, b) => distance(a) - distance(b))[0]
+      if (nearest && !nearest.line.links.includes(link.url)) nearest.line.links.push(link.url)
     }
   })
 

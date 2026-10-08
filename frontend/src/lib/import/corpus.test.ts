@@ -79,8 +79,7 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "leadership[0].organization",
     "leadership[0].role",
   ],
-  // An academic CV in Typst. A link to tel: reads as the website, and links
-  // behind icons are lost. The current job's title lines read as bullets.
+  // An academic CV in Typst. The current job's title lines read as bullets.
   // Paragraph lines of 85 letters or fewer, or starting a new sentence, read
   // as titles, and hyphens Typst added to break words ("Grade-scope") stay.
   // Under one school, the first degree loses its date and the second the
@@ -89,9 +88,6 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // descriptions join the award's name, and the mentoring lines read as
   // teaching.
   "marcus/typst-academic": [
-    "profile.linkedin",
-    "profile.github",
-    "profile.website",
     "education[0].degree",
     "education[0].end",
     "education[1].school",

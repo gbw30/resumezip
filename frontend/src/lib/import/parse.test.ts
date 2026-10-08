@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import type { Line } from "./lines"
+import { linesFromPages, type Line } from "./lines"
 import { parseResume, toResumeContent } from "./parse"
 
 /**
@@ -242,5 +242,41 @@ describe("page numbers", () => {
   test("are only the page's own number, at its top or bottom", () => {
     const { resume, unplaced } = read("Awards", [line([["Dean’s List", 36], ["2024", 480]]), line([["7", 300]])])
     expect(JSON.stringify([resume.awardsSection, unplaced])).toContain("7")
+  })
+})
+
+describe("contact links", () => {
+  const text = (value: string, x: number, baseline: number, size = 10, bold = false) => ({ text: value, x, right: x + value.length * size * 0.5, baseline, size, bold, italic: false })
+  const icon = (url: string, x: number) => ({ url, x0: x, y0: 688, x1: x + 8, y1: 696 })
+  const page = {
+    width: 612,
+    height: 792,
+    items: [
+      text("Marcus Ferreira", 68, 740, 20, true),
+      text("marcus@example.com", 450, 715),
+      text("(765) 555-0142", 470, 703),
+      text("Experience", 68, 660, 12, true),
+      text("Lab Manager", 68, 640, 10, true),
+    ],
+    links: [
+      { url: "mailto:marcus@example.com", x0: 450, y0: 712, x1: 540, y1: 724 },
+      { url: "tel:+17655550142", x0: 470, y0: 700, x1: 540, y1: 712 },
+      // Icons on a row of their own, with no text on it.
+      icon("https://linkedin.com/in/marcus-ferreira", 500),
+      icon("https://marcusferreira.dev", 512),
+      icon("https://github.com/mferreira", 524),
+      // A link nowhere near any text.
+      { url: "https://example.com/far-away", x0: 300, y0: 400, x1: 320, y1: 410 },
+    ],
+  }
+
+  test("behind icons, with no text, still count, and a phone's link isn't a website", () => {
+    const { profile } = parseResume(linesFromPages([page]))
+    expect(profile).toMatchObject({
+      phoneNumber: "(765) 555-0142",
+      linkedin: "linkedin.com/in/marcus-ferreira",
+      profileGithub: "github.com/mferreira",
+      personalWebsite: "marcusferreira.dev",
+    })
   })
 })

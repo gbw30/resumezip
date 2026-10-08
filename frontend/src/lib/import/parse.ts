@@ -1149,6 +1149,9 @@ interface Contacts {
   remainders: Map<number, string>
 }
 
+/** A link to a web page, with https:// or written without it, not tel: or sms:. */
+const WEB_LINK = /^(?:https?:\/\/|(?![a-z][a-z0-9+.-]*:))/i
+
 // Labels in front of contact details, including short ones with a colon ("P: 555-0100", "E: me@x.com").
 const CONTACT_LABEL = /\b(?:(?:e-?mail|phone|mobile|cell|tel|telephone|linkedin|github|website|portfolio|web|site|address)\s*:?|(?:p|ph|m|t|e)\s*:)/gi
 
@@ -1170,7 +1173,8 @@ function readContacts(lines: ParseLine[], isTop: (line: ParseLine) => boolean): 
       if (/^mailto:/i.test(link)) take("email", bare(link))
       else if (LINKEDIN.test(link)) take("linkedin", bare(link))
       else if (GITHUB_PROFILE.test(link) && /^(?:https?:\/\/)?(?:www\.)?github\.com\/[^/]+\/?$/i.test(link)) take("profileGithub", bare(link))
-      else if (inHeader && !/github\.com\/[^/]+\/[^/]+/i.test(link)) take("personalWebsite", bare(link))
+      // A website is a web address: not a phone number's tel: link.
+      else if (inHeader && WEB_LINK.test(link) && !/github\.com\/[^/]+\/[^/]+/i.test(link)) take("personalWebsite", bare(link))
     }
     const email = text.match(EMAIL)
     if (email) take("email", email[0], email[0])
