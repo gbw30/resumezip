@@ -54,10 +54,6 @@ exports[`marcus/typst-academic > reads back no worse than before 1`] = `
   "leadership[0].organization": "BoilerHacks (XI, XII), Purdue Robotics Union (PRU), Open Robotics Club (ORC). Advised",
   "leadership[3].organization": "Director of Technology, BoilerHacks X",
   "leadership[3].role": "",
-  "publications[1].details": "",
-  "publications[1].venue": "Senior Design Project, School of Electrical and Computer Engineering, Purdue University, West Lafayette, IN, USA",
-  "publications[2].details": "",
-  "publications[2].venue": "B.S. honors thesis, School of Engineering Education, Purdue University, West Lafayette, IN, USA",
 }
 `;
 

@@ -1175,6 +1175,20 @@ function publicationFields(pieces: string[], fields: Record<string, string>) {
 const tidyCitation = (text: string) => tidy(text.replace(/(\s*,\s*)+/g, ", ").replace(/^[\s,.;:]+|[\s,.;:]+$/g, ""))
 
 /**
+ * Without italics to mark it, a venue runs to the first comma after the
+ * title ("Senior Design Project, School of Engineering, …", "IEEE Trans.
+ * Robotics, vol. 5, …"), unless that comma is in a short list in the
+ * venue's name: "Fairness, Accountability, and Transparency".
+ */
+function venueAndDetails(after: string): { venue: string; details: string } {
+  const pieces = after.split(/,\s+/)
+  const ends = pieces.findIndex((piece, i) => i > 0 && /^(?:and|or|&)\s/i.test(piece))
+  const list = ends > 0 && ends <= 4 && pieces.slice(1, ends + 1).every((piece) => words(piece).length <= 3)
+  const end = list ? ends + 1 : 1
+  return { venue: pieces.slice(0, end).join(", "), details: tidyCitation(pieces.slice(end).join(", ")) }
+}
+
+/**
  * "[1] A. Smith, B. Lee. Title of the paper. NeurIPS 2025.", or IEEE style:
  * "[1] A. Smith and B. Lee, “Title,” Venue, City, 2025, doi: 10.1/x."
  * `italics` is the citation's italic text, which in IEEE style is the venue.
@@ -1213,8 +1227,14 @@ function readCitation(text: string, italics: string[] = []): Record<string, stri
     const after = tidyCitation(rest.slice(quoted.index! + quoted[0].length).replace(/^[.,]\s*(?:in:?\s+)?/i, ""))
     // The venue is in italics; anything else left over (a city, pages) is detail.
     const venue = italics.map(tidy).find((italic) => italic.length > 2 && after.includes(italic))
-    fields.publicationVenue = venue ?? after
-    if (venue) fields.publicationDetails = tidyCitation(after.replace(venue, " "))
+    if (venue) {
+      fields.publicationVenue = venue
+      fields.publicationDetails = tidyCitation(after.replace(venue, " "))
+    } else {
+      const split = venueAndDetails(after)
+      fields.publicationVenue = split.venue
+      fields.publicationDetails = split.details
+    }
     return fields
   }
   publicationFields(sentencesOf(tidy(rest.replace(/\s+([.,])/g, "$1"))), fields)

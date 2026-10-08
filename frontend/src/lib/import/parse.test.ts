@@ -748,3 +748,28 @@ describe("a line with something other than a date in a column of dates", () => {
     expect(unplaced).toEqual([])
   })
 })
+
+describe("a citation's venue without italics", () => {
+  const paper = (citation: string) => read("Publications", [line([[citation, 44]])]).resume.publicationsSection[0]
+
+  test("is the first piece after the title, and the rest is detail", () => {
+    expect(
+      paper("[1] L. Park and M. Ferreira, “Boiler Proctor: Integrating Safe Exam Browser,” Senior Design Project, School of Engineering, Purdue University, West Lafayette, IN, USA, Apr. 2026."),
+    ).toMatchObject({
+      publicationVenue: "Senior Design Project",
+      publicationDetails: "School of Engineering, Purdue University, West Lafayette, IN, USA",
+      publicationDate: "Apr. 2026",
+    })
+    expect(paper("[2] J. Kim and W. Zhang, “Benchmarking Long Documents,” Proc. Annual Meeting of the ACL, Vienna, Austria, pp. 410–422, Jul 2025.")).toMatchObject({
+      publicationVenue: "Proc. Annual Meeting of the ACL",
+      publicationDetails: "Vienna, Austria, pp. 410–422",
+    })
+  })
+
+  test("keeps a list in its name whole", () => {
+    expect(paper("[3] A. Smith, “Fair Ranking,” Proc. Conf. on Fairness, Accountability, and Transparency, Seoul, Korea, 2022.")).toMatchObject({
+      publicationVenue: "Proc. Conf. on Fairness, Accountability, and Transparency",
+      publicationDetails: "Seoul, Korea",
+    })
+  })
+})
