@@ -13,6 +13,11 @@
   --color-accent-soft: #a8b9f2;
 }
 
+/* Fine diagonal hatching for a quiet note, over its background color. */
+@utility bg-hatch {
+  background-image: repeating-linear-gradient(135deg, rgb(17 19 24 / 0.05) 0 1px, transparent 1px 7px);
+}
+
 /* Fonts are loaded by next/font in app/layout.tsx. The home page uses the
    system font (font-system); the app uses Geist. */
 @theme inline {

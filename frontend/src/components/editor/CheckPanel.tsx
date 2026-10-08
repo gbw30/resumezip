@@ -2,12 +2,21 @@
 
 import type React from "react"
 import { useEffect, useId, useMemo, useRef, useState } from "react"
-import { ChevronDown, CircleAlert, Info, LoaderCircle } from "lucide-react"
+import { ChevronDown, CircleAlert, Info, LoaderCircle, Lock } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
 import type { Finding, Report, Rule } from "@/lib/check/engine"
 import { describePlace, hasEnoughToCheck } from "@/lib/check/labels"
 import type { ResumeView } from "@/lib/check/resume"
-import { checkingCategories, keepScores, scoreOf, shownScore, wholePoints, type CategoryScore, type KeptScores } from "@/lib/check/score"
+import {
+  bandOf,
+  checkingCategories,
+  keepScores,
+  scoreOf,
+  shownScore,
+  wholePoints,
+  type CategoryScore,
+  type KeptScores,
+} from "@/lib/check/score"
 import { CATEGORIES, MUST_FIX_MAX, type CategoryId } from "@/lib/check/settings"
 import { hasLeftOut } from "@/lib/leftOut"
 import { useCheck } from "./CheckContext"
@@ -17,6 +26,10 @@ import { useCheck } from "./CheckContext"
 const TYPO_RULE = "G1"
 
 const FIX_COLOR = "text-[#b42318]"
+
+// The score ring's circle, in the SVG's 36-unit box.
+const RING_RADIUS = 15.5
+const RING_LENGTH = 2 * Math.PI * RING_RADIUS
 
 const quiet = "text-[13px] text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline"
 
@@ -61,7 +74,11 @@ export default function CheckPanel() {
   const checkingGrammar = waitingFor("grammar") || grammar !== "ready"
   return (
     <div className="flex flex-col gap-5 px-3 py-4 xl:p-0">
-      <ScoreHeader total={score.total} mustFix={score.mustFix} />
+      <ScoreHeader
+        total={score.total}
+        mustFix={score.mustFix}
+        fixes={report.findings.filter((finding) => finding.level === "fix").length}
+      />
       {(waitingFor("pdf") || checkingGrammar) && (
         <div role="status" className="flex flex-col gap-1 px-2 text-sm text-ink-2">
           {waitingFor("pdf") && (
@@ -145,45 +162,84 @@ function useShownCategories(findings: readonly Finding[], checking: ReadonlyMap<
   return CATEGORIES.filter(({ id }) => found.has(id) || (checking.has(id) && had.current.has(id)))
 }
 
-/** The resume score, in a line what it measures, and whether a must-fix is holding it down. */
-function ScoreHeader({ total, mustFix = false }: { total: number | "checking" | null; mustFix?: boolean }) {
+/**
+ * The resume score on a ring, a word for how it reads, in a line what it
+ * measures, and whether a must-fix is holding it down.
+ */
+function ScoreHeader({ total, mustFix = false, fixes = 0 }: { total: number | "checking" | null; mustFix?: boolean; fixes?: number }) {
   const id = useId()
+  const band = typeof total === "number" ? bandOf(total) : null
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-2 px-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id={id} className="label-mono text-ink-2">
-          Resume score
-        </h2>
-        {/* Said aloud when it changes, once the checks under way are done. */}
-        <p
-          className="flex items-baseline gap-1 text-ink"
-          aria-live="polite"
-          aria-atomic="true"
-          aria-busy={total === "checking" || undefined}
-        >
-          {typeof total === "number" ? (
-            <>
-              <span className="text-[32px] font-medium leading-none tabular-nums">{total}</span>
-              <span className="text-sm text-ink-2" aria-hidden="true">
-                / 100
-              </span>
-              <span className="sr-only">out of 100</span>
-            </>
-          ) : (
-            <>
-              <span className="text-[32px] font-medium leading-none text-ink-2" aria-hidden="true">
-                {total === "checking" ? "…" : "–"}
-              </span>
-              <span className="sr-only">{total === "checking" ? "Checking" : "Not scored yet"}</span>
-            </>
-          )}
-        </p>
+    <section aria-labelledby={id} className="flex flex-col gap-3 px-2">
+      <div className="flex items-center gap-4">
+        <ScoreRing total={total} />
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 id={id} className="label-mono text-ink-2">
+            Resume score
+          </h2>
+          {band && <p className="text-[17px] font-medium leading-tight text-ink">{band.name}</p>}
+        </div>
       </div>
       <p className="text-[13px] leading-relaxed text-ink-2">How well this resume follows the checks below.</p>
       {mustFix && (
-        <p className={`text-[13px] leading-relaxed ${FIX_COLOR}`}>{`Fix what's under “To fix” to score above ${MUST_FIX_MAX}.`}</p>
+        <p className="bg-hatch flex items-start gap-2 rounded-[4px] border border-rule bg-sheet px-3 py-2.5 text-[13px] leading-snug text-ink">
+          <Lock className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {/* The count can be a moment behind while the PDF or the text is checked again. */}
+          {fixes > 0
+            ? `Capped at ${MUST_FIX_MAX} until you fix ${fixes === 1 ? "1 item" : `${fixes} items`}.`
+            : `Capped at ${MUST_FIX_MAX} while something's left to fix.`}
+        </p>
       )}
     </section>
+  )
+}
+
+/** The score in a ring that fills up to it. */
+function ScoreRing({ total }: { total: number | "checking" | null }) {
+  const scored = typeof total === "number"
+  return (
+    <div className="relative h-[68px] w-[68px] shrink-0">
+      <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90" aria-hidden="true">
+        <circle cx="18" cy="18" r={RING_RADIUS} fill="none" strokeWidth="3" className="stroke-rule" />
+        {scored && total > 0 && (
+          <circle
+            cx="18"
+            cy="18"
+            r={RING_RADIUS}
+            fill="none"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray={RING_LENGTH}
+            style={{ strokeDashoffset: RING_LENGTH * (1 - total / 100) }}
+            className="stroke-accent transition-[stroke-dashoffset] duration-500 ease-out motion-reduce:transition-none"
+          />
+        )}
+      </svg>
+      {/* Said aloud when it changes, once the checks under way are done. */}
+      <p
+        className="absolute inset-0 flex flex-col items-center justify-center text-ink"
+        aria-live="polite"
+        aria-atomic="true"
+        aria-busy={total === "checking" || undefined}
+      >
+        {scored ? (
+          <>
+            <span className="text-[22px] font-medium leading-none tabular-nums">{total}</span>
+            <span className="mt-0.5 font-mono text-[10px] leading-none text-ink-2" aria-hidden="true">
+              / 100
+            </span>
+            <span className="sr-only">out of 100</span>
+          </>
+        ) : (
+          <>
+            <span className="text-[22px] font-medium leading-none text-ink-2" aria-hidden="true">
+              {total === "checking" ? "…" : "–"}
+            </span>
+            <span className="sr-only">{total === "checking" ? "Checking" : "Not scored yet"}</span>
+          </>
+        )}
+      </p>
+    </div>
   )
 }
 
