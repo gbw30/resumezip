@@ -58,12 +58,18 @@ sent anywhere.
   and the grammar rules leave them alone.
 - `score.ts` works out the resume score (issue #67), out of 100: how well the
   resume follows these checks, not whether it gets anyone hired. Each
-  category's points (`settings.ts`) are shared among its rules that apply, a
-  must-fix counting twice as much as a suggestion, and each rule earns its
-  share times its credit, so a problem in part of the resume costs only that
-  part, and dismissed suggestions count as passing. Rules that don't apply are
-  left out, and a category none of whose rules apply gives its points to the
-  others. Points are rounded down, so 100 means everything passed.
+  category starts with all its points (`settings.ts`), and each rule that
+  finds something takes some away: a must-fix up to half of them, a
+  suggestion up to a fifth. Finding anything at all takes at least half of
+  that, so one typo in thirty fields still costs, and the rest grows with how
+  much of the resume fails the rule. Passing earns nothing, so easy passes
+  can't make up for a real problem, and dismissed suggestions count as
+  passing. Nor does a category earn more than the share of its rules that
+  pass, so one whose only rules that apply fail, as with no bullets at all,
+  earns nothing. While a must-fix is left the score stays at 89 or below. Rules
+  that don't apply are left out, and a category none of whose rules apply
+  gives its points to the others. Points are rounded down, so 100 means
+  everything passed.
 - `places.ts` says where a finding is, so the editor can open it.
 - `state.ts` keeps what the person told the checker: findings they dismissed
   and words they added.
@@ -74,11 +80,11 @@ sent anywhere.
 - `components/editor/useResumeCheck.ts` checks the open resume as it changes.
   `CheckContext.tsx` shares that, and whether the left bar is on Write or
   Check, with the Check panel (`CheckPanel.tsx`) and the forms. The panel
-  shows the score, then each
-  category with its points, what it found (fixes first) and what passed;
-  categories with findings are open until folded. While the PDF or the text
-  is being checked again after a change, a category keeps its points and says
-  so instead of a count, so the score doesn't jump. Choosing a finding opens
+  shows the score, then only the categories with something to fix or review,
+  each with its points and what it found (fixes first), open until folded.
+  What passed isn't listed. While the PDF or the text
+  is being checked again after a change, a category keeps its points and its
+  place and says so instead of a count, so the score doesn't jump. Choosing a finding opens
   its section and entry, puts the cursor in its field (or selects its bullet),
   and shows what's wrong and why under it until it's fixed. That's only while
   Check is open: in Write mode the forms show none of it.

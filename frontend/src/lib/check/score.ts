@@ -1,13 +1,19 @@
 // The resume score (issue #67): how well a resume follows the checker's
 // rules, out of 100. It says nothing about whether a resume gets anyone
-// hired. Each category is worth its points (CATEGORIES), shared among its
-// rules that apply, a must-fix rule counting twice as much as a suggestion
-// (LEVELS). A rule earns its share times its credit: how much of the resume
-// passes it, with dismissed suggestions counting as passing (engine.ts).
+// hired. Each category is worth its points (CATEGORIES) and starts with all
+// of them. Each rule that finds something takes some away: a must-fix up to
+// half of them, a suggestion up to a fifth (LEVELS), at least half of that
+// for finding anything (LEAST_PENALTY), and the rest by how much of the
+// resume fails it, with dismissed suggestions counting as passing
+// (engine.ts). Rules that pass earn nothing, so easy passes can't make up for
+// a real problem. Nor can a category earn more than the share of its rules
+// that pass, so one whose only rules that apply fail, as with no bullets at
+// all, earns nothing. While a must-fix is left, the score stays at
+// MUST_FIX_MAX or below.
 
 import type { Report, Rule, RuleResult } from "./engine"
 import { hasEnoughToCheck } from "./labels"
-import { CATEGORIES, LEVELS, type CategoryId } from "./settings"
+import { CATEGORIES, LEAST_PENALTY, LEVELS, MUST_FIX_MAX, type CategoryId } from "./settings"
 
 /** How a category did. */
 export interface CategoryScore {
@@ -18,6 +24,8 @@ export interface CategoryScore {
   earned: number
   /** Whether any of its rules apply. When none do, its points go to the others. */
   applies: boolean
+  /** Whether a must-fix rule found something, which holds the total at MUST_FIX_MAX or below. */
+  mustFix: boolean
 }
 
 export interface Score {
@@ -34,7 +42,15 @@ export interface Score {
 // text (partial) and found nothing there is left out: that's no pass yet.
 const counts = (result: RuleResult) => result.status === "failed" || (result.status === "passed" && !result.partial)
 
-const weight = (result: RuleResult) => LEVELS[result.rule.level].weight
+/**
+ * What a rule takes from its category, as a share of its points: nothing when
+ * it passes, and when it finds something, its level's penalty, at least
+ * LEAST_PENALTY of it and the rest by how much of the resume fails it.
+ */
+function penaltyOf(result: RuleResult): number {
+  if (result.status !== "failed") return 0
+  return LEVELS[result.rule.level].penalty * (LEAST_PENALTY + (1 - LEAST_PENALTY) * (1 - result.credit))
+}
 
 /**
  * Points as they're shown: whole ones, rounded down, so 100 (or a full
@@ -43,24 +59,41 @@ const weight = (result: RuleResult) => LEVELS[result.rule.level].weight
  */
 export const wholePoints = (points: number) => Math.floor(points + 1e-9)
 
-/** How a category's rules did, in points. */
+const weight = (result: RuleResult) => LEVELS[result.rule.level].penalty
+
+/**
+ * How a category's rules did, in points: all of them, less what each rule
+ * that found something takes, and no more than the share of its rules that
+ * pass, each counting as much as it could take.
+ */
 export function categoryScore(id: CategoryId, results: readonly RuleResult[]): CategoryScore {
   const { points } = CATEGORIES.find((category) => category.id === id)!
   const ran = results.filter((result) => result.rule.category === id && counts(result))
-  const weights = ran.reduce((sum, result) => sum + weight(result), 0)
-  const credit = ran.reduce((sum, result) => sum + weight(result) * result.credit, 0)
-  return { id, points, earned: weights === 0 ? 0 : (points * credit) / weights, applies: weights > 0 }
+  if (ran.length === 0) return { id, points, earned: 0, applies: false, mustFix: false }
+  const left = Math.max(0, 1 - ran.reduce((sum, result) => sum + penaltyOf(result), 0))
+  const passing = ran.reduce((sum, result) => sum + weight(result) * result.credit, 0) / ran.reduce((sum, result) => sum + weight(result), 0)
+  return {
+    id,
+    points,
+    earned: points * Math.min(left, passing),
+    applies: true,
+    mustFix: ran.some((result) => result.status === "failed" && result.rule.level === "fix"),
+  }
 }
 
+/** Whether a must-fix problem is left in the categories that apply. */
+export const hasMustFix = (categories: readonly CategoryScore[]) => categories.some((category) => category.applies && category.mustFix)
+
 /**
- * Out of 100: what the categories that apply earned, of what they're worth.
- * Null when none apply.
+ * Out of 100: what the categories that apply earned, of what they're worth,
+ * and no more than MUST_FIX_MAX while a must-fix is left. Null when none apply.
  */
 export function totalOf(categories: readonly CategoryScore[]): number | null {
   const counted = categories.filter((category) => category.applies)
   const possible = counted.reduce((sum, category) => sum + category.points, 0)
   if (possible === 0) return null
-  return wholePoints((100 * counted.reduce((sum, category) => sum + category.earned, 0)) / possible)
+  const total = (100 * counted.reduce((sum, category) => sum + category.earned, 0)) / possible
+  return wholePoints(hasMustFix(counted) ? Math.min(total, MUST_FIX_MAX) : total)
 }
 
 /** The resume's score, from what the checker found (`runChecks`). */
@@ -111,14 +144,19 @@ export function keepScores(kept: KeptScores, now: Score, checking: ReadonlyMap<C
  * last checked (`kept`), so its bar and the total don't jump each time the
  * PDF or the text is read again after a change. Until each has been checked
  * once, the total waits ("checking"), and so does a category's bar (null).
+ * `mustFix` says whether a must-fix is left, as last checked or as found
+ * since, as by a form rule while the PDF is read again; either holds the
+ * total down at once.
  */
 export function shownScore(
   now: Score,
   kept: ReadonlyMap<CategoryId, CategoryScore>,
   checking: ReadonlyMap<CategoryId, unknown>,
-): { total: number | "checking" | null; categories: (CategoryScore | null)[] } {
+): { total: number | "checking" | null; categories: (CategoryScore | null)[]; mustFix: boolean } {
   const categories = now.categories.map((category) => (checking.has(category.id) ? (kept.get(category.id) ?? null) : category))
-  if (now.total === null) return { total: null, categories }
   const shown = categories.filter((category): category is CategoryScore => category !== null)
-  return { total: shown.length === categories.length ? totalOf(shown) : "checking", categories }
+  if (now.total === null) return { total: null, categories, mustFix: false }
+  const mustFix = hasMustFix(shown) || hasMustFix(now.categories)
+  const total = shown.length === categories.length ? totalOf(shown) : "checking"
+  return { total: typeof total === "number" && mustFix ? Math.min(total, MUST_FIX_MAX) : total, categories, mustFix }
 }
