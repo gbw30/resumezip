@@ -525,3 +525,26 @@ describe("a sub-heading in a column of dates", () => {
     expect(unplaced).toEqual([])
   })
 })
+
+describe("a title with a dash in it", () => {
+  test("stays whole when the organization has a line of its own", () => {
+    const { resume, unplaced } = read("Experience", [
+      line([["UF Health Heart Clinic", 36], ["Gainesville, FL", 480]], { bold: true }),
+      line([["Physician Shadowing – Cardiology", 36], ["August 2026 – Present", 460]], { italic: true }),
+      line([["Lab Research Assistant - Sample Preparation", 36], ["2025", 500]], { bold: true }),
+      line([["Proteomics Core, State University", 36], ["Gainesville, FL", 480]], { italic: true }),
+    ])
+    expect(resume.workExperienceSection).toHaveLength(2)
+    expect(resume.workExperienceSection[0]).toMatchObject({ workRole: "Physician Shadowing – Cardiology", companyName: "UF Health Heart Clinic" })
+    expect(resume.workExperienceSection[1]).toMatchObject({
+      workRole: "Lab Research Assistant - Sample Preparation",
+      companyName: "Proteomics Core, State University",
+    })
+    expect(unplaced).toEqual([])
+  })
+
+  test("is still split into the organization and the role when it's all there is", () => {
+    const { resume } = read("Leadership", [line([["ColorStack - National Member", 36], ["Sep. 2026 – Present", 460]], { bold: true })])
+    expect(resume.leadershipExperienceSection[0]).toMatchObject({ leadershipOrg: "ColorStack", leadershipRole: "National Member" })
+  })
+})

@@ -225,6 +225,8 @@ interface Fragment {
   text: string
   bold: boolean
   italic: boolean
+  /** The separator between this and the fragment before it, when they were one piece of text. */
+  joint?: string
 }
 
 /** The style of `start`..`end` within a part, by majority of characters. */
@@ -248,12 +250,13 @@ const SEPARATOR = /\s+[|\u2022\u00B7\u25AA\u25E6\u2013\u2014]\s+|\s+-\s+|\s*\|\s
 function fragmentsOf(part: Part): (Fragment & { start: number })[] {
   const pieces: (Fragment & { start: number })[] = []
   let start = 0
+  let joint: string | undefined
   const add = (end: number) => {
     const raw = part.text.slice(start, end)
     const text = tidy(raw)
     if (text) {
       const offset = start + raw.indexOf(text.charAt(0))
-      pieces.push({ text, start: offset, ...styleAt(part, offset, offset + text.length) })
+      pieces.push({ text, start: offset, ...styleAt(part, offset, offset + text.length), joint })
     }
   }
   for (const match of part.text.matchAll(SEPARATOR)) {
@@ -262,6 +265,7 @@ function fragmentsOf(part: Part): (Fragment & { start: number })[] {
     if ((before.match(/[([]/g)?.length ?? 0) > (before.match(/[)\]]/g)?.length ?? 0)) continue
     add(match.index!)
     start = match.index! + match[0].length
+    joint = match[0]
   }
   add(part.text.length)
   return pieces
@@ -685,8 +689,12 @@ function readHeader(lines: Line[], remove: RegExp[] = []): Header {
           blank(url.index!, url[0].length)
         }
       }
+      // Whether the last fragment of this part is in `texts`, for joining back up to.
+      let follows = false
       for (const fragment of fragmentsOf({ ...part, text })) {
         let value = fragment.text
+        const joint = follows ? fragment.joint : undefined
+        follows = false
         if (!/[A-Za-z0-9\u00C0-\u024F]/.test(value)) continue
         if (!header.location && isLocation(value)) {
           header.location = value
@@ -697,7 +705,10 @@ function readHeader(lines: Line[], remove: RegExp[] = []): Header {
           header.location = peeled.location
           value = peeled.rest
         }
-        if (value) header.texts.push({ ...fragment, text: value })
+        if (value) {
+          header.texts.push({ ...fragment, text: value, joint })
+          follows = !peeled
+        }
       }
     }
   }
@@ -713,8 +724,23 @@ function titleScore(text: string): number {
   return score(text, TITLE_WORDS) + Number(TITLE_WORDS.test(last)) - score(text, ORG_WORDS) - Number(ORG_WORDS.test(last)) - acronym
 }
 
+/**
+ * "Physician Shadowing – Cardiology": a title split at a dash, when that
+ * leaves more pieces than a role and an organization, goes back together.
+ * Split from the end, so a subtitle rejoins the title it follows.
+ */
+function joinDashed(texts: Fragment[]): Fragment[] {
+  const joined = [...texts]
+  for (let i = joined.length - 1; i > 0 && joined.length > 2; i--) {
+    const { joint } = joined[i]
+    if (joint && /^\s+[-\u2013\u2014]\s+$/.test(joint)) joined.splice(i - 1, 2, { ...joined[i - 1], text: `${joined[i - 1].text}${joint}${joined[i].text}` })
+  }
+  return joined
+}
+
 /** Decides which bit of text is the job title and which is the organization. */
-function roleAndOrg(texts: Fragment[]): { role: string; org: string; rest: string[] } {
+function roleAndOrg(pieces: Fragment[]): { role: string; org: string; rest: string[] } {
+  const texts = joinDashed(pieces)
   if (texts.length === 0) return { role: "", org: "", rest: [] }
   if (texts.length === 1) {
     const text = texts[0].text

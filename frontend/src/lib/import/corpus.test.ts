@@ -29,15 +29,11 @@ const files = readdirSync(CORPUS, { withFileTypes: true })
  * differing and isn't listed fails the test.
  */
 const KNOWN_GAPS: Record<string, string[]> = {
-  // "Broward College - Crop Disease Classification Research" splits at the
-  // dash, the rest going to "Couldn't place". pdfTeX prints "~90%" with a
-  // math tilde, "∼90%".
-  "diego/latex-jake": ["work[0].company", "work[0].bullets"],
-  // The company splits as in diego/latex-jake. "Stanford Code in Place -
-  // Student" reads with the role and organization swapped, and a project's
-  // "Name, tech" isn't split.
+  // pdfTeX prints "~90%" with a math tilde, "∼90%".
+  "diego/latex-jake": ["work[0].bullets"],
+  // "Stanford Code in Place - Student" reads with the role and organization
+  // swapped, and a project's "Name, tech" isn't split.
   "diego/html-harvard": [
-    "work[0].company",
     "projects[0].name",
     "projects[0].techStack",
     "projects[1].name",
@@ -45,9 +41,8 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "leadership[2].organization",
     "leadership[2].role",
   ],
-  // The company splits as in diego/latex-jake, and "Stanford Code in Place -
-  // Student" swapped.
-  "diego/writer-classic": ["work[0].company", "leadership[2].organization", "leadership[2].role"],
+  // "Stanford Code in Place - Student" reads swapped, as in diego/html-harvard.
+  "diego/writer-classic": ["leadership[2].organization", "leadership[2].role"],
   // "Degree. GPA 3.6/4.0" leaves the degree's full stop on.
   "jordan/html-harvard": ["education[0].degree"],
   "jordan/html-modern": [],
@@ -104,11 +99,11 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "publications[2].venue",
     "publications[2].details",
   ],
-  // A resume typed in Word. "Physician Shadowing – Cardiology" splits at
-  // the dash, and with the company first, reads swapped.
-  "nadia/writer-company-first": ["work[1].company", "work[1].role", "work[2].role", "work[3].role"],
-  // The titles split as in nadia/writer-company-first.
-  "nadia/latex-jake": ["work[1].company", "work[1].role", "work[2].role", "work[3].role"],
+  // A resume typed in Word. With the company first, "Seminole Heart &
+  // Vascular Clinic" and "Physician Shadowing – Cardiology" read swapped:
+  // neither has a word that says which is which.
+  "nadia/writer-company-first": ["work[1].company", "work[1].role"],
+  "nadia/latex-jake": [],
   // With dates in a column on the left, each entry's title lines split into
   // two entries. A dash inside an award's name ("Architect – Professional")
   // reads as the start of the organization.
