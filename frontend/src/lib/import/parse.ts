@@ -64,6 +64,7 @@ const GITHUB_PROFILE = /(?:https?:\/\/)?(?:www\.)?github\.com\/[A-Za-z0-9-]+\/?(
 const URL = /(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|io|dev|me|org|net|co|ai|app|xyz|tech|site|page|us|ca|edu|info|so|sh|gg|design|codes|blog|cc|tv|uk|in|de)(?:\/[^\s|,;)]*)?/i
 
 const US_STATES = "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY"
+// prettier-ignore
 const PLACES = new Set(
   [
     ...US_STATES.split(" "),
@@ -122,6 +123,7 @@ const LABEL = /^(relevant\s+)?(coursework|courses|involvements?|activities|organ
 
 type HeadingMeaning = { section: SectionName; category?: string } | { section: null; contact?: boolean }
 
+// prettier-ignore
 const HEADINGS: [HeadingMeaning, string[]][] = [
   [{ section: "Education" }, ["education", "academic background", "academics", "educational background", "education and training", "academic history", "education and certifications", "academic qualifications", "education and honors", "education and awards"]],
   [{ section: "Work" }, ["experience", "work experience", "professional experience", "employment", "employment history", "work history", "relevant experience", "industry experience", "internships", "internship experience", "career history", "professional background", "technical experience", "research experience", "engineering experience", "software engineering experience", "work", "experiences", "professional history", "research", "teaching experience", "relevant work experience", "related experience", "additional experience", "other experience", "research and work experience", "work and research experience", "teaching", "academic experience", "positions", "research positions", "appointments", "academic appointments", "professional appointments"]],
@@ -656,6 +658,7 @@ interface SectionResult {
   leftover: { lines: number[]; text: string[] }
 }
 
+// prettier-ignore
 const EXPERIENCE_FIELDS: {
   [Section in "Work" | "Leadership" | "Volunteership"]: Record<"role" | "org" | "location" | "start" | "end" | "bullets", FieldKeyOf<Section>>
 } = {
@@ -790,6 +793,7 @@ function readProjects(lines: ParseLine[]): SectionResult {
 
 const NUMBERED = /^\s*(?:\[\d+\]|\d+[.)])\s+/
 // Abbreviations that end in a full stop without ending a sentence.
+// prettier-ignore
 const ABBREVIATIONS = new Set(["proc", "conf", "vol", "no", "pp", "int", "trans", "eds", "ed", "inc", "dept", "univ", "st", "jr", "sr", "dr", "vs"])
 
 /** Splits "A. Smith, B. Lee. Title. Venue" into its sentences, without splitting at initials. */
