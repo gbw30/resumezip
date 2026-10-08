@@ -227,7 +227,7 @@ const typos = grammarRule(
     category: "spelling",
     level: "fix",
     title: "English spelling to review",
-    why: "Review spelling suggestions in context; the dictionary may not know names and specialist terms.",
+    why: "A typo is one of the first things a recruiter notices. The dictionary doesn't know every name or specialist term, so add those.",
   },
   (lint, _text, known, inSkills) => {
     if (!GRAMMAR_RULES.typos.includes(lint.rule)) return []
@@ -241,14 +241,28 @@ const typos = grammarRule(
     // unfamiliar names there do not need a dictionary warning.
     const instead = name ?? slip
     if (inSkills && !instead) return []
+    if (instead) {
+      return [
+        {
+          text: lint.text,
+          message: `“${lint.text}” may be misspelled`,
+          suggestion: `Try “${instead}”. If it's spelled right, add the word.`,
+        },
+      ]
+    }
+    // Any other unknown word may be a typo ("Sofware") or a name the
+    // dictionary lacks ("Pydantic"). It counts as a suggestion, not a
+    // must-fix, so a real name costs a little until it's added or dismissed,
+    // and Harper's guess is offered as a question rather than a correction.
+    const guess = lint.suggestions[0]
     return [
       {
         text: lint.text,
-        ...(instead ? {} : { level: "look", advisory: true }),
-        message: instead ? `“${lint.text}” may be misspelled` : `The English dictionary doesn't know “${lint.text}”`,
-        suggestion: instead
-          ? `Try “${instead}”. If it's spelled right, add the word.`
-          : "It may be a name or a specialist term. If it's right, add the word or dismiss this.",
+        level: "look",
+        message: `The English dictionary doesn't know “${lint.text}”`,
+        suggestion: guess
+          ? `Did you mean “${guess}”? If “${lint.text}” is a name or a specialist term, add the word.`
+          : "If it's a name or a specialist term, add the word.",
       },
     ]
   },
@@ -256,8 +270,8 @@ const typos = grammarRule(
 )
 
 // Similar dictionary words are not proof: Pydantic/Pedantic and Polars/Polaris
-// are legitimate names. Only reviewed common errors are hard fixes; new
-// vocabulary remains advice, including unknown compounds such as metagenomics.
+// are legitimate names. Only reviewed common errors are must-fixes; other
+// unknown words, including compounds such as metagenomics, are suggestions.
 const spellingSlip = (lint: GrammarLint) => {
   const correction = COMMON_MISSPELLINGS[lint.text.toLowerCase()]
   if (!correction) return undefined

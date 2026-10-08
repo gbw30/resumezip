@@ -39,6 +39,7 @@ async function check(id: string, resume: Resume, { dialect = "american" as Diale
   const report = runChecks(resume, { rules: [rule], grammar, today: TODAY })
   return {
     status: report.results[0].status,
+    scoring: report.results[0].scoring,
     messages: report.findings.map((finding) => finding.message),
     findings: report.findings,
   }
@@ -60,19 +61,30 @@ describe("G1 typos", () => {
     ])
   })
 
-  test("unknown specialist vocabulary is a dismissible, unscored suggestion", async () => {
+  test("an unknown word is a suggestion that counts until it's dismissed or added, never a must-fix", async () => {
     const resume = resumeWith([job(["Analyzed metagenomics samples", "Developed spintronics devices", "Recieved the team award"])])
     const result = await check("G1", resume)
-    expect(result.findings.find((finding) => finding.text === "metagenomics")).toEqual(
-      expect.objectContaining({ level: "look", advisory: true }),
-    )
-    expect(result.findings.find((finding) => finding.text === "spintronics")).toEqual(
-      expect.objectContaining({ level: "look", advisory: true }),
-    )
+    for (const text of ["metagenomics", "spintronics"]) {
+      const finding = result.findings.find((finding) => finding.text === text)!
+      expect(finding, text).toMatchObject({ level: "look" })
+      expect(finding.advisory, text).toBeUndefined()
+    }
     expect(result.findings.find((finding) => finding.text === "Recieved")).toEqual(expect.objectContaining({ level: "fix" }))
     const term = result.findings.find((finding) => finding.text === "metagenomics")!
     const dismissed = await check("G1", { ...resume, [CHECK_FIELD]: { dismissed: [term.key] } })
     expect(dismissed.findings.some((finding) => finding.text === "metagenomics")).toBe(false)
+
+    // On their own, unknown words cost a suggestion's points, without the must-fix cap.
+    const terms = resumeWith([job(["Analyzed metagenomics samples", "Developed spintronics devices"])])
+    expect((await check("G1", terms)).scoring).toMatchObject({ failed: true, level: "look" })
+    const keys = (await check("G1", terms)).findings.map((finding) => finding.key)
+    expect((await check("G1", { ...terms, [CHECK_FIELD]: { dismissed: keys } })).scoring).toMatchObject({ failed: false, credit: 1 })
+  })
+
+  test("offers the dictionary's guess for an unknown word as a question", async () => {
+    const [finding] = (await check("G1", resumeWith([job(["Maintained internal sofware for the team"])]))).findings
+    expect(finding).toMatchObject({ text: "sofware", level: "look", message: "The English dictionary doesn't know “sofware”" })
+    expect(finding.suggestion).toMatch(/^Did you mean “\p{L}+”\? If “sofware” is a name or a specialist term, add the word\.$/u)
   })
 
   test("a nearby dictionary word is not proof a specialist name is misspelled", async () => {
@@ -81,7 +93,7 @@ describe("G1 typos", () => {
       resumeWith([job(["Validated inputs with Pydantic", "Processed data with Polars", "Compiled services with Cython"])]),
     )
     expect(result.findings.filter((finding) => ["Pydantic", "Polars"].includes(finding.text))).toHaveLength(2)
-    expect(result.findings.every((finding) => finding.level === "look" && finding.advisory)).toBe(true)
+    expect(result.findings.every((finding) => finding.level === "look")).toBe(true)
   })
 
   test("capitalizing an ordinary typo doesn't hide it", async () => {

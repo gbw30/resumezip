@@ -53,12 +53,14 @@ sent anywhere.
   words, degrees and verbs in `settings.ts` are spelled right, and so are
   names with capitals inside ("DuckDB"), words with digits, and initials,
   unless they're a clear slip ("RECIEVED") or one slip from a tech name
-  ("TypeScirpt"). An unfamiliar word alone is unscored advice, not a must-fix;
-  this includes specialist terms and unfamiliar compounds. The skills are
-  mostly names Harper doesn't know ("Redux", "Kanban"), so there G1 counts
-  only reviewed common misspellings ("Comunication") or typing slips in a
-  known tech name. A nearby dictionary suggestion alone cannot establish an
-  error. The grammar rules leave skill lists alone.
+  ("TypeScirpt"). Those clear slips are must-fixes. Any other unknown word
+  may be a typo ("sofware") or a name or term the dictionary lacks
+  ("Pydantic", "metagenomics"), so it's a suggestion: it costs a little until
+  it's added or dismissed, never holds the score at 89, and offers Harper's
+  guess as a question ("Did you mean…?"). The skills are mostly names Harper
+  doesn't know ("Redux", "Kanban"), so there G1 counts only reviewed common
+  misspellings ("Comunication") or typing slips in a known tech name. The
+  grammar rules leave skill lists alone.
 - The Check panel's spelling language defaults to English. Choosing another
   language skips G1–G7 and avoids checking its text with Harper. The panel
   says that spelling and grammar were not evaluated. This per-resume choice

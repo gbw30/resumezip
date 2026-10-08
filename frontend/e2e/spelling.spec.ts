@@ -5,7 +5,7 @@ import { pageErrors } from "./helpers"
 // opened, runs in the browser, and "Add word" clears a word everywhere on the
 // resume.
 
-test("unknown words are optional advice, and Add word clears them without the text leaving the browser", async ({ page }) => {
+test("unknown words are suggestions, and Add word clears them without the text leaving the browser", async ({ page }) => {
   const errors = pageErrors(page)
   const sent: string[] = []
   page.on("request", (request) => sent.push(`${request.url()} ${request.postData() ?? ""}`))
