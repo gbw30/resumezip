@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
+import { PROFILE_FIELDS } from "@/components/editor/sections"
 import { readBack, render, samples } from "@/lib/import/testRender"
 import { runChecks, type Outcome, type Rule } from "./engine"
 import { viewOf } from "./resume"
@@ -22,12 +23,13 @@ function rule(id: string, category: CategoryId, level: Level, outcome: () => Out
   return { id, category, level, title: `Check ${id}`, why: `Why ${id} matters`, reads: "form", check: outcome }
 }
 
-// A rule that looked at `checked` things and found something wrong with `wrong` of them.
+// A rule that looked at `checked` things and found something wrong with `wrong` of them (up to 7):
+// each in a profile field of its own, as several problems in one place count as one thing that failed.
 const found =
   (checked: number, wrong = checked): (() => Outcome) =>
   () => ({
     checked,
-    problems: Array.from({ length: wrong }, () => ({ place: { kind: "profile", field: "fullName" } as const, message: "Something's off" })),
+    problems: PROFILE_FIELDS.slice(0, wrong).map(({ key }) => ({ place: { kind: "profile", field: key } as const, message: "Something's off" })),
   })
 const passes = found(1, 0)
 
