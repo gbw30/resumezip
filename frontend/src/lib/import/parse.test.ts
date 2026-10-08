@@ -22,6 +22,17 @@ function line(parts: [string, number][], { bullet = false, bold = false, italic 
   }
 }
 
+/**
+ * Lines laid out down a page, each 12 points below the last, with its right
+ * edge where its text would end at 5 points a letter, so the reader can tell
+ * which lines ran out of room.
+ */
+const onPage = (lines: Line[]): Line[] =>
+  lines.map((line, i) => {
+    const end = line.parts[line.parts.length - 1]
+    return { ...line, box: [line.left, 100 + 12 * i, end.x + end.text.length * 5, 110 + 12 * i] }
+  })
+
 /** A resume of `lines` under a name and a heading. */
 const read = (heading: string, lines: Line[]) => {
   const parsed = parseResume([line([["Mara Lin", 36]], { size: 18, bold: true }), line([[heading, 36]], { size: 12, bold: true }), ...lines])
@@ -106,6 +117,63 @@ describe("a detail line that wraps", () => {
       line([["Austin Community College", 36], ["Aug 2020 – May 2022", 480]], { bold: true }),
     ])
     expect(resume.educationSection.map((entry: Record<string, string>) => entry.schoolName)).toEqual(["State University", "Austin Community College"])
+  })
+})
+
+describe("a year on a line that wrapped", () => {
+  test("stays in the bullet it carries on", () => {
+    const { resume } = read(
+      "Leadership",
+      onPage([
+        line([["Software Lead", 36], ["Sep 2026 – Present", 480]], { bold: true }),
+        line([["GT Solar Racing", 36]], { italic: true }),
+        line([["Lead software for the team’s solar car, building battery telemetry and a live dashboard in React for the", 54]], { bullet: true }),
+        line([["2027 American Solar Challenge.", 54]]),
+        line([["Mentor 5 new members", 54]], { bullet: true }),
+      ]),
+    )
+    expect(resume.leadershipExperienceSection).toHaveLength(1)
+    expect(resume.leadershipExperienceSection[0].leadershipDescription).toBe(
+      "• Lead software for the team’s solar car, building battery telemetry and a live dashboard in React for the 2027 American Solar Challenge.\n• Mentor 5 new members",
+    )
+  })
+
+  test("stays in the paragraph it carries on", () => {
+    const { resume } = read(
+      "Experience",
+      onPage([
+        line([["2026", 36], ["Study Abroad Instructional Staff", 120], ["Kyoto, Japan", 480]], { bold: true }),
+        line([["Supported a 12-week engineering study abroad program in Kyoto for students during Summer", 120]]),
+        line([["2026, combining language study with design and computing courses.", 120]]),
+      ]),
+    )
+    expect(resume.workExperienceSection).toHaveLength(1)
+    expect(resume.workExperienceSection[0].workDescription).toContain("during Summer 2026, combining")
+  })
+
+  test("doesn't take in the next entry's title, with its date set apart", () => {
+    const { resume } = read(
+      "Experience",
+      onPage([
+        line([["Google", 36]], { bold: true }),
+        line([["Senior Engineer", 54], ["Jan 2021 – Present", 480]], { italic: true }),
+        line([["Led the move of the ads ranking service to a new storage layer, cutting its p99 latency in half", 64]], { bullet: true }),
+        line([["Engineer", 54], ["Jun 2018 – Dec 2020", 480]], { italic: true }),
+      ]),
+    )
+    expect(resume.workExperienceSection.map((job: Record<string, string>) => job.workStartDate)).toEqual(["Jan 2021", "Jun 2018"])
+  })
+
+  test("doesn't take in a title with its date in it, after a line with room left", () => {
+    const { resume } = read(
+      "Experience",
+      onPage([
+        line([["Software Engineer, Acme Corp, 2019 – 2021", 36]], { bold: true }),
+        line([["Built the billing service", 36]]),
+        line([["Data Analyst, Beta Inc, 2017 – 2019", 36]], { bold: true }),
+      ]),
+    )
+    expect(resume.workExperienceSection.map((job: Record<string, string>) => job.workStartDate)).toEqual(["2019", "2017"])
   })
 })
 

@@ -310,8 +310,9 @@ interface Group {
 }
 
 /** Wrapped text lines up with the text above it, not with its bullet. */
-function continues(line: Line, item: Item, wasBullet: boolean): boolean {
-  if (line.page === undefined || line.bullet || hasDate(line)) return false
+function continues(line: ParseLine, item: Item, wasBullet: boolean, above: ParseLine | undefined): boolean {
+  if (line.page === undefined || line.bullet) return false
+  if (datesEntry(line, above && item.lines.includes(above.index) ? above : undefined)) return false
   if (wasBullet) return line.left > item.left + 1 && line.x <= Math.max(item.x, item.left + 3 * item.size) + 4
   return Math.abs(line.x - item.x) <= 3 && (!/[.!?]$/.test(item.text) || /^[a-z]/.test(line.text))
 }
@@ -423,6 +424,18 @@ function wrapsInto(line: ParseLine, next: ParseLine): boolean {
   return line.box[2] + (word.length + 1) * charWidth * 1.15 >= line.margin - 2
 }
 
+/** A date laid out the way an entry's is: set apart from the rest of its line, or alone on it. */
+const datedLikeTitle = (line: Line) => (line.parts.length > 1 ? hasDate(line) : dateOnly(line.text))
+
+/**
+ * A date on a line usually starts a new entry. A year in running text
+ * doesn't, when the line above ran out of room for its first word ("…for
+ * the" then "2027 American Solar Challenge"), unless it's laid out the way
+ * an entry's date is.
+ */
+const datesEntry = (line: ParseLine, above: ParseLine | undefined) =>
+  hasDate(line) && (datedLikeTitle(line) || above === undefined || !wrapsInto(above, line))
+
 const CONNECTOR = /(?:[,;:&/-]|\b(?:and|or|of|in|for|the|a|an|at|with|to|by|on|from|into|using|via|across|through|as|including|such|than|while|that|which))$/i
 
 /** Joins a line onto the end of the one before it. */
@@ -478,7 +491,7 @@ function groupEntries(lines: ParseLine[], isBody: (line: Line) => boolean = () =
     lastWasDetail = false
 
     // Text wrapping under a bullet lines up with the bullet's text.
-    if (last && lastWasBullet && continues(line, last, true)) {
+    if (last && lastWasBullet && continues(line, last, true, before)) {
       extendItem(last, line)
       lastWasDetail = wasDetail
       continue
@@ -492,7 +505,7 @@ function groupEntries(lines: ParseLine[], isBody: (line: Line) => boolean = () =
     // Without bullets, descriptions are set in from their entry's title, and
     // a line that ran to the right edge carries on in the next.
     const title = group?.header[0]
-    if (!line.bullet && title && line.page !== undefined && line.left >= textStart(title) + 6 && !hasDate(line)) {
+    if (!line.bullet && title && line.page !== undefined && line.left >= textStart(title) + 6 && !datesEntry(line, before)) {
       // A new point usually starts with a capital; wrapped text rarely does unless the line before ended mid-phrase.
       const wrapped = before && wrapsInto(before, line) && (!/^[A-Z]/.test(line.text) || CONNECTOR.test(before.text))
       if (last && before && wrapped && last.lines.includes(before.index) && Math.abs(line.left - before.left) < 3) {
@@ -511,7 +524,7 @@ function groupEntries(lines: ParseLine[], isBody: (line: Line) => boolean = () =
       lastWasDetail = !line.bullet
       continue
     }
-    if (last && !lastWasBullet && continues(line, last, false)) {
+    if (last && !lastWasBullet && continues(line, last, false, before)) {
       extendItem(last, line)
       continue
     }
