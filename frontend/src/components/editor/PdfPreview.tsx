@@ -34,9 +34,11 @@ interface PdfPreviewProps {
   /** Object URL of the latest compiled PDF. */
   pdfUrl: string | null
   error?: string | null
+  /** A new PDF is being built in another template, so the one on screen is out of date. */
+  updating?: boolean
 }
 
-export default function PdfPreview({ pdfUrl, error }: PdfPreviewProps) {
+export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPreviewProps) {
   const [documents, setDocuments] = useState<LoadedDocument[]>([])
   const [zoom, setZoom] = useState(1)
   const [loadError, setLoadError] = useState(false)
@@ -125,7 +127,7 @@ export default function PdfPreview({ pdfUrl, error }: PdfPreviewProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 md:px-8">
-        <span className="label-mono text-ink-2">Preview · updates as you type</span>
+        <span className="label-mono text-ink-2">{updating ? "Preview · updating…" : "Preview · updates as you type"}</span>
         <div className="flex items-center font-mono text-xs text-ink-2">
           <button
             type="button"
@@ -164,8 +166,9 @@ export default function PdfPreview({ pdfUrl, error }: PdfPreviewProps) {
             The preview couldn&apos;t be built.
           </div>
         ) : (
+          // The out-of-date page fades a little, after a moment, so a quick switch doesn't flicker.
           <div
-            className="relative mx-auto"
+            className={`relative mx-auto transition-opacity duration-300 ${updating ? "opacity-50 delay-150" : ""}`}
             style={{ width: pageWidth, minHeight: numPages * pageWidth * (11 / 8.5) + (numPages - 1) * PAGE_GAP }}
           >
             {!faded && <PrintingPage width={pageWidth} leaving={!waiting} />}

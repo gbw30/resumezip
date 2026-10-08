@@ -304,13 +304,19 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                     className={`border-t pb-7 pt-4 transition-colors duration-300 ${isOpen ? "border-ink" : "border-rule"}`}
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <div className="flex min-w-0 flex-col gap-1">
+                      {/* A closed entry also opens with a click on its summary. Its Edit button is the way in from the keyboard. */}
+                      <div
+                        className={`flex min-w-0 flex-col gap-1 ${isOpen ? "" : "group flex-1 cursor-pointer"}`}
+                        onClick={isOpen ? undefined : () => open(entry.id, entry.id)}
+                      >
                         <span className="label-mono text-ink-2">
                           Entry {index + 1}
                           {leftOut && " · Left out"}
                         </span>
                         {!isOpen && (
-                          <span className={`truncate text-[15px] ${summary && !leftOut ? "text-ink" : "text-ink-2"}`}>
+                          <span
+                            className={`truncate text-[15px] underline-offset-4 group-hover:underline ${summary && !leftOut ? "text-ink" : "text-ink-2"}`}
+                          >
                             {summary || "Empty entry"}
                           </span>
                         )}
@@ -352,7 +358,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                             type="button"
                             onClick={() => open(entry.id, entry.id)}
                             aria-label={`Edit ${name}`}
-                            className="py-2 text-sm text-ink underline underline-offset-4"
+                            className="py-2 text-sm text-ink underline underline-offset-4 hover:decoration-2"
                           >
                             Edit
                           </button>
@@ -396,7 +402,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                               type="button"
                               onClick={() => open(null, entry.id)}
                               aria-label={`Done editing ${name}`}
-                              className="py-2 text-sm text-ink underline underline-offset-4"
+                              className="py-2 text-sm text-ink underline underline-offset-4 hover:decoration-2"
                             >
                               Done
                             </button>

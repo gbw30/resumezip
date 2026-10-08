@@ -13,7 +13,7 @@ export default function SiteFooter() {
       <div className="mx-auto flex max-w-[1440px] flex-col gap-16 px-5 pb-10 pt-16 md:px-10">
         <Link
           href="/"
-          className="flex w-fit items-center gap-[0.3em] font-logo text-[56px] font-medium leading-none tracking-[-0.03em] md:text-[80px]"
+          className="flex w-fit items-center gap-[0.3em] font-logo text-[56px] font-medium leading-none tracking-[-0.03em] transition-opacity hover:opacity-80 md:text-[80px]"
         >
           <Logo className="h-[0.7em] w-auto" />
           resumezip
@@ -21,7 +21,7 @@ export default function SiteFooter() {
         <div className="flex flex-wrap justify-between gap-6 border-t border-white/25 pt-6">
           <nav aria-label="Footer" className="flex flex-wrap gap-x-8 gap-y-3">
             {LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className="label-caps text-white/90 hover:text-white">
+              <Link key={link.href} href={link.href} className="label-caps text-white/90 transition-colors hover:text-white">
                 {link.label}
               </Link>
             ))}

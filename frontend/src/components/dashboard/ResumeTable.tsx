@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Check, Loader2 } from "lucide-react"
 import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
 import { downloadResume } from "@/lib/typst/compile"
 import { templateById } from "@/lib/templates"
@@ -19,6 +19,9 @@ function formatEdited(value: string) {
   return today ? `Today, ${timeFormat.format(date)}` : dateFormat.format(date)
 }
 
+// How long a Download button says "Downloaded" before going back to how it was.
+const DOWNLOADED_MS = 2000
+
 const tagName = (tag: string) => RESUME_TAGS.find((option) => option.id === tag?.toLowerCase())?.name ?? tag
 
 interface ResumeTableProps {
@@ -30,12 +33,18 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
   // Ids of the resumes downloading, and why each one whose last download failed did.
   const [downloading, setDownloading] = useState<string[]>([])
   const [failed, setFailed] = useState<Record<string, Failure>>({})
+  // Ids of the resumes just downloaded, and what's said aloud about the last one.
+  const [downloaded, setDownloaded] = useState<string[]>([])
+  const [announcement, setAnnouncement] = useState("")
 
   const download = async (resume: Record<string, any>) => {
     setDownloading((ids) => [...ids, resume.id])
     try {
       await downloadResume(resume)
       setFailed(({ [resume.id]: _, ...others }) => others)
+      setDownloaded((ids) => [...ids, resume.id])
+      setAnnouncement(`Downloaded ${resume.resumeTitle || "Untitled resume"}`)
+      setTimeout(() => setDownloaded((ids) => ids.filter((id) => id !== resume.id)), DOWNLOADED_MS)
     } catch (error) {
       console.error("Failed to build PDF:", error)
       setFailed((all) => ({ ...all, [resume.id]: nextFailure(all[resume.id], error) }))
@@ -59,22 +68,26 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
 
   const actions = (resume: Record<string, any>) => (
     <>
-      <Link href={`/create/new/${resume.id}`} className="px-2 py-2.5 text-sm underline underline-offset-4">
+      <Link href={`/create/new/${resume.id}`} className="px-2 py-2.5 text-sm underline underline-offset-4 hover:decoration-2">
         Open
       </Link>
       <button
         type="button"
         onClick={() => download(resume)}
         disabled={downloading.includes(resume.id)}
-        className="inline-flex items-center gap-1.5 px-2 py-2.5 text-sm text-ink-2 hover:text-ink disabled:cursor-wait"
+        className="inline-flex items-center gap-1.5 px-2 py-2.5 text-sm text-ink-2 transition-colors hover:text-ink disabled:cursor-wait"
       >
-        {downloading.includes(resume.id) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-        Download
+        {downloading.includes(resume.id) ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+        ) : (
+          downloaded.includes(resume.id) && <Check className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+        {downloaded.includes(resume.id) ? "Downloaded" : "Download"}
       </button>
       <button
         type="button"
         onClick={() => onDelete(resume)}
-        className="py-2.5 pl-2 pr-2 text-sm text-ink-2 hover:text-[#b42318] md:pr-0"
+        className="py-2.5 pl-2 pr-2 text-sm text-ink-2 transition-colors hover:text-[#b42318] md:pr-0"
       >
         Delete
       </button>
@@ -86,6 +99,9 @@ export default function ResumeTable({ resumes, onDelete }: ResumeTableProps) {
 
   return (
     <>
+      <span role="status" className="sr-only">
+        {announcement}
+      </span>
       {failedResumes.length > 0 && (
         <div className="mb-6 flex max-w-[720px] flex-col gap-4">
           {failedResumes.map((resume) => (

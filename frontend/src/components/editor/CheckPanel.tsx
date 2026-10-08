@@ -336,7 +336,9 @@ function FindingItem({ finding, view }: { finding: Finding; view: ResumeView }) 
       <button
         type="button"
         onClick={() => open(finding)}
-        className="flex flex-col items-start gap-0.5 rounded-[4px] px-2 py-2 text-left transition-colors hover:bg-sheet"
+        className={`flex flex-col items-start gap-0.5 rounded-r-[4px] border-l-2 px-2 py-2 text-left transition-colors hover:bg-sheet ${
+          finding.level === "fix" ? "border-[#b42318]" : "border-accent"
+        }`}
       >
         <span className="w-full truncate font-mono text-[11px] text-ink-2">{describePlace(view, finding.place)}</span>
         <span className="text-sm leading-snug text-ink">{finding.message}</span>

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft, Download, Eye, Loader2, PencilLine } from "lucide-react"
+import { ArrowLeft, Check, Download, Eye, Loader2, PencilLine } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
 import { CheckProvider } from "@/components/editor/CheckContext"
 import LeftBar from "@/components/editor/LeftBar"
@@ -30,10 +30,13 @@ const MIN_WAIT_MS = 150
 const MAX_WAIT_MS = 400
 // How long a replaced preview PDF is kept before it's freed.
 const PDF_KEPT_MS = 10_000
+// How long "Saved" stands out after a change is saved, and "Downloaded" shows after a download.
+const SAVED_MS = 1500
+const DOWNLOADED_MS = 2000
 
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>()
-  const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus } = useResumeContext()
+  const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus, savedAt } = useResumeContext()
   const [active, setActive] = useState<ActiveSection>("Profile")
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   // What the preview on screen prints, for the checker to know when it's
@@ -42,7 +45,11 @@ export default function EditorPage() {
   const [unbuilt, setUnbuilt] = useState<string | null>(null)
   const [compileError, setCompileError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [downloaded, setDownloaded] = useState(false)
   const [failure, setFailure] = useState<Failure | null>(null)
+  // A save since the page opened, for a moment.
+  const [justSaved, setJustSaved] = useState(false)
+  const openedSavedAt = useRef(savedAt)
   // Small screens show the form or the preview, not both.
   const [view, setView] = useState<"edit" | "preview">("edit")
   const [typing, setTyping] = useState(false)
@@ -88,6 +95,9 @@ export default function EditorPage() {
   // resume, leave it as it was, so they don't recompile.
   const printed = useMemo(() => JSON.stringify(printedOf({ ...formData, sectionOrder: sections })), [formData, sections])
   const preview = useMemo(() => (pdfUrl ? { url: pdfUrl, printed: pdfPrinted } : null), [pdfUrl, pdfPrinted])
+  // The preview on screen is in another template than the one picked, until the new one is built.
+  const shownTemplate = useMemo(() => (pdfPrinted ? JSON.parse(pdfPrinted).template : null), [pdfPrinted])
+  const switchingTemplate = shownTemplate !== null && shownTemplate !== template
 
   // Re-render the preview in the browser shortly after what it shows changes.
   useEffect(() => {
@@ -122,6 +132,21 @@ export default function EditorPage() {
       clearTimeout(timer)
     }
   }, [formData.id, printed])
+
+  // Each time a change is saved, "Saved in this browser" stands out for a moment.
+  useEffect(() => {
+    if (!savedAt || savedAt === openedSavedAt.current) return
+    setJustSaved(true)
+    const timer = setTimeout(() => setJustSaved(false), SAVED_MS)
+    return () => clearTimeout(timer)
+  }, [savedAt])
+
+  // After a download, the button says so for a moment.
+  useEffect(() => {
+    if (!downloaded) return
+    const timer = setTimeout(() => setDownloaded(false), DOWNLOADED_MS)
+    return () => clearTimeout(timer)
+  }, [downloaded])
 
   // Free each preview PDF a while after a newer one replaces it. The
   // preview may only just have started reading it, and pdf.js fails, and
@@ -185,6 +210,7 @@ export default function EditorPage() {
     try {
       await downloadResume({ ...formData, sectionOrder: sections })
       setFailure(null)
+      setDownloaded(true)
     } catch (error) {
       console.error("Error downloading resume:", error)
       setFailure((previous) => nextFailure(previous, error))
@@ -245,28 +271,51 @@ export default function EditorPage() {
               }}
               className="min-w-0 max-w-[58vw] border-0 border-b border-transparent bg-transparent py-0.5 font-serif lg:max-w-[40vw] text-[19px] text-ink outline-none transition-colors placeholder:text-ink-2 hover:border-rule-strong focus:border-accent focus-visible:outline-none"
             />
-            {saveStatus === "saved" && (
-              <span className="label-mono hidden shrink-0 text-ink-2 xl:inline">Saved in this browser</span>
-            )}
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            {/* Here rather than after the name, so it stays put while the name is typed. */}
+            {saveStatus === "saved" && (
+              <span
+                className={`label-mono mr-2 hidden shrink-0 items-center gap-1.5 transition-colors duration-300 xl:inline-flex ${
+                  justSaved ? "text-ink" : "text-ink-2"
+                }`}
+              >
+                <Check
+                  className={`h-3 w-3 transition-opacity duration-300 ${justSaved ? "opacity-100" : "opacity-0"}`}
+                  aria-hidden="true"
+                />
+                Saved in this browser
+              </span>
+            )}
             <TemplatePicker value={formData.selectedTemplate} onChange={(template) => updateFormData("selectedTemplate", template)} />
             <button
               type="button"
               onClick={download}
               disabled={downloading}
-              className="inline-flex h-10 items-center gap-2 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black disabled:cursor-wait disabled:opacity-80"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black disabled:cursor-wait disabled:opacity-80 sm:min-w-[9.5rem]"
             >
               {downloading ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : downloaded ? (
+                <Check className="h-4 w-4" aria-hidden="true" />
               ) : (
                 <Download className="h-4 w-4" aria-hidden="true" />
               )}
               {/* Just "PDF" on phones, so it fits beside the template picker. */}
-              <span>
-                <span className="max-sm:sr-only">Download </span>PDF
-              </span>
+              {downloaded ? (
+                <span>
+                  <span className="max-sm:sr-only">Downloaded</span>
+                  <span className="sm:hidden">PDF</span>
+                </span>
+              ) : (
+                <span>
+                  <span className="max-sm:sr-only">Download </span>PDF
+                </span>
+              )}
             </button>
+            <span role="status" className="sr-only">
+              {downloaded ? "PDF downloaded" : ""}
+            </span>
           </div>
         </div>
         <NotSaved className="border-t border-rule px-5 py-2.5 lg:px-6" />
@@ -316,7 +365,7 @@ export default function EditorPage() {
               view === "preview" ? "flex max-xl:flex-1" : "hidden"
             }`}
           >
-            <PdfPreview pdfUrl={pdfUrl} error={compileError} />
+            <PdfPreview pdfUrl={pdfUrl} error={compileError} updating={switchingTemplate} />
           </section>
         </CheckProvider>
       </div>

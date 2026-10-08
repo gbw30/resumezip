@@ -260,7 +260,7 @@ export default function DashboardPage() {
       />
 
       {dragging && (
-        <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-40 bg-paper/85 p-4">
+        <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-40 bg-paper/95 p-4 backdrop-blur-sm">
           <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[4px] border-2 border-dashed border-accent">
             <p className="font-serif text-[40px] leading-tight tracking-[-0.02em]">Drop to open</p>
             <p className="label-mono text-ink-2">PDF or Word file</p>
