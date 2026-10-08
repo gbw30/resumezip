@@ -12,6 +12,9 @@ const LINKS = [
   { href: "/about", label: "About" },
 ]
 
+// Tailwind's `md`, where the header's links replace the menu; in rem like Tailwind's, so the two agree.
+const WIDE_HEADER = "(min-width: 48rem)"
+
 const CTA = "label-caps items-center whitespace-nowrap bg-accent px-[18px] text-white transition-colors hover:bg-[#2550d4]"
 
 interface SiteHeaderProps {
@@ -39,11 +42,19 @@ export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
       setMenuOpen(false)
       buttonRef.current?.focus()
     }
+    // Turning a phone sideways can show the header's own links, which hide the
+    // menu; it shouldn't still be open when the phone is turned back.
+    const wide = window.matchMedia(WIDE_HEADER)
+    const onResize = () => {
+      if (wide.matches) setMenuOpen(false)
+    }
     document.addEventListener("pointerdown", onPointerDown)
     document.addEventListener("keydown", onKeyDown)
+    wide.addEventListener("change", onResize)
     return () => {
       document.removeEventListener("pointerdown", onPointerDown)
       document.removeEventListener("keydown", onKeyDown)
+      wide.removeEventListener("change", onResize)
     }
   }, [menuOpen])
 

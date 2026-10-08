@@ -43,3 +43,20 @@ test("the menu closes on Escape or a tap elsewhere, and Tab skips it while it fa
   await expect(menu).toBeHidden()
   await expect(button).toHaveAttribute("aria-expanded", "false")
 })
+
+test("the menu is shut after the phone turns sideways and back", async ({ page }) => {
+  await page.setViewportSize(PHONE)
+  await page.goto("/about")
+  await page.getByRole("button", { name: "Open menu" }).click()
+  await expect(page.getByRole("button", { name: "Close menu" })).toBeVisible()
+
+  // Sideways, the header has room for its own links, and the menu and its button go.
+  await page.setViewportSize({ width: PHONE.height, height: PHONE.width })
+  const toggle = page.getByRole("button", { name: /menu/, includeHidden: true })
+  await expect(toggle).toBeHidden()
+  // Waits for the menu to shut before turning back, as that happens a frame after the resize.
+  await expect(toggle).toHaveAttribute("aria-expanded", "false")
+  await page.setViewportSize(PHONE)
+  await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible()
+  await expect(page.getByRole("navigation", { name: "Main" })).toBeHidden()
+})
