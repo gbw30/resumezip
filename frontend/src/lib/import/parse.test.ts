@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import { linesFromPages, type Line } from "./lines"
-import { parseResume, toResumeContent } from "./parse"
+import { MUCH_UNPLACED, parseResume, toResumeContent, unplacedShare } from "./parse"
 
 /**
  * A line of a PDF from its parts, as [text, x] pairs: text set apart on the
@@ -552,5 +552,27 @@ describe("a title with a dash in it", () => {
   test("is still split into the organization and the role when it's all there is", () => {
     const { resume } = read("Leadership", [line([["ColorStack - National Member", 36], ["Sep. 2026 – Present", 460]], { bold: true })])
     expect(resume.leadershipExperienceSection[0]).toMatchObject({ leadershipOrg: "ColorStack", leadershipRole: "National Member" })
+  })
+})
+
+describe("how much of a file couldn't be placed", () => {
+  test("is nothing for a resume read right", () => {
+    const { parsed } = read("Experience", [
+      line([["Hospital Volunteer", 36], ["May 2025 – August 2025", 460]], { bold: true }),
+      line([["Lakeview Medical Center", 36]], { italic: true }),
+      line([["Escorted outpatients to imaging appointments", 54]], { bullet: true }),
+    ])
+    expect(unplacedShare(parsed)).toBe(0)
+  })
+
+  test("is most of a resume whose sections weren't found", () => {
+    const parsed = parseResume([
+      line([["Mara Lin", 36]], { size: 18, bold: true }),
+      line([["mara@example.com", 36]]),
+      line([["Hospital Volunteer at Lakeview Medical Center, May 2025 to August 2025", 36]]),
+      line([["Escorted outpatients to imaging appointments and answered their families' questions", 54]], { bullet: true }),
+      line([["Cleaned wheelchairs and kept the waiting areas tidy, following infection control rules", 54]], { bullet: true }),
+    ])
+    expect(unplacedShare(parsed)).toBeGreaterThan(MUCH_UNPLACED)
   })
 })

@@ -1656,3 +1656,19 @@ export function toResumeContent(parsed: ParsedResume, skip: Set<string> = new Se
 }
 
 export const entryKey = (section: SectionName, index: number) => `${section}:${index}`
+
+/**
+ * When this much of a file's text couldn't be placed, the file was likely
+ * read wrong, not just left with a few lines that have no field. A resume
+ * read right leaves out a tenth at most: an address, an advisor, a line
+ * about an award. One whose headings were missed leaves out a third or more.
+ */
+export const MUCH_UNPLACED = 0.25
+
+/** How much of the file's text went to "Couldn't place", from 0 to 1, leaving out spaces. */
+export function unplacedShare(parsed: ParsedResume): number {
+  const length = (text: string) => text.replace(/\s/g, "").length
+  const total = parsed.lines.reduce((sum, line) => sum + length(line.text), 0)
+  const unplaced = parsed.unplaced.reduce((sum, group) => sum + group.text.reduce((count, text) => count + length(text), 0), 0)
+  return total > 0 ? Math.min(1, unplaced / total) : 0
+}
