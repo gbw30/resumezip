@@ -32,6 +32,9 @@ const FILES: Record<string, Layout[]> = {
   sam: ["html-harvard", "writer-classic", "html-sidebar", "html-side-headings"],
   // Like an academic CV made in Typst, written by hand: see marcus/typst-academic.typ.
   marcus: ["typst-academic"],
+  // Like a resume typed in Word with the company first, a long degree with
+  // the GPA beside it, and titles like "Physician Shadowing – Cardiology".
+  nadia: ["writer-company-first", "latex-jake"],
 }
 
 type Layout =
@@ -39,6 +42,7 @@ type Layout =
   | "latex-jake-company-first"
   | "writer-classic"
   | "writer-modern"
+  | "writer-company-first"
   | "html-modern"
   | "html-sidebar"
   | "html-dates-left"
@@ -434,9 +438,13 @@ ${body.join("\n")}
 const odtBullets = (bullets: string[]) =>
   bullets.length ? `<text:list text:style-name="Bullets">${bullets.map((bullet) => `<text:list-item>${para("Bullet", xml(bullet))}</text:list-item>`).join("")}</text:list>` : ""
 
-function writer(resume: Resume, kind: "classic" | "modern"): string {
-  const look = WRITER_LOOKS[kind]
-  const classic = kind === "classic"
+type WriterKind = "classic" | "modern" | "company-first"
+
+function writer(resume: Resume, kind: WriterKind): string {
+  // The company-first layout is the classic one, with each job's lines the other way round.
+  const look = WRITER_LOOKS[kind === "modern" ? "modern" : "classic"]
+  const classic = kind !== "modern"
+  const companyFirst = kind === "company-first"
   const contacts = contactsOf(resume).map((item) => (item.href ? odtLink(item.text, item.href) : xml(item.text)))
   const body = [para("Name", xml(resume.profileSection.fullName)), para("Contact", contacts.join(classic ? " | " : " • "))]
   const heading = (text: string) => body.push(para("Heading", xml(classic ? text.toUpperCase() : text)))
@@ -449,7 +457,10 @@ function writer(resume: Resume, kind: "classic" | "modern"): string {
     heading(headingOf(resume, name))
     if (isExperience(name)) {
       for (const job of experiencesOf(resume, name)) {
-        if (classic && name === "Leadership") {
+        if (companyFirst) {
+          body.push(para("First", span("B", job.org) + TAB + xml(job.location)))
+          body.push(para("Entry", span("I", job.role) + TAB + span("I", job.dates)))
+        } else if (classic && name === "Leadership") {
           // "ColorStack - National Member" on one line, as many people write it.
           body.push(para("First", span("B", job.role ? `${job.org} - ${job.role}` : job.org) + TAB + xml(job.dates)))
         } else if (classic) {
@@ -463,7 +474,11 @@ function writer(resume: Resume, kind: "classic" | "modern"): string {
       }
     } else if (name === "Education") {
       for (const school of entriesOf(resume, name)) {
-        if (classic) {
+        if (companyFirst) {
+          const place = school.schoolLocation ? `, ${school.schoolLocation}` : ""
+          body.push(para("First", span("B", school.schoolName) + xml(place) + TAB + xml(educationDates(school))))
+          body.push(para("Entry", span("I", school.degree) + TAB + span("I", school.gpa ? `GPA: ${school.gpa}` : "")))
+        } else if (classic) {
           body.push(para("First", span("B", school.schoolName) + TAB + xml(educationDates(school))))
           body.push(para("Entry", span("I", school.degree + (school.gpa ? `, GPA: ${school.gpa}` : "")) + TAB + span("I", school.schoolLocation)))
         } else {
@@ -805,7 +820,8 @@ async function make(browser: Browser, person: string, layout: Layout) {
     let pdf: Buffer
     if (handWritten(layout)) pdf = await typstPdf(readFileSync(path.join(HERE, person, `${layout}.typ`), "utf8"))
     else if (layout === "latex-jake" || layout === "latex-jake-company-first") pdf = pdflatex(jake(resume, layout === "latex-jake-company-first"), dir)
-    else if (layout === "writer-classic" || layout === "writer-modern") pdf = libreOffice(writer(resume, layout === "writer-classic" ? "classic" : "modern"), dir)
+    else if (layout === "writer-classic" || layout === "writer-modern" || layout === "writer-company-first")
+      pdf = libreOffice(writer(resume, layout.slice("writer-".length) as WriterKind), dir)
     else pdf = await print(browser, HTML_LAYOUTS[layout](resume), dir)
     writeFileSync(path.join(HERE, person, `${layout}.pdf`), pdf)
     console.log(`${person}/${layout}.pdf`)

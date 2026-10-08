@@ -104,6 +104,12 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "publications[2].venue",
     "publications[2].details",
   ],
+  // A resume typed in Word. The degree, with its GPA beside it, is long
+  // enough to read as a sentence. "Physician Shadowing – Cardiology" splits
+  // at the dash, and with the company first, reads swapped.
+  "nadia/writer-company-first": ["education[0].degree", "work[1].company", "work[1].role", "work[2].role", "work[3].role"],
+  // The titles split as in nadia/writer-company-first.
+  "nadia/latex-jake": ["work[1].company", "work[1].role", "work[2].role", "work[3].role"],
   // With dates in a column on the left, each entry's title lines split into
   // two entries. A dash inside an award's name ("Architect – Professional")
   // reads as the start of the organization.

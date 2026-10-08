@@ -30,6 +30,7 @@ Each folder is one person:
 | `latex-jake-company-first` | pdfTeX | the same, with the company first and its tools beside it |
 | `writer-classic` | LibreOffice | a word-processor resume in Times-like type, dates on a right tab |
 | `writer-modern` | LibreOffice | Word's own resume styles: Calibri-like type, coloured headings |
+| `writer-company-first` | LibreOffice | the classic one with the company first, its place beside it, and the GPA beside the degree |
 | `html-modern` | Chromium | builders like FlowCV or Reactive Resume |
 | `html-sidebar` | Chromium | two columns, as Canva or Novoresume make |
 | `html-dates-left` | Chromium | dates in a column on the left, as in a European CV |
@@ -37,10 +38,11 @@ Each folder is one person:
 | `html-harvard` | Chromium | Harvard's career office template |
 | `typst-academic` | Typst, by hand | a three-page academic CV: dates on the left, paragraphs, sub-headings |
 
-`maya`, `diego` and `marcus` copy the shapes of real resumes the parser got
-wrong: a project with a hackathon's year in its name, a coursework line that
-wraps, an "80/20" in a wrapped bullet, and an academic CV with headings it
-doesn't know, page numbers and links behind icons.
+`maya`, `diego`, `marcus` and `nadia` copy the shapes of real resumes the
+parser got wrong: a project with a hackathon's year in its name, a coursework
+line that wraps, an "80/20" in a wrapped bullet, an academic CV with headings
+it doesn't know, page numbers and links behind icons, and a long degree with
+its GPA beside it under titles like "Physician Shadowing – Cardiology".
 
 ## When the test fails
 
