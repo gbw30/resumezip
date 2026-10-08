@@ -23,11 +23,14 @@ import type { ResumeView } from "@/lib/check/resume"
 import {
   bandOf,
   checkingCategories,
+  keepFixes,
   keepScores,
   scoreOf,
+  shownFixes,
   shownScore,
   wholePoints,
   type CategoryScore,
+  type KeptFixes,
   type KeptScores,
 } from "@/lib/check/score"
 import { CATEGORIES, MUST_FIX_MAX, type CategoryId } from "@/lib/check/settings"
@@ -77,6 +80,7 @@ export default function CheckPanel() {
     { readingPdf: pdf === "reading", checkingText: grammar === "checking" },
   )
   const score = useShownScore(report, checking)
+  const fixes = useShownFixes(report, checking)
   const shown = useShownCategories(report.findings, checking)
 
   if (!hasEnoughToCheck(view)) {
@@ -99,11 +103,7 @@ export default function CheckPanel() {
   const checkingGrammar = waitingFor("grammar") || grammar !== "ready"
   return (
     <div className="flex flex-col gap-5 px-3 py-4 xl:p-0">
-      <ScoreHeader
-        total={score.total}
-        mustFix={score.mustFix}
-        fixes={report.findings.filter((finding) => finding.level === "fix").length}
-      />
+      <ScoreHeader total={score.total} mustFix={score.mustFix} fixes={fixes} />
       {(waitingFor("pdf") || checkingGrammar) && (
         <div role="status" className="flex flex-col gap-1 px-2 text-sm text-ink-2">
           {waitingFor("pdf") && (
@@ -174,6 +174,13 @@ function useShownScore(report: Report, checking: ReadonlyMap<CategoryId, unknown
   return shownScore(now, kept.current, checking)
 }
 
+/** How many must-fixes hold the score down (`shownFixes`), counting those being checked again as last checked. */
+function useShownFixes(report: Report, checking: ReadonlyMap<CategoryId, unknown>) {
+  const kept = useRef<KeptFixes>(new Map())
+  useEffect(() => keepFixes(kept.current, report, checking))
+  return shownFixes(report, kept.current, checking)
+}
+
 /**
  * The categories with something to fix or review. One being checked again
  * stays if it had findings when last checked, rather than going while its
@@ -214,7 +221,7 @@ function ScoreHeader({ total, mustFix = false, fixes = 0 }: { total: number | "c
       {mustFix && (
         <p className="bg-hatch flex items-start gap-2 rounded-[4px] border border-rule bg-sheet px-3 py-2.5 text-[13px] leading-snug text-ink">
           <Lock className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          {/* The count can be a moment behind while the PDF or the text is checked again. */}
+          {/* The count follows the cap (`shownFixes`); the wording without one is only a fallback. */}
           {fixes > 0
             ? `Capped at ${MUST_FIX_MAX} until you fix ${fixes === 1 ? "1 item" : `${fixes} items`}.`
             : `Capped at ${MUST_FIX_MAX} while something's left to fix.`}
