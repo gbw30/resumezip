@@ -28,12 +28,12 @@ test("an address for a resume this browser doesn't have says so", async ({ page 
   expect(errors).toEqual([])
 })
 
-test("a resume whose id has a space and an accent opens from the dashboard and by its address", async ({ page }) => {
+test("a resume whose id has a slash, a space and an accent opens from the dashboard and by its address", async ({ page }) => {
   const errors = pageErrors(page)
   // New resumes get their ids from crypto.randomUUID, but one opened from a
-  // PDF keeps the id saved in it, which can be anything. Its address is
-  // escaped: /create/new/my%20r%C3%A9sum%C3%A9.
-  const id = "my résumé"
+  // PDF keeps the id saved in it, which can be anything. Its address takes
+  // two segments and is escaped: /create/new/drafts/my%20r%C3%A9sum%C3%A9.
+  const id = "drafts/my résumé"
   const resume = {
     id,
     resumeTitle: "Accented",

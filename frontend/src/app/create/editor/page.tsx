@@ -34,14 +34,19 @@ const PDF_KEPT_MS = 10_000
 const SAVED_MS = 1500
 const DOWNLOADED_MS = 2000
 
-/** The resume id at the end of an editor address, which keeps the browser's escapes (a space is %20). */
+const EDITOR_ADDRESS = "/create/new/"
+
+/**
+ * The resume id in an editor address: all of the path after /create/new/, as
+ * an id can have a "/" in it, without the browser's escapes (a space is %20).
+ */
 function idFromAddress(pathname: string): string {
-  const last = pathname.split("/").pop() ?? ""
+  const escaped = pathname.startsWith(EDITOR_ADDRESS) ? pathname.slice(EDITOR_ADDRESS.length) : ""
   try {
-    return decodeURIComponent(last)
+    return decodeURIComponent(escaped)
   } catch {
     // A "%" that doesn't start an escape is part of the id.
-    return last
+    return escaped
   }
 }
 

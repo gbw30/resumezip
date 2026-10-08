@@ -7,9 +7,10 @@ module.exports = {
   // Every resume's address gets the same editor page, built once. Resumes
   // only exist in the visitor's browser, so there's nothing for a server to
   // render per id, and a dynamic /create/new/[id] page ran a server function
-  // on every visit. The page reads the id from the address.
+  // on every visit. The page reads the id from the address. `+` takes the
+  // rest of the path: an id kept from an opened PDF can have a "/" in it.
   async rewrites() {
-    return [{ source: "/create/new/:id", destination: "/create/editor" }]
+    return [{ source: "/create/new/:id+", destination: "/create/editor" }]
   },
   // Files in public/ are otherwise checked with the server every time they're
   // shown. These keep their names when they change (e.g. a template's new
