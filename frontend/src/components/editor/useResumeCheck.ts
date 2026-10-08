@@ -33,22 +33,26 @@ export function useResumeCheck(pdf?: PdfReading, grammar?: GrammarReading) {
     [updateFormData],
   )
 
-  return {
-    report,
-    /**
-     * Dismisses a suggestion on this resume; fixes can't be dismissed. Old
-     * dismissals are tidied away only while nothing is left out of the PDF:
-     * the checker doesn't see what's left out, so it would drop dismissals
-     * that are needed again once it's put back.
-     */
-    dismiss: useCallback(
-      (finding: Finding) =>
-        change((state) => dismiss(state, finding, hasLeftOut(latest.current.formData) ? undefined : latest.current.report)),
-      [change],
-    ),
-    /** Brings a dismissed finding back. */
-    restore: useCallback((finding: Finding) => change((state) => restore(state, finding.key)), [change]),
-    /** Adds a word, so it isn't flagged as a typo on this resume. */
-    addWord: useCallback((word: string) => change((state) => addWord(state, word)), [change]),
-  }
+  /**
+   * Dismisses a suggestion on this resume; fixes can't be dismissed. Old
+   * dismissals are tidied away only while nothing is left out of the PDF:
+   * the checker doesn't see what's left out, so it would drop dismissals
+   * that are needed again once it's put back.
+   */
+  const dismissFinding = useCallback(
+    (finding: Finding) =>
+      change((state) => dismiss(state, finding, hasLeftOut(latest.current.formData) ? undefined : latest.current.report)),
+    [change],
+  )
+  /** Brings a dismissed finding back. */
+  const restoreFinding = useCallback((finding: Finding) => change((state) => restore(state, finding.key)), [change])
+  /** Adds a word, so it isn't flagged as a typo on this resume. */
+  const addKnownWord = useCallback((word: string) => change((state) => addWord(state, word)), [change])
+
+  // The same object until the report changes, so CheckContext's value (and
+  // everything reading it) doesn't change on renders that changed nothing.
+  return useMemo(
+    () => ({ report, dismiss: dismissFinding, restore: restoreFinding, addWord: addKnownWord }),
+    [report, dismissFinding, restoreFinding, addKnownWord],
+  )
 }
