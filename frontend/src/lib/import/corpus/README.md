@@ -56,6 +56,18 @@ doesn't read right yet. The test fails when that list changes:
 A change that fixes some fields and breaks others shows both, so you can
 decide whether it's worth it.
 
+A field in `KNOWN_GAPS` can also get worse while staying wrong: a company
+read as "Robot Kinematics" can become "Mentoring". So the test keeps what
+each known gap reads as, in `../__snapshots__/corpus.test.ts.snap`, and
+fails with a **snapshot** difference when any of them reads differently.
+Look at each one: if none reads worse, update the snapshot from `frontend/`:
+
+```bash
+npx vitest run src/lib/import/corpus.test.ts -u
+```
+
+Do the same after deleting fields from `KNOWN_GAPS`.
+
 Fields are compared entry by entry, in order. So when a change finds an
 entry that was missing, every entry after it moves up one, and a field that
 matched before only by chance, under the wrong entry, can show up as
@@ -79,4 +91,5 @@ a change made things worse.
    Japanese font. Only make the files you changed, since making one again
    changes its bytes.
 4. Look at each PDF, then run `npm test` and add what comes back as
-   newlyWrong to `KNOWN_GAPS`, with a line saying why it reads wrong.
+   newlyWrong to `KNOWN_GAPS`, with a line saying why it reads wrong. Then
+   write its snapshot with the command above.

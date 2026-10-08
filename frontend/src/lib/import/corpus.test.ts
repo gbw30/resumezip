@@ -1,8 +1,8 @@
 // The test set: resumes made the way people make them (LaTeX, a word
 // processor, browser-based builders), read back the way "Open a file" reads
 // them, and checked against what they say, field by field. A change to the
-// parser fails here if it reads any field of any of them worse than before.
-// See corpus/README.md.
+// parser fails here if it reads any field of any of them worse than before,
+// or reads one it already gets wrong any differently. See corpus/README.md.
 
 import { readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
@@ -280,6 +280,9 @@ describe.each(files)("%s", (file) => {
       // A change fixed these: delete them from KNOWN_GAPS.
       nowRight: known.filter((field) => !wrong.includes(field)),
     }).toEqual({ newlyWrong: [], nowRight: [] })
+    // What the known gaps read as, which a change can make worse while
+    // they stay wrong.
+    expect(Object.fromEntries(known.map((field) => [field, valueAt(got, field)]))).toMatchSnapshot()
   })
 })
 
