@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { pageErrors, seriousAccessibilityProblems } from "./helpers"
 
 // The editor's left bar switches between the sections (Write) and what the
-// checker found (Check), and remembers which in this browser.
+// checker found (Check), and remembers which for the visit.
 
 async function newResume(page: Page) {
   await page.goto("/")
@@ -20,8 +20,13 @@ test("the left bar switches between writing and checking, and remembers which", 
 
   // It opens on Write, with the section list as it's always been.
   await expect(write).toHaveAttribute("aria-selected", "true")
+  // A name and an entry, so there's something to check: a resume with nothing
+  // to check yet always opens on Write.
+  await page.getByLabel("Full name").fill("Ada Lovelace")
   await sections.getByRole("button", { name: /^\d+ Experience$/ }).click()
   await expect(page.getByRole("heading", { name: "Experience" })).toBeVisible()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Role").fill("Analyst")
 
   // Check puts the checker where the section list was, and leaves the form as it was.
   await check.click()
@@ -56,6 +61,28 @@ test("the left bar switches between writing and checking, and remembers which", 
   await page.reload()
   await expect(write).toHaveAttribute("aria-selected", "true")
   await expect(sections).toBeVisible()
+
+  // It's remembered for the visit, not for good: a new tab opens on Write.
+  await check.click()
+  const later = await page.context().newPage()
+  await later.goto(page.url())
+  await expect(later.getByRole("tab", { name: "Write" })).toHaveAttribute("aria-selected", "true")
+  await expect(later.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()).toBeVisible()
+  await later.close()
+
+  // In this tab Check is still remembered, so the resume opens on Check from
+  // a freshly loaded dashboard too, but a new resume, with nothing to check
+  // yet, opens on Write.
+  await page.goto("/create/dashboard")
+  await page.getByRole("link", { name: "Open", exact: true }).click()
+  await expect(check).toHaveAttribute("aria-selected", "true")
+  await expect(preview).toBeVisible()
+  await page.getByRole("link", { name: "Your resumes" }).click()
+  await page.getByRole("button", { name: "New resume" }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click()
+  await expect(page).toHaveURL(/\/create\/new\//)
+  await expect(write).toHaveAttribute("aria-selected", "true")
+  await expect(preview).toBeVisible()
 
   expect(errors).toEqual([])
 })

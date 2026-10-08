@@ -68,8 +68,8 @@ export default function Home() {
               download the PDF.
             </p>
             <StartWritingLink className="group flex items-center justify-between gap-4 border-t border-[#171717] pt-4">
-              <span className="label-caps">Start writing</span>
-              <span className="inline-flex h-7 w-7 items-center justify-center bg-accent text-white transition-transform group-hover:-translate-y-0.5">
+              <span className="label-caps decoration-2 underline-offset-4 group-hover:underline">Start writing</span>
+              <span className="inline-flex h-7 w-7 items-center justify-center bg-accent text-white transition duration-200 group-hover:bg-[#2550d4] motion-safe:group-hover:translate-x-0.5 motion-safe:group-hover:-translate-y-0.5">
                 <ArrowUpRight />
               </span>
             </StartWritingLink>

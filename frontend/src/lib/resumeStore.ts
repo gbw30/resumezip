@@ -43,12 +43,14 @@ export interface ResumeState {
   loaded: boolean
   /** Whether the latest changes are saved in this browser, and if not, why. */
   saveStatus: SaveStatus
+  /** When a change was last written to this browser's storage (as Date.now()); 0 before any is. */
+  savedAt: number
   /** Saved data that couldn't be read, kept aside instead of being saved over. */
   unreadable: string[]
 }
 
 /** Before anything has been read, as when the page is rendered on the server. */
-export const INITIAL_STATE: ResumeState = { resumes: {}, loaded: false, saveStatus: "saved", unreadable: [] }
+export const INITIAL_STATE: ResumeState = { resumes: {}, loaded: false, saveStatus: "saved", savedAt: 0, unreadable: [] }
 
 /** How long typing pauses before the changes are saved, in milliseconds. */
 export const SAVE_DELAY = 400
@@ -181,6 +183,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
     clearTimeout(timer)
     if (!storage || (pending.size === 0 && deleted.size === 0)) return
     let status: SaveStatus = "saved"
+    let wrote = false
     const merged: [string, Resume][] = []
     for (const id of deleted) {
       const removed = removeResume(storage, id)
@@ -204,11 +207,13 @@ export function createResumeStore(delay = SAVE_DELAY) {
       }
       pending.delete(id)
       seen.set(id, saved.text)
+      wrote = true
       // Another tab had saved changes to other fields, and they're in now.
       if (saved.resume !== resume) merged.push([id, saved.resume])
     }
     setState({
       saveStatus: status,
+      ...(wrote && { savedAt: Date.now() }),
       unreadable: readKeptAside(storage),
       ...(merged.length > 0 && { resumes: { ...state.resumes, ...Object.fromEntries(merged) } }),
     })

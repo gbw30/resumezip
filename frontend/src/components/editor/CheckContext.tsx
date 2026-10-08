@@ -2,22 +2,25 @@
 
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
+import type { Resume } from "@/context/ResumeContext"
 import type { Finding, GrammarLint, GrammarReading, PdfReading } from "@/lib/check/engine"
+import { hasEnoughToCheck } from "@/lib/check/labels"
 import type { Place } from "@/lib/check/places"
+import { viewOf } from "@/lib/check/resume"
 import { grammarTexts } from "@/lib/check/spelling"
-import { getStorage } from "@/lib/resumeStorage"
 import type { ActiveSection } from "./SectionNav"
 import { useResumeCheck } from "./useResumeCheck"
 
 /** What the left bar shows: the sections to write in, or what the checker found. */
 export type Mode = "write" | "check"
 
-// The last mode is remembered in this browser, for every resume.
+// The last mode is remembered for this visit, for every resume, so a reload
+// keeps it. A later visit opens in Write, with the sections in view.
 const MODE_KEY = "editor-mode"
 
 function savedMode(): Mode {
   try {
-    return getStorage()?.getItem(MODE_KEY) === "check" ? "check" : "write"
+    return window.sessionStorage.getItem(MODE_KEY) === "check" ? "check" : "write"
   } catch {
     return "write"
   }
@@ -25,7 +28,7 @@ function savedMode(): Mode {
 
 function saveMode(mode: Mode) {
   try {
-    getStorage()?.setItem(MODE_KEY, mode)
+    window.sessionStorage.setItem(MODE_KEY, mode)
   } catch {
     // Only a convenience: the editor opens in Write mode next time.
   }
@@ -120,6 +123,8 @@ interface CheckProviderProps {
   printed: string
   /** What the resume printed when its preview last failed to build. */
   unbuilt: string | null
+  /** The resume being opened, as saved: one with nothing to check yet opens in Write. */
+  opened: Resume
   children: React.ReactNode
 }
 
@@ -130,8 +135,10 @@ interface CheckProviderProps {
  * they wait while the preview is behind what's been typed. Text that's new
  * since it was last checked goes to the grammar checker then too.
  */
-export function CheckProvider({ onSelect, preview, printed, unbuilt, children }: CheckProviderProps) {
-  const [mode, setMode] = useState<Mode>(savedMode)
+export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, children }: CheckProviderProps) {
+  // A resume with nothing to check yet opens in Write, so its sections aren't
+  // hidden behind a request to fill them in.
+  const [mode, setMode] = useState<Mode>(() => (hasEnoughToCheck(viewOf(opened)) ? savedMode() : "write"))
   const chooseMode = useCallback((next: Mode) => {
     setMode(next)
     saveMode(next)

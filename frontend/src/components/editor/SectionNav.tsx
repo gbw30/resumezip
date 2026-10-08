@@ -10,6 +10,8 @@ export type ActiveSection = "Profile" | SectionName
 
 interface SectionNavProps {
   sections: SectionName[]
+  /** The person's own section titles, by each section's `headingKey`. */
+  headings?: Record<string, string>
   active: ActiveSection
   onSelect: (section: ActiveSection) => void
   onReorder: (sections: SectionName[]) => void
@@ -21,7 +23,7 @@ const pad = (n: number) => String(n).padStart(2, "0")
  * The numbered sections: a list in the left bar on wide screens, a row of tabs on narrower ones.
  * Profile stays first; the rest can be dragged into any order.
  */
-export default function SectionNav({ sections, active, onSelect, onReorder }: SectionNavProps) {
+export default function SectionNav({ sections, headings, active, onSelect, onReorder }: SectionNavProps) {
   const navRef = useRef<HTMLElement>(null)
   const [wide, setWide] = useState(() => typeof window !== "undefined" && window.matchMedia(WIDE_SCREEN).matches)
 
@@ -52,6 +54,9 @@ export default function SectionNav({ sections, active, onSelect, onReorder }: Se
     next.splice(destination.index, 0, moved)
     onReorder(next)
   }
+
+  // A section's title as the person named it, or the editor's.
+  const titleOf = (name: SectionName) => headings?.[SECTIONS[name].headingKey] || SECTIONS[name].title
 
   const item = (isActive: boolean) =>
     `flex shrink-0 items-center gap-3 whitespace-nowrap rounded-[4px] px-2 py-[9px] text-left text-sm transition-colors xl:w-full xl:shrink ${
@@ -88,7 +93,7 @@ export default function SectionNav({ sections, active, onSelect, onReorder }: Se
                       >
                         <span
                           {...drag.dragHandleProps}
-                          aria-label={`Reorder ${SECTIONS[name].title}`}
+                          aria-label={`Reorder ${titleOf(name)}`}
                           className="flex h-9 w-6 shrink-0 items-center justify-center text-ink-2 hover:text-ink"
                         >
                           <GripVertical className="h-3.5 w-3.5" />
@@ -100,7 +105,7 @@ export default function SectionNav({ sections, active, onSelect, onReorder }: Se
                           aria-current={isActive || undefined}
                         >
                           <span className={`font-mono text-[11px] ${isActive ? "text-accent" : ""}`}>{pad(index + 2)}</span>
-                          {SECTIONS[name].title}
+                          {titleOf(name)}
                         </button>
                       </div>
                     )}

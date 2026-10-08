@@ -380,6 +380,16 @@ interface SectionHeadingProps {
 /** The big serif title at the top of each section, optionally renameable. */
 export function SectionHeading({ position, title, onRename, flag }: SectionHeadingProps) {
   const [draft, setDraft] = useState<string | null>(null)
+  const renameButton = useRef<HTMLButtonElement>(null)
+  // Set when the rename ends from the keyboard, so the focus goes back to the
+  // rename button rather than to the page. Clicking away keeps it where it went.
+  const refocus = useRef(false)
+
+  useEffect(() => {
+    if (draft !== null || !refocus.current) return
+    refocus.current = false
+    renameButton.current?.focus()
+  }, [draft])
 
   const save = () => {
     if (draft !== null && draft.trim() && draft.trim() !== title) onRename?.(draft.trim())
@@ -394,6 +404,7 @@ export function SectionHeading({ position, title, onRename, flag }: SectionHeadi
           <h1 className="font-serif text-[40px] leading-[1.1] tracking-[-0.02em]">{title}</h1>
           {onRename && (
             <button
+              ref={renameButton}
               type="button"
               aria-label="Rename section"
               title="Rename section"
@@ -412,8 +423,13 @@ export function SectionHeading({ position, title, onRename, flag }: SectionHeadi
           onChange={(event) => setDraft(event.target.value)}
           onBlur={save}
           onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== "Escape") return
+            // The focus is back on the rename button before Enter is done, so
+            // Enter mustn't go on to press it and open the rename again.
+            event.preventDefault()
+            refocus.current = true
             if (event.key === "Enter") save()
-            if (event.key === "Escape") setDraft(null)
+            else setDraft(null)
           }}
           className="w-full border-0 border-b-[1.5px] border-accent bg-transparent font-serif text-[40px] leading-[1.1] tracking-[-0.02em] outline-none focus-visible:outline-none"
         />
