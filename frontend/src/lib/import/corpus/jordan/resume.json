@@ -1,0 +1,70 @@
+{
+  "sectionOrder": ["Work", "Education", "Skills", "Volunteership", "Awards"],
+  "headings": { "work": "Experience", "awards": "Honors & Certifications" },
+  "summary": "Marketing coordinator who plans campaigns from first draft to final report, with a habit of testing two versions of everything.",
+  "profileSection": {
+    "fullName": "Jordan Ellis",
+    "email": "jordan.ellis@example.com",
+    "phoneNumber": "(312) 555-0187",
+    "location": "Chicago, IL",
+    "linkedin": "linkedin.com/in/jordanellis-marketing",
+    "profileGithub": "",
+    "personalWebsite": "jordanellis.co"
+  },
+  "workExperienceSection": [
+    {
+      "workRole": "Marketing Coordinator",
+      "companyName": "Brightline Media",
+      "workLocation": "Chicago, IL",
+      "workStartDate": "Jun 2022",
+      "workEndDate": "Present",
+      "workDescription": "• Plan and run email and social campaigns for 8 clients, with budgets from $5,000 to $60,000 a quarter\n• Grew a regional bakery client’s newsletter from 2,000 to 11,000 subscribers in a year by testing subject lines every week\n• Write the monthly results report for each client and present it with the account manager"
+    },
+    {
+      "workRole": "Social Media Assistant",
+      "companyName": "Lakeview Coffee Roasters",
+      "workLocation": "Chicago, IL",
+      "workStartDate": "Aug 2021",
+      "workEndDate": "May 2022",
+      "workDescription": "• Posted daily to Instagram and TikTok and doubled followers to 18,000 in nine months\n• Started a customer photo series that became the shop’s most shared posts"
+    },
+    {
+      "workRole": "Marketing Intern",
+      "companyName": "Chicago Botanic Garden",
+      "workLocation": "Glencoe, IL",
+      "workStartDate": "Jun 2020",
+      "workEndDate": "Aug 2020",
+      "workDescription": "• Helped plan the summer concert series promotion, including flyers, radio spots and a partner email list of 40 local businesses"
+    }
+  ],
+  "educationSection": [
+    {
+      "schoolName": "DePaul University",
+      "schoolLocation": "Chicago, IL",
+      "degree": "B.A. in Communication and Media, Minor in Spanish",
+      "gpa": "3.6/4.0",
+      "schoolStartDate": "Sep 2017",
+      "schoolEndDate": "Jun 2021",
+      "coursework": "",
+      "involvement": "Student Marketing Association, Radio DePaul"
+    }
+  ],
+  "skillsSection": [
+    { "skillName": "Marketing Tools", "skillDetails": "HubSpot, Hootsuite, Google Analytics, Mailchimp, Canva, Adobe Express" },
+    { "skillName": "Languages", "skillDetails": "English (native), Spanish (professional)" }
+  ],
+  "volunteerExperienceSection": [
+    {
+      "volunteerRole": "Event Volunteer",
+      "volunteerOrg": "Greater Chicago Food Depository",
+      "volunteerLocation": "Chicago, IL",
+      "volunteerStartDate": "Sep 2019",
+      "volunteerEndDate": "Present",
+      "volunteerDescription": "• Help run the yearly fundraising walk, coordinating 30 volunteers at the registration tent"
+    }
+  ],
+  "awardsSection": [
+    { "awardName": "Google Analytics Certification", "awardOrg": "Google", "awardDate": "Mar 2023" },
+    { "awardName": "Dean’s List", "awardOrg": "DePaul University", "awardDate": "2018 – 2021" }
+  ]
+}

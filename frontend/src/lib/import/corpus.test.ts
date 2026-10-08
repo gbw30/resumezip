@@ -1,0 +1,334 @@
+// The test set: resumes made the way people make them (LaTeX, a word
+// processor, browser-based builders), read back the way "Open a file" reads
+// them, and checked against what they say, field by field. A change to the
+// parser fails here if it reads any field of any of them worse than before.
+// See corpus/README.md.
+
+import { readdirSync, readFileSync } from "node:fs"
+import path from "node:path"
+import { describe, expect, test } from "vitest"
+import { toTemplateData } from "@/lib/typst/resumeData"
+import { differences, readBack } from "./testRender"
+
+const CORPUS = path.resolve("src/lib/import/corpus")
+
+/** Every PDF in the test set, as "person/layout". */
+const files = readdirSync(CORPUS, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .flatMap((person) =>
+    readdirSync(path.join(CORPUS, person.name))
+      .filter((file) => file.endsWith(".pdf"))
+      .map((file) => `${person.name}/${file.replace(/\.pdf$/, "")}`),
+  )
+  .sort()
+
+/**
+ * Fields each file doesn't read back right yet, as paths into what's printed
+ * ("work[0].role"; "work[3]" is an entry that shouldn't be there, or is
+ * missing). Fix one in parse.ts, then delete it here; anything that starts
+ * differing and isn't listed fails the test.
+ */
+const KNOWN_GAPS: Record<string, string[]> = {
+  // "80/20" in a wrapped bullet reads as a date and starts a made-up job,
+  // which pushes the jobs after it down one. The coursework's second line
+  // reads as another school. "Broward College - Crop Disease Classification
+  // Research" splits at the dash, the rest going to "Couldn't place".
+  "diego/latex-jake": [
+    "education[1].coursework",
+    "education[2]",
+    "work[0].company",
+    "work[0].bullets",
+    "work[1].company",
+    "work[1].location",
+    "work[1].role",
+    "work[1].start",
+    "work[1].end",
+    "work[1].bullets",
+    "work[2].company",
+    "work[2].role",
+    "work[2].bullets",
+    "work[3]",
+  ],
+  // As in diego/latex-jake. "Stanford Code in Place - Student" reads with
+  // the role and organization swapped, and a project's "Name, tech" isn't split.
+  "diego/html-harvard": [
+    "education[1].coursework",
+    "education[2]",
+    "work[0].company",
+    "work[0].bullets",
+    "work[1].company",
+    "work[1].location",
+    "work[1].role",
+    "work[1].start",
+    "work[1].end",
+    "work[1].bullets",
+    "work[2].company",
+    "work[2].role",
+    "work[2].bullets",
+    "work[3]",
+    "projects[0].name",
+    "projects[0].techStack",
+    "projects[1].name",
+    "projects[1].techStack",
+    "leadership[2].organization",
+    "leadership[2].role",
+  ],
+  // As in diego/latex-jake, and "Stanford Code in Place - Student" swapped.
+  "diego/writer-classic": [
+    "education[1].coursework",
+    "education[2]",
+    "work[0].company",
+    "work[0].bullets",
+    "work[1].company",
+    "work[1].location",
+    "work[1].role",
+    "work[1].start",
+    "work[1].end",
+    "work[1].bullets",
+    "work[2].company",
+    "work[2].role",
+    "work[2].bullets",
+    "work[3]",
+    "leadership[2].organization",
+    "leadership[2].role",
+  ],
+  // "Honors & Certifications" isn't a heading it knows, so the awards go to
+  // "Couldn't place". "Degree. GPA 3.6/4.0" leaves the degree's full stop on.
+  "jordan/html-harvard": ["education[0].degree", "awards[0]", "awards[1]"],
+  "jordan/html-modern": ["awards[0]", "awards[1]"],
+  // Headings in a margin column, level with the first line beside them, aren't
+  // found, so almost everything goes to "Couldn't place".
+  "jordan/html-side-headings": ["education[0]", "work[0]", "work[1]", "work[2]", "skills[0]", "skills[1]", "volunteer[0]", "awards[0]", "awards[1]"],
+  "jordan/writer-modern": ["awards[0]", "awards[1]"],
+  // "Sprout – HackGT 2026": the year in the name is taken as the project's
+  // date and "HackGT" as a tool. "GT Solar Racing Engineering" reads as the
+  // role. A wrapped bullet's line starting "2027 American Solar Challenge"
+  // reads as a new entry. "Role, Company" on one line all reads as the role.
+  "maya/html-modern": [
+    "work[0].company",
+    "work[0].role",
+    "projects[1].name",
+    "projects[1].techStack",
+    "projects[1].date",
+    "leadership[0].organization",
+    "leadership[0].role",
+    "leadership[0].bullets",
+    "leadership[1]",
+  ],
+  "maya/latex-jake": [
+    "projects[1].name",
+    "projects[1].techStack",
+    "projects[1].date",
+    "leadership[0].organization",
+    "leadership[0].role",
+    "leadership[0].bullets",
+    "leadership[1]",
+  ],
+  // As in maya/latex-jake.
+  "maya/latex-jake-company-first": [
+    "projects[1].name",
+    "projects[1].techStack",
+    "projects[1].date",
+    "leadership[0].organization",
+    "leadership[0].role",
+    "leadership[0].bullets",
+    "leadership[1]",
+  ],
+  // With dates in a column on the left, each entry's title lines split into
+  // two entries. A dash inside an award's name ("Architect – Professional")
+  // reads as the start of the organization.
+  "priya/html-dates-left": [
+    "education[0].school",
+    "education[0].location",
+    "education[0].gpa",
+    "education[1]",
+    "work[0].company",
+    "work[0].location",
+    "work[0].bullets",
+    "work[1].company",
+    "work[1].role",
+    "work[1].start",
+    "work[1].end",
+    "work[1].bullets",
+    "work[2].company",
+    "work[2].location",
+    "work[2].role",
+    "work[2].start",
+    "work[2].end",
+    "work[2].bullets",
+    "work[3].company",
+    "work[3].location",
+    "work[3].role",
+    "work[3].start",
+    "work[3].end",
+    "work[3].bullets",
+    "work[4]",
+    "work[5]",
+    "work[6]",
+    "work[7]",
+    "volunteer[0].organization",
+    "volunteer[0].location",
+    "volunteer[0].bullets",
+    "volunteer[1]",
+    "awards[0].name",
+    "awards[0].organization",
+  ],
+  // Award names that wrap in the narrow column split where they wrap.
+  "priya/html-sidebar": ["awards[0].name", "awards[0].organization", "awards[1].name", "awards[1].organization"],
+  // A dash inside an award's name reads as the start of the organization.
+  "priya/latex-jake": ["awards[0].name", "awards[0].organization"],
+  // As in priya/latex-jake, and "Zillow" with "Software Engineer II" swapped.
+  "priya/writer-modern": ["work[1].company", "work[1].role", "awards[0].name", "awards[0].organization"],
+  // "Clinical Experience" isn't a heading it knows, so the jobs go to
+  // "Couldn't place". A comma inside an award's name ("Registered Nurse
+  // License, Texas") reads as the start of the organization. The degree
+  // keeps its full stop, as in jordan/html-harvard.
+  "sam/html-harvard": ["education[0].degree", "work[0]", "work[1]", "work[2]", "awards[0].name", "awards[0].organization"],
+  // As in jordan/html-side-headings.
+  "sam/html-side-headings": [
+    "education[0]",
+    "work[0]",
+    "work[1]",
+    "work[2]",
+    "skills[0]",
+    "skills[1]",
+    "skills[2]",
+    "volunteer[0]",
+    "awards[0]",
+    "awards[1]",
+    "awards[2]",
+  ],
+  // As in sam/html-harvard, and award names that wrap split where they wrap.
+  "sam/html-sidebar": [
+    "work[0]",
+    "work[1]",
+    "work[2]",
+    "awards[0].name",
+    "awards[0].organization",
+    "awards[1].name",
+    "awards[1].organization",
+    "awards[2].name",
+    "awards[2].organization",
+  ],
+  "sam/writer-classic": ["work[0]", "work[1]", "work[2]", "awards[0].name", "awards[0].organization"],
+  // As in priya/html-dates-left, and citations with their date in the left
+  // column split into several.
+  "wei/html-dates-left": [
+    "education[0].school",
+    "education[0].location",
+    "education[0].start",
+    "education[0].end",
+    "education[1].school",
+    "education[1].location",
+    "education[1].degree",
+    "education[1].gpa",
+    "education[1].start",
+    "education[1].end",
+    "education[2]",
+    "education[3]",
+    "work[0].company",
+    "work[0].location",
+    "work[0].bullets",
+    "work[1].company",
+    "work[1].location",
+    "work[1].role",
+    "work[1].start",
+    "work[1].end",
+    "work[1].bullets",
+    "work[2].company",
+    "work[2].location",
+    "work[2].role",
+    "work[2].start",
+    "work[2].end",
+    "work[2].bullets",
+    "work[3]",
+    "work[4]",
+    "work[5]",
+    "publications[0].title",
+    "publications[0].authors",
+    "publications[0].venue",
+    "publications[0].link",
+    "publications[1].title",
+    "publications[1].authors",
+    "publications[1].venue",
+    "publications[1].details",
+    "publications[1].date",
+    "publications[1].link",
+    "publications[2].title",
+    "publications[2].authors",
+    "publications[2].venue",
+    "publications[2].details",
+    "publications[2].date",
+    "publications[2].doi",
+    "publications[3]",
+    "publications[4]",
+    "publications[5]",
+  ],
+  // Numbered citations that wrap are split at the wrong lines.
+  "wei/latex-jake": [
+    "publications[0].title",
+    "publications[0].authors",
+    "publications[0].venue",
+    "publications[1].title",
+    "publications[1].authors",
+    "publications[1].venue",
+    "publications[1].details",
+    "publications[2].title",
+    "publications[2].authors",
+    "publications[2].venue",
+    "publications[2].details",
+    "publications[2].doi",
+  ],
+  "wei/writer-classic": [],
+}
+
+/**
+ * What a resume prints, in a form that's easy to compare: bullets and
+ * authors as plain text, GPAs without spaces. Headings and the order of
+ * sections are left out: the reader keeps neither, and a layout can print
+ * sections in its own order, like a sidebar.
+ */
+function printed(resume: Record<string, unknown>) {
+  const { headings, order, ...data } = toTemplateData(resume)
+  const plain = (bullets: { text: string }[][]) => bullets.map((runs) => runs.map((run) => run.text).join(""))
+  const withPlainBullets = <T extends { bullets: { text: string }[][] }>(entries: T[]) => entries.map((entry) => ({ ...entry, bullets: plain(entry.bullets) }))
+  return {
+    ...data,
+    education: data.education.map((school) => ({ ...school, gpa: school.gpa.replace(/\s+/g, "") })),
+    work: withPlainBullets(data.work),
+    projects: withPlainBullets(data.projects),
+    leadership: withPlainBullets(data.leadership),
+    volunteer: withPlainBullets(data.volunteer),
+    publications: data.publications.map((publication) => ({ ...publication, authors: publication.authors.map((piece) => piece.text).join("") })),
+  }
+}
+
+/** The value at a path from `differences`. */
+const valueAt = (value: unknown, where: string) =>
+  where
+    .split(/[.[\]]+/)
+    .filter(Boolean)
+    .reduce<any>((inside, key) => inside?.[key], value)
+
+describe.each(files)("%s", (file) => {
+  test("reads back no worse than before", async () => {
+    const [person] = file.split("/")
+    const want = printed(JSON.parse(readFileSync(path.join(CORPUS, person, "resume.json"), "utf8")))
+    const { resume } = await readBack(new Uint8Array(readFileSync(path.join(CORPUS, `${file}.pdf`))))
+    const got = printed(resume)
+
+    const wrong = differences(want, got)
+    const known = KNOWN_GAPS[file] ?? []
+    const show = (value: unknown) => JSON.stringify(value) ?? "nothing"
+    expect({
+      // A change made these worse.
+      newlyWrong: wrong.filter((field) => !known.includes(field)).map((field) => `${field}: want ${show(valueAt(want, field))}, got ${show(valueAt(got, field))}`),
+      // A change fixed these: delete them from KNOWN_GAPS.
+      nowRight: known.filter((field) => !wrong.includes(field)),
+    }).toEqual({ newlyWrong: [], nowRight: [] })
+  })
+})
+
+test("every file has its known gaps listed, even when there are none", () => {
+  expect(Object.keys(KNOWN_GAPS).sort()).toEqual(files)
+})
