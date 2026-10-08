@@ -358,11 +358,18 @@ export default function EditorPage() {
           >
             {/* A container, so the fields fit the form's own width rather than the window's. */}
             <div className="@container mx-auto max-w-[640px]">
-              {active === "Profile" ? (
-                <ProfileForm position={position(1)} />
-              ) : (
-                <SectionForm key={active} section={SECTIONS[active]} position={position(sections.indexOf(active) + 2)} />
-              )}
+              {/* Each section fades in as it's chosen: a new key mounts it anew, and
+                  `starting:` (CSS @starting-style) is where its transition starts from. */}
+              <div
+                key={active}
+                className="transition-[opacity,translate] duration-200 ease-out motion-reduce:transition-none starting:translate-y-1 starting:opacity-0"
+              >
+                {active === "Profile" ? (
+                  <ProfileForm position={position(1)} />
+                ) : (
+                  <SectionForm section={SECTIONS[active]} position={position(sections.indexOf(active) + 2)} />
+                )}
+              </div>
             </div>
           </main>
 
