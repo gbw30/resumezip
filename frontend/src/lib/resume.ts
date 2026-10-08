@@ -45,5 +45,10 @@ export type ResumeWithId = Resume & { id: string }
 /** A resume without the name and tag it has in this browser, as a file holds it (lib/resumeFile.ts). */
 export type ResumeContent = Omit<Resume, "resumeTitle" | "resumeTag">
 
+/** Content with the profile, headings, section order and every section there, as a file read in is. */
+export type CompleteContent = ResumeContent & { profileSection: Profile; headings: Headings; sectionOrder: string[] } & {
+  [Key in DataKey]: Entry[]
+}
+
 /** A resume's top-level field, as the editor changes it. */
 export type ResumeField = keyof Resume

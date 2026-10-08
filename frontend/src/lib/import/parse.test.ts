@@ -116,7 +116,7 @@ describe("a detail line that wraps", () => {
       line([["Relevant Coursework: Genetics, Ecology,", 36]]),
       line([["Austin Community College", 36], ["Aug 2020 – May 2022", 480]], { bold: true }),
     ])
-    expect(resume.educationSection.map((entry: Record<string, string>) => entry.schoolName)).toEqual(["State University", "Austin Community College"])
+    expect(resume.educationSection.map((entry) => entry.schoolName)).toEqual(["State University", "Austin Community College"])
   })
 })
 
@@ -161,7 +161,7 @@ describe("a year on a line that wrapped", () => {
         line([["Engineer", 54], ["Jun 2018 – Dec 2020", 480]], { italic: true }),
       ]),
     )
-    expect(resume.workExperienceSection.map((job: Record<string, string>) => job.workStartDate)).toEqual(["Jan 2021", "Jun 2018"])
+    expect(resume.workExperienceSection.map((job) => job.workStartDate)).toEqual(["Jan 2021", "Jun 2018"])
   })
 
   test("doesn't take in a title with its date in it, after a line with room left", () => {
@@ -173,7 +173,7 @@ describe("a year on a line that wrapped", () => {
         line([["Data Analyst, Beta Inc, 2017 – 2019", 36]], { bold: true }),
       ]),
     )
-    expect(resume.workExperienceSection.map((job: Record<string, string>) => job.workStartDate)).toEqual(["2019", "2017"])
+    expect(resume.workExperienceSection.map((job) => job.workStartDate)).toEqual(["2019", "2017"])
   })
 })
 
@@ -186,7 +186,7 @@ describe("publications", () => {
       line([["of the Association for Computational Linguistics (ACL), Vienna, Austria,", 61]]),
       line([["pp. 410–422, Jul 2025.", 61]]),
     ])
-    expect(resume.publicationsSection.map((paper: Record<string, string>) => [paper.publicationTitle, paper.publicationDate])).toEqual([
+    expect(resume.publicationsSection.map((paper) => [paper.publicationTitle, paper.publicationDate])).toEqual([
       ["Sparse Experts for Retrieval", "2026"],
       ["Benchmarking Long Documents", "Jul 2025"],
     ])
@@ -241,7 +241,7 @@ describe("page numbers", () => {
       line([["Terraform", 36]], { page: 2 }),
       line([["Page 2 of 2", 300]], { page: 2 }),
     ])
-    expect(resume.skillsSection.map((skill: Record<string, string>) => skill.skillDetails)).toEqual(["Python, Go, SQL", "Docker, Kubernetes, Terraform"])
+    expect(resume.skillsSection.map((skill) => skill.skillDetails)).toEqual(["Python, Go, SQL", "Docker, Kubernetes, Terraform"])
     expect(unplaced).toEqual([])
   })
 
@@ -359,7 +359,7 @@ describe("citations under sub-headings", () => {
       line([["[2] W. Zhang, “Reading Long Documents,” Ph.D. thesis, University of", 127]]),
       line([["Michigan, Ann Arbor, MI, USA, 2027.", 147]]),
     ])
-    expect(resume.publicationsSection.map((paper: Record<string, string>) => [paper.publicationTitle, paper.publicationDate])).toEqual([
+    expect(resume.publicationsSection.map((paper) => [paper.publicationTitle, paper.publicationDate])).toEqual([
       ["Sparse Experts for Retrieval", "2026"],
       ["Reading Long Documents", "2027"],
     ])
@@ -431,7 +431,7 @@ describe("degrees under one school", () => {
       line([["Tohoku University", 36], ["Sendai, Japan", 480]], { bold: true }),
       line([["Study Abroad, Robotics & Society, Summer 2025", 54]]),
     ])
-    expect(resume.educationSection.map(({ schoolName, schoolLocation, degree, schoolEndDate }: Record<string, string>) => [schoolName, schoolLocation, degree, schoolEndDate])).toEqual([
+    expect(resume.educationSection.map(({ schoolName, schoolLocation, degree, schoolEndDate }) => [schoolName, schoolLocation, degree, schoolEndDate])).toEqual([
       ["Purdue University", "West Lafayette, IN", "M.S. in Mechanical Engineering", "May 2027"],
       ["Purdue University", "West Lafayette, IN", "B.S. (Honors) in Mechanical Engineering", "December 2025"],
       ["Purdue University", "West Lafayette, IN", "B.A. in Economics", "May 2021"],
@@ -445,7 +445,7 @@ describe("degrees under one school", () => {
       line([["B.S. in Mechanical Engineering", 36]], { italic: true }),
       line([["Certificate in Data Analytics", 36], ["2024", 480]], { bold: true }),
     ])
-    expect(resume.educationSection.map((school: Record<string, string>) => school.schoolName)).toEqual(["Purdue University", ""])
+    expect(resume.educationSection.map((school) => school.schoolName)).toEqual(["Purdue University", ""])
   })
 })
 

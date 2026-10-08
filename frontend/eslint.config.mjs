@@ -21,8 +21,9 @@ const eslintConfig = [
     },
   },
   {
-    // Browser tests patch Worker.postMessage, whose overloads take any.
-    files: ["e2e/**"],
+    // Browser tests patch Worker.postMessage, whose overloads take any. The
+    // corpus script reads people's resume.json files as they are, outside tsc.
+    files: ["e2e/**", "src/lib/import/corpus/make.mts"],
     rules: { "@typescript-eslint/no-explicit-any": "off" },
   },
 ];

@@ -5,7 +5,7 @@
 // couldn't be placed, before anything is saved.
 
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type FieldKey, type FieldKeyOf, type ProfileKey, type SectionName } from "@/components/editor/sections"
-import type { ResumeContent } from "@/lib/resume"
+import type { CompleteContent, ResumeContent } from "@/lib/resume"
 import { SOFT_HYPHEN, type Line, type Part } from "./lines"
 
 /** An entry's values, keyed by its section's field names. */
@@ -1340,7 +1340,7 @@ function readSkills(lines: ParseLine[], category?: string): SectionResult {
     const details = colon && name === colon[1] ? colon[2] : name ? line.parts.slice(1).map((part) => part.text).join(" ") : line.text
     if (!name && last && !line.bullet) {
       // Wrapped from the line above.
-      last.fields.skillDetails = joinWrapped(last.fields.skillDetails, details).trim()
+      last.fields.skillDetails = joinWrapped(last.fields.skillDetails ?? "", details).trim()
       last.lines.push(line.index)
       return
     }
@@ -1423,7 +1423,7 @@ function readAwards(lines: ParseLine[]): SectionResult {
       continue
     }
     if (last && !line.bullet && !hasDate(line) && (/^[a-z]/.test(line.text) || line.left > (lines[0]?.left ?? 0) + 4)) {
-      last.fields.awardName = tidy(joinWrapped(last.fields.awardName, line.text))
+      last.fields.awardName = tidy(joinWrapped(last.fields.awardName ?? "", line.text))
       last.lines.push(line.index)
       continue
     }
@@ -1829,7 +1829,7 @@ export function parseResume(file: Line[]): ParsedResume {
 }
 
 /** Builds a resume for the editor from what was found, leaving out entries the user unticked. */
-export function toResumeContent(parsed: ParsedResume, skip: Set<string> = new Set()): ResumeContent {
+export function toResumeContent(parsed: ParsedResume, skip: Set<string> = new Set()): CompleteContent {
   const resume: ResumeContent = {
     profileSection: { ...parsed.profile },
     headings: {},
@@ -1844,7 +1844,8 @@ export function toResumeContent(parsed: ParsedResume, skip: Set<string> = new Se
       .filter((_, index) => !skip.has(entryKey(name, index)))
       .map((entry, index) => ({ id: index + 1, ...blankEntry(name), ...entry.fields }))
   }
-  return resume
+  // Every section is set above.
+  return resume as CompleteContent
 }
 
 export const entryKey = (section: SectionName, index: number) => `${section}:${index}`
