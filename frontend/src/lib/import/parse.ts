@@ -160,8 +160,9 @@ const HEADING_WORDS: [HeadingMeaning, RegExp][] = [
   [{ section: "Awards" }, /\b(?:awards?|honou?rs|certifications?|certificates?|licen[cs]es?|scholarships?|fellowships?|grants|achievements|distinctions|recognition)\b/],
   [{ section: "Volunteership" }, /\b(?:volunteer\w*|community)\b/],
   [{ section: "Leadership" }, /\b(?:leadership|activities|involvement|service|extracurriculars?|organi[sz]ations)\b/],
-  [{ section: "Work" }, /\b(?:experience|employment|work|positions|internships?|teaching|appointments|career)\b/],
+  // Before work, so "Career Interests" are interests.
   [{ section: "Skills", category: "Interests" }, /\binterests\b/],
+  [{ section: "Work" }, /\b(?:experience|employment|work|positions|internships?|teaching|appointments|career)\b/],
 ]
 
 /** A heading's meaning from a word in it, keeping its own words as a skill category: "Research Interests". */

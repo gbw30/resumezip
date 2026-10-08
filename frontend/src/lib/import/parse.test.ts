@@ -216,6 +216,12 @@ describe("a heading it doesn't know by name", () => {
     expect(resume.skillsSection).toMatchObject([{ skillName: "Research Interests", skillDetails: "Mobile Robotics, Embedded Systems" }])
   })
 
+  test("about interests is about interests, even with a word about work in it", () => {
+    const { resume } = read("Education", [...school, heading("Career Interests"), line([["Healthcare Consulting, Product Management", 36]])])
+    expect(resume.skillsSection).toMatchObject([{ skillName: "Career Interests", skillDetails: "Healthcare Consulting, Product Management" }])
+    expect(resume.workExperienceSection).toEqual([])
+  })
+
   test("isn't a line that only shares a word with one", () => {
     const { resume } = read("Projects", [
       line([["Volunteer Matching App", 36]], { bold: true }),
