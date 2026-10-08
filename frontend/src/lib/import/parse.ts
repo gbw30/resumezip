@@ -257,6 +257,9 @@ function fragmentsOf(part: Part): (Fragment & { start: number })[] {
     }
   }
   for (const match of part.text.matchAll(SEPARATOR)) {
+    // "(UF in Japan: CCED)": a separator inside brackets is part of what's in them.
+    const before = part.text.slice(0, match.index)
+    if ((before.match(/[([]/g)?.length ?? 0) > (before.match(/[)\]]/g)?.length ?? 0)) continue
     add(match.index!)
     start = match.index! + match[0].length
   }

@@ -442,3 +442,21 @@ describe("degrees under one school", () => {
     expect(resume.educationSection.map((school: Record<string, string>) => school.schoolName)).toEqual(["Purdue University", ""])
   })
 })
+
+describe("a title with a separator in parentheses", () => {
+  test("isn't split there", () => {
+    const { resume } = read("Experience", [
+      line([["2026", 36], ["Study Abroad Instructional Staff (UF in Japan: CCED)", 120], ["Univ. of Florida, Kyoto, Japan", 400]], { bold: true }),
+    ])
+    expect(resume.workExperienceSection[0]).toMatchObject({
+      workRole: "Study Abroad Instructional Staff (UF in Japan: CCED)",
+      companyName: "Univ. of Florida",
+      workLocation: "Kyoto, Japan",
+    })
+  })
+
+  test("is still split at one outside them", () => {
+    const { resume } = read("Experience", [line([["Software Engineer (Contract) | Acme Corp", 36], ["2024", 480]], { bold: true })])
+    expect(resume.workExperienceSection[0]).toMatchObject({ workRole: "Software Engineer (Contract)", companyName: "Acme Corp" })
+  })
+})
