@@ -132,7 +132,12 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
   return (
     <Modal title="Here's what we found" onClose={onCancel} wide>
       <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-        <section aria-label="Your file" className="hidden min-h-0 overflow-y-auto border-r border-rule bg-desk lg:block">
+        {/* Focusable, so the file can be scrolled from the keyboard. */}
+        <section
+          aria-label="Your file"
+          tabIndex={0}
+          className="hidden min-h-0 overflow-y-auto border-r border-rule bg-desk focus-visible:outline-offset-[-2px] lg:block"
+        >
           {file.pdf ? (
             <PdfPages doc={file.pdf.doc} pages={file.pdf.pages} lines={file.lines} highlight={highlight} />
           ) : (
@@ -262,7 +267,8 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
             )}
           </div>
 
-          <footer className="flex items-center justify-end gap-2 border-t border-rule px-6 py-4 sm:px-8">
+          {/* Not a <footer>: inside a dialog, that would be a second footer for the whole page. */}
+          <div className="flex items-center justify-end gap-2 border-t border-rule px-6 py-4 sm:px-8">
             <button type="button" onClick={onCancel} className="h-10 px-4 text-sm text-ink-2 hover:text-ink">
               Cancel
             </button>
@@ -273,7 +279,7 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
             >
               Create resume
             </button>
-          </footer>
+          </div>
         </div>
       </div>
     </Modal>

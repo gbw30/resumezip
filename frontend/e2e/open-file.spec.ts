@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 import { MAX_PAGES, MAX_WORD_XML_BYTES } from "../src/lib/import/limits"
 import { textPdf, wordFile } from "../src/lib/import/testFiles"
-import { pageErrors } from "./helpers"
+import { pageErrors, seriousAccessibilityProblems } from "./helpers"
 
 const RESUME = ["Mara Lin", "mara@example.com", "EDUCATION", "State University"]
 const pdf = (pages: string[][]) => ({ name: "Mara Lin.pdf", mimeType: "application/pdf", buffer: textPdf(pages) })
@@ -171,6 +171,9 @@ test("a file read mostly wrong says so up front, and shows what couldn't be plac
   ]
   await page.locator('input[type="file"]').setInputFiles(pdf([lost]))
   await expect(review).toContainText("We couldn't place most of this file.")
+  expect(await seriousAccessibilityProblems(page)).toEqual([])
+  // The dialog's buttons along its bottom aren't a second footer for the page.
+  await expect(page.getByRole("contentinfo")).toHaveCount(1)
   await review.getByRole("button", { name: "Show what we couldn't place" }).click()
   await expect(review.getByRole("region", { name: /^Couldn't place/ })).toBeFocused()
   expect(errors).toEqual([])
