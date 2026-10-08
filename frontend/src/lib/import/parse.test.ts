@@ -665,3 +665,44 @@ describe("a role set under its organization on a line of its own", () => {
     })
   })
 })
+
+describe("a title with a comma, then a dash or colon", () => {
+  const resume = (work: Line[], leadership: Line[]) =>
+    toResumeContent(
+      parseResume([
+        line([["Mara Lin", 36]], { size: 18, bold: true }),
+        line([["Experience", 36]], { size: 12, bold: true }),
+        ...work,
+        line([["Leadership", 36]], { size: 12, bold: true }),
+        ...leadership,
+      ]),
+    )
+  const dated = (title: string, dates: string) => line([[title, 36], [dates, 470]])
+
+  test("splits at the comma when the resume's other entries put the comma between role and organization", () => {
+    const { workExperienceSection: work } = resume(
+      [
+        dated("Lead Teaching Assistant, ME 3410 - Robot Kinematics", "2023 – 2025"),
+        dated("Instructional Staff, Purdue in Japan: RAS, ME 49700", "2026"),
+        dated("Instructional Staff, ME 4630 - Engineering Design", "2025 – Present"),
+      ],
+      [dated("Vice-President, BoilerHacks XI", "2025"), dated("Technical Lead, Open Robotics Club", "2022 – 2024")],
+    )
+    expect(work[0]).toMatchObject({ workRole: "Lead Teaching Assistant", companyName: "ME 3410 - Robot Kinematics" })
+    expect(work[1]).toMatchObject({ workRole: "Instructional Staff", companyName: "Purdue in Japan: RAS, ME 49700" })
+    expect(work[2]).toMatchObject({ workRole: "Instructional Staff", companyName: "ME 4630 - Engineering Design" })
+  })
+
+  test("splits at the dash when nothing else on the resume puts a comma between them", () => {
+    const { workExperienceSection: work } = resume([dated("Software Engineer, Backend - Google", "2024")], [dated("Robotics Club", "2022")])
+    expect(work[0]).toMatchObject({ workRole: "Software Engineer, Backend", companyName: "Google" })
+  })
+
+  test("splits at the dash when the resume's other entries put a dash between them", () => {
+    const { workExperienceSection: work } = resume(
+      [dated("Software Engineer, Backend - Google", "2024")],
+      [dated("National Member - ColorStack", "2025"), dated("Treasurer - Robotics Club", "2023"), dated("Vice-President, BoilerHacks XI", "2022")],
+    )
+    expect(work[0]).toMatchObject({ workRole: "Software Engineer, Backend", companyName: "Google" })
+  })
+})

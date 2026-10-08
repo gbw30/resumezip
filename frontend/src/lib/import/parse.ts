@@ -745,8 +745,23 @@ interface RoleCall {
   margin: number
 }
 
+/**
+ * Where an entry's role and organization were told apart: at a comma ("Vice-President, BoilerHacks"),
+ * or at a dash or colon between them. A role split off at a dash that holds a comma itself
+ * ("Lead TA, ME 3410 - Robot Kinematics") may have been meant to split there instead: `atComma`.
+ */
+interface SplitCall {
+  at: "comma" | "dash"
+  /** Whether the scores were clear about it. */
+  clear: boolean
+  role: string
+  atComma?: { role: string; org: string }
+}
+
+const DASH_OR_COLON = /^(?:\s+[-\u2013\u2014]\s+|:\s+)$/
+
 /** Decides which bit of text is the job title and which is the organization. */
-function roleAndOrg(pieces: Fragment[]): { role: string; org: string; rest: string[]; call?: RoleCall } {
+function roleAndOrg(pieces: Fragment[]): { role: string; org: string; rest: string[]; call?: RoleCall; split?: SplitCall } {
   const texts = joinDashed(pieces)
   if (texts.length === 0) return { role: "", org: "", rest: [] }
   if (texts.length === 1) {
@@ -758,8 +773,8 @@ function roleAndOrg(pieces: Fragment[]): { role: string; org: string; rest: stri
       const [a, b] = comma
       const aTitle = titleScore(a)
       const bTitle = titleScore(b)
-      if (aTitle > 0 && bTitle <= 0) return { role: a, org: b, rest: [] }
-      if (bTitle > 0 && aTitle <= 0) return { role: b, org: a, rest: [] }
+      if (aTitle > 0 && bTitle <= 0) return { role: a, org: b, rest: [], split: { at: "comma", clear: true, role: a } }
+      if (bTitle > 0 && aTitle <= 0) return { role: b, org: a, rest: [], split: { at: "comma", clear: true, role: b } }
     }
     return titleScore(text) > 0 ? { role: text, org: "", rest: [] } : { role: "", org: text, rest: [] }
   }
@@ -772,11 +787,23 @@ function roleAndOrg(pieces: Fragment[]): { role: string; org: string; rest: stri
   const role = [...ranked].sort((a, b) => b.title - a.title || a.order - b.order)[0]
   const others = ranked.filter((item) => item !== role)
   const org = [...others].sort((a, b) => a.title - b.title || a.order - b.order)[0]
+  // Role and organization split apart at a dash or colon between them.
+  const [first, second] = role.order < org.order ? [role, org] : [org, role]
+  const joint = texts[second.order].joint
+  let split: SplitCall | undefined
+  if (second.order === first.order + 1 && joint && DASH_OR_COLON.test(joint)) {
+    split = { at: "dash", clear: role.title - org.title > CLOSE_CALL, role: role.text }
+    const [before, ...after] = role.text.split(/,\s+/)
+    if (role === first && after.length && titleScore(before) > 0 && titleScore(after.join(", ")) <= 0) {
+      split.atComma = { role: before, org: `${after.join(", ")}${joint}${org.text}` }
+    }
+  }
   return {
     role: role.text,
     org: org.text,
     rest: others.filter((item) => item !== org).map((item) => item.text),
     call: { roleFirst: role.order < org.order, margin: role.title - org.title },
+    split,
   }
 }
 
@@ -813,6 +840,28 @@ function followOtherEntries(sections: { name: ExperienceName; calls: Map<FoundEn
   }
 }
 
+/**
+ * "Lead TA, ME 3410 - Robot Kinematics" splits at the dash unless the resume
+ * shows it puts commas between roles and organizations: clearly, on two
+ * entries or more, and at least twice as often as dashes. Then it splits at
+ * the comma, the dash being part of the organization's name.
+ */
+function followCommas(sections: { name: ExperienceName; splits: Map<FoundEntry, SplitCall> }[]) {
+  const all = sections.flatMap(({ splits }) => [...splits.values()])
+  const commas = all.filter((split) => split.at === "comma" && split.clear).length
+  const dashes = all.filter((split) => split.at === "dash" && split.clear && !split.atComma).length
+  if (commas < 2 || commas < 2 * dashes) return
+  for (const { name, splits } of sections) {
+    const keys = EXPERIENCE_FIELDS[name]
+    for (const [entry, split] of splits) {
+      // Left alone if a close call already swapped it.
+      if (!split.atComma || entry.fields[keys.role] !== split.role) continue
+      entry.fields[keys.role] = split.atComma.role
+      entry.fields[keys.org] = split.atComma.org
+    }
+  }
+}
+
 /** "• one\n• two", the editor's format for bullets. */
 const bulletField = (items: string[]) =>
   items
@@ -830,6 +879,7 @@ interface SectionResult {
   leftover: { lines: number[]; text: string[] }
   /** How each entry's role and organization were told apart, where they had to be. */
   calls?: Map<FoundEntry, RoleCall>
+  splits?: Map<FoundEntry, SplitCall>
 }
 
 const EXPERIENCE_FIELDS: Record<"Work" | "Leadership" | "Volunteership", Record<string, string>> = {
@@ -891,6 +941,7 @@ function readExperience(name: ExperienceName, lines: ParseLine[]): SectionResult
   const keys = EXPERIENCE_FIELDS[name]
   const leftover: SectionResult["leftover"] = { lines: [], text: [] }
   const calls = new Map<FoundEntry, RoleCall>()
+  const splits = new Map<FoundEntry, SplitCall>()
   const bullets = new Set(lines.filter((line) => line.bullet).map((line) => line.index))
   const subHeadings = subHeadingsBesideDates(lines)
   for (const line of subHeadings) {
@@ -899,7 +950,7 @@ function readExperience(name: ExperienceName, lines: ParseLine[]): SectionResult
   }
   const entries = groupEntries(lines.filter((line) => !subHeadings.has(line))).map((group) => {
     const header = readHeader(group.header)
-    const { role, org, rest, call } = roleAndOrg(header.texts)
+    const { role, org, rest, call, split } = roleAndOrg(header.texts)
     const fields = blankEntry(name)
     // An organization with no role over it may have its role on a line below.
     const below = !role && org ? titleLines(group.body, (item) => bullets.has(item.lines[0])) : []
@@ -920,9 +971,10 @@ function readExperience(name: ExperienceName, lines: ParseLine[]): SectionResult
     }
     const entry = { fields, lines: linesOf(group) }
     if (call) calls.set(entry, call)
+    if (split) splits.set(entry, split)
     return entry
   })
-  return { entries, leftover, calls }
+  return { entries, leftover, calls, splits }
 }
 
 /** "B.S. in Biology, Stanford University" is a degree and a school. */
@@ -1659,7 +1711,7 @@ export function parseResume(file: Line[]): ParsedResume {
   }
 
   const starts = lines.filter((line) => headings.has(line.index))
-  const experience: { name: ExperienceName; calls: Map<FoundEntry, RoleCall> }[] = []
+  const experience: { name: ExperienceName; calls: Map<FoundEntry, RoleCall>; splits: Map<FoundEntry, SplitCall> }[] = []
   starts.forEach((start, i) => {
     const { meaning, label } = headings.get(start.index)!
     const end = starts[i + 1]?.index ?? lines.length
@@ -1698,10 +1750,11 @@ export function parseResume(file: Line[]): ParsedResume {
               : readExperience(name, sectionLines)
     const entries = result.entries.filter((entry) => Object.values(entry.fields).some((value) => value.trim() !== ""))
     if (entries.length) sectionFor(name).entries.push(...entries)
-    if (result.calls && name in EXPERIENCE_FIELDS) experience.push({ name: name as ExperienceName, calls: result.calls })
+    if (result.calls && result.splits && name in EXPERIENCE_FIELDS) experience.push({ name: name as ExperienceName, calls: result.calls, splits: result.splits })
     addUnplaced(titleCase(label), result.leftover.lines, result.leftover.text)
   })
   followOtherEntries(experience)
+  followCommas(experience)
 
   // Lines before the first heading that we couldn't read, when there are no headings at all.
   if (starts.length === 0) {

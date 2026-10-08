@@ -58,17 +58,11 @@ exports[`marcus/typst-academic > reads back no worse than before 1`] = `
   "publications[1].venue": "Senior Design Project, School of Electrical and Computer Engineering, Purdue University, West Lafayette, IN, USA",
   "publications[2].details": "",
   "publications[2].venue": "B.S. honors thesis, School of Engineering Education, Purdue University, West Lafayette, IN, USA",
-  "work[5].company": "RAS, ME 49700 / ME 59700",
-  "work[5].role": "Instructional Staff, Purdue in Japan",
-  "work[6].company": "Robotics Design 1/2",
-  "work[6].role": "Instructional Staff, ME 4630/4640",
   "work[7].bullets": [
     "Purdue Univ. J. K. Okafor → Boeing, T. N. Ward → Caterpillar, E. V. Sato → Cummins, P. S. Lindqvist",
     "Moreno, R. Bianchi. Undergraduate team; coauthored conference paper on low-cost localization for greenhouse inspection robots.",
     "Purdue Univ. L. Park → Salesforce, H. Ortiz → Eli Lilly. Senior design team, “Boiler Proctor: Integrating Safe",
   ],
-  "work[7].company": "Robot Kinematics",
-  "work[7].role": "Lead Teaching Assistant, ME 3410",
   "work[8]": {
     "bullets": [],
     "company": "Exam Browser with Brightspace,”",
