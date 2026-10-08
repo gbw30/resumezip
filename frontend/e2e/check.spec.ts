@@ -54,7 +54,10 @@ test("the left bar switches between writing and checking, and remembers which", 
   // which Safari logs as an error, and in Check for the score, so the
   // checker's reader isn't either.
   const preview = page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()
-  const score = page.getByRole("tabpanel", { name: /^Check/ }).getByRole("region", { name: "Resume score" }).locator("[aria-live=polite]")
+  const score = page
+    .getByRole("tabpanel", { name: /^Check/ })
+    .getByRole("region", { name: "Resume score" })
+    .locator("[aria-live=polite]")
   const checked = () => expect(score).toContainText(/^\d+\s*\/ 100\s*out of 100$/)
   await expect(preview).toBeVisible()
   await checked()

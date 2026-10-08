@@ -247,7 +247,9 @@ function jake(resume: Resume, companyFirst: boolean): string {
     .map((item) => (item.href ? link(item.text, item.href) : tex(item.text)))
     .join(" $|$ ")
   const items = (bullets: string[]) =>
-    bullets.length ? `\\resumeItemListStart\n${bullets.map((bullet) => `  \\resumeItem{${tex(bullet)}}`).join("\n")}\n\\resumeItemListEnd` : ""
+    bullets.length
+      ? `\\resumeItemListStart\n${bullets.map((bullet) => `  \\resumeItem{${tex(bullet)}}`).join("\n")}\n\\resumeItemListEnd`
+      : ""
   const list = (body: string) => `\\resumeSubHeadingListStart\n${body}\n\\resumeSubHeadingListEnd`
 
   const section = (name: string): string => {
@@ -271,7 +273,10 @@ function jake(resume: Resume, companyFirst: boolean): string {
               school.coursework && `\\item \\small{\\textbf{Relevant Coursework}: \\textit{${tex(school.coursework)}}}`,
               school.involvement && `\\item \\small{\\textbf{Involvement}: ${tex(school.involvement)}}`,
             ]
-            return [`\\resumeSubheading{${tex(school.schoolName)}}{${tex(school.schoolLocation)}}{${degree}}{${tex(educationDates(school))}}`, ...details]
+            return [
+              `\\resumeSubheading{${tex(school.schoolName)}}{${tex(school.schoolLocation)}}{${degree}}{${tex(educationDates(school))}}`,
+              ...details,
+            ]
               .filter(Boolean)
               .join("\n")
           })
@@ -284,7 +289,9 @@ function jake(resume: Resume, companyFirst: boolean): string {
           .map((project) => {
             // "Sprout – HackGT 2026": only the name itself is bold.
             const [title, ...rest] = project.projectName.split(" – ")
-            const links = [project.projectGithub, project.additionalLink].filter(Boolean).map((url: string) => ` $|$ ${link(url, `https://${url}`)}`)
+            const links = [project.projectGithub, project.additionalLink]
+              .filter(Boolean)
+              .map((url: string) => ` $|$ ${link(url, `https://${url}`)}`)
             const heading = `\\textbf{${tex(title)}}${rest.map((piece: string) => ` – ${tex(piece)}`).join("")} $|$ \\emph{${tex(project.techStack)}}${links.join("")}`
             return `\\resumeProjectHeading{${heading}}{${tex(project.projectDate)}}\n${items(bulletsOf(project.projectDescription))}`
           })
@@ -311,7 +318,10 @@ function jake(resume: Resume, companyFirst: boolean): string {
   }
 
   const body = sectionsOf(resume)
-    .map((name) => `\\section{${tex(resume.headings?.[SECTIONS[name].heading] || JAKE_HEADINGS[name] || DEFAULT_HEADINGS[name])}}\n${section(name)}`)
+    .map(
+      (name) =>
+        `\\section{${tex(resume.headings?.[SECTIONS[name].heading] || JAKE_HEADINGS[name] || DEFAULT_HEADINGS[name])}}\n${section(name)}`,
+    )
     .join("\n\n")
   // Copies with the company first often pull the page up a little, to fit it on one.
   const margins = companyFirst ? "\\addtolength{\\topmargin}{-0.2in}\n\\addtolength{\\textheight}{0.2in}\n" : ""
@@ -436,7 +446,9 @@ ${body.join("\n")}
 }
 
 const odtBullets = (bullets: string[]) =>
-  bullets.length ? `<text:list text:style-name="Bullets">${bullets.map((bullet) => `<text:list-item>${para("Bullet", xml(bullet))}</text:list-item>`).join("")}</text:list>` : ""
+  bullets.length
+    ? `<text:list text:style-name="Bullets">${bullets.map((bullet) => `<text:list-item>${para("Bullet", xml(bullet))}</text:list-item>`).join("")}</text:list>`
+    : ""
 
 type WriterKind = "classic" | "modern" | "company-first"
 
@@ -480,7 +492,9 @@ function writer(resume: Resume, kind: WriterKind): string {
           body.push(para("Entry", span("I", school.degree) + TAB + span("I", school.gpa ? `GPA: ${school.gpa}` : "")))
         } else if (classic) {
           body.push(para("First", span("B", school.schoolName) + TAB + xml(educationDates(school))))
-          body.push(para("Entry", span("I", school.degree + (school.gpa ? `, GPA: ${school.gpa}` : "")) + TAB + span("I", school.schoolLocation)))
+          body.push(
+            para("Entry", span("I", school.degree + (school.gpa ? `, GPA: ${school.gpa}` : "")) + TAB + span("I", school.schoolLocation)),
+          )
         } else {
           body.push(para("First", span("B", school.schoolName) + xml(` – ${school.schoolLocation}`)))
           body.push(para("Entry", xml(school.degree) + TAB + xml(educationDates(school))))
@@ -522,7 +536,11 @@ function writer(resume: Resume, kind: WriterKind): string {
 function libreOffice(source: string, dir: string): Buffer {
   writeFileSync(path.join(dir, "resume.fodt"), source)
   const profile = `file://${path.join(dir, "profile")}`
-  execFileSync("soffice", [`-env:UserInstallation=${profile}`, "--headless", "--convert-to", "pdf", "--outdir", dir, path.join(dir, "resume.fodt")], { stdio: "pipe" })
+  execFileSync(
+    "soffice",
+    [`-env:UserInstallation=${profile}`, "--headless", "--convert-to", "pdf", "--outdir", dir, path.join(dir, "resume.fodt")],
+    { stdio: "pipe" },
+  )
   return readFileSync(path.join(dir, "resume.pdf"))
 }
 
@@ -549,7 +567,8 @@ const textBullets = (bullets: string[], mark: string) =>
   bullets.map((bullet) => `<div class="tb"><span class="mark">${mark}</span><span>${html(bullet)}</span></div>`).join("")
 const TEXT_BULLET_CSS = `.tb { display: flex; margin-left: 10px; } .tb .mark { flex: 0 0 12px; }`
 /** Bullets as a list, whose dots browsers draw as shapes rather than text. */
-const listBullets = (bullets: string[]) => (bullets.length ? `<ul>${bullets.map((bullet) => `<li>${html(bullet)}</li>`).join("")}</ul>` : "")
+const listBullets = (bullets: string[]) =>
+  bullets.length ? `<ul>${bullets.map((bullet) => `<li>${html(bullet)}</li>`).join("")}</ul>` : ""
 
 const contactLine = (resume: Resume, between: string) =>
   contactsOf(resume)
@@ -572,7 +591,10 @@ interface HtmlParts {
 }
 
 function sectionHtml(resume: Resume, name: string, parts: HtmlParts): string {
-  if (isExperience(name)) return experiencesOf(resume, name).map((job) => parts.experience(job, name)).join("")
+  if (isExperience(name))
+    return experiencesOf(resume, name)
+      .map((job) => parts.experience(job, name))
+      .join("")
   if (name === "Education") return entriesOf(resume, name).map(parts.education).join("")
   if (name === "Projects") return entriesOf(resume, name).map(parts.project).join("")
   if (name === "Skills") return entriesOf(resume, name).map(parts.skill).join("")
@@ -596,7 +618,8 @@ function modernHtml(resume: Resume): string {
     project: (project) =>
       `<div class="entry"><div class="row"><p><b>${html(project.projectName)}</b> · <i>${html(project.techStack)}</i></p><p class="muted">${html(project.projectDate)}</p></div>${projectLinks(project) ? `<p class="small">${projectLinks(project)}</p>` : ""}${listBullets(bulletsOf(project.projectDescription))}</div>`,
     skill: (skill) => `<p><b>${html(skill.skillName)}:</b> ${html(skill.skillDetails)}</p>`,
-    award: (award) => `<div class="row"><p><b>${html(award.awardName)}</b>, ${html(award.awardOrg)}</p><p class="muted">${html(award.awardDate)}</p></div>`,
+    award: (award) =>
+      `<div class="row"><p><b>${html(award.awardName)}</b>, ${html(award.awardOrg)}</p><p class="muted">${html(award.awardDate)}</p></div>`,
     publication: (publication) => `<p class="cite">${citationHtml(publication)}</p>`,
   }
   const sections = sectionsOf(resume).map((name) => `<h2>${html(headingOf(resume, name))}</h2>${sectionHtml(resume, name, parts)}`)
@@ -628,7 +651,8 @@ function sidebarHtml(resume: Resume): string {
     project: (project) =>
       `<div class="entry"><p class="title">${html(project.projectName)}</p><p class="muted small">${html(project.techStack)}${project.projectDate ? ` · ${html(project.projectDate)}` : ""}</p>${listBullets(bulletsOf(project.projectDescription))}</div>`,
     skill: (skill) => `<div class="entry"><p><b>${html(skill.skillName)}</b></p><p>${html(skill.skillDetails)}</p></div>`,
-    award: (award) => `<div class="entry"><p><b>${html(award.awardName)}</b></p><p>${html(award.awardOrg)}</p><p class="muted">${html(award.awardDate)}</p></div>`,
+    award: (award) =>
+      `<div class="entry"><p><b>${html(award.awardName)}</b></p><p>${html(award.awardOrg)}</p><p class="muted">${html(award.awardDate)}</p></div>`,
     publication: (publication) => `<p class="entry">${citationHtml(publication)}</p>`,
   }
   const block = (name: string) => `<h2>${html(headingOf(resume, name))}</h2>${sectionHtml(resume, name, parts)}`
@@ -653,11 +677,17 @@ aside p { overflow-wrap: anywhere; }
 <h2>Contact</h2>${contactsOf(resume)
     .map((item) => `<p>${a(item.text, item.href)}</p>`)
     .join("")}
-${names.filter((name) => side.includes(name)).map(block).join("\n")}
+${names
+  .filter((name) => side.includes(name))
+  .map(block)
+  .join("\n")}
 </aside>
 <main>
 ${resume.summary ? `<h2>Profile</h2><p>${html(resume.summary)}</p>` : ""}
-${names.filter((name) => !side.includes(name)).map(block).join("\n")}
+${names
+  .filter((name) => !side.includes(name))
+  .map(block)
+  .join("\n")}
 </main>
 </div></body></html>`
 }
@@ -677,7 +707,10 @@ function datesLeftHtml(resume: Resume): string {
         `<p><b>${html(school.degree)}</b></p><p><i>${html(school.schoolName)}</i></p>${school.gpa ? `<p>GPA: ${html(school.gpa)}</p>` : ""}${school.coursework ? `<p>Relevant coursework: ${html(school.coursework)}</p>` : ""}`,
       ),
     project: (project) =>
-      entry(html(project.projectDate), `<p><b>${html(project.projectName)}</b> | ${html(project.techStack)}</p>${textBullets(bulletsOf(project.projectDescription), "•")}`),
+      entry(
+        html(project.projectDate),
+        `<p><b>${html(project.projectName)}</b> | ${html(project.techStack)}</p>${textBullets(bulletsOf(project.projectDescription), "•")}`,
+      ),
     skill: (skill) => entry(`<b>${html(skill.skillName)}</b>`, `<p>${html(skill.skillDetails)}</p>`),
     award: (award) => entry(html(award.awardDate), `<p><b>${html(award.awardName)}</b>, ${html(award.awardOrg)}</p>`),
     publication: (publication) => entry(html(publication.publicationDate), `<p>${citationHtml(publication)}</p>`),
@@ -709,7 +742,8 @@ function sideHeadingsHtml(resume: Resume): string {
     project: (project) =>
       `<div class="entry"><div class="row"><p><b>${html(project.projectName)}</b> — ${html(project.techStack)}</p><p>${html(project.projectDate)}</p></div>${textBullets(bulletsOf(project.projectDescription), "–")}</div>`,
     skill: (skill) => `<p><b>${html(skill.skillName)}:</b> ${html(skill.skillDetails)}</p>`,
-    award: (award) => `<div class="row"><p><b>${html(award.awardName)}</b>, ${html(award.awardOrg)}</p><p>${html(award.awardDate)}</p></div>`,
+    award: (award) =>
+      `<div class="row"><p><b>${html(award.awardName)}</b>, ${html(award.awardOrg)}</p><p>${html(award.awardDate)}</p></div>`,
     publication: (publication) => `<p class="entry">${citationHtml(publication)}</p>`,
   }
   const sections = sectionsOf(resume).map(
@@ -742,7 +776,8 @@ function harvardHtml(resume: Resume): string {
     project: (project) =>
       `<div class="entry"><div class="row"><p><b>${html(project.projectName)}</b>, <i>${html(project.techStack)}</i></p><p>${html(project.projectDate)}</p></div>${textBullets(bulletsOf(project.projectDescription), "•")}</div>`,
     skill: (skill) => `<p><b>${html(skill.skillName)}:</b> ${html(skill.skillDetails)}</p>`,
-    award: (award) => `<div class="row"><p><b>${html(award.awardName)}</b>, ${html(award.awardOrg)}</p><p>${html(award.awardDate)}</p></div>`,
+    award: (award) =>
+      `<div class="row"><p><b>${html(award.awardName)}</b>, ${html(award.awardOrg)}</p><p>${html(award.awardDate)}</p></div>`,
     publication: (publication) => `<p class="entry">${citationHtml(publication)}</p>`,
   }
   const sections = sectionsOf(resume).map((name) => `<h2>${html(headingOf(resume, name))}</h2>${sectionHtml(resume, name, parts)}`)
@@ -791,11 +826,21 @@ let typst: Promise<TypstCompiler> | null = null
 function typstCompiler(): Promise<TypstCompiler> {
   typst ??= (async () => {
     const japanese = execFileSync("fc-match", ["-f", "%{file}", "IPAGothic:lang=ja"], { encoding: "utf8" }).trim()
-    const files = [...readdirSync(FONTS).filter((file) => /\.(ttf|otf)$/.test(file)).map((file) => path.join(FONTS, file)), japanese]
+    const files = [
+      ...readdirSync(FONTS)
+        .filter((file) => /\.(ttf|otf)$/.test(file))
+        .map((file) => path.join(FONTS, file)),
+      japanese,
+    ]
     const compiler = createTypstCompiler()
     await compiler.init({
       getModule: () => readFileSync(TYPST_WASM),
-      beforeBuild: [loadFonts(files.map((file) => new Uint8Array(readFileSync(file))), { assets: false })],
+      beforeBuild: [
+        loadFonts(
+          files.map((file) => new Uint8Array(readFileSync(file))),
+          { assets: false },
+        ),
+      ],
     })
     return compiler
   })()
@@ -805,7 +850,11 @@ function typstCompiler(): Promise<TypstCompiler> {
 async function typstPdf(source: string): Promise<Buffer> {
   const compiler = await typstCompiler()
   compiler.addSource("/resume.typ", source)
-  const { result, diagnostics } = await compiler.compile({ mainFilePath: "/resume.typ", format: CompileFormatEnum.pdf, diagnostics: "unix" })
+  const { result, diagnostics } = await compiler.compile({
+    mainFilePath: "/resume.typ",
+    format: CompileFormatEnum.pdf,
+    diagnostics: "unix",
+  })
   if (!result) throw new Error(diagnostics?.join("\n") || "Typst made no PDF")
   return Buffer.from(result)
 }
@@ -819,7 +868,8 @@ async function make(browser: Browser, person: string, layout: Layout) {
   try {
     let pdf: Buffer
     if (handWritten(layout)) pdf = await typstPdf(readFileSync(path.join(HERE, person, `${layout}.typ`), "utf8"))
-    else if (layout === "latex-jake" || layout === "latex-jake-company-first") pdf = pdflatex(jake(resume, layout === "latex-jake-company-first"), dir)
+    else if (layout === "latex-jake" || layout === "latex-jake-company-first")
+      pdf = pdflatex(jake(resume, layout === "latex-jake-company-first"), dir)
     else if (layout === "writer-classic" || layout === "writer-modern" || layout === "writer-company-first")
       pdf = libreOffice(writer(resume, layout.slice("writer-".length) as WriterKind), dir)
     else pdf = await print(browser, HTML_LAYOUTS[layout](resume), dir)

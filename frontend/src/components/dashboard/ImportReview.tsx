@@ -180,8 +180,8 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                 <div className="min-w-0 text-sm leading-relaxed">
                   <p className="font-medium text-ink">We couldn&apos;t place {share >= 0.5 ? "most" : "a lot"} of this file.</p>
                   <p className="mt-1 text-ink-2">
-                    Its layout may be one we don&apos;t read well yet. Nothing&apos;s lost: it&apos;s all under Couldn&apos;t place, to copy into
-                    the editor.
+                    Its layout may be one we don&apos;t read well yet. Nothing&apos;s lost: it&apos;s all under Couldn&apos;t place, to copy
+                    into the editor.
                   </p>
                   <button type="button" onClick={showUnplaced} className="mt-2 font-medium text-accent underline-offset-2 hover:underline">
                     Show what we couldn&apos;t place

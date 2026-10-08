@@ -385,7 +385,12 @@ export function linesFromPages(pages: PdfPage[]): Line[] {
           }
         }
         // A marked hyphen ending a line, right after a letter, broke a word in two.
-        const soft = item.soft && item === group[group.length - 1] && previous && item.x - previous.right < 0.12 * size && /\p{L}$/u.test(previous.text)
+        const soft =
+          item.soft &&
+          item === group[group.length - 1] &&
+          previous &&
+          item.x - previous.right < 0.12 * size &&
+          /\p{L}$/u.test(previous.text)
         pieces.push({ text: soft ? SOFT_HYPHEN : item.text, bold: item.bold, italic: item.italic })
         previous = item
       }
@@ -395,7 +400,9 @@ export function linesFromPages(pages: PdfPage[]): Line[] {
       const right = Math.max(...group.map((item) => item.right))
       const baseline = group[0].baseline
       const box: [number, number, number, number] = [left, height - baseline - size * 0.85, right, height - baseline + size * 0.3]
-      const onLine = links.filter((link) => baseline >= link.y0 - 3 && baseline <= link.y1 + 1 && link.x1 >= left - 2 && link.x0 <= right + 2)
+      const onLine = links.filter(
+        (link) => baseline >= link.y0 - 3 && baseline <= link.y1 + 1 && link.x1 >= left - 2 && link.x0 <= right + 2,
+      )
       for (const link of onLine) claimed.add(link)
       const lineLinks = onLine.map((link) => link.url)
 
@@ -412,7 +419,8 @@ export function linesFromPages(pages: PdfPage[]): Line[] {
     // above or below it: icons for LinkedIn and GitHub under the phone number.
     for (const link of links) {
       if (claimed.has(link)) continue
-      const distance = (at: (typeof placed)[number]) => (at.baseline < link.y0 ? link.y0 - at.baseline : at.baseline > link.y1 ? at.baseline - link.y1 : 0)
+      const distance = (at: (typeof placed)[number]) =>
+        at.baseline < link.y0 ? link.y0 - at.baseline : at.baseline > link.y1 ? at.baseline - link.y1 : 0
       const nearest = placed
         .filter((at) => distance(at) <= 1.5 * at.size && at.right >= link.x0 - 40 && at.left <= link.x1 + 40)
         .sort((a, b) => distance(a) - distance(b))[0]
