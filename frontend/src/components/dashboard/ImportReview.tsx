@@ -117,6 +117,9 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
   // front instead of left at the bottom, where it's easy to miss.
   const share = unplacedShare(parsed)
   const muchUnplaced = !foundNothing && share >= MUCH_UNPLACED
+  const entries = parsed.sections.reduce((sum, section) => sum + section.entries.length, 0)
+  // With every entry unticked, only the profile would be left to start from.
+  const nothingTicked = entries > 0 && skipped.size === entries
 
   // Escape reaches every open dialog, so while the question is up, it's the question's to answer.
   const close = () => {
@@ -299,17 +302,23 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
           </div>
 
           {/* Not a <footer>: inside a dialog, that would be a second footer for the whole page. */}
-          <div className="flex items-center justify-end gap-2 border-t border-rule px-6 py-4 sm:px-8">
-            <button type="button" onClick={close} className="h-10 px-4 text-sm text-ink-2 hover:text-ink">
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => onCreate(toResumeContent(parsed, skipped))}
-              className="h-10 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black"
-            >
-              Create resume
-            </button>
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3 border-t border-rule px-6 py-4 sm:px-8">
+            <p role="status" className="mr-auto text-sm text-ink-2">
+              {nothingTicked && "Tick something to create a resume."}
+            </p>
+            <div className="flex gap-2">
+              <button type="button" onClick={close} className="h-10 px-4 text-sm text-ink-2 hover:text-ink">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => onCreate(toResumeContent(parsed, skipped))}
+                disabled={nothingTicked}
+                className="h-10 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Create resume
+              </button>
+            </div>
           </div>
         </div>
       </div>

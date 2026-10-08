@@ -281,3 +281,21 @@ test("closing the review after unticking or swapping asks first", async ({ page 
   await expect(page.getByText("No resumes yet.")).toBeVisible()
   expect(errors).toEqual([])
 })
+
+test("Create resume needs something ticked", async ({ page }) => {
+  const errors = pageErrors(page)
+  await page.goto("/create/dashboard")
+  await page.locator('input[type="file"]').setInputFiles(pdf([RESUME]))
+  const review = page.getByRole("dialog", { name: "Here's what we found" })
+  const entry = review.getByRole("checkbox", { name: "Include State University" })
+  const create = review.getByRole("button", { name: "Create resume" })
+
+  // With every entry unticked, Create waits for one to be ticked.
+  await entry.uncheck()
+  await expect(create).toBeDisabled()
+  await expect(review.getByRole("status")).toHaveText("Tick something to create a resume.")
+  await entry.check()
+  await expect(create).toBeEnabled()
+  await expect(review.getByRole("status")).toHaveText("")
+  expect(errors).toEqual([])
+})
