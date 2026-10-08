@@ -107,6 +107,7 @@ const realEmail: Rule = {
 - **Partial credit.** `checked` is how many things the rule looked at (fields,
   entries, bullets). Its credit is the share of them without a problem, unless
   it gives `credit` itself, as "about half the bullets have a number" does.
+  A place with several problems, like a bullet with two typos, counts once.
 - **Point at the exact place:** a profile field, a section's title, a whole
   section, an entry, one of its fields, one bullet (`line`), or the PDF's
   pages. A place that isn't on the resume is a bug: it's logged and left out.

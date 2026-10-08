@@ -99,6 +99,18 @@ describe("running the rules", () => {
     expect(runChecks(fixed, { rules: [realEmail] }).results[0]).toMatchObject({ status: "passed", credit: 1, findings: [] })
   })
 
+  test("counts a place with several problems as one thing that failed", () => {
+    const typos = formRule("G1", () => ({
+      checked: 3,
+      problems: [
+        { place: bulletPlace(0, 0), message: "Typo", text: "Responsibel" },
+        { place: bulletPlace(0, 0), message: "Typo", text: "engien" },
+        { place: bulletPlace(0, 3), message: "Typo", text: "Helpd" },
+      ],
+    }))
+    expect(runChecks(ada, { rules: [typos] }).results[0]).toMatchObject({ status: "failed", checked: 3, credit: 1 / 3 })
+  })
+
   test("takes a rule's own credit when it gives one, kept between 0 and 1", () => {
     const credit = (value: number) =>
       runChecks(ada, {

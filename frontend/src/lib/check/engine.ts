@@ -5,7 +5,7 @@
 
 import type { Line, PageSize } from "@/lib/import/lines"
 import type { ParsedResume } from "@/lib/import/parse"
-import { findingKey, placeExists, textAt, type Place } from "./places"
+import { findingKey, placeExists, placeId, textAt, type Place } from "./places"
 import { viewOf, type ResumeView } from "./resume"
 import { RULES } from "./rules"
 import { AUTOMATIC_PASSES, CATEGORIES, type CategoryId, type Level } from "./settings"
@@ -252,13 +252,16 @@ function judge(rule: Rule, outcome: Outcome, view: ResumeView, dismissed: Readon
     ]
   })
 
-  const open = findings.filter((finding) => !finding.dismissed).length
+  const open = findings.filter((finding) => !finding.dismissed)
+  // Credit counts the things that failed, not the problems: a bullet with
+  // two typos is one failed bullet out of `checked`.
+  const failed = new Set(open.map((finding) => placeId(finding.place))).size
   const checked = Math.max(1, Number.isFinite(outcome.checked) ? outcome.checked : 0)
   const credit =
-    findings.length > 0 && open === 0
+    findings.length > 0 && open.length === 0
       ? 1
       : outcome.credit !== undefined
         ? clamp(outcome.credit)
-        : clamp((checked - open) / checked)
-  return { rule, status: open > 0 ? "failed" : "passed", checked, credit, findings, ...(outcome.partial && { partial: true }) }
+        : clamp((checked - failed) / checked)
+  return { rule, status: open.length > 0 ? "failed" : "passed", checked, credit, findings, ...(outcome.partial && { partial: true }) }
 }
