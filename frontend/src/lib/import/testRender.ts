@@ -1,6 +1,6 @@
 // Renders resumes to PDF with the real Typst templates and reads them back
 // the way "Open a file" does for PDFs from elsewhere, for tests. Used by the
-// import round-trip tests and the checker's PDF rule tests.
+// import round-trip and test set tests, and the checker's PDF rule tests.
 
 import { readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
@@ -55,6 +55,25 @@ export async function render(resume: Record<string, unknown>): Promise<Uint8Arra
   })
   if (!result) throw new Error(diagnostics?.join("\n") || "Typst produced no output")
   return result
+}
+
+/** Paths ("work[0].role") where two values differ. */
+export function differences(want: unknown, got: unknown, at = ""): string[] {
+  if (Array.isArray(want) || Array.isArray(got)) {
+    const a = Array.isArray(want) ? want : []
+    const b = Array.isArray(got) ? got : []
+    if (a.every((item) => typeof item !== "object") && b.every((item) => typeof item !== "object")) {
+      return JSON.stringify(a) === JSON.stringify(b) ? [] : [at]
+    }
+    return Array.from({ length: Math.max(a.length, b.length) }, (_, i) => differences(a[i], b[i], `${at}[${i}]`)).flat()
+  }
+  if (want && got && typeof want === "object" && typeof got === "object") {
+    const keys = new Set([...Object.keys(want), ...Object.keys(got)])
+    return [...keys].flatMap((key) =>
+      differences((want as Record<string, unknown>)[key], (got as Record<string, unknown>)[key], at ? `${at}.${key}` : key),
+    )
+  }
+  return want === got ? [] : [at]
 }
 
 /** A PDF read back: its pages, what the resume reader found, and that as a resume. */

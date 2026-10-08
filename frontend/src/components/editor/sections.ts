@@ -28,7 +28,11 @@ export interface ChoiceDef<Key extends string = string> {
 // the keys they define.
 interface Definition<Field extends string, Data extends string, Heading extends string, Choice extends string> {
   name: SectionName
-  /** Shown in the editor; the resume uses the user's heading or the template's default. */
+  /**
+   * Shown in the editor, and printed as the section's heading unless the user
+   * writes their own: every template's default heading is this one, so the
+   * editor and the PDF never disagree (typst/headings.test.ts checks).
+   */
   title: string
   dataKey: Data
   headingKey: Heading
@@ -165,7 +169,7 @@ const DEFINITIONS = {
   },
   Volunteership: {
     name: "Volunteership",
-    title: "Volunteering",
+    title: "Volunteer Experience",
     dataKey: "volunteerExperienceSection",
     headingKey: "volunteer",
     addLabel: "Add volunteering",
@@ -180,7 +184,7 @@ const DEFINITIONS = {
   },
   Leadership: {
     name: "Leadership",
-    title: "Leadership",
+    title: "Leadership Experience",
     dataKey: "leadershipExperienceSection",
     headingKey: "leadership",
     addLabel: "Add leadership",
@@ -195,7 +199,7 @@ const DEFINITIONS = {
   },
   Awards: {
     name: "Awards",
-    title: "Awards",
+    title: "Awards & Certifications",
     dataKey: "awardsSection",
     headingKey: "awards",
     addLabel: "Add award",

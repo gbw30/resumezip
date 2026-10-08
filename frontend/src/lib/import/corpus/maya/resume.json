@@ -1,0 +1,79 @@
+{
+  "sectionOrder": ["Education", "Skills", "Work", "Projects", "Leadership"],
+  "headings": { "skills": "Technical Skills" },
+  "profileSection": {
+    "fullName": "Maya Okafor",
+    "email": "maya.okafor@example.com",
+    "phoneNumber": "404-555-0148",
+    "location": "",
+    "linkedin": "linkedin.com/in/mayaokafor",
+    "profileGithub": "github.com/mayaokafor-dev",
+    "personalWebsite": ""
+  },
+  "educationSection": [
+    {
+      "schoolName": "Georgia Institute of Technology",
+      "schoolLocation": "Atlanta, GA",
+      "degree": "Bachelor of Science in Computer Science",
+      "gpa": "",
+      "schoolStartDate": "",
+      "schoolEndDate": "May 2029",
+      "coursework": "Data Structures and Algorithms, Object Oriented Programming, Computer Organization",
+      "involvement": ""
+    }
+  ],
+  "skillsSection": [
+    { "skillName": "Languages", "skillDetails": "Python, Java, C++, C, C#, CUDA, Go, SQL, TypeScript, JavaScript, HTML/CSS" },
+    { "skillName": "Frameworks", "skillDetails": "React, FastAPI, gRPC, Azure Functions, Unity" },
+    { "skillName": "Cloud & Data", "skillDetails": "Azure (Blob Storage, Cosmos DB), PostgreSQL, MongoDB, Kafka, Docker, Linux, Git, CI/CD" },
+    { "skillName": "Libraries", "skillDetails": "PyTorch, LightGBM, SHAP, CuPy, FAISS, CLIP, ONNX Runtime, NumPy, pandas, xarray, JUnit" }
+  ],
+  "workExperienceSection": [
+    {
+      "companyName": "Microsoft",
+      "tech": "C#, TypeScript, Azure, SQL",
+      "workRole": "Software Engineer Intern, Azure Storage",
+      "workLocation": "Redmond, WA",
+      "workStartDate": "May 2026",
+      "workEndDate": "August 2026",
+      "workDescription": "• Cut storage incident triage from hours to minutes by building a diagnostics dashboard (C# APIs, React) that queries 200M+ telemetry events across regional clusters.\n• Sped up cross-region log queries 40× (6 min → 9 sec) using partition pruning, pre-aggregated rollups, and asynchronous polling to work around gateway timeouts.\n• Restored replication alerts for 3,000+ storage accounts by tracing a silent configuration drift across 4 service layers, from deployment manifests to runtime flags.\n• Unblocked the team’s capacity planning within 72 hours by benchmarking 3 query strategies on 200M+ production events against a sub-5-second latency target."
+    },
+    {
+      "companyName": "Ocean Robotics Lab",
+      "tech": "Python, ROS, CUDA, PyTorch, HPC",
+      "workRole": "Undergraduate Researcher",
+      "workLocation": "Atlanta, GA",
+      "workStartDate": "August 2026",
+      "workEndDate": "Present",
+      "workDescription": "• Building a GPU-accelerated sonar simulator on Georgia Tech’s PACE cluster to make underwater mapping experiments, which take thousands of runs, practical to repeat.\n• Porting the lab’s CPU ray-tracing code to custom CUDA kernels, with tiled memory processing so 1M-point seafloor meshes fit on NVIDIA A100 GPUs.\n• Benchmarking speedup and FP32 vs. FP64 precision against a multi-core CPU baseline on real survey data from the Gulf of Mexico."
+    }
+  ],
+  "projectsSection": [
+    {
+      "projectName": "Trailmix",
+      "projectDate": "May 2026 – Present",
+      "techStack": "Python, PyTorch, FastAPI, React, FAISS, CLIP",
+      "projectGithub": "",
+      "additionalLink": "",
+      "projectDescription": "• Reduced hiking trail search latency 75% with FAISS vector indexing, enabling sub-100 ms similarity search across 25,000+ trail photos.\n• Raised Top-5 precision to 86% (+31% relevance) with a ranking model combining CLIP image embeddings and each hiker’s saved trails."
+    },
+    {
+      "projectName": "Sprout – HackGT 2026",
+      "projectDate": "September 2026",
+      "techStack": "React, Flask, PostgreSQL, LightGBM, Gemini",
+      "projectGithub": "",
+      "additionalLink": "",
+      "projectDescription": "• Launched a community garden planner with a team of 4, building all 6 React screens and an interactive plot map; grew to 150+ users in the first month.\n• Trained a LightGBM model on 12 soil, weather, and planting features to predict which beds need watering, catching 85% of dry days at a 10% false alarm rate.\n• Built the Flask backend with SHAP explanations and Gemini plain-language tips, adding output checks that block advice about pesticides.\n• Kept the app running through weather API outages with a 2-tier cache fallback, covered by 24 backend tests."
+    }
+  ],
+  "leadershipExperienceSection": [
+    {
+      "leadershipOrg": "GT Solar Racing Engineering",
+      "leadershipRole": "Software Lead",
+      "leadershipLocation": "Atlanta, GA",
+      "leadershipStartDate": "September 2026",
+      "leadershipEndDate": "Present",
+      "leadershipDescription": "• Lead software for the team’s solar car, building battery telemetry, race strategy tools, and a live dashboard in Python and React for the 2027 American Solar Challenge.\n• Built a race simulator that replays past routes and mentor 5 new members on the codebase, code review, and embedded C development."
+    }
+  ]
+}

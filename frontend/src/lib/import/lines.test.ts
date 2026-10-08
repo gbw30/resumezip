@@ -1,10 +1,11 @@
+import { readFileSync } from "node:fs"
 import { describe, expect, test, vi } from "vitest"
 import { convertToHtml } from "mammoth"
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs"
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { MAX_CHARACTERS, MAX_PAGES, MAX_WORD_XML_BYTES, TooMuchTextError } from "./limits"
 import { cleanLink, linesFromDocx, linesFromPages, readPdf, UnreadableWordFileError, unzippedXmlSize } from "./lines"
-import { textPdf, wordFile } from "./testFiles"
+import { pdfOf, textPdf, wordFile } from "./testFiles"
 
 // mammoth as it is, with its converter watched.
 vi.mock("mammoth", async (importOriginal) => {
@@ -138,5 +139,51 @@ describe("reading a Word file", () => {
       { text: "mara@example.com" },
     ])
     expect(convertToHtml).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("hyphens", () => {
+  test("one a typesetter added to break a word at the end of a line comes back as a soft hyphen", async () => {
+    // Typst marks those hyphens as soft ones; a hyphen in "motion-capture" is part of the word.
+    await withPdf(readFileSync("src/lib/import/corpus/marcus/typst-academic.pdf"), async (doc) => {
+      const texts = linesFromPages(await readPdf(doc)).map((line) => line.text)
+      expect(texts.some((text) => text.endsWith(" coor\u00AD"))).toBe(true)
+      expect(texts.some((text) => text.endsWith(" motion-"))).toBe(true)
+    })
+  })
+
+  test("one alone in a span is soft however many spans are around it, and one sharing a span isn't", async () => {
+    const depth = 5000
+    const content = [
+      "BT /F1 12 Tf 72 720 Td",
+      "/P << >> BDC ".repeat(depth),
+      "(It helps coor) Tj /Span << /ActualText <FEFF00AD> >> BDC (-) Tj EMC",
+      "0 -16 Td (dinate the team) Tj",
+      // A hyphen in a span with a span of text in it isn't alone.
+      "0 -16 Td (Not so well) Tj /Span << >> BDC (-) Tj 0 -16 Td /Span << >> BDC (known) Tj EMC EMC",
+      "EMC ".repeat(depth),
+      "ET",
+    ].join(" ")
+    await withPdf(pdfOf([content]), async (doc) => {
+      const texts = linesFromPages(await readPdf(doc)).map((line) => line.text)
+      expect(texts).toEqual(["It helps coor\u00AD", "dinate the team", "Not so well-", "known"])
+    })
+  })
+
+  test("one alone in a span that's part of the document's structure, or has nothing to say about it, is a hyphen", async () => {
+    const content = [
+      "BT /F1 12 Tf 72 720 Td",
+      // A span in the document's structure, numbered by an MCID.
+      "(A well) Tj /Span << /MCID 3 >> BDC (-) Tj EMC",
+      "0 -16 Td (known name) Tj",
+      // A span with no properties, which can't say what it stands for.
+      "0 -16 Td (A long) Tj /Span BMC (-) Tj EMC",
+      "0 -16 Td (term plan) Tj",
+      "ET",
+    ].join(" ")
+    await withPdf(pdfOf([content]), async (doc) => {
+      const texts = linesFromPages(await readPdf(doc)).map((line) => line.text)
+      expect(texts).toEqual(["A well-", "known name", "A long-", "term plan"])
+    })
   })
 })

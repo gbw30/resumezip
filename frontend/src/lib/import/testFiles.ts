@@ -9,19 +9,27 @@ import { crc32, deflateRawSync } from "node:zlib"
  * text a page needs, the smaller it has to be.
  */
 export function textPdf(pages: string[][], { size = 12 } = {}): Buffer {
+  return pdfOf(
+    pages.map((lines) => {
+      const text = lines.map((line) => `(${line.replace(/[\\()]/g, "\\$&")}) Tj 0 -${(size * 4) / 3} Td`).join(" ")
+      return `BT /F1 ${size} Tf 72 720 Td ${text} ET`
+    }),
+  )
+}
+
+/** A PDF of pages drawn by `contents`, each a page's content stream, with Helvetica as /F1. */
+export function pdfOf(contents: string[]): Buffer {
   // The catalog, the page list (filled in once the pages are numbered) and the font come first.
   const objects = ["<< /Type /Catalog /Pages 2 0 R >>", "", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
   const kids: string[] = []
-  for (const lines of pages) {
-    const text = lines.map((line) => `(${line.replace(/[\\()]/g, "\\$&")}) Tj 0 -${(size * 4) / 3} Td`).join(" ")
-    const content = `BT /F1 ${size} Tf 72 720 Td ${text} ET`
+  for (const content of contents) {
     objects.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`)
     objects.push(
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${objects.length} 0 R >>`,
     )
     kids.push(`${objects.length} 0 R`)
   }
-  objects[1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${pages.length} >>`
+  objects[1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${contents.length} >>`
 
   let pdf = "%PDF-1.4\n"
   const offsets = objects.map((object, index) => {

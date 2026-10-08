@@ -51,11 +51,16 @@ test("the left bar switches between writing and checking, and remembers which", 
 
   // The mode stays after a reload, until it's switched back. Each reload
   // waits for the preview, so the PDF compiler's download isn't cut off,
-  // which Safari logs as an error.
+  // which Safari logs as an error, and in Check for the score, so the
+  // checker's reader isn't either.
   const preview = page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()
+  const score = page.getByRole("tabpanel", { name: /^Check/ }).getByRole("region", { name: "Resume score" }).locator("[aria-live=polite]")
+  const checked = () => expect(score).toContainText(/^\d+\s*\/ 100\s*out of 100$/)
   await expect(preview).toBeVisible()
+  await checked()
   await page.reload()
   await expect(check).toHaveAttribute("aria-selected", "true")
+  await checked()
   await write.click()
   await expect(preview).toBeVisible()
   await page.reload()
@@ -64,6 +69,7 @@ test("the left bar switches between writing and checking, and remembers which", 
 
   // It's remembered for the visit, not for good: a new tab opens on Write.
   await check.click()
+  await checked()
   const later = await page.context().newPage()
   await later.goto(page.url())
   await expect(later.getByRole("tab", { name: "Write" })).toHaveAttribute("aria-selected", "true")
@@ -77,6 +83,7 @@ test("the left bar switches between writing and checking, and remembers which", 
   await page.getByRole("link", { name: "Open", exact: true }).click()
   await expect(check).toHaveAttribute("aria-selected", "true")
   await expect(preview).toBeVisible()
+  await checked()
   await page.getByRole("link", { name: "Your resumes" }).click()
   await page.getByRole("button", { name: "New resume" }).click()
   await page.getByRole("dialog").getByRole("button", { name: "Create" }).click()

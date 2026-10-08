@@ -49,6 +49,9 @@ export interface PageSize {
   height: number
 }
 
+/** Ends a line where a word was broken in two; parse.ts joins the word back up. */
+export const SOFT_HYPHEN = "\u00AD"
+
 /** Characters that start a bullet: the usual ones, symbols, and those Word puts in its own fonts. */
 export const BULLET_CHARS =
   "\u2022\u25CF\u25AA\u25A0\u25E6\u2023\u2219\u00B7\u25CB\u25C6\u25BA\u25B8\u27A2\u27A4\u2713\u2714\u2605\u2043\uF0B7\uF0A7\uF076\uF0D8\uF0FC\uF0A8\uF06C"
@@ -161,6 +164,8 @@ interface Item {
   size: number
   bold: boolean
   italic: boolean
+  /** A hyphen alone in a marked span, the way a typesetter marks one it added to break a word. */
+  soft?: boolean
 }
 
 /** A link on a page, in the same coordinates as the page's text. */
@@ -250,24 +255,52 @@ export async function readPdf(doc: PDFDocumentProxy, signal?: AbortSignal): Prom
     // pdf.js sends a page's text a few pieces at a time, so reading stops at
     // the first piece past the limit, even partway through a page.
     const items: Item[] = []
-    const reader = (page.streamTextContent() as ReadableStream<TextContent>).getReader()
+    // Marked spans of text, open around the current one. A hyphen a
+    // typesetter added to break a word is marked as a soft hyphen in a span
+    // of its own; pdf.js gives the hyphen, but not what it's marked as. So
+    // each span counts the pieces of text in it, keeping the first, and
+    // passes them on to the span around it when it ends. Only a span with
+    // properties can say what its text stands for, and only one outside the
+    // document's structure (with no MCID) is there to say it.
+    const spans: { count: number; first?: Item; standsIn: boolean }[] = []
+    const reader = (page.streamTextContent({ includeMarkedContent: true }) as ReadableStream<TextContent>).getReader()
     try {
       for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
         for (const item of chunk.value.items) {
+          if ("type" in item) {
+            if (item.type === "beginMarkedContent" || item.type === "beginMarkedContentProps") {
+              spans.push({ count: 0, standsIn: item.type === "beginMarkedContentProps" && !item.id })
+            } else if (item.type === "endMarkedContent") {
+              const span = spans.pop()
+              if (span?.standsIn && span.count === 1 && /^[-\u2010]$/.test(span.first!.text)) span.first!.soft = true
+              const outer = spans[spans.length - 1]
+              if (span?.first && outer) {
+                outer.first ??= span.first
+                outer.count += span.count
+              }
+            }
+            continue
+          }
           if (!("str" in item) || item.str.trim() === "") continue
           const [a, b, c, d, e, f] = item.transform as number[]
           if (Math.abs(b) > Math.abs(a)) continue // rotated, like a vertical label in a sidebar
           const text = item.str.replace(/[\u200B-\u200D\uFEFF\u00AD]/g, "")
           characters += text.length
           if (characters > MAX_CHARACTERS) throw new TooMuchTextError()
-          items.push({
+          const read: Item = {
             text,
             x: e - x0,
             right: e - x0 + item.width,
             baseline: f - y0,
             size: Math.hypot(c, d) || item.height || 10,
             ...styleOf(item.fontName),
-          })
+          }
+          items.push(read)
+          const span = spans[spans.length - 1]
+          if (span) {
+            span.first ??= read
+            span.count++
+          }
         }
       }
     } catch (error) {
@@ -317,6 +350,9 @@ export function linesFromPages(pages: PdfPage[]): Line[] {
       else groups.push([item])
     }
 
+    // Each line, with where it sits, for links that no text sits on.
+    const placed: { line: Line; baseline: number; left: number; right: number; size: number }[] = []
+    const claimed = new Set<Link>()
     for (const group of groups) {
       group.sort((p, q) => p.x - q.x)
       const size = Math.max(...group.map((item) => item.size))
@@ -348,7 +384,9 @@ export function linesFromPages(pages: PdfPage[]): Line[] {
             pieces.push({ text: " ", bold: item.bold, italic: item.italic })
           }
         }
-        pieces.push({ text: item.text, bold: item.bold, italic: item.italic })
+        // A marked hyphen ending a line, right after a letter, broke a word in two.
+        const soft = item.soft && item === group[group.length - 1] && previous && item.x - previous.right < 0.12 * size && /\p{L}$/u.test(previous.text)
+        pieces.push({ text: soft ? SOFT_HYPHEN : item.text, bold: item.bold, italic: item.italic })
         previous = item
       }
       parts.push(...toParts(pieces, partX))
@@ -357,14 +395,28 @@ export function linesFromPages(pages: PdfPage[]): Line[] {
       const right = Math.max(...group.map((item) => item.right))
       const baseline = group[0].baseline
       const box: [number, number, number, number] = [left, height - baseline - size * 0.85, right, height - baseline + size * 0.3]
-      const lineLinks = links
-        .filter((link) => baseline >= link.y0 - 3 && baseline <= link.y1 + 1 && link.x1 >= left - 2 && link.x0 <= right + 2)
-        .map((link) => link.url)
+      const onLine = links.filter((link) => baseline >= link.y0 - 3 && baseline <= link.y1 + 1 && link.x1 >= left - 2 && link.x0 <= right + 2)
+      for (const link of onLine) claimed.add(link)
+      const lineLinks = onLine.map((link) => link.url)
 
       // A bullet drawn as its own piece of text: the line's text starts at the next piece.
       const textX = BULLET_ONLY.test(group[0].text.trim()) && group.length > 1 ? group[1].x : undefined
       const line = toLine(parts, size, lineLinks, { page: pageNumber, box, x: textX })
-      if (line) lines.push(line)
+      if (line) {
+        lines.push(line)
+        placed.push({ line, baseline, left, right, size })
+      }
+    }
+
+    // A link with no text on it, like an icon, belongs to the closest line just
+    // above or below it: icons for LinkedIn and GitHub under the phone number.
+    for (const link of links) {
+      if (claimed.has(link)) continue
+      const distance = (at: (typeof placed)[number]) => (at.baseline < link.y0 ? link.y0 - at.baseline : at.baseline > link.y1 ? at.baseline - link.y1 : 0)
+      const nearest = placed
+        .filter((at) => distance(at) <= 1.5 * at.size && at.right >= link.x0 - 40 && at.left <= link.x1 + 40)
+        .sort((a, b) => distance(a) - distance(b))[0]
+      if (nearest && !nearest.line.links.includes(link.url)) nearest.line.links.push(link.url)
     }
   })
 

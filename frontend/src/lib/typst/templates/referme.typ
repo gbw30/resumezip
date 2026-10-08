@@ -106,7 +106,7 @@
   } else if name == "Volunteership" and data.volunteer.len() > 0 {
     section(heading-or(hd.volunteer, "Volunteer Experience"), experience(data.volunteer, "organization"))
   } else if name == "Awards" and data.awards.len() > 0 {
-    section(heading-or(hd.awards, "Certifications & Awards"), data.awards.map(a => {
+    section(heading-or(hd.awards, "Awards & Certifications"), data.awards.map(a => {
       strong(a.name)
       if has(a.name) and has(a.organization) { [, ] }
       a.organization
