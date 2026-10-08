@@ -508,7 +508,7 @@ function detailCarriesOn(line: ParseLine, item: Item, above: ParseLine): boolean
     Math.abs(line.left - item.left) < 3 &&
     start.bold === Boolean(end?.bold) &&
     start.italic === Boolean(end?.italic) &&
-    CONNECTOR.test(item.text)
+    (CONNECTOR.test(item.text) || above.full === true)
   )
 }
 
@@ -792,10 +792,20 @@ function splitDegreeAndSchool(fragment: Fragment): Fragment[] {
   return [fragment]
 }
 
+/**
+ * "Advisor: Prof. Reyes", "Thesis: …": a detail under a label of a word or
+ * two. Not a degree ("Bachelor of Science: …"), a school, or a date ("Expected: …").
+ */
+function detailLabel(text: string): boolean {
+  const label = text.match(/^([A-Z][a-z]+(?: [A-Za-z][a-z]+){0,2}):\s/)?.[1]
+  return label !== undefined && !isDegree(label) && !SCHOOL_WORDS.test(label) && !/^(?:expected|anticipated|graduat|gpa)/i.test(label)
+}
+
 function readEducation(lines: ParseLine[]): SectionResult {
   const leftover: SectionResult["leftover"] = { lines: [], text: [] }
-  // "Relevant Coursework: ..." and "GPA: ..." lines are details of the school above.
-  const details = (line: Line) => LABEL.test(line.text) || /^(?:cumulative\s+)?gpa\b/i.test(line.text)
+  // "Relevant Coursework: ...", "GPA: ..." and "Advisor: ..." lines are details of the school above.
+  const details = (line: Line) => LABEL.test(line.text) || /^(?:cumulative\s+)?gpa\b/i.test(line.text) || detailLabel(line.text)
+  let schoolAbove: { name: string; location: string; left: number } | undefined
   const entries = groupEntries(lines, details).map((group) => {
     const fields = blankEntry("Education")
     // The GPA can be anywhere: "(GPA: 3.9)", "GPA 3.9/4.0", "3.8/4.0".
@@ -820,6 +830,14 @@ function readEducation(lines: ParseLine[]): SectionResult {
     const rest = texts.filter((_, i) => i !== schoolIndex && i !== degreeIndex).map((fragment) => fragment.text)
     if (!school && rest.length) school = rest.shift()!
     if (!degree && rest.length) degree = rest.shift()!
+    // Degrees listed under one school: one set in under the school's line,
+    // with no school of its own, is that school's.
+    const start = group.header[0]
+    if (school && start) schoolAbove = { name: school, location: header.location, left: start.left }
+    else if (degree && start && schoolAbove && start.left > schoolAbove.left + 3) {
+      school = schoolAbove.name
+      header.location ||= schoolAbove.location
+    }
     fields.schoolName = school
     fields.degree = degree
     fields.schoolLocation = header.location

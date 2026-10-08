@@ -410,3 +410,35 @@ describe("a dated line under a title", () => {
     expect(resume.educationSection[0]).toMatchObject({ schoolName: "Purdue University", degree: "M.S. in Mechanical Engineering", schoolEndDate: "May 2027" })
   })
 })
+
+describe("degrees under one school", () => {
+  test("each keep the school, with advisors and theses set aside as details", () => {
+    const { resume } = read("Education", [
+      line([["Purdue University", 36], ["West Lafayette, IN", 460]], { bold: true }),
+      line([["M.S. in Mechanical Engineering, May 2027", 54]]),
+      line([["Mentor: Prof. Ana Lucia Reyes", 54]]),
+      line([["B.S. (Honors) in Mechanical Engineering, December 2025", 54]]),
+      line([["Thesis: Teaching Robot Kinematics with Physical Models", 54]]),
+      line([["Advisor: Prof. Ana Lucia Reyes", 54]]),
+      line([["B.A. in Economics, May 2021", 54]]),
+      line([["Advisor: Prof. Wen Li", 54]]),
+      line([["Tohoku University", 36], ["Sendai, Japan", 480]], { bold: true }),
+      line([["Study Abroad, Robotics & Society, Summer 2025", 54]]),
+    ])
+    expect(resume.educationSection.map(({ schoolName, schoolLocation, degree, schoolEndDate }: Record<string, string>) => [schoolName, schoolLocation, degree, schoolEndDate])).toEqual([
+      ["Purdue University", "West Lafayette, IN", "M.S. in Mechanical Engineering", "May 2027"],
+      ["Purdue University", "West Lafayette, IN", "B.S. (Honors) in Mechanical Engineering", "December 2025"],
+      ["Purdue University", "West Lafayette, IN", "B.A. in Economics", "May 2021"],
+      ["Tohoku University", "Sendai, Japan", "Study Abroad, Robotics & Society", "Summer 2025"],
+    ])
+  })
+
+  test("doesn't give a school to a certificate listed beside the schools", () => {
+    const { resume } = read("Education", [
+      line([["Purdue University", 36], ["2021 – 2025", 480]], { bold: true }),
+      line([["B.S. in Mechanical Engineering", 36]], { italic: true }),
+      line([["Certificate in Data Analytics", 36], ["2024", 480]], { bold: true }),
+    ])
+    expect(resume.educationSection.map((school: Record<string, string>) => school.schoolName)).toEqual(["Purdue University", ""])
+  })
+})
