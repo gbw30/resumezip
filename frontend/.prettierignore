@@ -8,5 +8,7 @@ public
 # as fetched (the Crossref fixtures); Markdown is prose.
 *.json
 *.md
-# Word lists and tables, laid out by hand to be read as lists.
+# Laid out by hand to be read as lists: word lists and tables, and the
+# parser tests' PDF lines (one line([[text, x], ...]) per line of the PDF).
 src/lib/check/settings.ts
+src/lib/import/parse.test.ts
