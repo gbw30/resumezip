@@ -80,13 +80,10 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "leadership[0].role",
   ],
   // An academic CV in Typst. The current job's title lines read as bullets.
-  // Under one school, the first degree loses its date and the second the
-  // school. A colon or " - " inside a title splits it. Without italics, a
+  // Under one school, the second degree loses the school. A colon or " - " inside a title splits it. Without italics, a
   // citation's venue and its details read as one. The mentoring lines read
   // as teaching.
   "marcus/typst-academic": [
-    "education[0].degree",
-    "education[0].end",
     "education[1].school",
     "education[1].location",
     "education[2].degree",

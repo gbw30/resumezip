@@ -396,3 +396,17 @@ describe("a line about an award", () => {
     expect(resume.awardsSection).toMatchObject([{ awardName: "Certified Emergency Nurse (CEN)", awardDate: "Mar 2025" }])
   })
 })
+
+describe("a dated line under a title", () => {
+  test("isn't text the title ran out of room for, when the title's place is set at the right edge", () => {
+    const { resume } = read(
+      "Education",
+      onPage([
+        line([["Purdue University", 36], ["West Lafayette, IN", 460]], { bold: true }),
+        line([["M.S. in Mechanical Engineering, May 2027", 54]]),
+        line([["Mentor: Prof. Ana Lucia Reyes", 54]]),
+      ]),
+    )
+    expect(resume.educationSection[0]).toMatchObject({ schoolName: "Purdue University", degree: "M.S. in Mechanical Engineering", schoolEndDate: "May 2027" })
+  })
+})

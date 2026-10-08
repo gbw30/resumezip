@@ -471,10 +471,11 @@ const datedLikeTitle = (line: Line) => (line.parts.length > 1 ? hasDate(line) : 
  * A date on a line usually starts a new entry. A year in running text
  * doesn't, when the line above ran out of room for its first word ("…for
  * the" then "2027 American Solar Challenge"), unless it's laid out the way
- * an entry's date is.
+ * an entry's date is. Only running text runs out of room: a title with its
+ * place or date set at the right edge reaches it on purpose.
  */
 const datesEntry = (line: ParseLine, above: ParseLine | undefined) =>
-  hasDate(line) && (datedLikeTitle(line) || above === undefined || !wrapsInto(above, line))
+  hasDate(line) && (datedLikeTitle(line) || above === undefined || above.parts.length > 1 || !wrapsInto(above, line))
 
 const CONNECTOR = /(?:[,;:&/\u00AD-]|\b(?:and|or|of|in|for|the|a|an|at|with|to|by|on|from|into|using|via|across|through|as|including|such|than|while|that|which))$/i
 
