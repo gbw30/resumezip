@@ -1,0 +1,107 @@
+{
+  "sectionOrder": ["Awards", "Education", "Work", "Volunteership", "Skills"],
+  "headings": {
+    "awards": "Licensure & Certifications",
+    "work": "Clinical & Research Experience",
+    "volunteer": "Community Service & Leadership",
+    "skills": "Core Competencies"
+  },
+  "profileSection": {
+    "fullName": "Nadia Tran",
+    "email": "nadia.tran@example.com",
+    "phoneNumber": "(407) 555-0136",
+    "location": "Orlando, FL",
+    "linkedin": "",
+    "profileGithub": "",
+    "personalWebsite": ""
+  },
+  "awardsSection": [
+    { "awardName": "Certified Nursing Assistant (CNA)", "awardOrg": "Florida Board of Nursing", "awardDate": "2025" },
+    { "awardName": "Basic Life Support (BLS)", "awardOrg": "American Heart Association", "awardDate": "2026" }
+  ],
+  "educationSection": [
+    {
+      "schoolName": "University of Central Florida",
+      "schoolLocation": "",
+      "degree": "Bachelor of Science in Biomedical Sciences, Minors in Public Health & Psychology",
+      "gpa": "3.91/4.0",
+      "schoolStartDate": "",
+      "schoolEndDate": "May 2027",
+      "coursework": "Human Anatomy, Physiology, Microbiology & Lab, Biochemistry, Genetics, Immunology",
+      "involvement": ""
+    }
+  ],
+  "workExperienceSection": [
+    {
+      "workRole": "Hospital Volunteer",
+      "companyName": "Imaging Services, Lakeview Regional Medical Center",
+      "workLocation": "Winter Park, FL",
+      "workStartDate": "May 2025",
+      "workEndDate": "August 2025",
+      "workDescription": "• Escorted outpatients to imaging appointments and answered family questions to ease pre-procedure nerves.\n• Helped patients move safely through the department following fall prevention and mobility precautions.\n• Cleaned wheelchairs and kept waiting areas tidy in line with the hospital’s infection control rules."
+    },
+    {
+      "workRole": "Physician Shadowing – Cardiology",
+      "companyName": "Seminole Heart & Vascular Clinic",
+      "workLocation": "Sanford, FL",
+      "workStartDate": "August 2026",
+      "workEndDate": "Present",
+      "workDescription": "• Shadowed a cardiologist through outpatient follow-ups and inpatient consults, observing physical exams, patient teaching, and how the care team coordinates chronic heart failure management.\n• Observed stress tests and echocardiograms in the cardiac lab, noting patient preparation, continuous ECG monitoring, and how nurses and sonographers hand off between steps."
+    },
+    {
+      "workRole": "Physician Shadowing – Emergency Medicine",
+      "companyName": "Department of Emergency Medicine, Orange County General Hospital",
+      "workLocation": "Orlando, FL",
+      "workStartDate": "",
+      "workEndDate": "July 2026",
+      "workDescription": "• Shadowed an emergency physician in a Level II trauma center, observing triage, bedside assessments, and trauma activations during busy evening shifts in the main department.\n• Observed handoffs, repeat vital checks, and closed-loop communication among the emergency care team."
+    },
+    {
+      "workRole": "Lab Research Assistant - Sample Preparation",
+      "companyName": "Proteomics Core Facility, University of Central Florida",
+      "workLocation": "Orlando, FL",
+      "workStartDate": "August 2026",
+      "workEndDate": "Present",
+      "workDescription": "• Remove high-abundance proteins from serum samples, run SDS-PAGE gels, and prepare tryptic digests.\n• Follow standard operating procedures, aseptic technique, and chemical safety rules to keep samples clean and the shared benches ready for the next user."
+    },
+    {
+      "workRole": "Undergraduate Researcher",
+      "companyName": "Department of Surgery, University of Central Florida",
+      "workLocation": "Orlando, FL",
+      "workStartDate": "May 2026",
+      "workEndDate": "Present",
+      "workDescription": "• Review studies linking diet quality, food access, and chronic disease outcomes, and clean clinical datasets in R to explore those links for the lab’s next paper."
+    }
+  ],
+  "volunteerExperienceSection": [
+    {
+      "volunteerRole": "Food Bank Volunteer",
+      "volunteerOrg": "Harvest Table Food Pantry",
+      "volunteerLocation": "Orlando, FL",
+      "volunteerStartDate": "August 2026",
+      "volunteerEndDate": "Present",
+      "volunteerDescription": "• Sort, inspect, and pack donated food under safety and quality standards for delivery to partner pantries."
+    },
+    {
+      "volunteerRole": "Community Outreach Volunteer",
+      "volunteerOrg": "Oviedo Neighbors Helping Neighbors",
+      "volunteerLocation": "Oviedo, FL",
+      "volunteerStartDate": "May 2025",
+      "volunteerEndDate": "December 2025",
+      "volunteerDescription": "• Organized pantry stock and handed out essentials to families in need during weekly distribution days."
+    },
+    {
+      "volunteerRole": "Vice President of Internal Affairs",
+      "volunteerOrg": "UCF Vietnamese Student Association",
+      "volunteerLocation": "Orlando, FL",
+      "volunteerStartDate": "April 2026",
+      "volunteerEndDate": "Present",
+      "volunteerDescription": "• Lead board check-ins, settle conflicts, and keep communication flowing across a twelve-person executive board."
+    }
+  ],
+  "skillsSection": [
+    { "skillName": "Clinical", "skillDetails": "Vital signs, patient transfers & ambulation, fall prevention, activities of daily living (ADLs), aseptic technique" },
+    { "skillName": "Laboratory", "skillDetails": "SDS-PAGE, protein digestion, pipetting, specimen handling, R (tidyverse)" },
+    { "skillName": "Languages", "skillDetails": "English, Vietnamese" }
+  ]
+}

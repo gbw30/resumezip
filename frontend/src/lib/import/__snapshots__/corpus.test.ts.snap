@@ -1,0 +1,370 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`diego/html-harvard > reads back no worse than before 1`] = `
+{
+  "projects[0].name": "World Cup Match Prediction Model, Python, SQL, SQLite, Pandas, scikit-learn",
+  "projects[0].techStack": "",
+  "projects[1].name": "Flood Risk Prediction Prototype, HTML, CSS, JavaScript, Open-Meteo API, OpenStreetMap",
+  "projects[1].techStack": "",
+}
+`;
+
+exports[`diego/latex-jake > reads back no worse than before 1`] = `
+{
+  "work[0].bullets": [
+    "Classified 6 crop diseases, as measured by ∼90% validation accuracy on a 35,000-image dataset, by a TensorFlow and Keras CNN with an 80/20 split pipeline.",
+    "Validated model reliability, as measured by precision and recall on 7,000 held-out images, by confusion-matrix analysis across all 6 classes.",
+    "Presented crop-health findings, as measured by 200+ symposium attendees, by a talk on low-cost disease detection for local farmers and growers.",
+  ],
+}
+`;
+
+exports[`diego/writer-classic > reads back no worse than before 1`] = `{}`;
+
+exports[`jordan/html-harvard > reads back no worse than before 1`] = `
+{
+  "education[0].degree": "B.A. in Communication and Media, Minor in Spanish.",
+}
+`;
+
+exports[`jordan/html-modern > reads back no worse than before 1`] = `{}`;
+
+exports[`jordan/html-side-headings > reads back no worse than before 1`] = `
+{
+  "awards[0]": undefined,
+  "awards[1]": undefined,
+  "education[0]": undefined,
+  "skills[0]": undefined,
+  "skills[1]": undefined,
+  "volunteer[0]": undefined,
+  "work[0]": undefined,
+  "work[1]": undefined,
+  "work[2]": undefined,
+}
+`;
+
+exports[`jordan/writer-modern > reads back no worse than before 1`] = `{}`;
+
+exports[`marcus/typst-academic > reads back no worse than before 1`] = `
+{
+  "education[2].degree": "Study Abroad, Purdue in Japan",
+  "leadership[0].bullets": [
+    "the development of BoilerHacks’ current event check-in platform, in use for two years.",
+  ],
+  "leadership[0].organization": "BoilerHacks (XI, XII), Purdue Robotics Union (PRU), Open Robotics Club (ORC). Advised",
+  "leadership[3].organization": "Director of Technology, BoilerHacks X",
+  "leadership[3].role": "",
+}
+`;
+
+exports[`maya/html-modern > reads back no worse than before 1`] = `
+{
+  "leadership[0].organization": "",
+  "leadership[0].role": "Software Lead, GT Solar Racing Engineering",
+  "projects[1].name": "Sprout",
+  "projects[1].techStack": "HackGT 2026, React, Flask, PostgreSQL, LightGBM, Gemini",
+  "work[0].company": "",
+  "work[0].role": "Software Engineer Intern, Azure Storage, Microsoft",
+}
+`;
+
+exports[`maya/latex-jake > reads back no worse than before 1`] = `
+{
+  "projects[1].name": "Sprout",
+  "projects[1].techStack": "HackGT 2026, React, Flask, PostgreSQL, LightGBM, Gemini",
+}
+`;
+
+exports[`maya/latex-jake-company-first > reads back no worse than before 1`] = `
+{
+  "projects[1].name": "Sprout",
+  "projects[1].techStack": "HackGT 2026, React, Flask, PostgreSQL, LightGBM, Gemini",
+}
+`;
+
+exports[`nadia/latex-jake > reads back no worse than before 1`] = `{}`;
+
+exports[`nadia/writer-company-first > reads back no worse than before 1`] = `{}`;
+
+exports[`priya/html-dates-left > reads back no worse than before 1`] = `
+{
+  "awards[0].name": "AWS Certified Solutions Architect",
+  "awards[0].organization": "Professional, Amazon Web Services",
+  "education[0].gpa": "",
+  "education[0].location": "",
+  "education[0].school": "",
+  "education[1]": {
+    "coursework": "",
+    "degree": "",
+    "end": "",
+    "gpa": "3.7/4.0",
+    "involvement": "",
+    "location": "Seattle, WA",
+    "school": "University of Washington",
+    "start": "",
+  },
+  "volunteer[0].bullets": [],
+  "volunteer[0].location": "",
+  "volunteer[0].organization": "",
+  "volunteer[1]": {
+    "bullets": [
+      "Meet weekly with a student in the full-stack program to review code and practice interviews",
+    ],
+    "end": "",
+    "location": "Seattle, WA",
+    "organization": "Ada Developers Academy",
+    "role": "",
+    "start": "",
+  },
+  "work[0].bullets": [],
+  "work[0].company": "",
+  "work[0].location": "",
+  "work[1].bullets": [
+    "Lead a team of 5 engineers that owns the ledger service recording every card payment, about 4 billion entries a month",
+    "Moved the ledger from a single PostgreSQL cluster to a sharded design with no downtime, cutting p99 write latency from 180 ms to 35 ms",
+    "Wrote the team’s on-call guide and cut pages per week from 14 to 3 by fixing the five noisiest alerts at their source",
+  ],
+  "work[1].company": "Stripe",
+  "work[1].end": "",
+  "work[1].role": "",
+  "work[1].start": "",
+  "work[2].bullets": [],
+  "work[2].company": "",
+  "work[2].end": "Feb 2023",
+  "work[2].location": "",
+  "work[2].role": "Software Engineer II",
+  "work[2].start": "Jun 2020",
+  "work[3].bullets": [
+    "Built the Kafka pipeline that feeds new listings into search within 90 seconds of an agent publishing them, down from 20 minutes",
+    "Replaced a nightly batch job with incremental updates in Go, saving $40,000 a month in compute",
+    "Mentored 3 new graduates through their first year on the team",
+  ],
+  "work[3].company": "Zillow",
+  "work[3].end": "",
+  "work[3].location": "Seattle, WA",
+  "work[3].role": "",
+  "work[3].start": "",
+  "work[4]": {
+    "bullets": [],
+    "company": "",
+    "end": "May 2020",
+    "location": "",
+    "role": "Software Engineer",
+    "start": "Jul 2018",
+  },
+  "work[5]": {
+    "bullets": [
+      "Added price caching to the hotel search API in Java, raising its cache hit rate from 40% to 85%",
+      "Wrote contract tests between search and booking that caught 12 breaking changes before release",
+    ],
+    "company": "Expedia Group",
+    "end": "",
+    "location": "Bellevue, WA",
+    "role": "",
+    "start": "",
+  },
+  "work[6]": {
+    "bullets": [],
+    "company": "",
+    "end": "Sep 2017",
+    "location": "",
+    "role": "Software Engineering Intern",
+    "start": "Jun 2017",
+  },
+  "work[7]": {
+    "bullets": [
+      "Built an internal tool that flags tax form fields left out of new releases, used by 30 QA engineers",
+    ],
+    "company": "Intuit",
+    "end": "",
+    "location": "Mountain View, CA",
+    "role": "",
+    "start": "",
+  },
+}
+`;
+
+exports[`priya/html-sidebar > reads back no worse than before 1`] = `
+{
+  "awards[0].name": "AWS Certified Solutions",
+  "awards[0].organization": "Architect, Professional, Amazon Web Services",
+  "awards[1].name": "Certified Kubernetes",
+  "awards[1].organization": "Administrator, Cloud Native Computing, Foundation",
+}
+`;
+
+exports[`priya/latex-jake > reads back no worse than before 1`] = `
+{
+  "awards[0].name": "AWS Certified Solutions Architect",
+  "awards[0].organization": "Professional, Amazon Web Services",
+}
+`;
+
+exports[`priya/writer-modern > reads back no worse than before 1`] = `
+{
+  "awards[0].name": "AWS Certified Solutions Architect",
+  "awards[0].organization": "Professional, Amazon Web Services",
+}
+`;
+
+exports[`sam/html-harvard > reads back no worse than before 1`] = `
+{
+  "awards[0].name": "Registered Nurse License",
+  "awards[0].organization": "Texas, Texas Board of Nursing",
+  "education[0].degree": "Bachelor of Science in Nursing.",
+}
+`;
+
+exports[`sam/html-side-headings > reads back no worse than before 1`] = `
+{
+  "awards[0]": undefined,
+  "awards[1]": undefined,
+  "awards[2]": undefined,
+  "education[0]": undefined,
+  "skills[0]": undefined,
+  "skills[1]": undefined,
+  "skills[2]": undefined,
+  "volunteer[0]": undefined,
+  "work[0]": undefined,
+  "work[1]": undefined,
+  "work[2]": undefined,
+}
+`;
+
+exports[`sam/html-sidebar > reads back no worse than before 1`] = `
+{
+  "awards[0].name": "Registered Nurse License",
+  "awards[0].organization": "Texas, Texas Board of Nursing",
+  "awards[1].name": "Certified Emergency Nurse",
+  "awards[1].organization": "(CEN), Board of Certification for, Emergency Nursing",
+  "awards[2].name": "Advanced Cardiovascular",
+  "awards[2].organization": "Life Support (ACLS), American Heart Association",
+}
+`;
+
+exports[`sam/writer-classic > reads back no worse than before 1`] = `
+{
+  "awards[0].name": "Registered Nurse License",
+  "awards[0].organization": "Texas, Texas Board of Nursing",
+}
+`;
+
+exports[`wei/html-dates-left > reads back no worse than before 1`] = `
+{
+  "education[0].end": "Sep 2022",
+  "education[0].location": "",
+  "education[0].school": "Expected",
+  "education[0].start": "",
+  "education[1].degree": "",
+  "education[1].end": "May 2027",
+  "education[1].gpa": "",
+  "education[1].location": "Ann Arbor, MI",
+  "education[1].school": "University of Michigan",
+  "education[1].start": "",
+  "education[2]": {
+    "coursework": "",
+    "degree": "B.Eng. in Automation",
+    "end": "Jun 2022",
+    "gpa": "",
+    "involvement": "",
+    "location": "",
+    "school": "",
+    "start": "Sep 2018",
+  },
+  "education[3]": {
+    "coursework": "",
+    "degree": "",
+    "end": "",
+    "gpa": "3.8/4.0",
+    "involvement": "",
+    "location": "Beijing, China",
+    "school": "Tsinghua University",
+    "start": "",
+  },
+  "publications[0].authors": "",
+  "publications[0].link": "",
+  "publications[0].title": "W. Zhang, R. Patel, and M. Torres, “Sparse Mixture-of-Experts for Long-Context Retrieval,”",
+  "publications[0].venue": "",
+  "publications[1].authors": "",
+  "publications[1].date": "2026",
+  "publications[1].details": "",
+  "publications[1].link": "arxiv.org/abs/2510.01234",
+  "publications[1].title": "International Conference on Learning Representations (ICLR)",
+  "publications[1].venue": "",
+  "publications[2].authors": "",
+  "publications[2].date": "Dec 2025",
+  "publications[2].details": "",
+  "publications[2].doi": "",
+  "publications[2].title": "W. Zhang and M. Torres, “Calibrating Retrieval-Augmented Models with Conformal Prediction,”",
+  "publications[2].venue": "",
+  "publications[3]": {
+    "authors": "",
+    "date": "Dec 2025",
+    "details": "",
+    "doi": "",
+    "link": "",
+    "title": "Advances in Neural Information Processing Systems (NeurIPS), pp. 1123–1135",
+    "venue": "",
+  },
+  "publications[4]": {
+    "authors": "",
+    "date": "Jul 2025",
+    "details": "",
+    "doi": "",
+    "link": "",
+    "title": "J. Kim, W. Zhang, A. Gupta, and M. Torres, “Benchmarking Long-Document Question Answering,” Proc",
+    "venue": "",
+  },
+  "work[0].bullets": [],
+  "work[0].company": "",
+  "work[0].location": "",
+  "work[1].bullets": [
+    "Study how retrieval-augmented language models fail on long documents, advised by Prof. Maria Torres",
+    "Built an open benchmark of 12,000 questions over book-length texts, now used by 4 other labs",
+    "Designed a sparse mixture-of-experts retriever that cuts memory use by 60% at the same accuracy",
+  ],
+  "work[1].company": "Michigan AI Lab",
+  "work[1].end": "",
+  "work[1].location": "Ann Arbor, MI",
+  "work[1].role": "",
+  "work[1].start": "",
+  "work[2].bullets": [],
+  "work[2].company": "",
+  "work[2].end": "Aug 2025",
+  "work[2].location": "",
+  "work[2].role": "Research Intern",
+  "work[2].start": "May 2025",
+  "work[3]": {
+    "bullets": [
+      "Added conformal prediction to a production question answering model so it abstains when unsure, cutting wrong answers by 35%",
+    ],
+    "company": "Microsoft Research",
+    "end": "",
+    "location": "Redmond, WA",
+    "role": "",
+    "start": "",
+  },
+  "work[4]": {
+    "bullets": [],
+    "company": "Introduction to Machine Learning",
+    "end": "May 2024",
+    "location": "",
+    "role": "Graduate Student Instructor",
+    "start": "Jan 2024",
+  },
+  "work[5]": {
+    "bullets": [
+      "Taught two weekly discussion sections of 40 students and wrote 3 new homework problems on decision trees and kernels",
+    ],
+    "company": "University of Michigan",
+    "end": "",
+    "location": "Ann Arbor, MI",
+    "role": "",
+    "start": "",
+  },
+}
+`;
+
+exports[`wei/latex-jake > reads back no worse than before 1`] = `{}`;
+
+exports[`wei/writer-classic > reads back no worse than before 1`] = `{}`;

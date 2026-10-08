@@ -6,7 +6,7 @@
 
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type FieldKey, type FieldKeyOf, type ProfileKey, type SectionName } from "@/components/editor/sections"
 import type { ResumeContent } from "@/lib/resume"
-import type { Line, Part } from "./lines"
+import { SOFT_HYPHEN, type Line, type Part } from "./lines"
 
 /** An entry's values, keyed by its section's field names. */
 type Fields = Partial<Record<FieldKey, string>>
@@ -38,6 +38,8 @@ type ParseLine = Line & {
   index: number
   /** The right edge of its column: the furthest any line like it reaches. */
   margin?: number
+  /** It runs to its column's edge in justified text, as every line of a paragraph but its last does. */
+  full?: boolean
   merged?: number[]
 }
 
@@ -46,7 +48,8 @@ type ParseLine = Line & {
 const MONTH = "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?"
 const SEASON = "(?:spring|summer|fall|autumn|winter)"
 const YEAR = "(?:19|20)\\d{2}"
-const ONE_DATE = `(?:(?:${MONTH}|${SEASON})\\s*,?\\s*(?:${YEAR}|['\u2019]\\d{2})|\\d{1,2}\\s*/\\s*(?:${YEAR}|\\d{2})|${YEAR})`
+// "06/2024" and "6/24", but not "80/20": a month written as a number is 1 to 12.
+const ONE_DATE = `(?:(?:${MONTH}|${SEASON})\\s*,?\\s*(?:${YEAR}|['\u2019]\\d{2})|(?:0?[1-9]|1[0-2])\\s*/\\s*(?:${YEAR}|\\d{2})|${YEAR})`
 const END_DATE = `(?:${ONE_DATE}|present|current|now|ongoing|today)`
 const EXPECTED = "(?:expected|anticipated|exp\\.)"
 const RANGE = `(${ONE_DATE}|${MONTH}|${SEASON})\\s*(?:-|\u2013|\u2014|\u2212|to|until)\\s*((?:${EXPECTED}\\s+)?${END_DATE})`
@@ -144,6 +147,32 @@ const lookupHeading = (text: string) => {
   return HEADING_LOOKUP.get(normal) ?? HEADING_LOOKUP_COMPACT.get(normal.replace(/ /g, ""))
 }
 
+/**
+ * Headings it doesn't know by name, known instead by a word that says what
+ * the section holds: "Clinical Experience", "Honors & Certifications",
+ * "Current Employment". The first that matches wins, so "Volunteer
+ * Experience" would be volunteering. Only for lines that look like the
+ * headings it knows by name: an entry's title can hold these words too.
+ */
+const HEADING_WORDS: [HeadingMeaning, RegExp][] = [
+  [{ section: "Education" }, /\b(?:education|degrees?|schooling)\b/],
+  [{ section: "Publications" }, /\b(?:publications?|papers|articles)\b/],
+  [{ section: "Projects" }, /\bprojects?\b/],
+  [{ section: "Skills" }, /\b(?:skills|technologies|competencies|proficiencies)\b/],
+  [{ section: "Awards" }, /\b(?:awards?|honou?rs|certifications?|certificates?|licen[cs]es?|scholarships?|fellowships?|grants|achievements|distinctions|recognition)\b/],
+  [{ section: "Volunteership" }, /\b(?:volunteer\w*|community)\b/],
+  [{ section: "Leadership" }, /\b(?:leadership|activities|involvement|service|extracurriculars?|organi[sz]ations)\b/],
+  // Before work, so "Career Interests" are interests.
+  [{ section: "Skills", category: "Interests" }, /\binterests\b/],
+  [{ section: "Work" }, /\b(?:experience|employment|work|positions|internships?|teaching|appointments|career)\b/],
+]
+
+/** A heading's meaning from a word in it, keeping its own words as a skill category: "Research Interests". */
+function headingByWord(text: string): HeadingMeaning | undefined {
+  const meaning = HEADING_WORDS.find(([, pattern]) => pattern.test(normalizeHeading(text)))?.[0]
+  return meaning && "category" in meaning ? { ...meaning, category: titleCase(tidy(text.replace(/:$/, ""))) } : meaning
+}
+
 /** "E D U C A T I O N": letter-spaced text reads as one letter (or kerned pair) per word. */
 const unspace = (text: string) => {
   const tokens = text.trim().split(/\s+/)
@@ -176,6 +205,7 @@ function headingShaped(line: Line): boolean {
 
 const tidy = (text: string) =>
   text
+    .replaceAll(SOFT_HYPHEN, "")
     .replace(/\s+/g, " ")
     .replace(/\(\s*\)/g, "")
     .replace(/\s*\($/, "")
@@ -198,6 +228,8 @@ interface Fragment {
   text: string
   bold: boolean
   italic: boolean
+  /** The separator between this and the fragment before it, when they were one piece of text. */
+  joint?: string
 }
 
 /** The style of `start`..`end` within a part, by majority of characters. */
@@ -221,17 +253,22 @@ const SEPARATOR = /\s+[|\u2022\u00B7\u25AA\u25E6\u2013\u2014]\s+|\s+-\s+|\s*\|\s
 function fragmentsOf(part: Part): (Fragment & { start: number })[] {
   const pieces: (Fragment & { start: number })[] = []
   let start = 0
+  let joint: string | undefined
   const add = (end: number) => {
     const raw = part.text.slice(start, end)
     const text = tidy(raw)
     if (text) {
       const offset = start + raw.indexOf(text.charAt(0))
-      pieces.push({ text, start: offset, ...styleAt(part, offset, offset + text.length) })
+      pieces.push({ text, start: offset, ...styleAt(part, offset, offset + text.length), joint })
     }
   }
   for (const match of part.text.matchAll(SEPARATOR)) {
+    // "(UF in Japan: CCED)": a separator inside brackets is part of what's in them.
+    const before = part.text.slice(0, match.index)
+    if ((before.match(/[([]/g)?.length ?? 0) > (before.match(/[)\]]/g)?.length ?? 0)) continue
     add(match.index!)
     start = match.index! + match[0].length
+    joint = match[0]
   }
   add(part.text.length)
   return pieces
@@ -311,14 +348,25 @@ interface Group {
 }
 
 /** Wrapped text lines up with the text above it, not with its bullet. */
-function continues(line: Line, item: Item, wasBullet: boolean): boolean {
-  if (line.page === undefined || line.bullet || hasDate(line)) return false
+function continues(line: ParseLine, item: Item, wasBullet: boolean, above: ParseLine | undefined): boolean {
+  if (line.page === undefined || line.bullet) return false
+  if (datesEntry(line, above && item.lines.includes(above.index) ? above : undefined)) return false
   if (wasBullet) return line.left > item.left + 1 && line.x <= Math.max(item.x, item.left + 3 * item.size) + 4
-  return Math.abs(line.x - item.x) <= 3 && (!/[.!?]$/.test(item.text) || /^[a-z]/.test(line.text))
+  // A paragraph carries on after a full stop when the line above ran to the edge of justified text.
+  const afterFull = above !== undefined && item.lines.includes(above.index) && above.full === true
+  return Math.abs(line.x - item.x) <= 3 && (!/[.!?]$/.test(item.text) || /^[a-z]/.test(line.text) || afterFull)
 }
 
+/**
+ * A wrapped line joined onto the one above: a word a soft hyphen broke in two
+ * joins back up, and so does a link or "and/or" that broke after a slash.
+ */
 const joinWrapped = (text: string, next: string) =>
-  /\w-$/.test(text) && /^[a-z]/.test(next) ? text + next : `${text} ${next}`
+  text.endsWith(SOFT_HYPHEN)
+    ? text.slice(0, -1) + next
+    : (/\w-$/.test(text) && /^[a-z]/.test(next)) || /\w\/$/.test(text)
+      ? text + next
+      : `${text} ${next}`
 
 /** Adds text in a style, merged into the piece before when the style is the same. */
 function addPiece(pieces: Piece[], text: string, bold: boolean, italic: boolean) {
@@ -348,9 +396,11 @@ function stylePieces(line: Line): Piece[] {
 
 /** Adds a wrapped line to the item above it. */
 function extendItem(item: Item, line: ParseLine) {
-  const together = /\w-$/.test(item.text) && /^[a-z]/.test(line.text)
+  const soft = item.text.endsWith(SOFT_HYPHEN)
+  const together = soft || (/\w-$/.test(item.text) && /^[a-z]/.test(line.text))
   item.text = joinWrapped(item.text, line.text)
   const last = item.pieces[item.pieces.length - 1]
+  if (soft && last) last.text = last.text.replace(/\u00AD$/, "")
   if (!together) addPiece(item.pieces, " ", last?.bold ?? false, last?.italic ?? false)
   for (const piece of stylePieces(line)) addPiece(item.pieces, piece.text, piece.bold, piece.italic)
   item.lines.push(line.index)
@@ -380,9 +430,16 @@ function described(item: Item): string {
     .join("")
 }
 
-/** A long line that reads like a sentence, not an entry's title. */
-const sentence = (line: Line) =>
-  !line.bold && !hasDate(line) && (line.text.length > 85 || (/[.!?]$/.test(line.text) && words(line.text).length >= 4))
+/**
+ * A long line that reads like a sentence, not an entry's title. A title can
+ * be long too, but has a few words set apart on its right: a GPA, a place.
+ */
+const sentence = (line: ParseLine) =>
+  !line.bold &&
+  !hasDate(line) &&
+  ((line.text.length > 85 && !setApartOnRight(line)) || (/[.!?]$/.test(line.text) && words(line.text).length >= 4) || line.full === true)
+
+const setApartOnRight = (line: Line) => line.parts.length > 1 && words(line.parts[line.parts.length - 1].text).length <= 5
 
 /** The style a line starts in ("**President** | ACM"), which is what tells entry titles apart. */
 const leadStyle = (line: Line) => {
@@ -424,7 +481,20 @@ function wrapsInto(line: ParseLine, next: ParseLine): boolean {
   return line.box[2] + (word.length + 1) * charWidth * 1.15 >= line.margin - 2
 }
 
-const CONNECTOR = /(?:[,;:&/-]|\b(?:and|or|of|in|for|the|a|an|at|with|to|by|on|from|into|using|via|across|through|as|including|such|than|while|that|which))$/i
+/** A date laid out the way an entry's is: set apart from the rest of its line, or alone on it. */
+const datedLikeTitle = (line: Line) => (line.parts.length > 1 ? hasDate(line) : dateOnly(line.text))
+
+/**
+ * A date on a line usually starts a new entry. A year in running text
+ * doesn't, when the line above ran out of room for its first word ("…for
+ * the" then "2027 American Solar Challenge"), unless it's laid out the way
+ * an entry's date is. Only running text runs out of room: a title with its
+ * place or date set at the right edge reaches it on purpose.
+ */
+const datesEntry = (line: ParseLine, above: ParseLine | undefined) =>
+  hasDate(line) && (datedLikeTitle(line) || above === undefined || above.parts.length > 1 || !wrapsInto(above, line))
+
+const CONNECTOR = /(?:[,;:&/\u00AD-]|\b(?:and|or|of|in|for|the|a|an|at|with|to|by|on|from|into|using|via|across|through|as|including|such|than|while|that|which))$/i
 
 /** Joins a line onto the end of the one before it. */
 function mergeLines(a: ParseLine, b: ParseLine): ParseLine {
@@ -440,12 +510,33 @@ function mergeLines(a: ParseLine, b: ParseLine): ParseLine {
 }
 
 /**
+ * Whether `line` carries on a detail line ("Relevant Coursework: ...") that
+ * was cut off mid-list: it starts at the same left edge, without the indent a
+ * bullet's text has, and in the style the line above ended in.
+ */
+function detailCarriesOn(line: ParseLine, item: Item, above: ParseLine): boolean {
+  const end = item.pieces[item.pieces.length - 1]
+  const start = leadStyle(line)
+  return (
+    !line.bullet &&
+    line.parts.length === 1 &&
+    line.page === above.page &&
+    item.lines.includes(above.index) &&
+    Math.abs(line.left - item.left) < 3 &&
+    start.bold === Boolean(end?.bold) &&
+    start.italic === Boolean(end?.italic) &&
+    (CONNECTOR.test(item.text) || above.full === true)
+  )
+}
+
+/**
  * Splits a section into entries: one or more title lines (role, company,
  * dates, place) followed by bullets.
  */
 function groupEntries(lines: ParseLine[], isBody: (line: Line) => boolean = () => false): Group[] {
   const groups: Group[] = []
   let lastWasBullet = false
+  let lastWasDetail = false
   let previous: ParseLine | undefined
 
   for (const line of lines) {
@@ -454,17 +545,25 @@ function groupEntries(lines: ParseLine[], isBody: (line: Line) => boolean = () =
     const item: Item = { text: line.text, pieces: stylePieces(line), lines: [line.index], left: line.left, x: line.x, size: line.size }
     const before = previous
     previous = line
+    const wasDetail: boolean = lastWasDetail
+    lastWasDetail = false
 
     // Text wrapping under a bullet lines up with the bullet's text.
-    if (last && lastWasBullet && continues(line, last, true)) {
+    if (last && lastWasBullet && continues(line, last, true, before)) {
       extendItem(last, line)
+      lastWasDetail = wasDetail
+      continue
+    }
+    if (last && wasDetail && before && !isBody(line) && detailCarriesOn(line, last, before)) {
+      extendItem(last, line)
+      lastWasDetail = true
       continue
     }
 
     // Without bullets, descriptions are set in from their entry's title, and
     // a line that ran to the right edge carries on in the next.
     const title = group?.header[0]
-    if (!line.bullet && title && line.page !== undefined && line.left >= textStart(title) + 6 && !hasDate(line)) {
+    if (!line.bullet && title && line.page !== undefined && line.left >= textStart(title) + 6 && !datesEntry(line, before)) {
       // A new point usually starts with a capital; wrapped text rarely does unless the line before ended mid-phrase.
       const wrapped = before && wrapsInto(before, line) && (!/^[A-Z]/.test(line.text) || CONNECTOR.test(before.text))
       if (last && before && wrapped && last.lines.includes(before.index) && Math.abs(line.left - before.left) < 3) {
@@ -480,9 +579,10 @@ function groupEntries(lines: ParseLine[], isBody: (line: Line) => boolean = () =
       if (group) group.body.push(item)
       else groups.push({ header: [], body: [item] })
       lastWasBullet = true
+      lastWasDetail = !line.bullet
       continue
     }
-    if (last && !lastWasBullet && continues(line, last, false)) {
+    if (last && !lastWasBullet && continues(line, last, false, before)) {
       extendItem(last, line)
       continue
     }
@@ -521,6 +621,8 @@ function groupEntries(lines: ParseLine[], isBody: (line: Line) => boolean = () =
 interface Header {
   texts: Fragment[]
   date: FoundDate | null
+  /** Dates besides `date`. An entry has one date field, so these go to "Couldn't place". */
+  otherDates: string[]
   location: string
   links: string[]
 }
@@ -557,8 +659,14 @@ function joinWrappedTitles(lines: Line[]): Line[] {
 
 /** Pulls the dates, place and links out of an entry's title lines, leaving the other bits of text. */
 function readHeader(lines: Line[], remove: RegExp[] = []): Header {
-  const header: Header = { texts: [], date: null, location: "", links: [] }
-  for (const line of joinWrappedTitles(lines)) {
+  const header: Header = { texts: [], date: null, otherDates: [], location: "", links: [] }
+  const joined = joinWrappedTitles(lines)
+  const without = (text: string) => remove.reduce((rest, pattern) => rest.replace(new RegExp(pattern.source, "gi"), " "), text)
+  // A date set apart on its own, like one on the right edge, is the entry's.
+  // A year inside other text ("Sprout – HackGT 2026") is then part of a name,
+  // and stays in it.
+  const datedApart = joined.some((line) => line.parts.some((part) => dateOnly(without(part.text))))
+  for (const line of joined) {
     header.links.push(...line.links)
     for (const part of line.parts) {
       // Dates and links come out first, since their dashes and dots aren't
@@ -570,8 +678,10 @@ function readHeader(lines: Line[], remove: RegExp[] = []): Header {
       for (const pattern of remove) {
         for (const match of text.matchAll(new RegExp(pattern.source, "gi"))) blank(match.index!, match[0].length)
       }
-      for (let date = findDate(text); date; date = findDate(text)) {
-        header.date ??= date
+      const apart = dateOnly(text)
+      for (let date = findDate(text); date && (apart || !datedApart); date = findDate(text)) {
+        if (header.date) header.otherDates.push(date.text)
+        else header.date = date
         blank(date.index, date.length)
       }
       for (const url of text.matchAll(new RegExp(URL.source, "gi"))) {
@@ -582,8 +692,12 @@ function readHeader(lines: Line[], remove: RegExp[] = []): Header {
           blank(url.index!, url[0].length)
         }
       }
+      // Whether the last fragment of this part is in `texts`, for joining back up to.
+      let follows = false
       for (const fragment of fragmentsOf({ ...part, text })) {
         let value = fragment.text
+        const joint = follows ? fragment.joint : undefined
+        follows = false
         if (!/[A-Za-z0-9\u00C0-\u024F]/.test(value)) continue
         if (!header.location && isLocation(value)) {
           header.location = value
@@ -594,7 +708,10 @@ function readHeader(lines: Line[], remove: RegExp[] = []): Header {
           header.location = peeled.location
           value = peeled.rest
         }
-        if (value) header.texts.push({ ...fragment, text: value })
+        if (value) {
+          header.texts.push({ ...fragment, text: value, joint })
+          follows = !peeled
+        }
       }
     }
   }
@@ -603,15 +720,57 @@ function readHeader(lines: Line[], remove: RegExp[] = []): Header {
 
 const score = (text: string, pattern: RegExp) => (text.match(new RegExp(pattern.source, "gi")) ?? []).length
 
-/** Above zero for job titles, below for organizations. The last word counts double. */
+/**
+ * Above zero for job titles, below for organizations. The last word counts
+ * double. A word that usually names an organization is part of a title when
+ * it says what the title word after it does: "Software Engineer", "Lab Manager".
+ */
 function titleScore(text: string): number {
-  const last = words(text).pop() ?? ""
+  const all = words(text)
+  const last = all[all.length - 1] ?? ""
   const acronym = /^[A-Z0-9&.]{2,6}$/.test(text) ? 1 : 0
-  return score(text, TITLE_WORDS) + Number(TITLE_WORDS.test(last)) - score(text, ORG_WORDS) - Number(ORG_WORDS.test(last)) - acronym
+  const orgWords = all.filter((word, i) => ORG_WORDS.test(word) && !TITLE_WORDS.test(all[i + 1] ?? "")).length
+  return score(text, TITLE_WORDS) + Number(TITLE_WORDS.test(last)) - orgWords - Number(ORG_WORDS.test(last)) - acronym
 }
 
+/**
+ * "Physician Shadowing – Cardiology": a title split at a dash, when that
+ * leaves more pieces than a role and an organization, goes back together.
+ * Split from the end, so a subtitle rejoins the title it follows.
+ */
+function joinDashed(texts: Fragment[]): Fragment[] {
+  const joined = [...texts]
+  for (let i = joined.length - 1; i > 0 && joined.length > 2; i--) {
+    const { joint } = joined[i]
+    if (joint && /^\s+[-\u2013\u2014]\s+$/.test(joint)) joined.splice(i - 1, 2, { ...joined[i - 1], text: `${joined[i - 1].text}${joint}${joined[i].text}` })
+  }
+  return joined
+}
+
+/** Whether an entry's role came before its organization, and how much more title-like it scored. */
+interface RoleCall {
+  roleFirst: boolean
+  margin: number
+}
+
+/**
+ * Where an entry's role and organization were told apart: at a comma ("Vice-President, BoilerHacks"),
+ * or at a dash or colon between them. A role split off at a dash that holds a comma itself
+ * ("Lead TA, ME 3410 - Robot Kinematics") may have been meant to split there instead: `atComma`.
+ */
+interface SplitCall {
+  at: "comma" | "dash"
+  /** Whether the scores were clear about it. */
+  clear: boolean
+  role: string
+  atComma?: { role: string; org: string }
+}
+
+const DASH_OR_COLON = /^(?:\s+[-\u2013\u2014]\s+|:\s+)$/
+
 /** Decides which bit of text is the job title and which is the organization. */
-function roleAndOrg(texts: Fragment[]): { role: string; org: string; rest: string[] } {
+function roleAndOrg(pieces: Fragment[]): { role: string; org: string; rest: string[]; call?: RoleCall; split?: SplitCall } {
+  const texts = joinDashed(pieces)
   if (texts.length === 0) return { role: "", org: "", rest: [] }
   if (texts.length === 1) {
     const text = texts[0].text
@@ -622,8 +781,8 @@ function roleAndOrg(texts: Fragment[]): { role: string; org: string; rest: strin
       const [a, b] = comma
       const aTitle = titleScore(a)
       const bTitle = titleScore(b)
-      if (aTitle > 0 && bTitle <= 0) return { role: a, org: b, rest: [] }
-      if (bTitle > 0 && aTitle <= 0) return { role: b, org: a, rest: [] }
+      if (aTitle > 0 && bTitle <= 0) return { role: a, org: b, rest: [], split: { at: "comma", clear: true, role: a } }
+      if (bTitle > 0 && aTitle <= 0) return { role: b, org: a, rest: [], split: { at: "comma", clear: true, role: b } }
     }
     return titleScore(text) > 0 ? { role: text, org: "", rest: [] } : { role: "", org: text, rest: [] }
   }
@@ -636,7 +795,79 @@ function roleAndOrg(texts: Fragment[]): { role: string; org: string; rest: strin
   const role = [...ranked].sort((a, b) => b.title - a.title || a.order - b.order)[0]
   const others = ranked.filter((item) => item !== role)
   const org = [...others].sort((a, b) => a.title - b.title || a.order - b.order)[0]
-  return { role: role.text, org: org.text, rest: others.filter((item) => item !== org).map((item) => item.text) }
+  // Role and organization split apart at a dash or colon between them.
+  const [first, second] = role.order < org.order ? [role, org] : [org, role]
+  const joint = texts[second.order].joint
+  let split: SplitCall | undefined
+  if (second.order === first.order + 1 && joint && DASH_OR_COLON.test(joint)) {
+    split = { at: "dash", clear: role.title - org.title > CLOSE_CALL, role: role.text }
+    const [before, ...after] = role.text.split(/,\s+/)
+    if (role === first && after.length && titleScore(before) > 0 && titleScore(after.join(", ")) <= 0) {
+      split.atComma = { role: before, org: `${after.join(", ")}${joint}${org.text}` }
+    }
+  }
+  return {
+    role: role.text,
+    org: org.text,
+    rest: others.filter((item) => item !== org).map((item) => item.text),
+    call: { roleFirst: role.order < org.order, margin: role.title - org.title },
+    split,
+  }
+}
+
+/** A role that scores this much more title-like than its organization, or less, is a close call. */
+const CLOSE_CALL = 1
+
+type ExperienceName = keyof typeof EXPERIENCE_FIELDS
+
+/**
+ * People set every entry out the same way, so a close call between role and
+ * organization goes the way the other entries went: those in its own
+ * section, or for a tie with none there to go by, those in the rest of the
+ * resume, which may set its entries out another way. Only entries whose
+ * scores weren't tied count. A tie goes their way with one to go by; a call
+ * a point apart takes two, since its scores lean the right way more often
+ * than not. With fewer, or ones that disagree, it stays as it was.
+ */
+function followOtherEntries(sections: { name: ExperienceName; calls: Map<FoundEntry, RoleCall> }[]) {
+  const all = sections.flatMap(({ calls }) => [...calls.values()])
+  for (const { name, calls } of sections) {
+    const keys = EXPERIENCE_FIELDS[name]
+    for (const [entry, call] of calls) {
+      if (call.margin > CLOSE_CALL) continue
+      const voters = (from: RoleCall[]) => from.filter((other) => other !== call && other.margin > 0)
+      const own = voters([...calls.values()])
+      const others = own.length > 0 || call.margin > 0 ? own : voters(all)
+      const roleFirst = others.filter((other) => other.roleFirst).length
+      const orgFirst = others.length - roleFirst
+      const needed = call.margin + 1
+      const order = roleFirst >= needed && roleFirst >= 2 * orgFirst ? true : orgFirst >= needed && orgFirst >= 2 * roleFirst ? false : undefined
+      if (order === undefined || order === call.roleFirst) continue
+      ;[entry.fields[keys.role], entry.fields[keys.org]] = [entry.fields[keys.org], entry.fields[keys.role]]
+    }
+  }
+}
+
+/**
+ * "Lead TA, ME 3410 - Robot Kinematics" splits at the dash unless the resume
+ * shows it puts commas between roles and organizations: clearly, on two
+ * entries or more, and at least twice as often as dashes. Then it splits at
+ * the comma, the dash being part of the organization's name.
+ */
+function followCommas(sections: { name: ExperienceName; splits: Map<FoundEntry, SplitCall> }[]) {
+  const all = sections.flatMap(({ splits }) => [...splits.values()])
+  const commas = all.filter((split) => split.at === "comma" && split.clear).length
+  const dashes = all.filter((split) => split.at === "dash" && split.clear && !split.atComma).length
+  if (commas < 2 || commas < 2 * dashes) return
+  for (const { name, splits } of sections) {
+    const keys = EXPERIENCE_FIELDS[name]
+    for (const [entry, split] of splits) {
+      // Left alone if a close call already swapped it.
+      if (!split.atComma || entry.fields[keys.role] !== split.role) continue
+      entry.fields[keys.role] = split.atComma.role
+      entry.fields[keys.org] = split.atComma.org
+    }
+  }
 }
 
 /** "• one\n• two", the editor's format for bullets. */
@@ -654,6 +885,9 @@ const linesOf = (group: Group) => [...group.header.flatMap((line) => [line.index
 interface SectionResult {
   entries: FoundEntry[]
   leftover: { lines: number[]; text: string[] }
+  /** How each entry's role and organization were told apart, where they had to be. */
+  calls?: Map<FoundEntry, RoleCall>
+  splits?: Map<FoundEntry, SplitCall>
 }
 
 const EXPERIENCE_FIELDS: {
@@ -668,26 +902,121 @@ function blankEntry(name: SectionName): Fields {
   return Object.fromEntries(SECTIONS[name].fields.map((field) => [field.key, ""]))
 }
 
-function readExperience(name: "Work" | "Leadership" | "Volunteership", lines: ParseLine[]): SectionResult {
+/**
+ * Where entries' text starts when their dates are in a column on the left
+ * ("2023 – 2025   Lead TA, …"), or undefined when they aren't.
+ */
+function dateColumnEnd(lines: Line[]): number | undefined {
+  const counts = new Map<number, number>()
+  for (const line of lines) {
+    if (line.parts.length < 2 || !dateOnly(line.parts[0].text)) continue
+    const start = Math.round(line.parts[1].x)
+    counts.set(start, (counts.get(start) ?? 0) + 1)
+  }
+  const [end, count] = [...counts].sort((a, b) => b[1] - a[1])[0] ?? []
+  return count !== undefined && count >= 2 ? end : undefined
+}
+
+/**
+ * "Teaching", "Mentoring": a few words alone in the column of dates, with no
+ * date of their own, head the entries below them and have no field to go in.
+ */
+function subHeadingsBesideDates(lines: ParseLine[]): Set<ParseLine> {
+  const end = dateColumnEnd(lines)
+  if (end === undefined) return new Set()
+  return new Set(
+    lines.filter(
+      (line) => line.box !== undefined && line.box[2] < end && line.parts.length === 1 && !hasDate(line) && !isLocation(line.text) && words(line.text).length <= 4,
+    ),
+  )
+}
+
+/**
+ * In a CV with its dates in a column on the left, a line with something
+ * else in that column, neither a date nor a place ("Purdue Univ.", beside a
+ * paragraph about students mentored), doesn't start an entry and isn't part
+ * of the one above. It has no field to go in, nor do the lines it wraps
+ * onto, set at the column's edge, up to the next line in the column.
+ */
+function besideDatesWithoutOne(lines: ParseLine[]): ParseLine[][] {
+  const end = dateColumnEnd(lines)
+  if (end === undefined) return []
+  const found: ParseLine[][] = []
+  let current: ParseLine[] | undefined
+  for (const line of lines) {
+    const [first, second] = line.parts
+    if (second && Math.abs(second.x - end) <= 3 && !DATE.test(first.text) && !isLocation(first.text)) {
+      current = [line]
+      found.push(current)
+    } else if (current && !line.bullet && Math.abs(line.left - end) <= 3) {
+      current.push(line)
+    } else {
+      current = undefined
+    }
+  }
+  return found
+}
+
+/**
+ * "Lab Manager & Instructional Staff", then a department or two, each on a
+ * short line of its own under the organization, before the bullets: the
+ * first is the role, the rest have no field. Without bullets after them,
+ * short lines are as likely the description itself, so they're left be.
+ */
+function titleLines(body: Item[], isBullet: (item: Item) => boolean): Item[] {
+  const lines: Item[] = []
+  for (const item of body) {
+    if (isBullet(item)) return lines
+    if (item.lines.length > 1 || words(item.text).length > 8 || /[.!?;:,]$/.test(item.text)) return []
+    lines.push(item)
+  }
+  return []
+}
+
+function readExperience(name: ExperienceName, lines: ParseLine[]): SectionResult {
   const keys = EXPERIENCE_FIELDS[name]
   const leftover: SectionResult["leftover"] = { lines: [], text: [] }
-  const entries = groupEntries(lines).map((group) => {
+  const calls = new Map<FoundEntry, RoleCall>()
+  const splits = new Map<FoundEntry, SplitCall>()
+  const bullets = new Set(lines.filter((line) => line.bullet).map((line) => line.index))
+  const subHeadings = subHeadingsBesideDates(lines)
+  for (const line of subHeadings) {
+    leftover.lines.push(line.index)
+    leftover.text.push(line.text)
+  }
+  const besideNoDate = besideDatesWithoutOne(lines)
+  for (const block of besideNoDate) {
+    leftover.lines.push(...block.map((line) => line.index))
+    leftover.text.push(tidy(block.map((line) => line.text).reduce(joinWrapped)))
+  }
+  const setAside = new Set([...subHeadings, ...besideNoDate.flat()])
+  const entries = groupEntries(lines.filter((line) => !setAside.has(line))).map((group) => {
     const header = readHeader(group.header)
-    const { role, org, rest } = roleAndOrg(header.texts)
+    const { role, org, rest, call, split } = roleAndOrg(header.texts)
     const fields = blankEntry(name)
-    fields[keys.role] = role
+    // An organization with no role over it may have its role on a line below.
+    const below = !role && org ? titleLines(group.body, (item) => bullets.has(item.lines[0])) : []
+    const body = group.body.slice(below.length)
+    fields[keys.role] = below.length ? tidy(below[0].text) : role
     fields[keys.org] = org
     fields[keys.location] = header.location
     fields[keys.start] = header.date?.start ?? ""
     fields[keys.end] = header.date?.end ?? ""
-    fields[keys.bullets] = bulletField(group.body.map(described))
-    if (rest.length) {
+    fields[keys.bullets] = bulletField(body.map(described))
+    if (rest.length || header.otherDates.length) {
       leftover.lines.push(...group.header.map((line) => line.index))
-      leftover.text.push(...rest)
+      leftover.text.push(...rest, ...header.otherDates)
     }
-    return { fields, lines: linesOf(group) }
+    if (below.length > 1) {
+      leftover.lines.push(...below.slice(1).flatMap((item) => item.lines))
+      leftover.text.push(...below.slice(1).map((item) => tidy(item.text)))
+    }
+    const entry = { fields, lines: linesOf(group) }
+    if (call) calls.set(entry, call)
+    if (split) splits.set(entry, split)
+    return entry
   })
-  return { entries, leftover }
+  return { entries, leftover, calls, splits }
 }
 
 /** "B.S. in Biology, Stanford University" is a degree and a school. */
@@ -701,10 +1030,20 @@ function splitDegreeAndSchool(fragment: Fragment): Fragment[] {
   return [fragment]
 }
 
+/**
+ * "Advisor: Prof. Reyes", "Thesis: …": a detail under a label of a word or
+ * two. Not a degree ("Bachelor of Science: …"), a school, or a date ("Expected: …").
+ */
+function detailLabel(text: string): boolean {
+  const label = text.match(/^([A-Z][a-z]+(?: [A-Za-z][a-z]+){0,2}):\s/)?.[1]
+  return label !== undefined && !isDegree(label) && !SCHOOL_WORDS.test(label) && !/^(?:expected|anticipated|graduat|gpa)/i.test(label)
+}
+
 function readEducation(lines: ParseLine[]): SectionResult {
   const leftover: SectionResult["leftover"] = { lines: [], text: [] }
-  // "Relevant Coursework: ..." and "GPA: ..." lines are details of the school above.
-  const details = (line: Line) => LABEL.test(line.text) || /^(?:cumulative\s+)?gpa\b/i.test(line.text)
+  // "Relevant Coursework: ...", "GPA: ..." and "Advisor: ..." lines are details of the school above.
+  const details = (line: Line) => LABEL.test(line.text) || /^(?:cumulative\s+)?gpa\b/i.test(line.text) || detailLabel(line.text)
+  let schoolAbove: { name: string; location: string; left: number } | undefined
   const entries = groupEntries(lines, details).map((group) => {
     const fields = blankEntry("Education")
     // The GPA can be anywhere: "(GPA: 3.9)", "GPA 3.9/4.0", "3.8/4.0".
@@ -729,13 +1068,21 @@ function readEducation(lines: ParseLine[]): SectionResult {
     const rest = texts.filter((_, i) => i !== schoolIndex && i !== degreeIndex).map((fragment) => fragment.text)
     if (!school && rest.length) school = rest.shift()!
     if (!degree && rest.length) degree = rest.shift()!
+    // Degrees listed under one school: one set in under the school's line,
+    // with no school of its own, is that school's.
+    const start = group.header[0]
+    if (school && start) schoolAbove = { name: school, location: header.location, left: start.left }
+    else if (degree && start && schoolAbove && start.left > schoolAbove.left + 3) {
+      school = schoolAbove.name
+      header.location ||= schoolAbove.location
+    }
     fields.schoolName = school
     fields.degree = degree
     fields.schoolLocation = header.location
     fields.schoolStartDate = header.date?.start ?? ""
     fields.schoolEndDate = header.date?.end ?? ""
 
-    const other: string[] = [...rest]
+    const other: string[] = [...rest, ...header.otherDates]
     for (const item of group.body) {
       const text = withoutGpa(item.text)
       const label = text.match(LABEL)
@@ -781,6 +1128,10 @@ function readProjects(lines: ParseLine[]): SectionResult {
       else if (!/^github\.com/i.test(url) && !url.includes("@") && !fields.additionalLink) fields.additionalLink = url
     }
     fields.projectDescription = bulletField(bullets)
+    if (header.otherDates.length) {
+      leftover.lines.push(...group.header.map((line) => line.index))
+      leftover.text.push(...header.otherDates)
+    }
     return { fields, lines: linesOf(group) }
   })
   return { entries, leftover }
@@ -828,6 +1179,20 @@ function publicationFields(pieces: string[], fields: Fields) {
 const tidyCitation = (text: string) => tidy(text.replace(/(\s*,\s*)+/g, ", ").replace(/^[\s,.;:]+|[\s,.;:]+$/g, ""))
 
 /**
+ * Without italics to mark it, a venue runs to the first comma after the
+ * title ("Senior Design Project, School of Engineering, …", "IEEE Trans.
+ * Robotics, vol. 5, …"), unless that comma is in a short list in the
+ * venue's name: "Fairness, Accountability, and Transparency".
+ */
+function venueAndDetails(after: string): { venue: string; details: string } {
+  const pieces = after.split(/,\s+/)
+  const ends = pieces.findIndex((piece, i) => i > 0 && /^(?:and|or|&)\s/i.test(piece))
+  const list = ends > 0 && ends <= 4 && pieces.slice(1, ends + 1).every((piece) => words(piece).length <= 3)
+  const end = list ? ends + 1 : 1
+  return { venue: pieces.slice(0, end).join(", "), details: tidyCitation(pieces.slice(end).join(", ")) }
+}
+
+/**
  * "[1] A. Smith, B. Lee. Title of the paper. NeurIPS 2025.", or IEEE style:
  * "[1] A. Smith and B. Lee, “Title,” Venue, City, 2025, doi: 10.1/x."
  * `italics` is the citation's italic text, which in IEEE style is the venue.
@@ -866,8 +1231,14 @@ function readCitation(text: string, italics: string[] = []): Fields {
     const after = tidyCitation(rest.slice(quoted.index! + quoted[0].length).replace(/^[.,]\s*(?:in:?\s+)?/i, ""))
     // The venue is in italics; anything else left over (a city, pages) is detail.
     const venue = italics.map(tidy).find((italic) => italic.length > 2 && after.includes(italic))
-    fields.publicationVenue = venue ?? after
-    if (venue) fields.publicationDetails = tidyCitation(after.replace(venue, " "))
+    if (venue) {
+      fields.publicationVenue = venue
+      fields.publicationDetails = tidyCitation(after.replace(venue, " "))
+    } else {
+      const split = venueAndDetails(after)
+      fields.publicationVenue = split.venue
+      fields.publicationDetails = split.details
+    }
     return fields
   }
   publicationFields(sentencesOf(tidy(rest.replace(/\s+([.,])/g, "$1"))), fields)
@@ -878,10 +1249,30 @@ function readCitation(text: string, italics: string[] = []): Fields {
  * Publications come either as citations, one per bullet or number, or laid
  * out like other entries: the title and date, then authors and venue below.
  */
-function readPublications(lines: ParseLine[]): SectionResult {
+function readPublications(section: ParseLine[]): SectionResult {
   const leftover: SectionResult["leftover"] = { lines: [], text: [] }
-  const citations = lines.filter((line) => line.bullet || NUMBERED.test(line.text)).length >= lines.length / 2
+  const startsCitation = (line: Line) => line.bullet || NUMBERED.test(line.text)
+  // Sub-headings over groups of citations ("Conference", "Thesis"): a few
+  // words in bold or italic, just before a citation.
+  const label = (line: ParseLine, i: number) =>
+    !startsCitation(line) && section[i + 1] !== undefined && startsCitation(section[i + 1]) && (line.bold || line.italic) && words(line.text).length <= 4 && !/[.,;:]$/.test(line.text)
+  const lines = section.filter((line, i) => !label(line, i))
+  // Citations that wrap are set in under the line they start on, so every
+  // other line sits right of the bullet or number above it.
+  let start: ParseLine | undefined
+  const hanging = lines.every((line) => {
+    if (startsCitation(line)) start = line
+    else if (!start || line.left <= start.left + 3) return false
+    return true
+  })
+  const citations = lines.filter(startsCitation).length >= lines.length / 2 || (hanging && lines.filter(startsCitation).length >= 2)
   if (citations) {
+    // The sub-headings label groups, which a citation has no field for.
+    for (const line of section) {
+      if (lines.includes(line)) continue
+      leftover.lines.push(line.index)
+      leftover.text.push(line.text)
+    }
     const items: { text: string; lines: number[]; x: number; italics: string[] }[] = []
     for (const line of lines) {
       const last = items[items.length - 1]
@@ -903,7 +1294,7 @@ function readPublications(lines: ParseLine[]): SectionResult {
     return { entries: items.map((item) => ({ fields: readCitation(item.text, item.italics), lines: item.lines })), leftover }
   }
 
-  const entries = groupEntries(lines).map((group) => {
+  const entries = groupEntries(section).map((group) => {
     const fields = blankEntry("Publications")
     const header = readHeader(group.header)
     fields.publicationDate = header.date?.text ?? ""
@@ -914,6 +1305,10 @@ function readPublications(lines: ParseLine[]): SectionResult {
     const rest = group.body.filter((item) => !authors.includes(item))
     // A line like "J. Ryan, A. Smith. NeurIPS" holds both the authors and the venue.
     publicationFields([...header.texts.map((fragment) => fragment.text), ...authors.map((item) => item.text)].flatMap(sentencesOf), fields)
+    if (header.otherDates.length) {
+      leftover.lines.push(...group.header.map((line) => line.index))
+      leftover.text.push(...header.otherDates)
+    }
     if (rest.length) {
       leftover.lines.push(...rest.flatMap((item) => item.lines))
       leftover.text.push(...rest.map((item) => item.text))
@@ -926,7 +1321,10 @@ function readPublications(lines: ParseLine[]): SectionResult {
 function readSkills(lines: ParseLine[], category?: string): SectionResult {
   const entries: FoundEntry[] = []
   if (category) {
-    const text = lines.map((line, i) => (i === 0 || /,$/.test(lines[i - 1].text) ? "" : ", ") + line.text).join("")
+    const text = lines.reduce(
+      (joined, line, i) => (i === 0 ? line.text : joined.endsWith(SOFT_HYPHEN) ? joinWrapped(joined, line.text) : `${joined}${/,$/.test(joined) ? "" : ", "}${line.text}`),
+      "",
+    )
     return { entries: [{ fields: { skillName: category, skillDetails: tidy(text) }, lines: lines.map((line) => line.index) }], leftover: { lines: [], text: [] } }
   }
   lines.forEach((line, i) => {
@@ -942,7 +1340,7 @@ function readSkills(lines: ParseLine[], category?: string): SectionResult {
     const details = colon && name === colon[1] ? colon[2] : name ? line.parts.slice(1).map((part) => part.text).join(" ") : line.text
     if (!name && last && !line.bullet) {
       // Wrapped from the line above.
-      last.fields.skillDetails = `${last.fields.skillDetails} ${details}`.trim()
+      last.fields.skillDetails = joinWrapped(last.fields.skillDetails, details).trim()
       last.lines.push(line.index)
       return
     }
@@ -970,11 +1368,28 @@ function blocksBySpacing(lines: ParseLine[]): ParseLine[][] | null {
   return blocks.length > 1 && blocks.some((block) => block.length > 1) ? blocks : null
 }
 
+/** A line about an award ("Awarded to the team while serving as its lead."): a sentence, not part of a name. */
+const aboutAward = (line: Line) => !line.bold && words(line.text).length >= 6 && (/[.!?]$/.test(line.text) || line.text.length > 60)
+
 function readAwards(lines: ParseLine[]): SectionResult {
+  const leftover: SectionResult["leftover"] = { lines: [], text: [] }
+  const keepOtherDates = (header: Header, from: ParseLine[]) => {
+    if (header.otherDates.length === 0) return
+    leftover.lines.push(...from.map((line) => line.index))
+    leftover.text.push(...header.otherDates)
+  }
   const blocks = blocksBySpacing(lines)
   if (blocks) {
-    const entries = blocks.map((block) => {
+    const entries = blocks.map((all) => {
+      // A line about the award, and what follows it, has no field to go in.
+      const about = all.findIndex((line, i) => i > 0 && aboutAward(line))
+      const block = about > 0 ? all.slice(0, about) : all
+      if (about > 0) {
+        leftover.lines.push(...all.slice(about).map((line) => line.index))
+        leftover.text.push(all.slice(about).map((line) => line.text).reduce(joinWrapped))
+      }
       const header = readHeader(block)
+      keepOtherDates(header, block)
       return {
         fields: {
           awardName: header.texts[0]?.text ?? "",
@@ -984,11 +1399,22 @@ function readAwards(lines: ParseLine[]): SectionResult {
         lines: block.flatMap((line) => [line.index, ...(line.merged ?? [])]),
       }
     })
-    return { entries, leftover: { lines: [], text: [] } }
+    return { entries, leftover }
   }
   const entries: FoundEntry[] = []
+  let describing = false
   for (const line of lines) {
     const last = entries[entries.length - 1]
+    const wraps = last !== undefined && !line.bullet && (/^[a-z]/.test(line.text) || line.left > (lines[0]?.left ?? 0) + 4)
+    // A line about the award has no field to go in, nor do the lines it wraps onto.
+    if (wraps && (describing || (!hasDate(line) && aboutAward(line)))) {
+      if (describing) leftover.text[leftover.text.length - 1] = joinWrapped(leftover.text[leftover.text.length - 1], line.text)
+      else leftover.text.push(line.text)
+      leftover.lines.push(line.index)
+      describing = true
+      continue
+    }
+    describing = false
     // A date on a line of its own goes with the award above it.
     const date = findDate(line.text)
     if (last && !last.fields.awardDate && date && tidy(line.text.replace(date.text, "")) === "") {
@@ -997,11 +1423,12 @@ function readAwards(lines: ParseLine[]): SectionResult {
       continue
     }
     if (last && !line.bullet && !hasDate(line) && (/^[a-z]/.test(line.text) || line.left > (lines[0]?.left ?? 0) + 4)) {
-      last.fields.awardName = tidy(`${last.fields.awardName} ${line.text}`)
+      last.fields.awardName = tidy(joinWrapped(last.fields.awardName, line.text))
       last.lines.push(line.index)
       continue
     }
     const header = readHeader([line])
+    keepOtherDates(header, [line])
     let name = header.texts[0]?.text ?? ""
     let org = header.texts.slice(1).map((fragment) => fragment.text).join(", ")
     const comma = name.indexOf(", ")
@@ -1023,7 +1450,7 @@ function readAwards(lines: ParseLine[]): SectionResult {
       lines: [line.index],
     })
   }
-  return { entries: entries.filter((entry) => entry.fields.awardName || entry.fields.awardOrg), leftover: { lines: [], text: [] } }
+  return { entries: entries.filter((entry) => entry.fields.awardName || entry.fields.awardOrg), leftover }
 }
 
 // ---------------------------------------------------------------- profile
@@ -1049,6 +1476,9 @@ interface Contacts {
   remainders: Map<number, string>
 }
 
+/** A link to a web page, with https:// or written without it, not tel: or sms:. */
+const WEB_LINK = /^(?:https?:\/\/|(?![a-z][a-z0-9+.-]*:))/i
+
 // Labels in front of contact details, including short ones with a colon ("P: 555-0100", "E: me@x.com").
 const CONTACT_LABEL = /\b(?:(?:e-?mail|phone|mobile|cell|tel|telephone|linkedin|github|website|portfolio|web|site|address)\s*:?|(?:p|ph|m|t|e)\s*:)/gi
 
@@ -1070,7 +1500,8 @@ function readContacts(lines: ParseLine[], isTop: (line: ParseLine) => boolean): 
       if (/^mailto:/i.test(link)) take("email", bare(link))
       else if (LINKEDIN.test(link)) take("linkedin", bare(link))
       else if (GITHUB_PROFILE.test(link) && /^(?:https?:\/\/)?(?:www\.)?github\.com\/[^/]+\/?$/i.test(link)) take("profileGithub", bare(link))
-      else if (inHeader && !/github\.com\/[^/]+\/[^/]+/i.test(link)) take("personalWebsite", bare(link))
+      // A website is a web address: not a phone number's tel: link.
+      else if (inHeader && WEB_LINK.test(link) && !/github\.com\/[^/]+\/[^/]+/i.test(link)) take("personalWebsite", bare(link))
     }
     const email = text.match(EMAIL)
     if (email) take("email", email[0], email[0])
@@ -1172,8 +1603,21 @@ function splitSideHeadings(lines: Line[]): Line[] {
   })
 }
 
+/** "2", "Page 2", "2 of 3", "- 2 -". */
+const PAGE_NUMBER = /^[\s\-\u2013\u2014]*(?:page\s+)?(\d{1,3})(?:\s*(?:of|\/)\s*\d{1,3})?[\s\-\u2013\u2014]*$/i
+
+/** Lines that are only a page's number, at its top or bottom: not part of the resume. */
+function withoutPageNumbers(lines: Line[]): Line[] {
+  const ends = new Set<Line>()
+  lines.forEach((line, i) => {
+    if (line.page === undefined) return
+    if (lines[i - 1]?.page !== line.page || lines[i + 1]?.page !== line.page) ends.add(line)
+  })
+  return lines.filter((line) => !(ends.has(line) && Number(line.text.match(PAGE_NUMBER)?.[1]) === line.page))
+}
+
 export function parseResume(file: Line[]): ParsedResume {
-  const input = splitSideHeadings(file)
+  const input = splitSideHeadings(withoutPageNumbers(file))
   const lines: ParseLine[] = input.map((line, index) => ({ ...line, index }))
   const body = bodySize(lines)
 
@@ -1189,6 +1633,24 @@ export function parseResume(file: Line[]): ParsedResume {
     for (const line of page) {
       const column = page.filter((other) => Math.abs(other.left - line.left) < 60 && Math.abs(other.size - line.size) < 1.5)
       line.margin = column.reduce((edge, other) => Math.max(edge, other.box![2]), -Infinity)
+    }
+    // Justified text: the long lines of a column all end at the same edge, at
+    // its right side, as text set ragged hardly ever does. A hyphen breaking a
+    // word can reach a little past it. Short lines, like titles, don't count
+    // either way, nor do short lines that end together ("Chicago, IL" under
+    // each job).
+    for (const line of page) {
+      if (line.parts.length !== 1) continue
+      const ends = page
+        .filter((other) => other.parts.length === 1 && Math.abs(other.left - line.left) < 60 && Math.abs(other.size - line.size) < 1.5)
+        .map((other) => other.box![2])
+      const counts = new Map<number, number>()
+      for (const end of ends) counts.set(Math.round(end), (counts.get(Math.round(end)) ?? 0) + 1)
+      const edge = [...counts].sort((a, b) => b[1] - a[1])[0][0]
+      const atEdge = (end: number) => end >= edge - 1.5 && end <= edge + 4
+      const long = ends.filter((end) => end >= edge - 20 && end <= edge + 4)
+      const exact = long.filter(atEdge)
+      line.full = edge >= line.margin! - 20 && exact.length >= 3 && exact.length >= 0.6 * long.length && atEdge(line.box![2])
     }
   }
 
@@ -1228,6 +1690,14 @@ export function parseResume(file: Line[]): ParsedResume {
       sameX
     )
   }
+  // Headings it doesn't know by name, but known by a word in them, when they
+  // look like the ones it does know.
+  lines.forEach((line, i) => {
+    if (i === 0 || known.has(line.index) || !headingShaped(line) || !headingStyle(line)) return
+    const meaning = headingByWord(line.text)
+    if (meaning) known.set(line.index, meaning)
+  })
+  knownLines = lines.filter((line) => known.has(line.index))
   // Unknown headings are only guessed from their style when it sets them apart:
   // if entry titles look the same (all bold, same size), it doesn't.
   const lookalikes = lines.filter((line, i) => i > 0 && !known.has(line.index) && headingShaped(line) && headingStyle(line))
@@ -1303,6 +1773,7 @@ export function parseResume(file: Line[]): ParsedResume {
   }
 
   const starts = lines.filter((line) => headings.has(line.index))
+  const experience: { name: ExperienceName; calls: Map<FoundEntry, RoleCall>; splits: Map<FoundEntry, SplitCall> }[] = []
   starts.forEach((start, i) => {
     const { meaning, label } = headings.get(start.index)!
     const end = starts[i + 1]?.index ?? lines.length
@@ -1341,8 +1812,11 @@ export function parseResume(file: Line[]): ParsedResume {
               : readExperience(name, sectionLines)
     const entries = result.entries.filter((entry) => Object.values(entry.fields).some((value) => value.trim() !== ""))
     if (entries.length) sectionFor(name).entries.push(...entries)
+    if (result.calls && result.splits && name in EXPERIENCE_FIELDS) experience.push({ name: name as ExperienceName, calls: result.calls, splits: result.splits })
     addUnplaced(titleCase(label), result.leftover.lines, result.leftover.text)
   })
+  followOtherEntries(experience)
+  followCommas(experience)
 
   // With no headings at all, firstHeading falls back to the 4th line: what's
   // below the top of the resume couldn't be sorted, so it's listed as it is.
@@ -1374,3 +1848,19 @@ export function toResumeContent(parsed: ParsedResume, skip: Set<string> = new Se
 }
 
 export const entryKey = (section: SectionName, index: number) => `${section}:${index}`
+
+/**
+ * When this much of a file's text couldn't be placed, the file was likely
+ * read wrong, not just left with a few lines that have no field. A resume
+ * read right leaves out a tenth at most: an address, an advisor, a line
+ * about an award. One whose headings were missed leaves out a third or more.
+ */
+export const MUCH_UNPLACED = 0.25
+
+/** How much of the file's text went to "Couldn't place", from 0 to 1, leaving out spaces. */
+export function unplacedShare(parsed: ParsedResume): number {
+  const length = (text: string) => text.replace(/\s/g, "").length
+  const total = parsed.lines.reduce((sum, line) => sum + length(line.text), 0)
+  const unplaced = parsed.unplaced.reduce((sum, group) => sum + group.text.reduce((count, text) => count + length(text), 0), 0)
+  return total > 0 ? Math.min(1, unplaced / total) : 0
+}

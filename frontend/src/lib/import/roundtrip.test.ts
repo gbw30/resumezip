@@ -5,7 +5,7 @@
 import { describe, expect, test } from "vitest"
 import { cleanResume } from "@/lib/resumeFile"
 import { toTemplateData } from "@/lib/typst/resumeData"
-import { readBack, render, samples } from "./testRender"
+import { differences, readBack, render, samples } from "./testRender"
 
 /**
  * Fields each template's sample doesn't read back yet, as paths into the
@@ -17,8 +17,7 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // A comma inside an award's name reads as the start of the organization.
   jake: ["awards[0].name", "awards[0].organization"],
   levelsfyi: [],
-  // The first job's company and role come back swapped.
-  modernjack: ["work[0].company", "work[0].role"],
+  modernjack: [],
   // "Organization, City, ST" on one line all reads as the location, and a
   // comma or dash inside an award's name reads as the start of the organization.
   referme: [
@@ -55,25 +54,6 @@ function printed(resume: Record<string, unknown>) {
   const data = toTemplateData(resume)
   for (const school of data.education) school.gpa = school.gpa.replace(/\s+/g, "")
   return data
-}
-
-/** Paths ("work[0].role") where two values differ. */
-function differences(want: unknown, got: unknown, at = ""): string[] {
-  if (Array.isArray(want) || Array.isArray(got)) {
-    const a = Array.isArray(want) ? want : []
-    const b = Array.isArray(got) ? got : []
-    if (a.every((item) => typeof item !== "object") && b.every((item) => typeof item !== "object")) {
-      return JSON.stringify(a) === JSON.stringify(b) ? [] : [at]
-    }
-    return Array.from({ length: Math.max(a.length, b.length) }, (_, i) => differences(a[i], b[i], `${at}[${i}]`)).flat()
-  }
-  if (want && got && typeof want === "object" && typeof got === "object") {
-    const keys = new Set([...Object.keys(want), ...Object.keys(got)])
-    return [...keys].flatMap((key) =>
-      differences((want as Record<string, unknown>)[key], (got as Record<string, unknown>)[key], at ? `${at}.${key}` : key),
-    )
-  }
-  return want === got ? [] : [at]
 }
 
 describe.each(samples.map((sample) => [sample.selectedTemplate as string, sample]))("the %s sample", (template, sample) => {
