@@ -1358,8 +1358,11 @@ export function parseResume(file: Line[]): ParsedResume {
       const column = page.filter((other) => Math.abs(other.left - line.left) < 60 && Math.abs(other.size - line.size) < 1.5)
       line.margin = column.reduce((edge, other) => Math.max(edge, other.box![2]), -Infinity)
     }
-    // Justified text: most lines of a column end at the same edge, as text set
-    // ragged hardly ever does. A hyphen breaking a word can reach a little past it.
+    // Justified text: the long lines of a column all end at the same edge, at
+    // its right side, as text set ragged hardly ever does. A hyphen breaking a
+    // word can reach a little past it. Short lines, like titles, don't count
+    // either way, nor do short lines that end together ("Chicago, IL" under
+    // each job).
     for (const line of page) {
       if (line.parts.length !== 1) continue
       const ends = page
@@ -1367,9 +1370,11 @@ export function parseResume(file: Line[]): ParsedResume {
         .map((other) => other.box![2])
       const counts = new Map<number, number>()
       for (const end of ends) counts.set(Math.round(end), (counts.get(Math.round(end)) ?? 0) + 1)
-      const [edge, count] = [...counts].sort((a, b) => b[1] - a[1])[0]
-      const right = line.box![2]
-      line.full = count >= 3 && count >= 0.3 * ends.length && right >= edge - 1.5 && right <= edge + 4
+      const edge = [...counts].sort((a, b) => b[1] - a[1])[0][0]
+      const atEdge = (end: number) => end >= edge - 1.5 && end <= edge + 4
+      const long = ends.filter((end) => end >= edge - 20 && end <= edge + 4)
+      const exact = long.filter(atEdge)
+      line.full = edge >= line.margin! - 20 && exact.length >= 3 && exact.length >= 0.6 * long.length && atEdge(line.box![2])
     }
   }
 

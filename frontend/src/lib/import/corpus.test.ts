@@ -87,8 +87,6 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "education[1].school",
     "education[1].location",
     "education[2].degree",
-    "education[2].end",
-    "education[3]",
     "work[0].role",
     "work[0].bullets",
     "work[1].company",
