@@ -559,7 +559,13 @@ function joinWrappedTitles(lines: Line[]): Line[] {
 /** Pulls the dates, place and links out of an entry's title lines, leaving the other bits of text. */
 function readHeader(lines: Line[], remove: RegExp[] = []): Header {
   const header: Header = { texts: [], date: null, otherDates: [], location: "", links: [] }
-  for (const line of joinWrappedTitles(lines)) {
+  const joined = joinWrappedTitles(lines)
+  const without = (text: string) => remove.reduce((rest, pattern) => rest.replace(new RegExp(pattern.source, "gi"), " "), text)
+  // A date set apart on its own, like one on the right edge, is the entry's.
+  // A year inside other text ("Sprout – HackGT 2026") is then part of a name,
+  // and stays in it.
+  const datedApart = joined.some((line) => line.parts.some((part) => dateOnly(without(part.text))))
+  for (const line of joined) {
     header.links.push(...line.links)
     for (const part of line.parts) {
       // Dates and links come out first, since their dashes and dots aren't
@@ -571,7 +577,8 @@ function readHeader(lines: Line[], remove: RegExp[] = []): Header {
       for (const pattern of remove) {
         for (const match of text.matchAll(new RegExp(pattern.source, "gi"))) blank(match.index!, match[0].length)
       }
-      for (let date = findDate(text); date; date = findDate(text)) {
+      const apart = dateOnly(text)
+      for (let date = findDate(text); date && (apart || !datedApart); date = findDate(text)) {
         if (header.date) header.otherDates.push(date.text)
         else header.date = date
         blank(date.index, date.length)

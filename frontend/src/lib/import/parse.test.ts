@@ -65,3 +65,20 @@ describe("nothing on an entry's title line is thrown away", () => {
     expect(unplaced).toEqual(["Spring 2024"])
   })
 })
+
+describe("an entry's date", () => {
+  test("is the one alone on the right, not a year in the title, which stays in it", () => {
+    const { resume, unplaced } = read("Projects", [
+      line([["Sprout – HackGT 2026 | React, Flask", 36], ["September 2026", 480]], { bold: true }),
+      line([["Built a garden planner", 54]], { bullet: true }),
+    ])
+    expect(resume.projectsSection[0].projectDate).toBe("September 2026")
+    expect(Object.values(resume.projectsSection[0]).join(" ")).toContain("HackGT 2026")
+    expect(unplaced).toEqual([])
+  })
+
+  test("is a year in the title when there's no other", () => {
+    const { resume } = read("Awards", [line([["First Place, HackGT 2026", 36]])])
+    expect(resume.awardsSection[0].awardDate).toBe("2026")
+  })
+})

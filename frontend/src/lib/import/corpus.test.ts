@@ -58,16 +58,15 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // found, so almost everything goes to "Couldn't place".
   "jordan/html-side-headings": ["education[0]", "work[0]", "work[1]", "work[2]", "skills[0]", "skills[1]", "volunteer[0]", "awards[0]", "awards[1]"],
   "jordan/writer-modern": ["awards[0]", "awards[1]"],
-  // "Sprout – HackGT 2026": the year in the name is taken as the project's
-  // date and "HackGT" as a tool. "GT Solar Racing Engineering" reads as the
-  // role. A wrapped bullet's line starting "2027 American Solar Challenge"
-  // reads as a new entry. "Role, Company" on one line all reads as the role.
+  // "Sprout – HackGT 2026" splits at the dash, so "HackGT 2026" reads as a
+  // tool. "GT Solar Racing Engineering" reads as the role. A wrapped bullet's
+  // line starting "2027 American Solar Challenge" reads as a new entry.
+  // "Role, Company" on one line all reads as the role.
   "maya/html-modern": [
     "work[0].company",
     "work[0].role",
     "projects[1].name",
     "projects[1].techStack",
-    "projects[1].date",
     "leadership[0].organization",
     "leadership[0].role",
     "leadership[0].bullets",
@@ -76,7 +75,6 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "maya/latex-jake": [
     "projects[1].name",
     "projects[1].techStack",
-    "projects[1].date",
     "leadership[0].organization",
     "leadership[0].role",
     "leadership[0].bullets",
@@ -86,7 +84,6 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "maya/latex-jake-company-first": [
     "projects[1].name",
     "projects[1].techStack",
-    "projects[1].date",
     "leadership[0].organization",
     "leadership[0].role",
     "leadership[0].bullets",
