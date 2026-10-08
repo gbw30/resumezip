@@ -280,3 +280,21 @@ describe("contact links", () => {
     })
   })
 })
+
+describe("a word broken across two lines", () => {
+  test("by a soft hyphen joins back up without it", () => {
+    const { resume } = read("Experience", [
+      line([["Lab Manager", 36], ["2024 – Present", 480]], { bold: true }),
+      line([["Purdue University", 36]], { italic: true }),
+      line([["Run safety training and incident response; coor\u00AD", 54]], { bullet: true }),
+      line([["dinate approvals with motion-", 54]]),
+      line([["capture vendors", 54]]),
+    ])
+    expect(resume.workExperienceSection[0].workDescription).toBe("• Run safety training and incident response; coordinate approvals with motion-capture vendors")
+  })
+
+  test("joins back up in a list of skills too", () => {
+    const { resume } = read("Skills", [line([["Software: Python, C++, MAT\u00AD", 36]]), line([["LAB, SQL", 36]])])
+    expect(resume.skillsSection).toMatchObject([{ skillName: "Software", skillDetails: "Python, C++, MATLAB, SQL" }])
+  })
+})

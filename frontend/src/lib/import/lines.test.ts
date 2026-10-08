@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs"
 import { describe, expect, test, vi } from "vitest"
 import { convertToHtml } from "mammoth"
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs"
@@ -132,5 +133,16 @@ describe("reading a Word file", () => {
     vi.mocked(convertToHtml).mockClear()
     await expect(linesFromDocx(bytes(wordFile(["Mara Lin", "mara@example.com"])))).resolves.toMatchObject([{ text: "Mara Lin" }, { text: "mara@example.com" }])
     expect(convertToHtml).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("hyphens", () => {
+  test("one a typesetter added to break a word at the end of a line comes back as a soft hyphen", async () => {
+    // Typst marks those hyphens as soft ones; a hyphen in "motion-capture" is part of the word.
+    await withPdf(readFileSync("src/lib/import/corpus/marcus/typst-academic.pdf"), async (doc) => {
+      const texts = linesFromPages(await readPdf(doc)).map((line) => line.text)
+      expect(texts.some((text) => text.endsWith(" coor\u00AD"))).toBe(true)
+      expect(texts.some((text) => text.endsWith(" motion-"))).toBe(true)
+    })
   })
 })

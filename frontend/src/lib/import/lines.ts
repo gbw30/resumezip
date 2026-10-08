@@ -49,6 +49,9 @@ export interface PageSize {
   height: number
 }
 
+/** Ends a line where a word was broken in two; parse.ts joins the word back up. */
+export const SOFT_HYPHEN = "\u00AD"
+
 /** Characters that start a bullet: the usual ones, symbols, and those Word puts in its own fonts. */
 export const BULLET_CHARS = "\u2022\u25CF\u25AA\u25A0\u25E6\u2023\u2219\u00B7\u25CB\u25C6\u25BA\u25B8\u27A2\u27A4\u2713\u2714\u2605\u2043\uF0B7\uF0A7\uF076\uF0D8\uF0FC\uF0A8\uF06C"
 // Symbol bullets may touch the text; dashes and asterisks need a space after them.
@@ -160,6 +163,8 @@ interface Item {
   size: number
   bold: boolean
   italic: boolean
+  /** A hyphen alone in a marked span, the way a typesetter marks one it added to break a word. */
+  soft?: boolean
 }
 
 /** A link on a page, in the same coordinates as the page's text. */
@@ -249,24 +254,38 @@ export async function readPdf(doc: PDFDocumentProxy, signal?: AbortSignal): Prom
     // pdf.js sends a page's text a few pieces at a time, so reading stops at
     // the first piece past the limit, even partway through a page.
     const items: Item[] = []
-    const reader = (page.streamTextContent() as ReadableStream<TextContent>).getReader()
+    // Marked spans of text, open around the current one. A hyphen a
+    // typesetter added to break a word is marked as a soft hyphen in a span
+    // of its own; pdf.js gives the hyphen, but not what it's marked as.
+    const spans: Item[][] = []
+    const reader = (page.streamTextContent({ includeMarkedContent: true }) as ReadableStream<TextContent>).getReader()
     try {
       for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
         for (const item of chunk.value.items) {
+          if ("type" in item) {
+            if (item.type === "beginMarkedContent" || item.type === "beginMarkedContentProps") spans.push([])
+            else if (item.type === "endMarkedContent") {
+              const span = spans.pop()
+              if (span?.length === 1 && /^[-\u2010]$/.test(span[0].text)) span[0].soft = true
+            }
+            continue
+          }
           if (!("str" in item) || item.str.trim() === "") continue
           const [a, b, c, d, e, f] = item.transform as number[]
           if (Math.abs(b) > Math.abs(a)) continue // rotated, like a vertical label in a sidebar
           const text = item.str.replace(/[\u200B-\u200D\uFEFF\u00AD]/g, "")
           characters += text.length
           if (characters > MAX_CHARACTERS) throw new TooMuchTextError()
-          items.push({
+          const read: Item = {
             text,
             x: e - x0,
             right: e - x0 + item.width,
             baseline: f - y0,
             size: Math.hypot(c, d) || item.height || 10,
             ...styleOf(item.fontName),
-          })
+          }
+          items.push(read)
+          for (const span of spans) span.push(read)
         }
       }
     } catch (error) {
@@ -349,7 +368,9 @@ export function linesFromPages(pages: PdfPage[]): Line[] {
             pieces.push({ text: " ", bold: item.bold, italic: item.italic })
           }
         }
-        pieces.push({ text: item.text, bold: item.bold, italic: item.italic })
+        // A marked hyphen ending a line, right after a letter, broke a word in two.
+        const soft = item.soft && item === group[group.length - 1] && previous && item.x - previous.right < 0.12 * size && /\p{L}$/u.test(previous.text)
+        pieces.push({ text: soft ? SOFT_HYPHEN : item.text, bold: item.bold, italic: item.italic })
         previous = item
       }
       parts.push(...toParts(pieces, partX))

@@ -6,7 +6,7 @@
 
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import type { ResumeContent } from "@/lib/resumeFile"
-import type { Line, Part } from "./lines"
+import { SOFT_HYPHEN, type Line, type Part } from "./lines"
 
 export interface FoundEntry {
   /** Values keyed by the section's field names. */
@@ -200,6 +200,7 @@ function headingShaped(line: Line): boolean {
 
 const tidy = (text: string) =>
   text
+    .replaceAll(SOFT_HYPHEN, "")
     .replace(/\s+/g, " ")
     .replace(/\(\s*\)/g, "")
     .replace(/\s*\($/, "")
@@ -342,8 +343,9 @@ function continues(line: ParseLine, item: Item, wasBullet: boolean, above: Parse
   return Math.abs(line.x - item.x) <= 3 && (!/[.!?]$/.test(item.text) || /^[a-z]/.test(line.text))
 }
 
+/** A wrapped line joined onto the one above: a word a soft hyphen broke in two joins back up. */
 const joinWrapped = (text: string, next: string) =>
-  /\w-$/.test(text) && /^[a-z]/.test(next) ? text + next : `${text} ${next}`
+  text.endsWith(SOFT_HYPHEN) ? text.slice(0, -1) + next : /\w-$/.test(text) && /^[a-z]/.test(next) ? text + next : `${text} ${next}`
 
 /** Adds text in a style, merged into the piece before when the style is the same. */
 function addPiece(pieces: Piece[], text: string, bold: boolean, italic: boolean) {
@@ -373,9 +375,11 @@ function stylePieces(line: Line): Piece[] {
 
 /** Adds a wrapped line to the item above it. */
 function extendItem(item: Item, line: ParseLine) {
-  const together = /\w-$/.test(item.text) && /^[a-z]/.test(line.text)
+  const soft = item.text.endsWith(SOFT_HYPHEN)
+  const together = soft || (/\w-$/.test(item.text) && /^[a-z]/.test(line.text))
   item.text = joinWrapped(item.text, line.text)
   const last = item.pieces[item.pieces.length - 1]
+  if (soft && last) last.text = last.text.replace(/\u00AD$/, "")
   if (!together) addPiece(item.pieces, " ", last?.bold ?? false, last?.italic ?? false)
   for (const piece of stylePieces(line)) addPiece(item.pieces, piece.text, piece.bold, piece.italic)
   item.lines.push(line.index)
@@ -461,7 +465,7 @@ const datedLikeTitle = (line: Line) => (line.parts.length > 1 ? hasDate(line) : 
 const datesEntry = (line: ParseLine, above: ParseLine | undefined) =>
   hasDate(line) && (datedLikeTitle(line) || above === undefined || !wrapsInto(above, line))
 
-const CONNECTOR = /(?:[,;:&/-]|\b(?:and|or|of|in|for|the|a|an|at|with|to|by|on|from|into|using|via|across|through|as|including|such|than|while|that|which))$/i
+const CONNECTOR = /(?:[,;:&/\u00AD-]|\b(?:and|or|of|in|for|the|a|an|at|with|to|by|on|from|into|using|via|across|through|as|including|such|than|while|that|which))$/i
 
 /** Joins a line onto the end of the one before it. */
 function mergeLines(a: ParseLine, b: ParseLine): ParseLine {
@@ -1018,7 +1022,10 @@ function readPublications(lines: ParseLine[]): SectionResult {
 function readSkills(lines: ParseLine[], category?: string): SectionResult {
   const entries: FoundEntry[] = []
   if (category) {
-    const text = lines.map((line, i) => (i === 0 || /,$/.test(lines[i - 1].text) ? "" : ", ") + line.text).join("")
+    const text = lines.reduce(
+      (joined, line, i) => (i === 0 ? line.text : joined.endsWith(SOFT_HYPHEN) ? joinWrapped(joined, line.text) : `${joined}${/,$/.test(joined) ? "" : ", "}${line.text}`),
+      "",
+    )
     return { entries: [{ fields: { skillName: category, skillDetails: tidy(text) }, lines: lines.map((line) => line.index) }], leftover: { lines: [], text: [] } }
   }
   lines.forEach((line, i) => {
@@ -1034,7 +1041,7 @@ function readSkills(lines: ParseLine[], category?: string): SectionResult {
     const details = colon && name === colon[1] ? colon[2] : name ? line.parts.slice(1).map((part) => part.text).join(" ") : line.text
     if (!name && last && !line.bullet) {
       // Wrapped from the line above.
-      last.fields.skillDetails = `${last.fields.skillDetails} ${details}`.trim()
+      last.fields.skillDetails = joinWrapped(last.fields.skillDetails, details).trim()
       last.lines.push(line.index)
       return
     }
@@ -1096,7 +1103,7 @@ function readAwards(lines: ParseLine[]): SectionResult {
       continue
     }
     if (last && !line.bullet && !hasDate(line) && (/^[a-z]/.test(line.text) || line.left > (lines[0]?.left ?? 0) + 4)) {
-      last.fields.awardName = tidy(`${last.fields.awardName} ${line.text}`)
+      last.fields.awardName = tidy(joinWrapped(last.fields.awardName, line.text))
       last.lines.push(line.index)
       continue
     }
