@@ -134,7 +134,13 @@ test("the checker asks for a name and an entry first, then scores the resume and
   await contact.focus()
   await page.keyboard.press("Enter")
   await expect(contact).toHaveAttribute("aria-expanded", "false")
+  // What's folding away can't be reached with Tab, even while it slides shut:
+  // checked at once, as it loses the focus anyway once it's shut.
+  await page.keyboard.press("Tab")
+  const folding = panel.getByRole("button", { name: /Add your email address/, includeHidden: true })
+  expect(await folding.evaluate((button) => button === document.activeElement)).toBe(false)
   await expect(email).toBeHidden()
+  await contact.focus()
   await page.keyboard.press("Space")
   await expect(contact).toHaveAttribute("aria-expanded", "true")
   // Once everything's checked: not the checks it passed, in Contact or anywhere,

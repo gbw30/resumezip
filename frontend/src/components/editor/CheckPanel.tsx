@@ -354,10 +354,12 @@ function CategoryRow({
         <Points name={category.name} score={score} checking={Boolean(checking)} />
       </div>
 
-      {/* Slides by its grid row; once shut, visibility (which changes at the
-          end of its transition) hides the findings from the keyboard and screen readers. */}
+      {/* Slides by its grid row. Once it starts to shut, inert keeps the keyboard
+          out of what's sliding away; once shut, visibility (which changes at the
+          end of its transition) hides it from view too. */}
       <div
         id={`${id}-body`}
+        inert={!open}
         className={`grid transition-[grid-template-rows,visibility] duration-300 ease-out motion-reduce:transition-none ${
           open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]"
         }`}
