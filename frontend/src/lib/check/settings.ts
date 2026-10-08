@@ -88,6 +88,16 @@ export const STREET_WORDS = [
 const START = String.raw`(?:^|[,;|·•(]\s*)`
 const END = String.raw`\s*(?:$|[,;|·•)])`
 
+// A label and its value, as on a form ("Gender: M", "DOB - 1st Jan 90"): the
+// label says what the detail is, so the value can be written any way. A
+// hyphen only separates with spaces around it, so "Sex-ed outreach" isn't one.
+const labeled = (label: string) => String.raw`(?:my\s+)?(?:${label})(?:\s*[:=]|\s+[-–]\s)\s*[^\s,;|·•)][^,;|·•)]*`
+
+const MONTH = String.raw`(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?`
+const DAY = String.raw`\d{1,2}(?:st|nd|rd|th)?`
+// "04/12/2003", "March 3rd, 2003", "12 Jan 03", "May 2003".
+const BIRTH_DATE = String.raw`(?:(?:\d{1,4}[./ -]){0,2}\d{1,4}|${MONTH}\s+(?:${DAY},?\s+\d{2,4}|${DAY}|\d{4})|${DAY}\s+(?:of\s+)?${MONTH},?\s+\d{2,4})`
+
 /**
  * Personal details to leave off, and how they're usually written. Nationality,
  * citizenship and clearance are never flagged: roles that need a security
@@ -97,7 +107,7 @@ export const PERSONAL_DETAILS = [
   {
     name: "date of birth",
     pattern: new RegExp(
-      String.raw`${START}(?:(?:my\s+)?(?:date of birth|birth ?date|D\.?O\.?B\.?)\s*[:=-]?\s*|(?:I was\s+)?born\s+(?:(?:on|in)\s+)?)(?:(?:\d{1,4}[./ -]){0,2}\d{1,4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:,?\s+\d{4})?|\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4})\.?${END}`,
+      String.raw`${START}(?:${labeled(String.raw`date of birth|birth ?date|D\.?O\.?B\.?|born`)}|(?:(?:my\s+)?(?:date of birth|birth ?date|D\.?O\.?B\.?)\s*[-–]?\s*|(?:I was\s+)?born\s+(?:(?:on|in)\s+)?)${BIRTH_DATE}\.?)${END}`,
       "i",
     ),
   },
@@ -110,11 +120,14 @@ export const PERSONAL_DETAILS = [
   },
   {
     name: "gender",
-    pattern: new RegExp(String.raw`${START}(?:(?:my\s+)?(?:gender|sex)\s*[:=-]\s*)?(?:male|female|non[- ]?binary|man|woman)\.?${END}`, "i"),
+    pattern: new RegExp(String.raw`${START}(?:${labeled("gender|sex")}|(?:male|female|non[- ]?binary|man|woman)\.?)${END}`, "i"),
   },
   {
     name: "marital status",
-    pattern: new RegExp(String.raw`${START}(?:(?:my\s+)?marital status\s*[:=-]?\s*|(?:I am|I'm)\s+)?(?:married|divorced|widowed|single)\.?${END}`, "i"),
+    pattern: new RegExp(
+      String.raw`${START}(?:${labeled("marital status")}|(?:(?:I am|I'm)\s+)?(?:married|divorced|widowed|single)\.?)${END}`,
+      "i",
+    ),
   },
 ] as const
 

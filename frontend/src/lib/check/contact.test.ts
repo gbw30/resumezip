@@ -320,6 +320,8 @@ describe("C9 personal details", () => {
           "• Supported divorced and widowed clients",
           "• Tutored 14-year-old students",
           "• Authored a publication on gender: social and technical effects",
+          "• Sex-ed outreach to 200 students, with Planned Parenthood",
+          "• Born-digital archive of 3,000 letters",
         ].join("\n"),
       },
     ]
@@ -337,6 +339,24 @@ describe("C9 personal details", () => {
       "Marital status: Married",
     ]) {
       expect(check("C9", withProfile({ location })).status, location).toBe("failed")
+    }
+  })
+
+  test("flags a labeled detail however its value is written", () => {
+    for (const [location, name] of [
+      ["Date of Birth: January 1st, 1990", "date of birth"],
+      ["DOB: 1st Jan 1990", "date of birth"],
+      ["DOB - 01 Jan 90", "date of birth"],
+      ["DOB-04/12/2003", "date of birth"],
+      ["Born: 12 Jan 2003", "date of birth"],
+      ["Born on March 3rd, 2003", "date of birth"],
+      ["Born in May 2003", "date of birth"],
+      ["Austin, TX · Gender: M", "gender"],
+      ["Sex: F", "gender"],
+      ["Gender: Prefer not to say", "gender"],
+      ["Marital status: Separated", "marital status"],
+    ]) {
+      expect(check("C9", withProfile({ location })).messages, location).toEqual([`Leave off your ${name}`])
     }
   })
 })
