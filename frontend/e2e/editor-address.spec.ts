@@ -28,6 +28,38 @@ test("an address for a resume this browser doesn't have says so", async ({ page 
   expect(errors).toEqual([])
 })
 
+test("a resume whose id has a space and an accent opens from the dashboard and by its address", async ({ page }) => {
+  const errors = pageErrors(page)
+  // New resumes get their ids from crypto.randomUUID, but one opened from a
+  // PDF keeps the id saved in it, which can be anything. Its address is
+  // escaped: /create/new/my%20r%C3%A9sum%C3%A9.
+  const id = "my résumé"
+  const resume = {
+    id,
+    resumeTitle: "Accented",
+    resumeTag: "personal",
+    updatedAt: "2026-10-08T12:00:00.000Z",
+    selectedTemplate: "jake",
+    profileSection: { fullName: "Ada Lovelace" },
+  }
+  await page.addInitScript(
+    ({ key, value }) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, value)
+    },
+    { key: `resume:${id}`, value: JSON.stringify(resume) },
+  )
+
+  await page.goto("/create/dashboard")
+  await page.getByRole("link", { name: "Accented", exact: true }).click()
+  await expect(page.getByLabel("Full name")).toHaveValue("Ada Lovelace")
+  await page.reload()
+  await expect(page.getByLabel("Full name")).toHaveValue("Ada Lovelace")
+
+  // Let the preview finish, so the compiler's download isn't cut off as the page closes.
+  await expect(page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()).toBeVisible()
+  expect(errors).toEqual([])
+})
+
 test("resumes open in the page from links and the history, each one afresh", async ({ page }) => {
   const errors = pageErrors(page)
   await page.goto("/templates")

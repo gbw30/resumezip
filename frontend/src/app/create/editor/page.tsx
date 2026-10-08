@@ -34,10 +34,21 @@ const PDF_KEPT_MS = 10_000
 const SAVED_MS = 1500
 const DOWNLOADED_MS = 2000
 
+/** The resume id at the end of an editor address, which keeps the browser's escapes (a space is %20). */
+function idFromAddress(pathname: string): string {
+  const last = pathname.split("/").pop() ?? ""
+  try {
+    return decodeURIComponent(last)
+  } catch {
+    // A "%" that doesn't start an escape is part of the id.
+    return last
+  }
+}
+
 export default function EditorPage() {
   // next.config.js serves this one prebuilt page at every resume's address,
   // /create/new/<id>, so the id comes from the address.
-  const id = usePathname().split("/").pop() ?? ""
+  const id = idFromAddress(usePathname())
   // Going back or forward from one resume straight to another stays on this
   // page; keyed by resume, the editor starts afresh rather than keeping the
   // last one's open section, preview and messages.
