@@ -245,8 +245,8 @@ function ScoreRing({ total }: { total: number | "checking" | null }) {
 
 /**
  * One category with something to fix or review: an icon and a count for
- * where it stands, what it checks, its points, and, opened, its findings
- * (fixes first). It's open until folded.
+ * where it stands, its points, and, opened, what it checks and its findings
+ * (fixes first). It's open until folded, and slides open and shut.
  */
 function CategoryRow({
   category,
@@ -299,31 +299,45 @@ function CategoryRow({
             </span>
           </span>
           <ChevronDown
-            className={`mt-0.5 h-4 w-4 shrink-0 text-ink-2 transition-transform ${open ? "rotate-180" : ""}`}
+            className={`mt-0.5 h-4 w-4 shrink-0 text-ink-2 transition-transform duration-300 ease-out motion-reduce:transition-none ${
+              open ? "rotate-180" : ""
+            }`}
             aria-hidden="true"
           />
         </button>
       </h2>
-      <div className="flex flex-col gap-1.5 pb-3 pl-8 pr-2">
-        <p className="text-[12px] leading-snug text-ink-2">{category.about}</p>
+      <div className="pb-3 pl-8 pr-2">
         <Points name={category.name} score={score} />
       </div>
 
-      <div id={`${id}-body`} hidden={!open} className="flex flex-col gap-3 pb-3 pl-6">
-        {fixes.length > 0 && (
-          <Group title={`To fix · ${fixes.length}`}>
-            {fixes.map((finding, index) => (
-              <FindingItem key={`${finding.key}:${index}`} finding={finding} view={view} />
-            ))}
-          </Group>
-        )}
-        {looks.length > 0 && (
-          <Group title={`To review · ${looks.length}`}>
-            {looks.map((finding, index) => (
-              <FindingItem key={`${finding.key}:${index}`} finding={finding} view={view} />
-            ))}
-          </Group>
-        )}
+      {/* Slides by its grid row; once shut, visibility (which changes at the
+          end of its transition) hides the findings from the keyboard and screen readers. */}
+      <div
+        id={`${id}-body`}
+        className={`grid transition-[grid-template-rows,visibility] duration-300 ease-out motion-reduce:transition-none ${
+          open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]"
+        }`}
+      >
+        {/* Room on the sides so focus outlines aren't clipped. */}
+        <div className="-mx-1 min-h-0 overflow-hidden px-1">
+          <div className="flex flex-col gap-3 pb-3 pl-6">
+            <p className="-mt-1 pl-2 pr-2 text-[12px] leading-snug text-ink-2">{category.about}</p>
+            {fixes.length > 0 && (
+              <Group title={`To fix · ${fixes.length}`}>
+                {fixes.map((finding, index) => (
+                  <FindingItem key={`${finding.key}:${index}`} finding={finding} view={view} />
+                ))}
+              </Group>
+            )}
+            {looks.length > 0 && (
+              <Group title={`To review · ${looks.length}`}>
+                {looks.map((finding, index) => (
+                  <FindingItem key={`${finding.key}:${index}`} finding={finding} view={view} />
+                ))}
+              </Group>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   )
