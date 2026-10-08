@@ -623,3 +623,45 @@ describe("a role and organization that are hard to tell apart", () => {
     expect(resume.workExperienceSection[0]).toMatchObject({ workRole: "Seminole Heart & Vascular Clinic", companyName: "Physician Shadowing – Cardiology" })
   })
 })
+
+describe("a role set under its organization on a line of its own", () => {
+  const organization = line([["Purdue University", 36], ["West Lafayette, IN", 460]], { bold: true })
+
+  test("is the role, with the lines after it set aside, when bullets follow them", () => {
+    const { resume, unplaced } = read("Experience", [
+      organization,
+      line([["Lab Manager & Instructional Staff", 54]]),
+      line([["Robotics Teaching Lab", 54]]),
+      line([["School of Engineering Education", 54]]),
+      line([["Run a robotics teaching lab serving 120 students a semester", 64]], { bullet: true }),
+      line([["Oversee $80,000 in robots, sensors and test equipment", 64]], { bullet: true }),
+    ])
+    expect(resume.workExperienceSection).toHaveLength(1)
+    expect(resume.workExperienceSection[0]).toMatchObject({
+      workRole: "Lab Manager & Instructional Staff",
+      companyName: "Purdue University",
+      workLocation: "West Lafayette, IN",
+      workDescription: "• Run a robotics teaching lab serving 120 students a semester\n• Oversee $80,000 in robots, sensors and test equipment",
+    })
+    expect(unplaced).toEqual(["Robotics Teaching Lab", "School of Engineering Education"])
+  })
+
+  test("isn't taken from lines with no bullets after them", () => {
+    const { resume } = read("Experience", [organization, line([["Robotics Teaching Lab", 54]]), line([["Ran the lab's front desk", 54]])])
+    expect(resume.workExperienceSection[0]).toMatchObject({ workRole: "", workDescription: "• Robotics Teaching Lab\n• Ran the lab's front desk" })
+  })
+
+  test("isn't taken when the entry has a role already", () => {
+    const { resume } = read("Experience", [
+      line([["Lab Manager", 36], ["2024 – Present", 470]], { bold: true }),
+      line([["Purdue University", 36], ["West Lafayette, IN", 460]], { italic: true }),
+      line([["Robotics Teaching Lab", 54]]),
+      line([["Run a robotics teaching lab serving 120 students a semester", 64]], { bullet: true }),
+    ])
+    expect(resume.workExperienceSection[0]).toMatchObject({
+      workRole: "Lab Manager",
+      companyName: "Purdue University",
+      workDescription: "• Robotics Teaching Lab\n• Run a robotics teaching lab serving 120 students a semester",
+    })
+  })
+})

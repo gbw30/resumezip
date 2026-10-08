@@ -871,10 +871,27 @@ function subHeadingsBesideDates(lines: ParseLine[]): Set<ParseLine> {
   )
 }
 
+/**
+ * "Lab Manager & Instructional Staff", then a department or two, each on a
+ * short line of its own under the organization, before the bullets: the
+ * first is the role, the rest have no field. Without bullets after them,
+ * short lines are as likely the description itself, so they're left be.
+ */
+function titleLines(body: Item[], isBullet: (item: Item) => boolean): Item[] {
+  const lines: Item[] = []
+  for (const item of body) {
+    if (isBullet(item)) return lines
+    if (item.lines.length > 1 || words(item.text).length > 8 || /[.!?;:,]$/.test(item.text)) return []
+    lines.push(item)
+  }
+  return []
+}
+
 function readExperience(name: ExperienceName, lines: ParseLine[]): SectionResult {
   const keys = EXPERIENCE_FIELDS[name]
   const leftover: SectionResult["leftover"] = { lines: [], text: [] }
   const calls = new Map<FoundEntry, RoleCall>()
+  const bullets = new Set(lines.filter((line) => line.bullet).map((line) => line.index))
   const subHeadings = subHeadingsBesideDates(lines)
   for (const line of subHeadings) {
     leftover.lines.push(line.index)
@@ -884,15 +901,22 @@ function readExperience(name: ExperienceName, lines: ParseLine[]): SectionResult
     const header = readHeader(group.header)
     const { role, org, rest, call } = roleAndOrg(header.texts)
     const fields = blankEntry(name)
-    fields[keys.role] = role
+    // An organization with no role over it may have its role on a line below.
+    const below = !role && org ? titleLines(group.body, (item) => bullets.has(item.lines[0])) : []
+    const body = group.body.slice(below.length)
+    fields[keys.role] = below.length ? tidy(below[0].text) : role
     fields[keys.org] = org
     fields[keys.location] = header.location
     fields[keys.start] = header.date?.start ?? ""
     fields[keys.end] = header.date?.end ?? ""
-    fields[keys.bullets] = bulletField(group.body.map(described))
+    fields[keys.bullets] = bulletField(body.map(described))
     if (rest.length || header.otherDates.length) {
       leftover.lines.push(...group.header.map((line) => line.index))
       leftover.text.push(...rest, ...header.otherDates)
+    }
+    if (below.length > 1) {
+      leftover.lines.push(...below.slice(1).flatMap((item) => item.lines))
+      leftover.text.push(...below.slice(1).map((item) => tidy(item.text)))
     }
     const entry = { fields, lines: linesOf(group) }
     if (call) calls.set(entry, call)
