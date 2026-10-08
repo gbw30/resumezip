@@ -1091,6 +1091,9 @@ function blocksBySpacing(lines: ParseLine[]): ParseLine[][] | null {
   return blocks.length > 1 && blocks.some((block) => block.length > 1) ? blocks : null
 }
 
+/** A line about an award ("Awarded to the team while serving as its lead."): a sentence, not part of a name. */
+const aboutAward = (line: Line) => !line.bold && words(line.text).length >= 6 && (/[.!?]$/.test(line.text) || line.text.length > 60)
+
 function readAwards(lines: ParseLine[]): SectionResult {
   const leftover: SectionResult["leftover"] = { lines: [], text: [] }
   const keepOtherDates = (header: Header, from: ParseLine[]) => {
@@ -1100,7 +1103,14 @@ function readAwards(lines: ParseLine[]): SectionResult {
   }
   const blocks = blocksBySpacing(lines)
   if (blocks) {
-    const entries = blocks.map((block) => {
+    const entries = blocks.map((all) => {
+      // A line about the award, and what follows it, has no field to go in.
+      const about = all.findIndex((line, i) => i > 0 && aboutAward(line))
+      const block = about > 0 ? all.slice(0, about) : all
+      if (about > 0) {
+        leftover.lines.push(...all.slice(about).map((line) => line.index))
+        leftover.text.push(all.slice(about).map((line) => line.text).reduce(joinWrapped))
+      }
       const header = readHeader(block)
       keepOtherDates(header, block)
       return {
@@ -1115,8 +1125,19 @@ function readAwards(lines: ParseLine[]): SectionResult {
     return { entries, leftover }
   }
   const entries: FoundEntry[] = []
+  let describing = false
   for (const line of lines) {
     const last = entries[entries.length - 1]
+    const wraps = last !== undefined && !line.bullet && (/^[a-z]/.test(line.text) || line.left > (lines[0]?.left ?? 0) + 4)
+    // A line about the award has no field to go in, nor do the lines it wraps onto.
+    if (wraps && (describing || (!hasDate(line) && aboutAward(line)))) {
+      if (describing) leftover.text[leftover.text.length - 1] = joinWrapped(leftover.text[leftover.text.length - 1], line.text)
+      else leftover.text.push(line.text)
+      leftover.lines.push(line.index)
+      describing = true
+      continue
+    }
+    describing = false
     // A date on a line of its own goes with the award above it.
     const date = findDate(line.text)
     if (last && !last.fields.awardDate && date && tidy(line.text.replace(date.text, "")) === "") {

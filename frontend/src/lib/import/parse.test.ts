@@ -371,3 +371,28 @@ describe("a link that wrapped after a slash", () => {
     expect(resume.publicationsSection[0].publicationLink).toBe("doi.org/10.13031/aim.202600531")
   })
 })
+
+describe("a line about an award", () => {
+  test("goes to Couldn't place, with the line it wraps onto, not into the award's name", () => {
+    const { resume, unplaced } = read("Awards", [
+      line([["2026", 36], ["Rising Leader Award, Purdue Student Life Awards", 120]]),
+      line([["Awarded to BoilerHacks XI while serving as Vice-President and Staff Advisor.", 120]]),
+      line([["2022", 36], ["1st Place Overall, BoilerMake", 120]]),
+      line([["Designed and built Balancer, a self-balancing robot with obstacle detection, in", 120]]),
+      line([["under 36 hours at the Midwest’s largest hackathon.", 120]]),
+    ])
+    expect(resume.awardsSection).toMatchObject([
+      { awardName: "Rising Leader Award", awardOrg: "Purdue Student Life Awards", awardDate: "2026" },
+      { awardName: "1st Place Overall", awardOrg: "BoilerMake", awardDate: "2022" },
+    ])
+    expect(unplaced).toEqual([
+      "Awarded to BoilerHacks XI while serving as Vice-President and Staff Advisor.",
+      "Designed and built Balancer, a self-balancing robot with obstacle detection, in under 36 hours at the Midwest’s largest hackathon.",
+    ])
+  })
+
+  test("isn't the rest of a name that wrapped", () => {
+    const { resume } = read("Awards", [line([["Certified Emergency Nurse", 36], ["Mar 2025", 480]]), line([["(CEN)", 46]])])
+    expect(resume.awardsSection).toMatchObject([{ awardName: "Certified Emergency Nurse (CEN)", awardDate: "Mar 2025" }])
+  })
+})
