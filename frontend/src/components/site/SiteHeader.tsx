@@ -23,9 +23,14 @@ interface SiteHeaderProps {
    * Only the colors differ, so nothing moves when you go from one page to another.
    */
   variant?: "overlay" | "light"
+  /**
+   * What "Start writing" does on a page with its own way to start a resume,
+   * instead of going to the dashboard: the dashboard opens its New resume dialog.
+   */
+  onStartWriting?: () => void
 }
 
-export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
+export default function SiteHeader({ variant = "light", onStartWriting }: SiteHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const headerRef = useRef<HTMLElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -58,6 +63,28 @@ export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
     }
   }, [menuOpen])
 
+  // A button where it opens a dialog, as it doesn't go anywhere. In the menu it
+  // shuts the menu first, as the menu's links do, and leaves focus on the menu's
+  // button for the dialog to put it back on.
+  const startWriting = (className: string, inMenu = false) =>
+    onStartWriting ? (
+      <button
+        type="button"
+        className={className}
+        onClick={() => {
+          if (inMenu) {
+            setMenuOpen(false)
+            buttonRef.current?.focus()
+          }
+          onStartWriting()
+        }}
+      >
+        Start writing
+      </button>
+    ) : (
+      <StartWritingLink className={className}>Start writing</StartWritingLink>
+    )
+
   return (
     <header
       ref={headerRef}
@@ -86,7 +113,7 @@ export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
 
         <div className="flex items-center gap-2">
           {/* Phones don't have room for it next to the logo, so it moves into the menu. */}
-          <StartWritingLink className={`${CTA} hidden h-10 sm:inline-flex`}>Start writing</StartWritingLink>
+          {startWriting(`${CTA} hidden h-10 sm:inline-flex`)}
           <button
             ref={buttonRef}
             type="button"
@@ -120,7 +147,7 @@ export default function SiteHeader({ variant = "light" }: SiteHeaderProps) {
             {link.label}
           </Link>
         ))}
-        <StartWritingLink className={`${CTA} mt-2 inline-flex h-11 justify-center sm:hidden`}>Start writing</StartWritingLink>
+        {startWriting(`${CTA} mt-2 inline-flex h-11 justify-center sm:hidden`, true)}
       </nav>
     </header>
   )
