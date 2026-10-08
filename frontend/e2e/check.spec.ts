@@ -96,7 +96,7 @@ test("the checker asks for a name and an entry first, then scores the resume and
   const score = panel.getByRole("region", { name: "Resume score" })
 
   await check.click()
-  const waiting = panel.getByText("Add your name and one entry to check this resume.")
+  const waiting = panel.getByText("Add your name and some section content to check this resume.")
   await expect(waiting).toBeVisible()
   await expect(score).toContainText("Not scored yet")
 

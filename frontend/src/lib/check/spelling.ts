@@ -38,8 +38,9 @@ const NOT_WORDS = new Set([
   ...Object.values(DATE_FIELDS).flatMap((fields) => ("single" in fields ? [fields.single] : [fields.start, fields.end])),
   "phoneNumber",
   "gpa",
+  "issued", "expires", "credentialId",
 ])
-const NAMES = new Set(NAME_FIELDS)
+const NAMES = new Set([...NAME_FIELDS, "name", "issuer"])
 const SKILLS = new Set(SKILL_FIELDS)
 
 /**
@@ -108,6 +109,7 @@ export function knownWords(view: ResumeView, added: ReadonlySet<string>, skills 
     ...Object.values(view.sections).flatMap((entries) =>
       entries.flatMap((entry) => Object.entries(entry.values).filter(([field]) => isName(field)).map(([, value]) => value)),
     ),
+    ...textsOf(view).filter(({ place }) => place.kind === "credential" && (place.field === "name" || place.field === "issuer")).map(({ text }) => text),
   ]
   return new Set([...ALWAYS_KNOWN, ...names.flatMap(wordsIn), ...[...added].flatMap(wordsIn)])
 }

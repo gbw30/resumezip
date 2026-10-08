@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react"
 import type { PDFDocumentProxy } from "pdfjs-dist"
-import { ArrowLeftRight, Check, Copy } from "lucide-react"
+import { ArrowLeftRight, Check, Copy, Download } from "lucide-react"
 import { SECTIONS, type SectionName } from "@/components/editor/sections"
 import type { Line, PageSize } from "@/lib/import/lines"
 import type { OpenedFile } from "@/lib/import/open"
-import { entryKey, toResumeContent, type FoundEntry, type ParsedResume } from "@/lib/import/parse"
+import { entryKey, extraGroupKey, unplacedKey, toResumeContent, type FoundEntry, type ImportChoices, type ParsedResume } from "@/lib/import/parse"
 import type { ResumeContent } from "@/lib/resumeFile"
 import Modal from "./Modal"
 
@@ -87,12 +87,19 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
   const [swapped, setSwapped] = useState<Set<string>>(new Set())
   const [highlight, setHighlight] = useState<number[]>([])
   const [copied, setCopied] = useState(false)
+  const [keepAs, setKeepAs] = useState<NonNullable<ImportChoices["keepAs"]>>({})
 
   const parsed = withSwaps(file.parsed, swapped)
   const { profile } = parsed
   const contact = [profile.location, profile.email, profile.phoneNumber, profile.linkedin, profile.profileGithub, profile.personalWebsite].filter(Boolean)
   const leftovers = parsed.unplaced.reduce((sum, group) => sum + group.text.length, 0)
-  const foundNothing = !profile.fullName && parsed.sections.length === 0
+  const foundNothing = !profile.fullName && parsed.sections.length === 0 && !parsed.extraGroups?.length
+  const selectedGroups = (kind: "summary" | "certifications") => (parsed.extraGroups ?? []).filter((group) => group.kind === kind && !skipped.has(extraGroupKey(group.id)))
+  const reviewText = [
+    ...parsed.unplaced.map((group) => [group.heading, ...group.text].join("\n")),
+    ...(parsed.extraGroups ?? []).filter((group) => skipped.has(extraGroupKey(group.id))).map((group) => [group.heading, ...group.text].join("\n")),
+    ...parsed.sections.flatMap((section) => section.entries.filter((_, index) => skipped.has(entryKey(section.name, index))).map((entry) => [SECTIONS[section.name].title, ...entry.lines.map((index) => parsed.lines[index]?.text).filter(Boolean)].join("\n"))),
+  ].join("\n\n")
 
   const toggle = (set: Set<string>, key: string) => {
     const next = new Set(set)
@@ -108,14 +115,22 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
   })
 
   const copyLeftovers = async () => {
-    const text = parsed.unplaced.map((group) => [group.heading, ...group.text].join("\n")).join("\n\n")
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(reviewText)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
       // Clipboard blocked: the text is still on screen to select.
     }
+  }
+
+  const downloadLeftovers = () => {
+    const url = URL.createObjectURL(new Blob([reviewText], { type: "text/plain;charset=utf-8" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${file.title || "resume"}-review-text.txt`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   return (
@@ -148,6 +163,34 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
               </p>
               <p className="mt-1 break-words text-sm text-ink-2">{contact.length ? contact.join(" · ") : "No contact details found"}</p>
             </section>
+
+            {(parsed.extraGroups ?? []).map((group, index) => {
+              const off = skipped.has(extraGroupKey(group.id))
+              const combined = selectedGroups(group.kind)
+              return (
+                <section key={group.id} className="mt-8" {...point([group.headingLine, ...group.lines])}>
+                  <label className="flex items-start gap-3 border-b border-ink pb-2">
+                    <input
+                      type="checkbox"
+                      checked={!off}
+                      onChange={() => setSkipped((set) => toggle(set, extraGroupKey(group.id)))}
+                      aria-label={`Include ${group.heading}, group ${index + 1}`}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
+                    />
+                    <span className="label-mono text-ink-2">{group.heading}</span>
+                  </label>
+                  <div className={`mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed ${off ? "opacity-45" : ""}`}>
+                    {group.text.join("\n")}
+                  </div>
+                  {group.kind === "certifications" && <p className="mt-2 text-xs text-ink-2">{plural(group.entries?.length ?? 0, "credential")} recognized. Uncertain details stay below for review.</p>}
+                  {!off && combined.length > 1 && combined[0].id === group.id && (
+                    <p className="mt-2 text-sm text-ink-2" role="status">
+                      {combined.length} selected groups will become one {group.kind === "summary" ? "Summary" : "Certifications"} section, in file order, using “{group.heading}” and this position.
+                    </p>
+                  )}
+                </section>
+              )
+            })}
 
             {parsed.sections.map((section) => {
               const shown = SHOWN[section.name]
@@ -203,11 +246,11 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
               )
             })}
 
-            {leftovers > 0 && (
+            {reviewText && (
               <section className="mt-8">
                 <div className="flex items-baseline justify-between gap-4 border-b border-ink pb-2">
                   <h3 className="label-mono text-ink-2">Couldn&apos;t place · {plural(leftovers, "line")}</h3>
-                  <button
+                  <div className="flex gap-3"><button
                     type="button"
                     onClick={copyLeftovers}
                     className="inline-flex items-center gap-1.5 text-sm text-ink-2 transition-colors hover:text-ink"
@@ -215,11 +258,34 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                     {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
                     {copied ? "Copied" : "Copy"}
                   </button>
+                  <button type="button" onClick={downloadLeftovers} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink">
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />Download
+                  </button></div>
                 </div>
-                <p className="mt-2 text-sm text-ink-2">Add these in the editor if you need them.</p>
-                {parsed.unplaced.map((group) => (
-                  <div key={group.heading} className="mt-4" {...point(group.lines)}>
+                <p className="mt-2 text-sm text-ink-2">Choose whether to keep each group. Copy or download also saves text from anything you unticked above.</p>
+                {parsed.unplaced.map((group, index) => (
+                  <div key={unplacedKey(group, index)} className="mt-4" {...point(group.lines)}>
                     <p className="label-mono text-ink-2">{group.heading}</p>
+                    <label className="mt-2 block text-sm text-ink-2">
+                      Keep {group.heading}, group {index + 1}
+                      <select
+                        value={keepAs[unplacedKey(group, index)] ?? ""}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          setKeepAs((current) => {
+                            const next = { ...current }
+                            if (value === "text" || value === "list") next[unplacedKey(group, index)] = value
+                            else delete next[unplacedKey(group, index)]
+                            return next
+                          })
+                        }}
+                        className="ml-2 max-w-full rounded border border-rule bg-white px-2 py-1 text-ink"
+                      >
+                        <option value="">Do not include</option>
+                        <option value="text">Keep as text section</option>
+                        <option value="list">Keep as bullet list</option>
+                      </select>
+                    </label>
                     <ul className="mt-1 flex flex-col gap-1">
                       {group.text.map((text, i) => (
                         <li key={i} className="break-words text-sm leading-relaxed text-ink">
@@ -239,7 +305,7 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
             </button>
             <button
               type="button"
-              onClick={() => onCreate(toResumeContent(parsed, skipped))}
+              onClick={() => onCreate(toResumeContent(parsed, skipped, { keepAs }))}
               className="h-10 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black"
             >
               Create resume

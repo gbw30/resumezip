@@ -14,8 +14,7 @@ import { readBack, render, samples } from "./testRender"
  */
 const KNOWN_GAPS: Record<string, string[]> = {
   ian: [],
-  // A comma inside an award's name reads as the start of the organization.
-  jake: ["awards[0].name", "awards[0].organization"],
+  jake: [],
   levelsfyi: [],
   // The first job's company and role come back swapped.
   modernjack: ["work[0].company", "work[0].role"],
@@ -30,10 +29,6 @@ const KNOWN_GAPS: Record<string, string[]> = {
     "work[2].location",
     "volunteer[0].organization",
     "volunteer[0].location",
-    "awards[0].name",
-    "awards[0].organization",
-    "awards[1].name",
-    "awards[1].organization",
   ],
   // Names of schools, employers, groups and projects are printed in capitals,
   // so their original case can't be read back.
@@ -82,7 +77,20 @@ describe.each(samples.map((sample) => [sample.selectedTemplate as string, sample
     const want = printed(cleanResume(sample))
     const got = printed(resume)
 
-    expect(parsed.unplaced).toEqual([])
+    // Mixed headings deliberately await review instead of guessing which records
+    // are awards or credentials. Their complete rendered text must remain available.
+    const mixed = parsed.occurrences?.find((occurrence) => occurrence.kind === "unsupported" && /awards?/i.test(occurrence.heading) && /certifications?/i.test(occurrence.heading))
+    if (mixed) {
+      expect(parsed.unplaced).toHaveLength(1)
+      expect(parsed.unplaced[0].headingLine).toBe(mixed.headingLine)
+      const normal = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+      const residual = normal(parsed.unplaced[0].text.join(" "))
+      for (const award of want.awards) {
+        for (const value of [award.name, award.organization, award.date].filter(Boolean)) expect(residual).toContain(normal(value))
+      }
+      expect(got.awards).toEqual([])
+      want.awards = []
+    } else expect(parsed.unplaced).toEqual([])
     // Sections are found in the order they're printed; empty ones aren't printed.
     expect(got.order.filter((name) => parsed.sections.some((section) => section.name === name))).toEqual(
       want.order.filter((name) => parsed.sections.some((section) => section.name === name)),

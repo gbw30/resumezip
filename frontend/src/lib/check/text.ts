@@ -5,6 +5,7 @@
 import type { SectionName } from "@/components/editor/sections"
 import type { Place } from "./places"
 import type { Bullet, Entry, ResumeView } from "./resume"
+import { extraKey } from "@/lib/resumeSections"
 
 /** A bullet, the entry it's in, and its place, for pointing at it. */
 export interface PlacedBullet {
@@ -25,6 +26,16 @@ export function bulletsIn(resume: ResumeView, sections?: readonly SectionName[])
         place: { kind: "entry", section: entry.section, entry: entry.index, field: bullet.field, line: bullet.line } as const,
       })),
     )
+}
+
+/** Bullets with layout, independent of whether the section describes a job or a custom topic. */
+export function layoutBulletsIn(resume: ResumeView): { bullet: Bullet; place: Place }[] {
+  const builtin = bulletsIn(resume)
+  return resume.allOrder.flatMap<{ bullet: Bullet; place: Place }>((ref) => {
+    const id = extraKey(ref)
+    if (id === null) return builtin.filter(({ entry }) => entry.section === ref)
+    return (resume.extras[id]?.bullets ?? []).map((bullet) => ({ bullet, place: { kind: "extra-text", sectionId: id, field: "bullets", line: bullet.line } as const }))
+  })
 }
 
 /** A text from its first letter or digit, without quotes or dashes before it. */

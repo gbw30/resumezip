@@ -5,6 +5,7 @@
 // they always have.
 
 import { SECTIONS } from "@/components/editor/sections"
+import { credentialIncluded, extraKey, extrasOf, sectionIncluded, type ExtraSection } from "./resumeSections"
 
 /** What a left-out bullet starts with, instead of "•". */
 export const LEFT_OUT_BULLET = "○"
@@ -32,7 +33,7 @@ const printedBullets = (value: unknown) =>
 
 /** Whether anything in the resume is left out: an entry, or a bullet. */
 export function hasLeftOut(resume: Record<string, any>): boolean {
-  return Object.values(SECTIONS).some(
+  return Object.values(extrasOf(resume)).some((section) => !sectionIncluded(section) || (section.kind === "list" && section.bullets.split("\n").some(isLeftOutLine)) || (section.kind === "certifications" && section.entries.some((entry) => !credentialIncluded(entry)))) || Object.values(SECTIONS).some(
     ({ dataKey, fields }) =>
       Array.isArray(resume[dataKey]) &&
       resume[dataKey].some(
@@ -64,6 +65,16 @@ export function printedResume(resume: Record<string, any>): Record<string, any> 
         }
         return kept
       })
+  }
+  if (resume.extraSections !== undefined) {
+    const extras = Object.fromEntries(Object.entries(extrasOf(resume)).filter(([, section]) => sectionIncluded(section)).map(([key, section]) => {
+      const { leftOut, ...kept } = section
+      if (kept.kind === "list") kept.bullets = printedBullets(kept.bullets) as string
+      if (kept.kind === "certifications") kept.entries = kept.entries.filter(credentialIncluded).map(({ leftOut, ...entry }) => entry)
+      return [key, kept as ExtraSection]
+    }))
+    printed.extraSections = extras
+    if (Array.isArray(printed.sectionOrder)) printed.sectionOrder = printed.sectionOrder.filter((ref: unknown) => typeof ref !== "string" || extraKey(ref) === null || Object.hasOwn(extras, extraKey(ref)!))
   }
   return printed
 }

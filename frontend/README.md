@@ -25,11 +25,20 @@ npm run test:browser   # after a build; see below
   does the reading and writing. There are no accounts, so that's the only copy.
 - `src/app/create/dashboard` lists the resumes; `src/app/create/new/[id]` is
   the editor, with a live preview.
+- `src/lib/resumeSections.ts` owns optional Summary, Certifications, custom
+  text and bullet-list sections. Built-in sections keep their existing fields;
+  extras have stable map identities and share the saved section order through
+  `extra:<key>` references. Opening an old resume creates no optional sections.
+  The editor's Add section catalog and move controls manage these identities.
 - `src/lib/typst/` builds PDFs in a Web Worker. Its README covers adding a
   template.
 - `src/lib/resumeFile.ts`: every downloaded PDF carries its resume, so the PDF
   is the user's save file and opens again exactly. Entries and bullets left out
   of the PDF (`src/lib/leftOut.ts`) aren't in it, and stay only in the browser.
+  Attachments use v1 for resumes without public extras and v2 otherwise,
+  including explicitly created empty sections. Both versions can be opened;
+  damaged or future-version save files produce an error instead of guessed
+  content. Older deployed applications may lose new sections when exporting.
 - `src/lib/import/` opens PDF and Word files and sorts them into the editor's
   fields. Its README explains how.
 - `src/lib/check/` is the resume checker: fixed rules that say what to fix on

@@ -5,6 +5,7 @@
 // is needed.
 
 import { printedResume } from "@/lib/leftOut"
+import { extraHeading, extraHasBody, extrasOf, resolveSections } from "@/lib/resumeSections"
 import { templateById, type TemplateId } from "@/lib/templates"
 
 export type { TemplateId }
@@ -24,6 +25,8 @@ export interface TemplateData {
     awards: string
   }
   order: string[]
+  /** New section kinds only; built-in data and rendering keep their existing shapes. */
+  extras: Record<string, ExtraTemplateSection>
   education: {
     school: string
     location: string
@@ -44,6 +47,11 @@ export interface TemplateData {
   volunteer: Experience[]
   awards: { name: string; organization: string; date: string }[]
 }
+
+export type ExtraTemplateSection =
+  | { kind: "text"; heading: string; paragraphs: string[] }
+  | { kind: "list"; heading: string; bullets: Run[][] }
+  | { kind: "certifications"; heading: string; certificates: { name: string; issuer: string; issued: string; expires: string; credentialId: string; link: string }[] }
 
 /** A stretch of a bullet's text: **bold**, *italic* or ***both*** where the user marked it. */
 interface Run {
@@ -211,7 +219,19 @@ export function toTemplateData(saved: Record<string, any>): TemplateData {
       volunteer: text(headings.volunteer),
       awards: text(headings.awards),
     },
-    order: sectionOrder(resume.sectionOrder),
+    order: resolveSections(resume),
+    extras: Object.fromEntries(Object.entries(extrasOf(resume)).filter(([, section]) => extraHasBody(section)).map(([id, section]) => {
+      const heading = extraHeading(section)
+      const printable: ExtraTemplateSection = section.kind === "list"
+        ? { kind: "list", heading, bullets: bullets(section.bullets) }
+        : section.kind === "certifications"
+          ? { kind: "certifications", heading, certificates: entries(section.entries, (entry) => ({
+            name: text(entry.name), issuer: text(entry.issuer), issued: text(entry.issued), expires: text(entry.expires),
+            credentialId: text(entry.credentialId), link: bareUrl(entry.link),
+          })) }
+          : { kind: "text", heading, paragraphs: text(section.text).split(/\r?\n\s*\r?\n/).filter(Boolean) }
+      return [`extra:${id}`, printable]
+    })),
     education: entries(resume.educationSection, (e) => ({
       school: text(e.schoolName),
       location: text(e.schoolLocation),

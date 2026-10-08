@@ -2,10 +2,11 @@
 
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
-import type { Resume } from "@/context/ResumeContext"
+import { useResumeContext, type Resume } from "@/context/ResumeContext"
 import type { Finding, GrammarLint, GrammarReading, PdfReading } from "@/lib/check/engine"
 import { hasEnoughToCheck } from "@/lib/check/labels"
-import type { Place } from "@/lib/check/places"
+import { placeExists, samePlaceSource, type Place } from "@/lib/check/places"
+import { pdfLayoutOf, type PdfSectionLayout } from "@/lib/check/extraPdf"
 import { viewOf } from "@/lib/check/resume"
 import { grammarTexts } from "@/lib/check/spelling"
 import type { ActiveSection } from "./SectionNav"
@@ -78,16 +79,18 @@ type CheckValue = ReturnType<typeof useResumeCheck> & {
 export interface Preview {
   url: string
   printed: string
+  /** Original editor addresses for this preview, including omitted bullet offsets. */
+  checkerResume?: Resume
 }
 
 const CheckContext = createContext<CheckValue | null>(null)
 
 /** The form section a place is in; none for the PDF's pages. */
 export function sectionOf(place: Place): ActiveSection | null {
-  return place.kind === "profile" ? "Profile" : place.kind === "page" ? null : place.section
+  return place.kind === "profile" ? "Profile" : place.kind === "page" ? null : "sectionId" in place ? `extra:${place.sectionId}` : place.section
 }
 
-const PLACE_PARTS = ["field", "section", "entry", "line", "page"] as const
+const PLACE_PARTS = ["field", "section", "sectionId", "entry", "entryId", "line", "page"] as const
 
 // The same problem: one rule at one place. Its text and message can change
 // as the person types, and it's still the one they're fixing.
@@ -136,6 +139,16 @@ interface CheckProviderProps {
  * since it was last checked goes to the grammar checker then too.
  */
 export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, children }: CheckProviderProps) {
+  const { formData } = useResumeContext()
+  const latestResume = useRef(formData)
+  latestResume.current = formData
+  const layoutJSON = useMemo(() => preview?.checkerResume ? JSON.stringify(pdfLayoutOf(viewOf(preview.checkerResume))) : undefined, [preview?.checkerResume])
+  const layout = useMemo<PdfSectionLayout[] | undefined>(() => layoutJSON === undefined ? undefined : JSON.parse(layoutJSON), [layoutJSON])
+  const previewUrl = preview?.url
+  const previewPrinted = preview?.printed
+  // Private omitted-line edits can keep the PDF identical while moving an
+  // editor target. Include source addresses in the reading cache key.
+  const readingKey = previewPrinted ? `${previewPrinted}\n${layoutJSON}` : ""
   // A resume with nothing to check yet opens in Write, so its sections aren't
   // hidden behind a request to fill them in.
   const [mode, setMode] = useState<Mode>(() => (hasEnoughToCheck(viewOf(opened)) ? savedMode() : "write"))
@@ -149,37 +162,38 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, chi
     if (mode === "check") setWatching(true)
   }, [mode])
   // The latest preview as read, and what it prints; null if it couldn't be read.
-  const [read, setRead] = useState<{ printed: string; pdf: PdfReading | null } | null>(null)
+  const [read, setRead] = useState<{ printed: string; key: string; pdf: PdfReading | null } | null>(null)
   const readings = useRef(new Map<string, PdfReading | null>())
   useEffect(() => {
-    if (!watching || !preview) return
+    if (!watching || !previewUrl || !previewPrinted) return
     const known = readings.current
-    if (known.has(preview.printed)) {
-      setRead({ printed: preview.printed, pdf: known.get(preview.printed) ?? null })
+    if (known.has(readingKey)) {
+      setRead({ printed: previewPrinted, key: readingKey, pdf: known.get(readingKey) ?? null })
       return
     }
     const reading = new AbortController()
     const cancel = whenIdle(() => {
       // The reader only loads once Check has been opened.
       import("@/lib/check/preview")
-        .then(({ readPreview }) => readPreview(preview.url, reading.signal))
+        .then(({ readPreview }) => readPreview(previewUrl, reading.signal, layout))
         .then((pdf) => {
-          known.set(preview.printed, pdf)
+          if (reading.signal.aborted) return
+          known.set(readingKey, pdf)
           // Maps keep the order things were added in: the first is the oldest.
           if (known.size > READINGS_KEPT) known.delete(known.keys().next().value!)
-          setRead({ printed: preview.printed, pdf })
+          setRead({ printed: previewPrinted, key: readingKey, pdf })
         })
         .catch((error) => {
           if (reading.signal.aborted) return
           console.warn("The checker couldn't read the preview:", error)
-          setRead({ printed: preview.printed, pdf: null })
+          setRead({ printed: previewPrinted, key: readingKey, pdf: null })
         })
     })
     return () => {
       cancel()
       reading.abort()
     }
-  }, [watching, preview])
+  }, [watching, previewUrl, previewPrinted, readingKey, layout])
 
   // What the grammar checker found in each piece of text, once it has loaded,
   // and the text it's checking now.
@@ -187,9 +201,13 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, chi
   const [grammarFailed, setGrammarFailed] = useState(false)
   const grammarFound = useRef(new Map<string, readonly GrammarLint[]>())
   const grammarChecking = useRef(new Set<string>())
-  const current = read?.printed === printed ? read : null
+  const current = read?.printed === printed && read.key === readingKey ? read : null
+  const latestPages = useRef(0)
+  latestPages.current = current?.pdf?.pages.length ?? 0
   const pdf: CheckValue["pdf"] = current ? (current.pdf ? "read" : "unreadable") : unbuilt === printed ? "unbuilt" : "reading"
   const check = useResumeCheck(current?.pdf ?? undefined, grammarRead)
+  const latestReport = useRef(check.report)
+  latestReport.current = check.report
   // The text the grammar checker reads, from the resume as last checked, so
   // working it out never holds up typing.
   const texts = useMemo(() => (watching ? grammarTexts(check.report.view).map(({ text }) => text) : []), [watching, check.report.view])
@@ -237,10 +255,14 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, chi
   const grammar: CheckValue["grammar"] = !unchecked ? "ready" : grammarFailed ? "failed" : "checking"
   const [chosen, setChosen] = useState<Target | null>(null)
   const claimed = useRef(0)
+  const activeTarget = useRef<Target | null>(null)
   const select = useRef(onSelect)
   select.current = onSelect
 
   const open = useCallback((finding: Finding) => {
+    const now = viewOf(latestResume.current)
+    if (!latestReport.current.findings.includes(finding) && !latestReport.current.dismissed.includes(finding)) return
+    if (!placeExists(now, finding.place, latestPages.current) || !samePlaceSource(latestReport.current.view, now, finding.place)) return
     const section = sectionOf(finding.place)
     if (section) select.current(section)
     setChosen((current) => ({ finding, request: (current?.request ?? 0) + 1 }))
@@ -249,6 +271,8 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, chi
   const pending = useCallback((request: number) => request > claimed.current, [])
   const claim = useCallback((request: number) => {
     if (request <= claimed.current) return false
+    const target = activeTarget.current
+    if (!target || target.request !== request || !samePlaceSource(latestReport.current.view, viewOf(latestResume.current), target.finding.place)) return false
     claimed.current = request
     return true
   }, [])
@@ -260,9 +284,14 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, chi
     ? (check.report.findings.find((finding) => finding.key === chosen.finding.key) ?? check.report.findings.find((finding) => sameIssue(finding, chosen.finding)))
     : undefined
   const target = useMemo(
-    () => (chosen && live && mode === "check" ? { finding: live, request: chosen.request } : null),
-    [chosen, live, mode],
+    () => {
+      if (!chosen || !live || mode !== "check") return null
+      const now = viewOf(formData)
+      return placeExists(now, live.place, current?.pdf?.pages.length) && samePlaceSource(check.report.view, now, live.place) ? { finding: live, request: chosen.request } : null
+    },
+    [chosen, live, mode, formData, current?.pdf?.pages.length, check.report.view],
   )
+  activeTarget.current = target
   const value = useMemo(
     () => ({ ...check, mode, chooseMode, target, open, pending, claim, pdf, grammar }),
     [check, mode, chooseMode, target, open, pending, claim, pdf, grammar],

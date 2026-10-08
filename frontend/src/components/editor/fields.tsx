@@ -375,10 +375,11 @@ interface SectionHeadingProps {
   onRename?: (title: string) => void
   /** What the checker found about the section or its title, while the person is fixing it. */
   flag?: Finding | null
+  allowEmpty?: boolean
 }
 
 /** The big serif title at the top of each section, optionally renameable. */
-export function SectionHeading({ position, title, onRename, flag }: SectionHeadingProps) {
+export function SectionHeading({ position, title, onRename, flag, allowEmpty = false }: SectionHeadingProps) {
   const [draft, setDraft] = useState<string | null>(null)
   const renameButton = useRef<HTMLButtonElement>(null)
   // Set when the rename ends from the keyboard, so the focus goes back to the
@@ -392,7 +393,7 @@ export function SectionHeading({ position, title, onRename, flag }: SectionHeadi
   }, [draft])
 
   const save = () => {
-    if (draft !== null && draft.trim() && draft.trim() !== title) onRename?.(draft.trim())
+    if (draft !== null && (allowEmpty || draft.trim()) && draft.trim() !== title) onRename?.(draft.trim())
     setDraft(null)
   }
 
@@ -401,7 +402,7 @@ export function SectionHeading({ position, title, onRename, flag }: SectionHeadi
       <span className="label-mono text-ink-2">{position}</span>
       {draft === null ? (
         <div className="flex items-center gap-2">
-          <h1 className="font-serif text-[40px] leading-[1.1] tracking-[-0.02em]">{title}</h1>
+          <h1 tabIndex={-1} className="font-serif text-[40px] leading-[1.1] tracking-[-0.02em]">{title}</h1>
           {onRename && (
             <button
               ref={renameButton}

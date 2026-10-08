@@ -96,7 +96,10 @@
 // ---------- Sections ----------
 
 #for name in data.order {
-  if name == "Education" and data.education.len() > 0 {
+  if data.extras.at(name, default: none) != none {
+    let extra = data.extras.at(name)
+    section(extra.heading, extra-body(extra, bullets, (url, body) => web-link(url, body)))
+  } else if name == "Education" and data.education.len() > 0 {
     // The LaTeX version leaves a little extra room around education entries.
     section(heading-or(hd.education, "Education"), v(2pt) + data.education.map(e => {
       let items = ()

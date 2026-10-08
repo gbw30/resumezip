@@ -68,7 +68,10 @@
 // ---------- Sections ----------
 
 #for name in data.order {
-  if name == "Education" and data.education.len() > 0 {
+  if data.extras.at(name, default: none) != none {
+    let extra = data.extras.at(name)
+    section(extra.heading, entries((extra-body(extra, bullets, (url, body) => web-link(url, ul(body))),)))
+  } else if name == "Education" and data.education.len() > 0 {
     section(heading-or(hd.education, "Education"), entries(data.education.map(e => {
       let degree = e.degree
       if has(e.gpa) { degree = degree + " (GPA: " + e.gpa + ")" }

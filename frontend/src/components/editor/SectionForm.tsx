@@ -63,7 +63,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   // What the checker points at in this section, while the person fixes it.
   const { target, pending, claim } = useCheck()
   const place = target?.finding.place
-  const here = place && place.kind !== "profile" && place.kind !== "page" && place.section === section.name ? place : null
+  const here = place && "section" in place && place.section === section.name ? place : null
   const flagAt = (index: number, field?: string) =>
     here?.kind === "entry" && here.entry === index && here.field === field ? target!.finding : null
 
@@ -71,7 +71,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   // field once the entry has slid open: just once, not each time it's shown.
   useEffect(() => {
     const place = target?.finding.place
-    if (!target || !place || place.kind === "profile" || place.kind === "page" || place.section !== section.name) return
+    if (!target || !place || !("section" in place) || place.section !== section.name) return
     if (!pending(target.request)) return
     const entry = place.kind === "entry" ? latest.current[place.entry] : undefined
     if (place.kind === "entry" && !entry) return

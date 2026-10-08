@@ -5,7 +5,7 @@
 // cancelled or when it runs out of time, and shuts down whatever it started.
 
 import type { PDFDocumentProxy } from "pdfjs-dist"
-import { ATTACHMENT_NAME, fromAttachment, MAX_ENTRIES, MAX_LENGTH, TooLongError, type ResumeContent } from "@/lib/resumeFile"
+import { ATTACHMENT_NAME, AttachmentError, fromAttachment, MAX_ENTRIES, MAX_LENGTH, TooLongError, type ResumeContent } from "@/lib/resumeFile"
 import { MAX_BYTES, MAX_PAGES, TIME_LIMIT_MS, TooMuchTextError } from "./limits"
 import { readPdf, type Line, type PageSize, type PdfPage } from "./lines"
 import type { ParsedResume } from "./parse"
@@ -116,6 +116,7 @@ async function attachedResume(doc: PDFDocumentProxy, signal: AbortSignal): Promi
   try {
     return attached ? fromAttachment(new TextDecoder().decode(attached.content)) : null
   } catch (error) {
+    if (error instanceof AttachmentError) throw new OpenFileError(error.message)
     if (!(error instanceof TooLongError)) throw error
     const most = (count: number) => count.toLocaleString("en-US")
     throw new OpenFileError(

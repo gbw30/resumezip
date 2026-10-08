@@ -189,8 +189,11 @@ test("stopping keeps what wasn't looked up, and closing the box adds nothing", a
   lookups.hold()
   await page.getByRole("button", { name: "Add from DOI or link" }).click()
   await box.fill(lines)
-  await page.getByRole("button", { name: "Add papers" }).click()
-  await page.getByRole("button", { name: "Stop" }).click()
+  // This asserts keyboard focus retention. Safari pointer clicks deliberately
+  // don't focus buttons, so activate from the keyboard in both engines.
+  await page.getByRole("button", { name: "Add papers" }).focus()
+  await page.getByRole("button", { name: "Add papers" }).press("Enter")
+  await page.getByRole("button", { name: "Stop" }).press("Enter")
   await expect(page.getByRole("status").filter({ hasText: "Stopped" })).toHaveText("Stopped.")
   await expect(box).toHaveValue(lines)
   await expect(page.getByRole("button", { name: "Add papers" })).toBeFocused()

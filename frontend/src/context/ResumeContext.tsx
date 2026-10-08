@@ -2,13 +2,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { keepSavedData } from "@/lib/keepSavedData"
 import type { ResumeContent } from "@/lib/resumeFile"
-import { createResumeStore, INITIAL_STATE, type Resume, type ResumeState } from "@/lib/resumeStore"
+import { createResumeStore, INITIAL_STATE, type Resume, type ResumeState, type ResumeStore } from "@/lib/resumeStore"
 import { getStorage } from "@/lib/resumeStorage"
 
 export type { Resume } from "@/lib/resumeStore"
 
 /** What changes the resumes. Each keeps the same identity for as long as the page is open. */
-interface ResumeActions {
+interface ResumeActions extends Pick<ResumeStore, "addSection" | "editSection" | "includeSection" | "deleteSection" | "reorderSections" | "addCredential" | "editCredential" | "includeCredential" | "deleteCredential" | "moveCredential"> {
   setCurrentResumeId: (id: string | null) => void;
   createNewResume: (title: string, tag: string, template?: string) => string;
   importResume: (content: ResumeContent, title: string, options?: { keepId?: boolean }) => string;
@@ -95,6 +95,16 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
       },
       deleteUnreadable: store.deleteUnreadable,
       getState: store.getState,
+      addSection: store.addSection,
+      editSection: store.editSection,
+      includeSection: store.includeSection,
+      deleteSection: store.deleteSection,
+      reorderSections: store.reorderSections,
+      addCredential: store.addCredential,
+      editCredential: store.editCredential,
+      includeCredential: store.includeCredential,
+      deleteCredential: store.deleteCredential,
+      moveCredential: store.moveCredential,
     }),
     [store],
   );

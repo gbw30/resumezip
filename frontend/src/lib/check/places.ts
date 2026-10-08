@@ -4,6 +4,7 @@
 
 import { PROFILE_FIELDS, SECTIONS, type SectionName } from "@/components/editor/sections"
 import { entryAt, type ResumeView } from "./resume"
+import { CERTIFICATION_FIELDS, type Certification } from "@/lib/resumeSections"
 
 export type Place =
   // A profile field, like "email".
@@ -15,18 +16,34 @@ export type Place =
   // An entry (its place in the list, from 0), one of its fields, or one line of
   // a bullet field (a bullet's `line`).
   | { kind: "entry"; section: SectionName; entry: number; field?: string; line?: number }
+  | { kind: "extra-heading"; sectionId: string }
+  | { kind: "extra-text"; sectionId: string; field: "text" | "bullets"; line?: number }
+  | { kind: "credential"; sectionId: "certifications"; entryId: string; field?: (typeof CERTIFICATION_FIELDS)[number] }
   // The PDF as a whole, or one of its pages (from 1).
   | { kind: "page"; page?: number }
 
 /** The field a place is in: a profile field, or one of an entry's. */
-export const fieldOf = (place: Place) => (place.kind === "profile" || place.kind === "entry" ? place.field : undefined)
+export const fieldOf = (place: Place) => (place.kind === "profile" || place.kind === "entry" || place.kind === "extra-text" || place.kind === "credential" ? place.field : undefined)
 
 /** Fields that hold a link or an email address rather than words. */
-export const LINK_FIELDS: ReadonlySet<string> = new Set(["email", "linkedin", "profileGithub", "personalWebsite", "projectGithub", "additionalLink", "publicationLink"])
+export const LINK_FIELDS: ReadonlySet<string> = new Set(["email", "linkedin", "profileGithub", "personalWebsite", "projectGithub", "additionalLink", "publicationLink", "link"])
+
+export function credentialAt(view: ResumeView, entryId: string): Certification | undefined {
+  const section = view.extras.certifications?.section
+  return section?.kind === "certifications" ? section.entries.find((entry) => entry.id === entryId) : undefined
+}
 
 /** Whether a place is on this resume, so the editor can open it. `pages` is how many the PDF has. */
 export function placeExists(view: ResumeView, place: Place, pages = 0): boolean {
   switch (place.kind) {
+    case "extra-heading": return !!view.extras[place.sectionId] && !view.extras[place.sectionId].blank
+    case "extra-text": {
+      const extra = view.extras[place.sectionId]
+      if (!extra) return false
+      if (place.field === "bullets") return extra.section.kind === "list" && (place.line === undefined || extra.bullets.some((bullet) => bullet.line === place.line))
+      return (extra.section.kind === "text" || extra.section.kind === "summary") && place.line === undefined
+    }
+    case "credential": return !!credentialAt(view, place.entryId) && (place.field === undefined || CERTIFICATION_FIELDS.includes(place.field))
     case "profile":
       return PROFILE_FIELDS.some((field) => field.key === place.field)
     case "heading":
@@ -54,6 +71,17 @@ export function placeExists(view: ResumeView, place: Place, pages = 0): boolean 
  */
 export function textAt(view: ResumeView, place: Place): string {
   switch (place.kind) {
+    case "extra-heading": return view.extras[place.sectionId]?.heading ?? ""
+    case "extra-text": {
+      const extra = view.extras[place.sectionId]
+      if (!extra) return ""
+      if (place.field === "bullets") return place.line === undefined ? extra.bullets.map((bullet) => bullet.raw).join("\n") : extra.bullets.find((bullet) => bullet.line === place.line)?.raw ?? ""
+      return extra.section.kind === "text" || extra.section.kind === "summary" ? extra.section.text.trim() : ""
+    }
+    case "credential": {
+      const entry = credentialAt(view, place.entryId)
+      return entry ? place.field === undefined ? [entry.name, entry.issuer].filter(Boolean).join(", ") : entry[place.field].trim() : ""
+    }
     case "profile":
       return view.profile[place.field] ?? ""
     case "heading":
@@ -76,11 +104,33 @@ export function textAt(view: ResumeView, place: Place): string {
   }
 }
 
+/**
+ * A deferred finding may still name a valid line after an edit has moved its
+ * text elsewhere. Compare the full captured source, not the finding's text
+ * (which may be only a misspelled word). Bullet contexts include original
+ * offsets so repeated identical bullets cannot silently change their target.
+ */
+export function samePlaceSource(before: ResumeView, now: ResumeView, place: Place): boolean {
+  if (place.kind === "page") return true
+  if (!placeExists(before, place) || !placeExists(now, place)) return false
+  if (place.kind === "extra-heading") return JSON.stringify(before.extras[place.sectionId]) === JSON.stringify(now.extras[place.sectionId])
+  if (place.kind === "extra-text" && place.field === "bullets") return JSON.stringify(before.extras[place.sectionId].bullets) === JSON.stringify(now.extras[place.sectionId].bullets)
+  if (place.kind === "entry" && place.line !== undefined) {
+    const bullets = (view: ResumeView) => entryAt(view, place.section, place.entry)?.bullets.filter((bullet) => bullet.field === place.field)
+    return JSON.stringify(bullets(before)) === JSON.stringify(bullets(now))
+  }
+  if (place.kind === "section" || place.kind === "heading") return JSON.stringify(before.sections[place.section]) === JSON.stringify(now.sections[place.section]) && textAt(before, place) === textAt(now, place)
+  return textAt(before, place) === textAt(now, place)
+}
+
 // Which field a place is in. A bullet's line is left out: bullets move as
 // others are added above them, and their text tells them apart anyway. A
 // page's number stays in, as pages can have the same text, or none.
 function pathOf(place: Place): string {
   switch (place.kind) {
+    case "extra-heading": return `extra.${place.sectionId}.heading`
+    case "extra-text": return `extra.${place.sectionId}.${place.field}`
+    case "credential": return `extra.${place.sectionId}.${place.entryId}.${place.field ?? "entry"}`
     case "profile":
       return `profile.${place.field}`
     case "heading":

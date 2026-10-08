@@ -7,7 +7,8 @@
 
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
 import { isLeftOut, isLeftOutLine } from "@/lib/leftOut"
-import { plainText, sectionOrder } from "@/lib/typst/resumeData"
+import { plainText, templateIdOf } from "@/lib/typst/resumeData"
+import { CERTIFICATION_FIELDS, credentialIncluded, extraHasBody, extraHeading, extraKey, extrasOf, resolveSections, sectionIncluded, type ExtraSection, type SectionRef } from "@/lib/resumeSections"
 import type { Place } from "./places"
 
 /** Chosen when the resume was made (RESUME_TAGS in components/dashboard/CreateResumeModal.tsx). */
@@ -56,8 +57,21 @@ export interface ResumeView {
   sections: Record<SectionName, Entry[]>
   /** Each section's own title if the person renamed it, or "" for the template's. */
   headings: Record<SectionName, string>
+  /** Actual template defaults, used only for physical PDF occurrence anchors. */
+  printedHeadings: Record<SectionName, string>
   /** The sections in the order they're printed. */
   order: SectionName[]
+  /** Mixed print order; semantic rules continue to use the builtin-only order above. */
+  allOrder: SectionRef[]
+  extras: Record<string, ExtraView>
+}
+
+export interface ExtraView {
+  id: string
+  heading: string
+  section: ExtraSection
+  bullets: Bullet[]
+  blank: boolean
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -109,12 +123,22 @@ export function viewOf(resume: Record<string, any>): ResumeView {
     })
     titles[name] = text(headings[headingKey])
   }
+  const allOrder = resolveSections(resume)
+  const extras = Object.fromEntries(Object.entries(extrasOf(resume)).filter(([, section]) => sectionIncluded(section)).map(([id, saved]) => {
+    const section = saved.kind === "certifications" ? { ...saved, entries: saved.entries.filter(credentialIncluded) } : saved.kind === "list" ? { ...saved, bullets: linesOf(saved.bullets).join("\n") } : saved
+    return [id, { id, heading: extraHeading(section), section, bullets: saved.kind === "list" ? bulletsOf("bullets", saved.bullets) : [], blank: !extraHasBody(section) }]
+  }))
+  const template = templateIdOf(resume.selectedTemplate)
+  const defaults = { ...Object.fromEntries(SECTION_NAMES.map((name) => [name, SECTIONS[name].title])), Leadership: "Leadership Experience", Volunteership: "Volunteer Experience", Awards: template === "referme" ? "Certifications & Awards" : template === "jake" || template === "modernjack" ? "Awards/Certifications" : "Awards & Certifications" } as Record<SectionName, string>
   return {
     type: resumeTypeOf(resume),
     profile: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, text(profile[field.key])])),
     sections,
     headings: titles,
-    order: sectionOrder(resume.sectionOrder) as SectionName[],
+    printedHeadings: Object.fromEntries(SECTION_NAMES.map((name) => [name, titles[name] || defaults[name]])) as Record<SectionName, string>,
+    order: allOrder.filter((ref): ref is SectionName => extraKey(ref) === null),
+    allOrder,
+    extras,
   }
 }
 
@@ -133,7 +157,13 @@ export function textsOf(view: ResumeView): { place: Place; text: string }[] {
     const value = view.profile[field.key]
     if (value) texts.push({ place: { kind: "profile", field: field.key }, text: value })
   }
-  for (const section of view.order) {
+  for (const ref of view.allOrder) {
+    const id = extraKey(ref)
+    if (id !== null) {
+      texts.push(...extraTexts(view, id))
+      continue
+    }
+    const section = ref as SectionName
     // A section with nothing printed in it isn't printed at all, title and all.
     const printed = view.sections[section].some((entry) => !entry.blank)
     if (view.headings[section] && printed) texts.push({ place: { kind: "heading", section }, text: view.headings[section] })
@@ -151,4 +181,20 @@ export function textsOf(view: ResumeView): { place: Place; text: string }[] {
     }
   }
   return texts
+}
+
+/** Extra prose stays literal; only custom list bullets use the editor's inline formatting. */
+export function extraTexts(view: ResumeView, sectionId: string): { place: Place; text: string }[] {
+  const extra = view.extras[sectionId]
+  if (!extra || extra.blank) return []
+  const result: { place: Place; text: string }[] = [{ place: { kind: "extra-heading", sectionId }, text: extra.heading }]
+  const section = extra.section
+  if (section.kind === "certifications") {
+    for (const entry of section.entries) for (const field of CERTIFICATION_FIELDS) {
+      if (entry[field].trim()) result.push({ place: { kind: "credential", sectionId: "certifications", entryId: entry.id, field }, text: entry[field].trim() })
+    }
+  } else if (section.kind === "list") {
+    for (const bullet of extra.bullets) result.push({ place: { kind: "extra-text", sectionId, field: "bullets", line: bullet.line }, text: bullet.text })
+  } else if (section.text.trim()) result.push({ place: { kind: "extra-text", sectionId, field: "text" }, text: section.text.trim() })
+  return result
 }

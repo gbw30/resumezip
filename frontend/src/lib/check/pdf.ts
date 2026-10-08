@@ -5,6 +5,7 @@ import type { Line } from "@/lib/import/lines"
 import type { PdfReading } from "./engine"
 import type { ResumeView } from "./resume"
 import { bulletsIn, type PlacedBullet } from "./text"
+import type { Place } from "./places"
 
 // Text without accents or case. Upper case first, as some templates print
 // names in capitals: "Strauß" prints as "STRAUSS", and only comparing that
@@ -42,9 +43,10 @@ export interface PrintedBullet {
  * text. A bullet the PDF doesn't print as typed is left out.
  */
 export function printedBullets(resume: ResumeView, pdf: PdfReading): (PlacedBullet & { printed: PrintedBullet })[] {
-  const lines = pdf.lines.map((line) => ({ line, text: comparable(line.text) }))
+  const excluded = new Set(pdf.extras?.excludedLines ?? [])
+  const lines = pdf.lines.flatMap((line, index) => excluded.has(index) ? [] : [{ line, text: comparable(line.text) }])
   let from = 0
-  return bulletsIn(resume).flatMap((placed) => {
+  const builtin = bulletsIn(resume).flatMap((placed) => {
     const want = comparable(placed.bullet.text)
     if (!want) return []
     for (let i = from; i < lines.length; i++) {
@@ -61,4 +63,13 @@ export function printedBullets(resume: ResumeView, pdf: PdfReading): (PlacedBull
     }
     return []
   })
+  return builtin
+}
+
+/** Custom lists participate in physical layout checks, without role-specific bullet advice. */
+export function printedLayoutBullets(resume: ResumeView, pdf: PdfReading): { place: Place; printed: PrintedBullet }[] {
+  const custom = (pdf.extras?.sections ?? []).filter((section) => section.status === "matched").flatMap((section) => section.parts.flatMap(({ place, lines }) =>
+    place.kind === "extra-text" && place.field === "bullets" && lines.length ? [{ place, printed: { lines: lines.map((index) => pdf.lines[index]) } }] : [],
+  ))
+  return [...printedBullets(resume, pdf), ...custom]
 }

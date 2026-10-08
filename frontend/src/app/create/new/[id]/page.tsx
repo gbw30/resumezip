@@ -10,13 +10,15 @@ import LeftBar from "@/components/editor/LeftBar"
 import PdfPreview from "@/components/editor/PdfPreview"
 import ProfileForm from "@/components/editor/ProfileForm"
 import SectionForm from "@/components/editor/SectionForm"
+import ExtraSectionForm from "@/components/editor/ExtraSectionForm"
 import { WIDE_SCREEN } from "@/components/editor/layout"
 import SectionNav, { type ActiveSection } from "@/components/editor/SectionNav"
 import TemplatePicker from "@/components/editor/TemplatePicker"
 import { useKeepFormPlace } from "@/components/editor/useKeepFormPlace"
 import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
 import NotSaved from "@/components/site/NotSaved"
-import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
+import { SECTIONS, type SectionName } from "@/components/editor/sections"
+import { extraKey, resolveSections } from "@/lib/resumeSections"
 import { uniqueTitle } from "@/lib/resumeTitles"
 import { compilePreview, downloadResume, loadCompiler, printedOf, Superseded } from "@/lib/typst/compile"
 import { templateIdOf } from "@/lib/typst/resumeData"
@@ -36,12 +38,15 @@ const DOWNLOADED_MS = 2000
 
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>()
-  const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus, savedAt } = useResumeContext()
+  const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus, savedAt, addSection, deleteSection, reorderSections } = useResumeContext()
+  const latestResume = useRef(formData)
+  latestResume.current = formData
   const [active, setActive] = useState<ActiveSection>("Profile")
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   // What the preview on screen prints, for the checker to know when it's
   // current, and what the resume printed when a preview last failed to build.
   const [pdfPrinted, setPdfPrinted] = useState("")
+  const [pdfResume, setPdfResume] = useState(formData)
   const [unbuilt, setUnbuilt] = useState<string | null>(null)
   const [compileError, setCompileError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
@@ -80,12 +85,8 @@ export default function EditorPage() {
   }, [found, template])
 
   // The saved order, plus any sections missing from older resumes.
-  const sections = useMemo<SectionName[]>(() => {
-    const saved: SectionName[] = (Array.isArray(formData.sectionOrder) ? formData.sectionOrder : []).filter(
-      (name: string): name is SectionName => SECTION_NAMES.includes(name as SectionName),
-    )
-    return [...saved, ...SECTION_NAMES.filter((name) => !saved.includes(name))]
-  }, [formData.sectionOrder])
+  const sections = useMemo(() => resolveSections(formData), [formData])
+  const selected = active === "Profile" || sections.includes(active) ? active : "Profile"
 
   // Resumes live in this browser, so the tab title is set here rather than in metadata.
   const tabTitle = formData.resumeTitle?.trim() || "Untitled resume"
@@ -96,7 +97,7 @@ export default function EditorPage() {
   // What the preview shows. Changes that don't print, such as renaming the
   // resume, leave it as it was, so they don't recompile.
   const printed = useMemo(() => JSON.stringify(printedOf({ ...formData, sectionOrder: sections })), [formData, sections])
-  const preview = useMemo(() => (pdfUrl ? { url: pdfUrl, printed: pdfPrinted } : null), [pdfUrl, pdfPrinted])
+  const preview = useMemo(() => (pdfUrl ? { url: pdfUrl, printed: pdfPrinted, checkerResume: printed === pdfPrinted ? formData : pdfResume } : null), [pdfUrl, pdfPrinted, printed, formData, pdfResume])
   // The preview on screen is in another template than the one picked, until the new one is built.
   const shownTemplate = useMemo(() => (pdfPrinted ? JSON.parse(pdfPrinted).template : null), [pdfPrinted])
   const switchingTemplate = shownTemplate !== null && shownTemplate !== template
@@ -107,6 +108,7 @@ export default function EditorPage() {
     // Aborted once this preview is no longer wanted: withdrawn if it's still
     // waiting to compile, and its result thrown away if it isn't.
     const wanted = new AbortController()
+    const snapshot = latestResume.current
     const wait = Math.min(MAX_WAIT_MS, Math.max(MIN_WAIT_MS, compileMs.current))
     const timer = setTimeout(async () => {
       const startedAt = performance.now()
@@ -119,6 +121,7 @@ export default function EditorPage() {
         }
         setPdfUrl(url)
         setPdfPrinted(printed)
+        setPdfResume(snapshot)
         setCompileError(null)
         // What failed before can build now, as after a hiccup.
         setUnbuilt(null)
@@ -343,9 +346,16 @@ export default function EditorPage() {
             <SectionNav
               sections={sections}
               headings={formData.headings}
-              active={active}
+              active={selected}
+              resume={formData}
               onSelect={select}
-              onReorder={(order) => updateFormData("sectionOrder", order)}
+              onReorder={(order) => reorderSections(id, order)}
+              onAdd={(kind) => {
+                const ref = addSection(id, kind)
+                if (!ref) return
+                select(ref)
+                requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-section-ref="${ref}"]`)?.focus({ preventScroll: true }))
+              }}
             />
           </LeftBar>
 
@@ -357,10 +367,18 @@ export default function EditorPage() {
           >
             {/* A container, so the fields fit the form's own width rather than the window's. */}
             <div className="@container mx-auto max-w-[640px]">
-              {active === "Profile" ? (
+              {selected === "Profile" ? (
                 <ProfileForm position={position(1)} />
+              ) : extraKey(selected) !== null ? (
+                <ExtraSectionForm key={selected} sectionId={extraKey(selected)!} position={position(sections.indexOf(selected) + 2)} onDelete={() => {
+                  const index = sections.indexOf(selected)
+                  const next: ActiveSection = sections[index - 1] ?? sections[index + 1] ?? "Profile"
+                  deleteSection(id, extraKey(selected)!)
+                  select(next)
+                  requestAnimationFrame(() => (document.querySelector<HTMLElement>(`[data-section-ref="${next}"]`) ?? mainRef.current?.querySelector<HTMLElement>("h1"))?.focus())
+                }} />
               ) : (
-                <SectionForm key={active} section={SECTIONS[active]} position={position(sections.indexOf(active) + 2)} />
+                <SectionForm key={selected} section={SECTIONS[selected as SectionName]} position={position(sections.indexOf(selected) + 2)} />
               )}
             </div>
           </main>
