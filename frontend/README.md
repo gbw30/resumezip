@@ -24,8 +24,9 @@ npm run test:browser   # after a build; see below
   `src/lib/resumeStore.ts` holds them and saves each one to localStorage under
   a key of its own, shortly after typing stops; `src/lib/resumeStorage.ts`
   does the reading and writing. There are no accounts, so that's the only copy.
-- `src/app/create/dashboard` lists the resumes; `src/app/create/new/[id]` is
-  the editor, with a live preview.
+- `src/app/create/dashboard` lists the resumes; `src/app/create/editor` is
+  the editor, with a live preview. It's one static page that `next.config.js`
+  serves at every resume's address, `/create/new/<id>`.
 - `src/lib/typst/` builds PDFs in a Web Worker. Its README covers adding a
   template.
 - `src/lib/resumeFile.ts`: every downloaded PDF carries its resume, so the PDF
