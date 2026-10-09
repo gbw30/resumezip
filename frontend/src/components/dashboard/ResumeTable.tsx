@@ -146,6 +146,8 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
         onChange={(event) => setRenaming({ id: resume.id, draft: event.target.value })}
         onBlur={() => finishRenaming(resume, true, false)}
         onKeyDown={(event) => {
+          // Enter or Escape while typing with an input method (as for Japanese) picks or cancels a character.
+          if (event.nativeEvent.isComposing) return
           if (event.key === "Enter") finishRenaming(resume, true, true)
           else if (event.key === "Escape") finishRenaming(resume, false, true)
         }}
