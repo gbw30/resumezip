@@ -113,6 +113,12 @@ describe("downloading the compiler", () => {
     expect(await compileChecked(`${base}/slow`, integrity, IDLE_MS, (bytes) => arrived.push(bytes))).toBeInstanceOf(WebAssembly.Module)
     expect(arrived.length).toBeGreaterThan(1)
     expect(arrived.reduce((sum, bytes) => sum + bytes, 0)).toBe(wasm.length)
+
+    // downloadChecked too, for the compiler downloaded ahead.
+    arrived.length = 0
+    expect(Buffer.from(await downloadChecked(`${base}/slow`, integrity, IDLE_MS, (bytes) => arrived.push(bytes))).equals(wasm)).toBe(true)
+    expect(arrived.length).toBeGreaterThan(1)
+    expect(arrived.reduce((sum, bytes) => sum + bytes, 0)).toBe(wasm.length)
   })
 
   test("keeps none of the file while it downloads, hashing each piece as it arrives", async () => {
