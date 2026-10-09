@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useEffect, useRef, useState } from "react"
+import { memo, useEffect, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { TEMPLATES, templateById, type TemplateId } from "@/lib/templates"
 
@@ -15,7 +15,7 @@ interface TemplatePickerProps {
  * a dialog in the middle of the screen below 1024px, where the button can be
  * anywhere in the header, and a panel under the button on wider screens.
  */
-export default function TemplatePicker({ value, onChange }: TemplatePickerProps) {
+function TemplatePicker({ value, onChange }: TemplatePickerProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -136,3 +136,6 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
     </div>
   )
 }
+
+// Re-renders when the template changes, and not with the rest of the editor.
+export default memo(TemplatePicker)

@@ -269,6 +269,44 @@ test("the score goes up as a problem is fixed", async ({ page }) => {
   expect(errors).toEqual([])
 })
 
+test("the resume is checked again once typing pauses, not at every key, and a dismissal shows at once", async ({ page }) => {
+  const errors = pageErrors(page)
+  await page.clock.install()
+  await resumeToCheck(page)
+  const check = page.getByRole("tab", { name: /^Check/ })
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+  await check.click()
+  await expect(panel.getByRole("status")).toBeHidden()
+  const missing = panel.getByRole("button", { name: /Add your email address/ })
+  await missing.click()
+  const email = page.getByLabel("Email")
+  await expect(email).toBeFocused()
+  const count = Number((await check.getAttribute("aria-label"))?.match(/^Check, (\d+) to look at$/)?.[1])
+  expect(count).toBeGreaterThan(2)
+
+  // With the page's clock stopped, typing never pauses. What the person
+  // tells the checker still shows at once.
+  await page.clock.pauseAt(Date.now() + 1_000)
+  const advice = panel.getByRole("button", { name: /Profile → LinkedIn Consider adding a LinkedIn profile/ })
+  await panel.getByRole("button", { name: "Dismiss: Consider adding a LinkedIn profile" }).click()
+  await expect(advice).toBeHidden()
+  await expect(check).toHaveAccessibleName(`Check, ${count - 1} to look at`)
+
+  // What's typed isn't checked yet: a fixed wait, to show nothing changes.
+  await email.pressSequentially("ada@example.com")
+  await page.waitForTimeout(1_000)
+  await expect(missing).toBeVisible()
+  await expect(check).toHaveAccessibleName(`Check, ${count - 1} to look at`)
+
+  // Once typing pauses, it is.
+  await page.clock.resume()
+  await expect(missing).toBeHidden()
+  await expect(panel.getByRole("status")).toBeHidden()
+  await expect(check).toHaveAccessibleName(`Check, ${count - 2} to look at`)
+
+  expect(errors).toEqual([])
+})
+
 test("the score ring moves while the score is worked out: an arc runs round it, it fills up to the score, and it pulses while checked again", async ({
   page,
 }) => {

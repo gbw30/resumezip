@@ -28,7 +28,9 @@ npm run test:browser   # after a build; see below
   does the reading and writing. There are no accounts, so that's the only copy.
 - `src/app/create/dashboard` lists the resumes; `src/app/create/editor` is
   the editor, with a live preview. It's one static page that `next.config.js`
-  serves at every resume's address, `/create/new/<id>`.
+  serves at every resume's address, `/create/new/<id>`. The editor reads the
+  open resume a field at a time (`useResumeField`), so a key typed re-renders
+  only the form it's typed in; `useResumeContext` re-renders with every change.
 - `src/lib/typst/` builds PDFs in a Web Worker. Its README covers adding a
   template.
 - `src/lib/resumeFile.ts`: every downloaded PDF carries its resume, so the PDF

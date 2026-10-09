@@ -78,6 +78,10 @@ export const INITIAL_STATE: ResumeState = {
 /** How long typing pauses before the changes are saved, in milliseconds. */
 export const SAVE_DELAY = 400
 
+/** The resume saved under `id`, if there's one. Ids come from addresses and files, so one like "constructor" is only an id. */
+export const resumeOf = (state: ResumeState, id: string): Resume | undefined =>
+  Object.hasOwn(state.resumes, id) ? state.resumes[id] : undefined
+
 const blankResume = (template: string): Resume => ({
   profileSection: {},
   headings: {},
