@@ -35,14 +35,14 @@
 
 // "Organisation, Location: Role ... dates" entries (work, leadership, volunteering).
 #let experience(entries, org-key) = entries.map(e => {
-  let org = e.at(org-key)
-  block(sticky: true, {
-    let place-name = join-present(", ", org, e.location)
-    if has(place-name) { strong(place-name + ": ") }
-    emph(e.role)
-    h(1fr)
-    emph(date-range(e.start, e.end))
-  })
+  let place-name = join-present(", ", e.at(org-key), e.location)
+  block(sticky: true, row(
+    {
+      if has(place-name) { strong(place-name + ": ") }
+      emph(e.role)
+    },
+    emph(date-range(e.start, e.end)),
+  ))
   bullets(e.bullets)
 }).join(v(6.8pt))
 
@@ -68,16 +68,17 @@
 
 #for name in data.order {
   if name == "Education" and data.education.len() > 0 {
+    // Lines are 4.71pt apart, as in a paragraph, and schools 1pt further.
     section(heading-or(hd.education, "Education"), data.education.map(e => {
-      strong(e.degree)
-      h(1fr)
-      strong(date-range(e.start, e.end))
-      linebreak()
-      emph(join-present(", ", e.school, e.location))
-      if has(e.gpa) { h(1fr) + emph("GPA: " + e.gpa) }
-      if has(e.coursework) { linebreak() + emph("Relevant Coursework: ") + e.coursework }
-      if has(e.involvement) { linebreak() + emph("Involvement: ") + e.involvement }
-    }).join(v(1pt)))
+      let dates = date-range(e.start, e.end)
+      let place = join-present(", ", e.school, e.location)
+      let lines = ()
+      if has(e.degree) or has(dates) { lines.push(row(strong(e.degree), strong(dates))) }
+      if has(place) or has(e.gpa) { lines.push(row(emph(place), if has(e.gpa) { emph("GPA: " + e.gpa) })) }
+      if has(e.coursework) { lines.push(block(emph("Relevant Coursework: ") + e.coursework)) }
+      if has(e.involvement) { lines.push(block(emph("Involvement: ") + e.involvement)) }
+      lines.join(v(4.71pt))
+    }).join(v(5.71pt)))
   } else if name == "Skills" and data.skills.len() > 0 {
     section(heading-or(hd.skills, "Skills"), data.skills.map(s => {
       if has(s.name) { strong(s.name + ": ") }
@@ -87,16 +88,15 @@
     section(heading-or(hd.work, "Experience"), experience(data.work, "company"))
   } else if name == "Projects" and data.projects.len() > 0 {
     section(heading-or(hd.projects, "Projects"), data.projects.map(pr => {
-      block(sticky: true, {
-        strong(project-name(pr))
-        h(1fr)
-        emph(pr.date)
-        // The tech stack and any printed links go on the second line.
-        let details = ()
-        if has(pr.techStack) { details.push(emph(pr.techStack)) }
-        for url in pr.links { details.push(box(web-link(url, ul(url)))) }
-        if details.len() > 0 { linebreak() + details.join([ | ]) }
-      })
+      let lines = ()
+      if has(pr.name) or has(pr.date) { lines.push(row(strong(project-name(pr)), emph(pr.date))) }
+      // The tech stack and any printed links go on the second line. It isn't
+      // justified: links don't break, so a wrapped line would be stretched.
+      let details = ()
+      if has(pr.techStack) { details.push(emph(pr.techStack)) }
+      for url in pr.links { details.push(box(web-link(url, ul(url)))) }
+      if details.len() > 0 { lines.push(block({ set par(justify: false); details.join([ | ]) })) }
+      block(sticky: true, lines.join(v(4.71pt)))
       bullets(pr.bullets)
     }).join(v(6.8pt)))
   } else if name == "Publications" and data.publications.len() > 0 {
@@ -106,12 +106,13 @@
   } else if name == "Volunteership" and data.volunteer.len() > 0 {
     section(heading-or(hd.volunteer, "Volunteer Experience"), experience(data.volunteer, "organization"))
   } else if name == "Awards" and data.awards.len() > 0 {
-    section(heading-or(hd.awards, "Awards & Certifications"), data.awards.map(a => {
-      strong(a.name)
-      if has(a.name) and has(a.organization) { [, ] }
-      a.organization
-      h(1fr)
-      emph(a.date)
-    }).join(parbreak()))
+    section(heading-or(hd.awards, "Awards & Certifications"), data.awards.map(a => row(
+      {
+        strong(a.name)
+        if has(a.name) and has(a.organization) { [, ] }
+        a.organization
+      },
+      emph(a.date),
+    )).join(v(4.71pt)))
   }
 }
