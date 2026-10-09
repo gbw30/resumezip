@@ -14,14 +14,15 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   // One retry in CI, recording a trace of the retry, so a failure can be
-  // replayed from the run's "browser-test-report" artifact.
+  // replayed from the run's "browser-test-report-<browser>" artifact.
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "on-first-retry",
   },
-  // Chrome, and WebKit for Safari, which most iPhone visitors use.
+  // Chrome, and WebKit for Safari, which most iPhone visitors use. CI tests
+  // each in a job of its own (--project), at the same time.
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
