@@ -12,10 +12,12 @@ import PrintingPage from "./PrintingPage"
 // worker matches the library.
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
 
-// A PDF being shown or loaded in the background. A new PDF stays hidden until
-// all its pages have rendered, so live previews swap in without flashing.
-interface LoadedDocument {
+// A PDF's pages drawn at one width, on screen or drawing out of sight. A new
+// drawing stays hidden until all its pages have rendered, so a new PDF, or the
+// same one at a new zoom, swaps in without flashing.
+interface Drawing {
   file: string
+  width: number
   pages: number | null
   /** The page numbers drawn so far. */
   rendered: number[]
@@ -32,6 +34,8 @@ const PAGE_RATIO = 11 / 8.5
 const PAGE_GAP = 16
 // How long the stand-in page takes to fade out over the first preview.
 const FADE_MS = 300
+// How long the zoom stays put before the pages are drawn again at its size.
+const SETTLE_MS = 150
 
 interface PdfPreviewProps {
   /** Object URL of the latest compiled PDF. */
@@ -63,8 +67,12 @@ interface HeldAnchor {
 }
 
 export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPreviewProps) {
-  const [documents, setDocuments] = useState<LoadedDocument[]>([])
+  const [drawings, setDrawings] = useState<Drawing[]>([])
   const [zoom, setZoom] = useState(1)
+  // Catches up with the zoom once it settles. Until then, the pages on screen
+  // are stretched to the zoom's size, so a run of steps doesn't draw them again
+  // at every one.
+  const [drawnZoom, setDrawnZoom] = useState(zoom)
   const [loadError, setLoadError] = useState(false)
   const [availableWidth, setAvailableWidth] = useState(MAX_PAGE_WIDTH)
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -73,16 +81,36 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
   const anchorRef = useRef<ZoomAnchor | null>(null)
   const heldRef = useRef<HeldAnchor | null>(null)
 
-  // Keep the PDF on screen while the new one loads; drop older pending ones.
+  const fitWidth = Math.min(availableWidth, MAX_PAGE_WIDTH)
+  const pageWidth = fitWidth * zoom
+  const drawWidth = fitWidth * drawnZoom
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDrawnZoom(zoom), SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [zoom])
+
   useEffect(() => {
     setLoadError(false)
-    setDocuments((docs) => {
-      if (!pdfUrl) return []
-      if (docs.some((doc) => doc.file === pdfUrl)) return docs
-      const shown = docs.filter((doc) => doc.ready).slice(-1)
-      return [...shown, { file: pdfUrl, pages: null, rendered: [], ready: false }]
-    })
   }, [pdfUrl])
+
+  // Keep what's on screen while the latest PDF is drawn at the latest size;
+  // drop drawings that are no longer wanted.
+  useEffect(() => {
+    setDrawings((drawings) => {
+      if (!pdfUrl) return []
+      const shown = drawings.findLast((drawing) => drawing.ready)
+      const wanted = drawings.find((drawing) => drawing.file === pdfUrl && drawing.width === drawWidth) ?? {
+        file: pdfUrl,
+        width: drawWidth,
+        // Known already if this PDF is drawn at another size.
+        pages: drawings.find((drawing) => drawing.file === pdfUrl)?.pages ?? null,
+        rendered: [],
+        ready: false,
+      }
+      return shown && shown !== wanted ? [shown, wanted] : [wanted]
+    })
+  }, [pdfUrl, drawWidth])
 
   // Fit the page to the panel.
   useEffect(() => {
@@ -113,9 +141,7 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
   }, [])
 
   // The pages grow or shrink from their top left corner, so scroll the anchor
-  // back under where it was before the browser paints. react-pdf resizes each
-  // canvas in an effect after this, so the pages' new size is worked out
-  // rather than measured.
+  // back under where it was before the browser paints.
   useLayoutEffect(() => {
     const anchor = anchorRef.current
     const pages = pagesRef.current
@@ -143,10 +169,10 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
     setZoom(change)
   }
 
-  const shownDocument = documents.findLast((doc) => doc.ready) ?? documents[documents.length - 1]
-  const numPages = shownDocument?.pages ?? 1
-  const waiting = !documents.some((doc) => doc.ready)
-  const pageWidth = Math.min(availableWidth, MAX_PAGE_WIDTH) * zoom
+  const shownDrawing = drawings.findLast((drawing) => drawing.ready) ?? drawings[drawings.length - 1]
+  const numPages = shownDrawing?.pages ?? 1
+  const waiting = !drawings.some((drawing) => drawing.ready)
+  const files = [...new Set(drawings.map((drawing) => drawing.file))]
 
   // Once the first preview is on screen, the stand-in page fades out over it, then goes.
   const [faded, setFaded] = useState(false)
@@ -160,25 +186,25 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
   }, [waiting])
 
   function onLoadSuccess(file: string, pages: number) {
-    setDocuments((docs) => docs.map((doc) => (doc.file === file ? { ...doc, pages } : doc)))
+    setDrawings((drawings) => drawings.map((drawing) => (drawing.file === file ? { ...drawing, pages } : drawing)))
   }
 
-  // Once every page of a PDF has rendered, it's shown and the older ones are dropped.
-  function onRenderSuccess(file: string, page: number) {
-    setDocuments((docs) => {
-      const index = docs.findIndex((doc) => doc.file === file)
-      if (index === -1 || docs[index].ready) return docs
-      const doc = docs[index]
-      const rendered = doc.rendered.includes(page) ? doc.rendered : [...doc.rendered, page]
-      if (doc.pages === null || rendered.length < doc.pages) {
-        return docs.map((other, i) => (i === index ? { ...other, rendered } : other))
+  // Once every page of a drawing has rendered, it's shown and the older ones are dropped.
+  function onRenderSuccess({ file, width }: Drawing, page: number) {
+    setDrawings((drawings) => {
+      const index = drawings.findIndex((drawing) => drawing.file === file && drawing.width === width)
+      if (index === -1 || drawings[index].ready) return drawings
+      const drawing = drawings[index]
+      const rendered = drawing.rendered.includes(page) ? drawing.rendered : [...drawing.rendered, page]
+      if (drawing.pages === null || rendered.length < drawing.pages) {
+        return drawings.map((other, i) => (i === index ? { ...other, rendered } : other))
       }
-      return docs.slice(index).map((other, i) => (i === 0 ? { ...other, rendered, ready: true } : other))
+      return drawings.slice(index).map((other, i) => (i === 0 ? { ...other, rendered, ready: true } : other))
     })
   }
 
   function onLoadError(file: string) {
-    setDocuments((docs) => docs.filter((doc) => doc.file !== file))
+    setDrawings((drawings) => drawings.filter((drawing) => drawing.file !== file))
     if (file === pdfUrl) setLoadError(true)
   }
 
@@ -223,7 +249,7 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
         onCopy={copyPlainText}
         className="relative min-h-[480px] flex-1 overflow-auto px-5 pb-10 focus-visible:outline-offset-[-2px] md:px-8"
       >
-        {loadError || (error && documents.length === 0) ? (
+        {loadError || (error && drawings.length === 0) ? (
           <div className="flex h-full min-h-[480px] items-center justify-center text-sm text-ink-2">
             The preview couldn&apos;t be built.
           </div>
@@ -235,35 +261,56 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
             style={{ width: pageWidth, minHeight: numPages * pageWidth * PAGE_RATIO + (numPages - 1) * PAGE_GAP }}
           >
             {!faded && <PrintingPage width={pageWidth} leaving={!waiting} />}
-            {documents.map((doc) => (
-              <div key={doc.file} className={doc === shownDocument ? "" : "invisible absolute inset-0"}>
-                <Document
-                  file={doc.file}
-                  // A link in the preview, such as the person's LinkedIn, opens in a new tab rather than leaving the editor.
-                  externalLinkTarget="_blank"
-                  onLoadSuccess={({ numPages }) => onLoadSuccess(doc.file, numPages)}
-                  onLoadError={() => onLoadError(doc.file)}
-                  loading={null}
-                  className="flex flex-col gap-4"
-                >
-                  {/* Every page, one under the other; the panel scrolls through them. */}
-                  {Array.from({ length: doc.pages ?? 0 }, (_, index) => (
-                    <Page
-                      key={index}
-                      pageNumber={index + 1}
-                      width={pageWidth}
-                      loading={null}
-                      className="shadow-[0_1px_2px_rgba(17,19,24,0.06),0_18px_40px_-16px_rgba(17,19,24,0.22)]"
-                      // The text layer, for selecting and copying, is the costliest
-                      // part. It's drawn once a PDF is on screen, not for one
-                      // loading out of sight that a newer one may replace.
-                      renderTextLayer={doc.ready && doc === shownDocument}
-                      renderAnnotationLayer
-                      onRenderSuccess={() => onRenderSuccess(doc.file, index + 1)}
-                    />
+            {/* A <Document> loads its file in a pdf.js worker of its own, so the drawings of a PDF
+                share one. react-pdf then keeps one page per page number for links within the PDF,
+                and drops it when an older drawing goes; the templates only link out. */}
+            {files.map((file) => (
+              <Document
+                key={file}
+                file={file}
+                // A link in the preview, such as the person's LinkedIn, opens in a new tab rather than leaving the editor.
+                externalLinkTarget="_blank"
+                onLoadSuccess={({ numPages }) => onLoadSuccess(file, numPages)}
+                onLoadError={() => onLoadError(file)}
+                loading={null}
+              >
+                {drawings
+                  .filter((drawing) => drawing.file === file)
+                  .map((drawing) => (
+                    <div
+                      key={drawing.width}
+                      className={`flex flex-col gap-4 ${drawing === shownDrawing ? "" : "invisible absolute inset-0"}`}
+                    >
+                      {/* Every page, one under the other; the panel scrolls through them. Each
+                          takes the zoom's size straight away, and what's drawn is stretched
+                          to fit until it's drawn again at that size. */}
+                      {Array.from({ length: drawing.pages ?? 0 }, (_, index) => (
+                        <div
+                          key={index}
+                          className="bg-sheet shadow-[0_1px_2px_rgba(17,19,24,0.06),0_18px_40px_-16px_rgba(17,19,24,0.22)]"
+                          style={{ width: pageWidth, height: pageHeight(pageWidth) }}
+                        >
+                          <div
+                            className="origin-top-left"
+                            style={{ width: drawing.width, transform: `scale(${pageWidth / drawing.width})` }}
+                          >
+                            <Page
+                              pageNumber={index + 1}
+                              width={drawing.width}
+                              loading={null}
+                              // The text layer, for selecting and copying, is the costliest
+                              // part. It's drawn once a drawing is on screen, not for one
+                              // out of sight that a newer one may replace.
+                              renderTextLayer={drawing.ready && drawing === shownDrawing}
+                              renderAnnotationLayer
+                              onRenderSuccess={() => onRenderSuccess(drawing, index + 1)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   ))}
-                </Document>
-              </div>
+              </Document>
             ))}
           </div>
         )}
