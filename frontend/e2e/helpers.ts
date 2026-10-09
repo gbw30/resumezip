@@ -2,12 +2,13 @@ import AxeBuilder from "@axe-core/playwright"
 import { expect, type Locator, type Page } from "@playwright/test"
 
 // Safari logs these when a page is left while something is still loading in
-// the background, and the visitor never sees them: the PDF compiler or its
-// fonts, which the dashboard and editor start early, and the pages behind a
-// page's links, which Next.js fetches ahead. They're only left out while the
-// page is being left, so a load that fails on a page that stays open counts.
+// the background, and the visitor never sees them: the PDF compiler, its
+// fonts and pdf.js's worker, which the home page, dashboard and editor start
+// early, and the pages behind a page's links, which Next.js fetches ahead.
+// They're only left out while the page is being left, so a load that fails
+// on a page that stays open counts.
 const CUT_SHORT = [
-  /^Fetch API cannot load \S+\.(wasm|otf|ttf) due to access control checks\.$/,
+  /^Fetch API cannot load \S+\.(wasm|otf|ttf|mjs) due to access control checks\.$/,
   /^Failed to fetch RSC payload for \S+\. Falling back to browser navigation\. TypeError: Load failed$/,
 ]
 // Safari can report a load cut short just before the request for the next page.
