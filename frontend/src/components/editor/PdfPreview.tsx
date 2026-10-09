@@ -56,6 +56,12 @@ interface ZoomAnchor {
   y: number
 }
 
+/** The last zoom's anchor, and where it left the pages on screen. */
+interface HeldAnchor {
+  anchor: ZoomAnchor
+  box: DOMRect
+}
+
 export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPreviewProps) {
   const [documents, setDocuments] = useState<LoadedDocument[]>([])
   const [zoom, setZoom] = useState(1)
@@ -65,6 +71,7 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
   const pagesRef = useRef<HTMLDivElement>(null)
   // Set just before the zoom changes, and used up once the pages have their new size.
   const anchorRef = useRef<ZoomAnchor | null>(null)
+  const heldRef = useRef<HeldAnchor | null>(null)
 
   // Keep the PDF on screen while the new one loads; drop older pending ones.
   useEffect(() => {
@@ -98,7 +105,7 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
       if (!event.ctrlKey && !event.metaKey) return
       event.preventDefault()
       const pages = pagesRef.current
-      if (pages) anchorRef.current = anchorAt(pages.getBoundingClientRect(), event.clientX, event.clientY)
+      if (pages) anchorRef.current = anchorAt(pages, event.clientX, event.clientY, heldRef.current)
       setZoom((z) => clampZoom(z + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)))
     }
     scroller.addEventListener("wheel", onWheel, { passive: false })
@@ -117,8 +124,10 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
     const at = onScreen(anchor, pages.getBoundingClientRect())
     // Across, the panel scrolls. Up and down, the panel does on wide screens and
     // the page on small ones, which would scroll smoothly without "instant".
-    scrollerRef.current.scrollBy({ left: at.x - anchor.clientX, behavior: "instant" })
-    scrollerOf(pages).scrollBy({ top: at.y - anchor.clientY, behavior: "instant" })
+    // Rounded, as WebKit would drop the fraction of a pixel instead.
+    scrollerRef.current.scrollBy({ left: Math.round(at.x - anchor.clientX), behavior: "instant" })
+    scrollerOf(pages).scrollBy({ top: Math.round(at.y - anchor.clientY), behavior: "instant" })
+    heldRef.current = { anchor, box: pages.getBoundingClientRect() }
   }, [zoom])
 
   // The buttons zoom around the middle of what's showing of the panel.
@@ -129,7 +138,7 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
       const box = scroller.getBoundingClientRect()
       const view = uncovered()
       const middle = (Math.max(box.top, view.top) + Math.min(box.top + scroller.clientHeight, view.bottom)) / 2
-      anchorRef.current = anchorAt(pages.getBoundingClientRect(), box.left + scroller.clientWidth / 2, middle)
+      anchorRef.current = anchorAt(pages, box.left + scroller.clientWidth / 2, middle, heldRef.current)
     }
     setZoom(change)
   }
@@ -288,8 +297,16 @@ function clampZoom(zoom: number) {
 // In whole pixels, as react-pdf sizes a page's canvas.
 const pageHeight = (width: number) => Math.floor(width * PAGE_RATIO)
 
-/** Where a point on screen falls on the pages, laid out in `box`. */
-function anchorAt(box: DOMRect, clientX: number, clientY: number): ZoomAnchor {
+/**
+ * Where a point on screen falls on the pages. Zooming again around the same
+ * point, with nothing moved since, keeps to the last zoom's anchor: browsers
+ * scroll by whole pixels, and measuring the point afresh each time would add
+ * up the rounding until it crept away from the cursor.
+ */
+function anchorAt(pages: HTMLElement, clientX: number, clientY: number, held: HeldAnchor | null): ZoomAnchor {
+  const box = pages.getBoundingClientRect()
+  const still = held && held.box.left === box.left && held.box.top === box.top && held.box.width === box.width
+  if (still && held.anchor.clientX === clientX && held.anchor.clientY === clientY) return held.anchor
   const pitch = pageHeight(box.width) + PAGE_GAP
   const down = clientY - box.top
   const page = Math.max(0, Math.floor(down / pitch))

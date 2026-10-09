@@ -131,19 +131,21 @@ for (const { width, layout } of [
     await page.setViewportSize({ width, height: 720 })
     const { preview, email } = await startResume(page)
 
+    // All the way in, a step at a time. Each step scrolls by whole pixels, and
+    // the rounding mustn't add up.
     const cursor = (await middleOf(email))!
     await page.mouse.move(cursor.x, cursor.y)
     await page.keyboard.down("Control")
-    for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -100)
+    for (let i = 0; i < 15; i++) await page.mouse.wheel(0, -100)
     await page.keyboard.up("Control")
-    await expect(preview.getByRole("button", { name: "150%" })).toBeVisible()
+    await expect(preview.getByRole("button", { name: "250%" })).toBeVisible()
     await expect.poll(async () => apart(await middleOf(email), cursor), { message: "the email is still under the cursor" }).toBeLessThan(3)
 
     // And back out again.
     await page.keyboard.down("Control")
-    for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 100)
+    for (let i = 0; i < 10; i++) await page.mouse.wheel(0, 100)
     await page.keyboard.up("Control")
-    await expect(preview.getByRole("button", { name: "120%" })).toBeVisible()
+    await expect(preview.getByRole("button", { name: "150%" })).toBeVisible()
     await expect.poll(async () => apart(await middleOf(email), cursor), { message: "the email is still under the cursor" }).toBeLessThan(3)
 
     expect(errors).toEqual([])
