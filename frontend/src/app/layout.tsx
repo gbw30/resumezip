@@ -2,7 +2,6 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono, Newsreader, Outfit } from "next/font/google"
 import "./globals.css"
-import { FormProvider } from "@/context/ResumeContext"
 
 // Self-hosted at build time, so visitors never load fonts from Google.
 // `subsets` only picks the files every page preloads: the CSS still has a face
@@ -54,9 +53,7 @@ export default function RootLayout({
         <link rel="icon" href="/logo.svg" type="image/svg+xml" />
         <link rel="alternate icon" href="/favicon.ico" type="image/x-icon" />
       </head>
-      <body className="bg-paper font-sans text-ink antialiased">
-        <FormProvider>{children}</FormProvider>
-      </body>
+      <body className="bg-paper font-sans text-ink antialiased">{children}</body>
     </html>
   )
 }

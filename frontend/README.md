@@ -20,7 +20,9 @@ npm run test:browser   # after a build; see below
 
 ## How it fits together
 
-- `src/context/ResumeContext.tsx` shares the resumes with the app.
+- `src/context/ResumeContext.tsx` shares the resumes with the dashboard and
+  the editor (`src/app/create/layout.tsx`); other pages' "Start writing"
+  links only look for their keys (`src/lib/resumeKeys.ts`).
   `src/lib/resumeStore.ts` holds them and saves each one to localStorage under
   a key of its own, shortly after typing stops; `src/lib/resumeStorage.ts`
   does the reading and writing. There are no accounts, so that's the only copy.

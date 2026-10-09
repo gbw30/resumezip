@@ -12,6 +12,10 @@ declare global {
     persistRequests?: number
     /** How many times the page checked whether the person let it keep its data, counted by a test. */
     permissionChecks?: number
+    /** Where the page was each time it read saved resumes, noted by a test. */
+    reads?: string[]
+    /** Set on the open page by a test. A link that loads a new page loses it; one the app opens in the page keeps it. */
+    marked?: boolean
   }
 }
 
@@ -73,10 +77,42 @@ test("when the browser won't let the site save anything, it still works and says
   // has a link in it. That's a problem of its own, not this test's.
   expect(await seriousAccessibilityProblems(page, ['[aria-label="Live preview"]'])).toEqual([])
 
-  // The dashboard says so too, and has the resume until the page is closed.
+  // The dashboard says so too, and has the resume until the page is closed,
+  // through a visit to another page.
   await page.getByRole("link", { name: "Your resumes" }).click()
   await expect(notSaved(page)).toContainText("isn't letting resumezip save anything")
   await expect(page.getByText(/^1 resume\W+not saved$/i)).toBeVisible()
+  await page.getByRole("banner").getByRole("link", { name: "resumezip" }).click()
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page).toHaveURL(/\/create\/dashboard$/)
+  await expect(page.getByText(/^1 resume\W+not saved$/i)).toBeVisible()
+
+  expect(errors).toEqual([])
+})
+
+test("the home page doesn't read saved resumes, and Start writing goes to them", async ({ page }) => {
+  const errors = pageErrors(page)
+  const ada = { id: "ada", resumeTitle: "Ada's resume", resumeTag: "personal", updatedAt: "2026-10-06T12:00:00.000Z" }
+  // A resume saved on an earlier visit, and where the page is each time it reads saved resumes.
+  await page.addInitScript((resume) => {
+    const key = `resume:${resume.id}`
+    if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(resume))
+    window.reads = []
+    const getItem = Storage.prototype.getItem
+    Storage.prototype.getItem = function (key: string) {
+      if (/^(resume:|allResumes)/.test(key)) window.reads?.push(location.pathname)
+      return getItem.call(this, key)
+    }
+  }, ada)
+  await page.goto("/")
+  await page.evaluate(() => (window.marked = true))
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page).toHaveURL(/\/create\/dashboard$/)
+  await expect(page.getByRole("link", { name: ada.resumeTitle }).first()).toBeVisible()
+
+  // The dashboard opened in the same page, so these are all the reads since the home page loaded.
+  expect(await page.evaluate(() => window.marked)).toBe(true)
+  expect(await page.evaluate(() => [...new Set(window.reads)])).toEqual(["/create/dashboard"])
 
   expect(errors).toEqual([])
 })

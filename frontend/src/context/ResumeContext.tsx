@@ -1,11 +1,11 @@
 "use client"
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import React, { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { keepSavedData } from "@/lib/keepSavedData"
 import type { Resume, ResumeContent, ResumeField } from "@/lib/resume"
-import { createResumeStore, INITIAL_STATE, resumeOf, type ResumeState } from "@/lib/resumeStore"
-import { getStorage } from "@/lib/resumeStorage"
+import { getStorage } from "@/lib/resumeKeys"
+import { createResumeStore, INITIAL_STATE, resumeOf, type ResumeState, type ResumeStore } from "@/lib/resumeStore"
 
-/** What changes the resumes. Each keeps the same identity for as long as the page is open. */
+/** What changes the resumes. Each keeps the same identity until the page leaves the dashboard and editor. */
 interface ResumeActions {
   createNewResume: (title: string, tag: string, template?: string) => string
   importResume: (content: ResumeContent, title: string, options?: { keepId?: boolean }) => string
@@ -27,80 +27,80 @@ const ResumeActionsContext = createContext<ResumeActions | null>(null)
 
 const getInitialState = () => INITIAL_STATE
 
-export const FormProvider = ({ children }: { children: React.ReactNode }) => {
-  // Resumes only live in this browser's localStorage; there are no accounts.
-  // lib/resumeStore.ts keeps them, and decides when to save them.
-  const [store] = useState(() => createResumeStore())
-  const state = useSyncExternalStore(store.subscribe, store.getState, getInitialState)
+// Resumes only live in this browser's localStorage; there are no accounts.
+// lib/resumeStore.ts keeps them, and decides when to save them. The page has
+// one store, from the first time it needs the resumes until it's closed, so
+// going to another page keeps what isn't saved yet, as when the browser won't
+// save anything. The server renders with an empty store of its own.
+let pageStore: ResumeStore | null = null
+const storeOfPage = () => (typeof window === "undefined" ? createResumeStore() : (pageStore ??= createResumeStore()))
 
-  // Read the saved resumes once the page is in the browser, take in what
-  // other tabs save, and save what's waiting before the page is closed or
-  // hidden (as when switching apps on a phone).
-  useEffect(() => {
-    const storage = getStorage()
-    store.load(storage)
-    const onStorage = (event: StorageEvent) => {
-      // Only localStorage; sessionStorage changes in a same-origin frame fire this too.
-      if (storage && event.storageArea === storage) store.receive(event.key, event.newValue)
-    }
-    const flush = () => store.flush()
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") store.flush()
-    }
-    window.addEventListener("storage", onStorage)
-    window.addEventListener("pagehide", flush)
-    // And when the window loses focus, as when clicking into another window
-    // with the same resume open, so its changes are saved before typing there.
-    window.addEventListener("blur", flush)
-    document.addEventListener("visibilitychange", onVisibilityChange)
-    return () => {
-      window.removeEventListener("storage", onStorage)
-      window.removeEventListener("pagehide", flush)
-      window.removeEventListener("blur", flush)
-      document.removeEventListener("visibilitychange", onVisibilityChange)
-      store.flush()
-    }
-  }, [store])
+/**
+ * The page's resumes, read from storage the first time they're needed: by
+ * the dashboard or the editor, or by a link that starts a new resume. Only in
+ * the browser.
+ */
+export function openResumes(): ResumeStore {
+  const store = storeOfPage()
+  if (store.getState().loaded) return store
+  const storage = getStorage()
+  store.load(storage)
+
+  // Take in what other tabs save, and save what's waiting before the page is
+  // closed or hidden (as when switching apps on a phone).
+  window.addEventListener("storage", (event) => {
+    // Only localStorage; sessionStorage changes in a same-origin frame fire this too.
+    if (storage && event.storageArea === storage) store.receive(event.key, event.newValue)
+  })
+  const flush = () => store.flush()
+  window.addEventListener("pagehide", flush)
+  // And when the window loses focus, as when clicking into another window
+  // with the same resume open, so its changes are saved before typing there.
+  window.addEventListener("blur", flush)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") store.flush()
+  })
 
   // Closing or reloading the page with changes not saved yet saves them first,
   // and asks if that fails. The listener is only there while something is
   // unsaved, as some browsers can't keep a page that has one for the back
   // button. It follows the store as it changes, not a render later, so a
   // change made just before closing is covered.
-  useEffect(() => {
-    const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      store.flush()
-      if (!store.getState().unsaved) return
-      event.preventDefault()
-      // What browsers before Chrome 119 need to ask.
-      event.returnValue = true
-    }
-    let listening = false
-    const follow = () => {
-      const { unsaved } = store.getState()
-      if (unsaved === listening) return
+  const onBeforeUnload = (event: BeforeUnloadEvent) => {
+    store.flush()
+    if (!store.getState().unsaved) return
+    event.preventDefault()
+    // What browsers before Chrome 119 need to ask.
+    event.returnValue = true
+  }
+  let listening = false
+  // Once there's a resume, ask the browser not to delete it to make room;
+  // once a page is enough.
+  let askedToKeep = false
+  const follow = () => {
+    const { unsaved, resumes } = store.getState()
+    if (unsaved !== listening) {
       listening = unsaved
       if (unsaved) window.addEventListener("beforeunload", onBeforeUnload)
       else window.removeEventListener("beforeunload", onBeforeUnload)
     }
-    follow()
-    const unsubscribe = store.subscribe(follow)
-    return () => {
-      unsubscribe()
-      window.removeEventListener("beforeunload", onBeforeUnload)
+    if (!askedToKeep && storage && Object.keys(resumes).length > 0) {
+      askedToKeep = true
+      void keepSavedData(storage)
     }
-  }, [store])
+  }
+  follow()
+  store.subscribe(follow)
+  return store
+}
 
-  // Once there's a resume, ask the browser not to delete it to make room;
-  // once a page is enough.
-  const hasResumes = Object.keys(state.resumes).length > 0
-  const askedToKeep = useRef(false)
-  useEffect(() => {
-    const storage = getStorage()
-    if (!hasResumes || !storage || askedToKeep.current) return
-    askedToKeep.current = true
-    void keepSavedData(storage)
-  }, [hasResumes])
+/** Shares the resumes with the dashboard and the editor. */
+export const FormProvider = ({ children }: { children: React.ReactNode }) => {
+  const [store] = useState(storeOfPage)
+  const state = useSyncExternalStore(store.subscribe, store.getState, getInitialState)
+
+  // Read the saved resumes once the page is in the browser, unless a page before this one did.
+  useEffect(() => void openResumes(), [])
 
   const actions = useMemo<ResumeActions>(
     () => ({
