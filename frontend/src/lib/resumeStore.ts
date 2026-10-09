@@ -239,6 +239,9 @@ export function createResumeStore(delay = SAVE_DELAY) {
 
   /** Puts back the copy that replace last replaced, if the resume hasn't changed since. */
   function undoReplace(id: string) {
+    // Another tab may have saved a change this tab hasn't heard of yet. Taken
+    // in first, it ends the undo like a change here, rather than being saved over.
+    receive(keyOf(id))
     const { replaced } = state
     if (replaced?.id !== id || replaced.undone) return
     markChanged(id, EVERY_FIELD)

@@ -555,4 +555,20 @@ describe("replacing a resume with a file", () => {
     one.undoReplace("a")
     expect(stored(storage, "a")).toMatchObject({ resumeTitle: "Ada, edited in two", profileSection: older.profileSection })
   })
+
+  test("undoing keeps a change another tab saved since, even before this tab hears of it", () => {
+    const storage = memoryStorage(saved(ada))
+    const one = openTab(storage)
+    const two = openTab(storage)
+    one.replace("a", older)
+    two.receive(keyOf("a"))
+    two.edit("a", "resumeTitle", "Ada, edited in two")
+    two.flush()
+
+    // Undo in one, before its storage event for two's save arrives.
+    one.undoReplace("a")
+    expect(stored(storage, "a")).toMatchObject({ resumeTitle: "Ada, edited in two", profileSection: older.profileSection })
+    expect(one.getState().resumes.a.resumeTitle).toBe("Ada, edited in two")
+    expect(one.getState().replaced).toBeNull()
+  })
 })
