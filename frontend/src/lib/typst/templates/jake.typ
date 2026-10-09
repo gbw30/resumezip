@@ -109,11 +109,11 @@
       }).join(linebreak())),
     )))
   } else if name == "Leadership" and data.leadership.len() > 0 {
-    section(heading-or(hd.leadership, "Leadership Experience"), entries(data.leadership.map(l => {
+    section(heading-or(hd.leadership, "Leadership"), entries(data.leadership.map(l => {
       subheading(l.organization, date-range(l.start, l.end), l.role, l.location, items: l.bullets)
     })))
   } else if name == "Volunteership" and data.volunteer.len() > 0 {
-    section(heading-or(hd.volunteer, "Volunteer Experience"), entries(data.volunteer.map(v => {
+    section(heading-or(hd.volunteer, "Volunteer"), entries(data.volunteer.map(v => {
       subheading(v.organization, date-range(v.start, v.end), v.role, v.location, items: v.bullets)
     })))
   } else if name == "Awards" and data.awards.len() > 0 {

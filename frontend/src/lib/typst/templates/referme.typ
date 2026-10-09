@@ -110,9 +110,9 @@
   } else if name == "Publications" and data.publications.len() > 0 {
     section(heading-or(hd.publications, "Publications"), citations(data.publications, (url, body) => web-link(url, ul(body))))
   } else if name == "Leadership" and data.leadership.len() > 0 {
-    section(heading-or(hd.leadership, "Leadership Experience"), experience(data.leadership, "organization"))
+    section(heading-or(hd.leadership, "Leadership"), experience(data.leadership, "organization"))
   } else if name == "Volunteership" and data.volunteer.len() > 0 {
-    section(heading-or(hd.volunteer, "Volunteer Experience"), experience(data.volunteer, "organization"))
+    section(heading-or(hd.volunteer, "Volunteer"), experience(data.volunteer, "organization"))
   } else if name == "Awards" and data.awards.len() > 0 {
     section(heading-or(hd.awards, "Awards & Certifications"), data.awards.map(a => row(
       {

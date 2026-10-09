@@ -170,7 +170,7 @@ describe("actual extra PDF occurrences", () => {
         sectionOrder: [`extra:${first}`, "Leadership"],
       })
       const result = matchExtraPdf(
-        [line("Interests"), line("Reading fiction"), line("Leadership Experience"), line("Student Council"), line("President")],
+        [line("Interests"), line("Reading fiction"), line("Leadership"), line("Student Council"), line("President")],
         pdfLayoutOf(viewOf(source)),
       )
       expect(result.sections[0].status).toBe("matched")

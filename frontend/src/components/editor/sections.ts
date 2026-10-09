@@ -185,7 +185,7 @@ const DEFINITIONS = {
   },
   Volunteership: {
     name: "Volunteership",
-    title: "Volunteer Experience",
+    title: "Volunteer",
     dataKey: "volunteerExperienceSection",
     headingKey: "volunteer",
     addLabel: "Add volunteering",
@@ -200,7 +200,7 @@ const DEFINITIONS = {
   },
   Leadership: {
     name: "Leadership",
-    title: "Leadership Experience",
+    title: "Leadership",
     dataKey: "leadershipExperienceSection",
     headingKey: "leadership",
     addLabel: "Add leadership",
