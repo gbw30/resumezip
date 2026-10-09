@@ -155,7 +155,11 @@ function getWorker(): Worker {
     }
     watch()
   }
+  // A worker that can't start, as when the page is left while its scripts
+  // load, or that crashes, is replaced. That handles its error, so it isn't
+  // also reported to the page as an uncaught one.
   created.onerror = (event) => {
+    event.preventDefault()
     if (worker === created) restart(new PdfError(event.message || "The Typst worker failed", "crash"))
   }
   worker = created

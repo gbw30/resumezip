@@ -12,7 +12,7 @@ class FakeWorker {
   /** What it sends, 10 ms apart, when asked to load the compiler ahead of a PDF. */
   static loading: WorkerMessage[] = []
   onmessage: ((event: { data: WorkerMessage }) => void) | null = null
-  onerror: ((event: { message: string }) => void) | null = null
+  onerror: ((event: ReturnType<typeof workerError>) => void) | null = null
   terminated = false
   /** The requests to start loading the compiler. */
   loadRequests: Extract<WorkerRequest, { load: true }>[] = []
@@ -38,6 +38,17 @@ class FakeWorker {
 
   terminate() {
     this.terminated = true
+  }
+}
+
+// An error from a worker, as the page gets it, saying whether the page handled it.
+function workerError(message: string) {
+  return {
+    message,
+    handled: false,
+    preventDefault() {
+      this.handled = true
+    },
   }
 }
 
@@ -231,7 +242,7 @@ test("a compiler that breaks fails everything in flight, and the next request st
 test("a broken worker fails everything in flight, and the next request starts a fresh worker", async () => {
   FakeWorker.answer = silent
   const both = [track(compileResume(resume)), track(compileResume(resume))]
-  FakeWorker.made[0].onerror?.({ message: "out of memory" })
+  FakeWorker.made[0].onerror?.(workerError("out of memory"))
   await vi.advanceTimersByTimeAsync(0)
   expect(both.map((result) => result.error?.message)).toEqual(["out of memory", "out of memory"])
 
@@ -242,6 +253,15 @@ test("a broken worker fails everything in flight, and the next request starts a 
   expect(FakeWorker.made).toHaveLength(2)
 })
 
+test("a worker that can't start is replaced, and its error isn't also left to the page as an uncaught one", () => {
+  loadAhead()
+  // As WebKit reports a worker whose scripts were cut short as the page was left.
+  const error = workerError("Load failed")
+  FakeWorker.made[0].onerror?.(error)
+  expect(error.handled).toBe(true)
+  expect(FakeWorker.made[0].terminated).toBe(true)
+})
+
 test("an error from a worker that was already replaced leaves the new one alone", async () => {
   FakeWorker.answer = silent
   track(compileResume(resume))
@@ -249,7 +269,7 @@ test("an error from a worker that was already replaced leaves the new one alone"
 
   FakeWorker.answer = makesPdf
   const next = track(compileResume(resume))
-  FakeWorker.made[0].onerror?.({ message: "late error" })
+  FakeWorker.made[0].onerror?.(workerError("late error"))
   await vi.advanceTimersByTimeAsync(10)
   expect(next.value).toEqual(PDF)
   expect(FakeWorker.made[1].terminated).toBe(false)
