@@ -1,6 +1,8 @@
 // preview.ts keeps one pdf.js worker for all its readings, passing it to each
-// document it opens. That relies on pdf.js leaving a worker it was given
-// running when a document closes, as it only ends workers it started itself.
+// document it opens, as the editor's preview does for the PDFs it shows
+// (components/editor/PdfPreview.tsx). That relies on pdf.js leaving a worker
+// it was given running when a document closes, as it only ends workers it
+// started itself.
 
 import { getDocument, PDFWorker } from "pdfjs-dist/legacy/build/pdf.mjs"
 import { expect, test } from "vitest"

@@ -233,6 +233,24 @@ test("a section with every entry left out isn't printed, title and all", async (
   expect(errors).toEqual([])
 })
 
+test("a section is dragged to a new place from the keyboard, and printed and saved there", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+  await expect.poll(() => printedOrder(page, ["Google", "Python"])).toEqual(["Google", "Python"])
+
+  const sections = page.getByRole("navigation", { name: "Sections" })
+  await sections.getByRole("button", { name: "Reorder Experience" }).focus()
+  await page.keyboard.press("Space")
+  await page.keyboard.press("ArrowDown")
+  await page.keyboard.press("Space")
+  await expect(sections.getByRole("button", { name: "02 Skills" })).toBeVisible()
+  await expect(sections.getByRole("button", { name: "03 Experience" })).toBeVisible()
+  await expect.poll(() => printedOrder(page, ["Google", "Python"])).toEqual(["Python", "Google"])
+  await expect.poll(async () => (await saved(page)).sectionOrder.slice(0, 2)).toEqual(["Skills", "Work"])
+
+  expect(errors).toEqual([])
+})
+
 test("a bullet keeps the focus as it moves, even past one with the same words", async ({ page }) => {
   const errors = pageErrors(page)
   await openSection(page, "Experience")
