@@ -121,6 +121,22 @@ describe("flexible section import review", () => {
     expect(parsed.unplaced).toEqual([])
   })
 
+  test("a file that styles each job's title as a heading isn't split into sections at them", () => {
+    const parsed = parse(
+      "Mara Lin",
+      ["Experience", true],
+      ["Software Engineer", true],
+      "Built the payments service for Acme Inc.",
+      ["Data Analyst", true],
+      "Wrote the monthly reports for Example Co.",
+      ["Research Assistant", true],
+      "Ran the lab's experiments at State University.",
+      ["Education", true],
+      "State University, B.S. in Economics, 2020",
+    )
+    expect(parsed.occurrences?.map((occurrence) => occurrence.heading)).toEqual(["Experience", "Education"])
+  })
+
   test("text it couldn't place is tidied: no soft hyphens, doubled spaces or stray separators", () => {
     const parsed = parse("Mara Lin", ["Presentations", true], "• Talk on accessible soft\u00ADware  at Example Con |")
     expect(parsed.unplaced.map((group) => group.text)).toEqual([["Talk on accessible software at Example Con"]])

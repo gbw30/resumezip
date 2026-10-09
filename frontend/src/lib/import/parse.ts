@@ -1899,11 +1899,7 @@ export function parseResume(file: Line[]): ParsedResume {
     const meaning = known.get(line.index)
     if (meaning) headings.set(line.index, { meaning, label: line.text.replace(/:$/, "") })
     // The first line is usually the name, which can look like a heading.
-    else if (
-      i > 0 &&
-      headingShaped(line) &&
-      (line.heading === true || (guessHeadings && headingStyle(line) && !looksLikeName(line.text)))
-    ) {
+    else if (guessHeadings && i > 0 && headingShaped(line) && headingStyle(line) && !looksLikeName(line.text)) {
       headings.set(line.index, { meaning: { section: null }, label: line.text.replace(/:$/, "") })
     }
   })
