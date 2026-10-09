@@ -66,7 +66,7 @@ export default function Home() {
             <p className="text-xl leading-[1.35] tracking-[-0.015em]">
               resumezip is a free, open-source resume builder that runs in your browser. Pick a template, write, and download the PDF.
             </p>
-            <StartWritingLink className="group flex items-center justify-between gap-4 border-t border-[#171717] pt-4">
+            <StartWritingLink className="group flex items-center justify-between gap-4 border-t border-[#171717] pt-4" preloadOnHover>
               <span className="label-caps decoration-2 underline-offset-4 group-hover:underline">Start writing</span>
               <span className="inline-flex h-7 w-7 items-center justify-center bg-accent text-white transition duration-200 group-hover:bg-[#2550d4] motion-safe:group-hover:translate-x-0.5 motion-safe:group-hover:-translate-y-0.5">
                 <ArrowUpRight />
@@ -96,7 +96,10 @@ export default function Home() {
             <p className="max-w-[520px] text-xl leading-[1.35] tracking-[-0.015em]">
               No account, no uploads. To switch devices, open your PDF or Word file on the new one.
             </p>
-            <StartWritingLink className="label-caps inline-flex h-11 items-center gap-3 self-start border border-white px-[18px] transition-colors hover:bg-white hover:text-accent">
+            <StartWritingLink
+              className="label-caps inline-flex h-11 items-center gap-3 self-start border border-white px-[18px] transition-colors hover:bg-white hover:text-accent"
+              preloadOnHover
+            >
               Start writing <ArrowUpRight />
             </StartWritingLink>
           </div>

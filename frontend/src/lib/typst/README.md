@@ -13,8 +13,10 @@ server to build a PDF.
   the limit applies to one step at a time. Previews compile one at a time:
   while one runs, only the newest waits, and downloads never wait behind them. Failures say why
   (`PdfFailure`), so the page can say what to do. `loadCompiler` starts the
-  download before the first PDF: "Start writing" and the editor call it at
-  once, and the dashboard after a second, unless the visitor is saving data.
+  download before the first PDF: "Start writing" links call it as a mouse
+  rests on one or presses it (template pictures only on a press), a moment
+  before the click; the editor calls it at once; and the dashboard after a
+  second. Visitors saving data only get it once they open a resume.
   `compilerStatus` says how much of the compiler has arrived, which the
   preview's stand-in page shows (`src/components/editor/PrintingPage.tsx`).
 - `typst.worker.ts` loads the WebAssembly compiler and the templates once, and

@@ -82,7 +82,9 @@ export default function SiteHeader({ variant = "light", onStartWriting }: SiteHe
         Start writing
       </button>
     ) : (
-      <StartWritingLink className={className}>Start writing</StartWritingLink>
+      <StartWritingLink className={className} preloadOnHover>
+        Start writing
+      </StartWritingLink>
     )
 
   return (

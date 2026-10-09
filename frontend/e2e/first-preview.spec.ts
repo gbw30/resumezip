@@ -3,7 +3,8 @@ import { pageErrors } from "./helpers"
 
 // The first preview waits for the PDF compiler to download. A stand-in page
 // shows meanwhile (components/editor/PrintingPage.tsx), and the dashboard
-// starts the download before the editor opens (lib/typst/compile.ts).
+// starts the download before the editor opens (lib/typst/compile.ts), as
+// does reaching for "Start writing" (components/site/StartWriting.tsx).
 
 const resume = {
   id: "first-preview",
@@ -109,12 +110,53 @@ test("the dashboard starts the compiler, and the editor uses the same one", asyn
   expect(errors).toEqual([])
 })
 
-test("visitors saving data don't download the compiler on the dashboard", async ({ page }) => {
+test("the compiler starts downloading as a mouse rests on Start writing, not while the home page is read", async ({ page }) => {
+  const errors = pageErrors(page)
+  const workers = compilerWorkers(page)
+  await page.goto("/")
+  // Looking over the templates' pictures doesn't start it.
+  const pictures = page.getByRole("region", { name: "Templates" }).getByRole("link", { name: / template/ })
+  for (const picture of await pictures.all()) await picture.hover()
+  await page.waitForTimeout(1_000)
+  expect(workers).toEqual([])
+
+  const startWriting = page.getByRole("link", { name: "Start writing" }).first()
+  await startWriting.hover()
+  await expect.poll(() => workers.length).toBe(1)
+  await startWriting.click()
+  await expect(page.getByRole("region", { name: "Live preview" }).locator("canvas")).toBeVisible()
+  // The editor uses the compiler that started.
+  expect(workers).toHaveLength(1)
+  expect(errors).toEqual([])
+})
+
+test("pressing a template's picture starts the compiler before the click", async ({ page }) => {
+  const errors = pageErrors(page)
+  const workers = compilerWorkers(page)
+  await page.goto("/templates")
+  await page.getByRole("link", { name: /^Harvard template/ }).hover()
+  await page.waitForTimeout(500)
+  expect(workers).toEqual([])
+
+  await page.mouse.down()
+  await expect.poll(() => workers.length).toBe(1)
+  await page.mouse.up()
+  await expect(page.getByRole("region", { name: "Live preview" }).locator("canvas")).toBeVisible()
+  expect(workers).toHaveLength(1)
+  expect(errors).toEqual([])
+})
+
+test("visitors saving data don't download the compiler ahead, on the home page or the dashboard", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "connection", { value: { saveData: true, effectiveType: "4g" } })
   })
-  await saveResume(page)
   const workers = compilerWorkers(page)
+  await page.goto("/")
+  await page.getByRole("link", { name: "Start writing" }).first().hover()
+  await page.waitForTimeout(1_000)
+  expect(workers).toEqual([])
+
+  await saveResume(page)
   await page.goto("/create/dashboard")
   await expect(page.getByRole("link", { name: resume.resumeTitle }).first()).toBeVisible()
   await page.waitForTimeout(3_000)
