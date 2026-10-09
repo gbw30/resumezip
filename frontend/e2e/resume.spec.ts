@@ -136,3 +136,97 @@ test("a long resume's PDF opens again with nothing cut off", async ({ page, brow
   expect(errors).toEqual([])
   expect(otherErrors).toEqual([])
 })
+
+test("an older PDF of a resume in this browser says it's older, and replacing the resume with it can be undone", async ({
+  page,
+}, testInfo) => {
+  const errors = pageErrors(page)
+  const resume = {
+    id: "ada",
+    resumeTitle: "Ada",
+    resumeTag: "personal",
+    updatedAt: "2026-10-05T09:00:00.000Z",
+    selectedTemplate: "jake",
+    sectionOrder: ["Work", "Education", "Skills", "Projects", "Publications", "Volunteership", "Leadership", "Awards"],
+    headings: {},
+    profileSection: { fullName: "Ada Lovelace" },
+    educationSection: [],
+    workExperienceSection: [{ id: 1, workRole: "Engineer", companyName: "Google", workDescription: "• Built the search index" }],
+    projectsSection: [],
+    publicationsSection: [],
+    skillsSection: [],
+    volunteerExperienceSection: [],
+    leadershipExperienceSection: [],
+    awardsSection: [],
+  }
+  await page.addInitScript(
+    ({ key, value }) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, value)
+    },
+    { key: "resume:ada", value: JSON.stringify(resume) },
+  )
+  const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem("resume:ada") ?? "{}"))
+  const preview = page.getByRole("region", { name: "Live preview" })
+  const openExperience = () =>
+    page
+      .getByRole("navigation", { name: "Sections" })
+      .getByRole("button", { name: /^\d+ Experience$/ })
+      .click()
+  const role = page.getByLabel("Role", { exact: true })
+  const bullets = page.getByLabel("What you did · one bullet per line")
+
+  // The PDF is downloaded, then the resume changes: a new role, and a new bullet.
+  await page.goto("/create/new/ada")
+  await expect(preview.getByText(/Ada Lovelace/i).first()).toBeVisible()
+  const downloading = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Download PDF" }).click()
+  const pdf = testInfo.outputPath("ada.pdf")
+  await (await downloading).saveAs(pdf)
+  await openExperience()
+  await role.fill("Senior Engineer")
+  await bullets.fill("• Built the search index\n• Shipped the new ranking")
+  await expect.poll(async () => (await saved()).workExperienceSection[0]).toMatchObject({ workRole: "Senior Engineer" })
+  await expect.poll(async () => (await saved()).workExperienceSection[0].workDescription).toContain("Shipped the new ranking")
+
+  // Opening the PDF says it's older, and the main choice is to keep both.
+  await page.goto("/create/dashboard")
+  await page.locator('input[type="file"]').setInputFiles(pdf)
+  const conflict = page.getByRole("dialog", { name: "You already have this resume" })
+  await expect(conflict).toContainText("The PDF is older")
+  await expect(conflict).toContainText("Replacing loses your changes since then.")
+  // The main choice is the dark one.
+  await expect(conflict.getByRole("button", { name: "Keep both" })).toHaveCSS("background-color", "rgb(17, 19, 24)")
+  await expect(conflict.getByRole("button", { name: "Replace with the PDF" })).not.toHaveCSS("background-color", "rgb(17, 19, 24)")
+
+  // Replacing anyway brings back the PDF's version, as last edited when the PDF says.
+  await conflict.getByRole("button", { name: "Replace with the PDF" }).click()
+  await expect(page).toHaveURL(/\/create\/new\/ada$/)
+  await expect(page.getByText("This resume now has what's in the PDF.")).toBeVisible()
+  await openExperience()
+  await expect(role).toHaveValue("Engineer")
+  await expect(bullets).toHaveValue("• Built the search index")
+  expect(await saved()).toMatchObject({ updatedAt: resume.updatedAt, workExperienceSection: [{ workRole: "Engineer" }] })
+  expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
+
+  // So the same PDF opened again is nothing new, and opens without asking. The undo is still there.
+  await page.getByRole("link", { name: "Your resumes" }).click()
+  await page.locator('input[type="file"]').setInputFiles(pdf)
+  await expect(page).toHaveURL(/\/create\/new\/ada$/)
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+
+  // Undo puts back what changed since the PDF, and saves it.
+  await page.getByRole("button", { name: "Undo" }).click()
+  await expect(page.getByText("It's back as it was before you opened the PDF.")).toBeFocused()
+  await openExperience()
+  await expect(role).toHaveValue("Senior Engineer")
+  await expect(bullets).toHaveValue("• Built the search index\n• Shipped the new ranking")
+  await expect.poll(async () => (await saved()).workExperienceSection[0]).toMatchObject({ workRole: "Senior Engineer" })
+
+  // Kept after a reload, where there's nothing left to undo.
+  await page.reload()
+  await openExperience()
+  await expect(role).toHaveValue("Senior Engineer")
+  await expect(page.getByText("It's back as it was before you opened the PDF.")).toHaveCount(0)
+
+  expect(errors).toEqual([])
+})
