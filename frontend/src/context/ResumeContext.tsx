@@ -6,7 +6,10 @@ import { getStorage } from "@/lib/resumeKeys"
 import { createResumeStore, INITIAL_STATE, resumeOf, type ResumeState, type ResumeStore } from "@/lib/resumeStore"
 
 /** What changes the resumes. Each keeps the same identity until the page leaves the dashboard and editor. */
-interface ResumeActions extends Pick<ResumeStore, "addSection" | "editSection" | "includeSection" | "deleteSection" | "reorderSections"> {
+interface ResumeActions extends Pick<
+  ResumeStore,
+  "addSection" | "editSection" | "includeSection" | "removeSection" | "deleteSection" | "reorderSections"
+> {
   createNewResume: (title: string, tag: string, template?: string) => string
   importResume: (content: ResumeContent, title: string, options?: { keepId?: boolean }) => string
   replaceResume: (id: string, content: ResumeContent) => void
@@ -120,6 +123,7 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
       addSection: store.addSection,
       editSection: store.editSection,
       includeSection: store.includeSection,
+      removeSection: store.removeSection,
       deleteSection: store.deleteSection,
       reorderSections: store.reorderSections,
       subscribe: store.subscribe,

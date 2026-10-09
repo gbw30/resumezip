@@ -107,6 +107,27 @@ test("optional section lifecycle, duplicate headings, keyboard movement and v2 P
   expect(errors).toEqual([])
 })
 
+test("a resume starts with four sections, and the optional ones are added and deleted from the list", async ({ page }) => {
+  const errors = pageErrors(page)
+  await open(page)
+  await previewShown(page)
+  await expect(nav(page).getByRole("button", { name: /^\d+ (Education|Experience|Skills|Projects)$/ })).toHaveCount(4)
+  await expect(nav(page).getByRole("button", { name: /^\d+ Awards & Certifications$/ })).toHaveCount(0)
+  await add(page, "Awards & Certifications")
+  await expect(page.getByRole("heading", { name: "Awards & Certifications", exact: true })).toBeVisible()
+  await expect.poll(async () => (await saved(page)).sectionOrder).toContain("Awards")
+  // Added once: it's no longer offered.
+  await nav(page).getByRole("button", { name: "Add section", exact: true }).click()
+  await expect(nav(page).getByRole("button", { name: "Add Awards & Certifications section", exact: true })).toHaveCount(0)
+  await nav(page).getByRole("button", { name: "Add section", exact: true }).click()
+  await page.getByRole("button", { name: "Delete section", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeFocused()
+  await page.getByRole("button", { name: "Delete section", exact: true }).click()
+  await expect(nav(page).getByRole("button", { name: /^\d+ Awards & Certifications$/ })).toHaveCount(0)
+  await expect.poll(async () => (await saved(page)).sectionOrder).not.toContain("Awards")
+  expect(errors).toEqual([])
+})
+
 test("extra-only checking targets original list lines and deletion restores focus in Check mode", async ({ page }) => {
   const sectionId = "11111111-1111-4111-8111-111111111111"
   await page.addInitScript(

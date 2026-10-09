@@ -9,7 +9,7 @@
 // without being saved again; if both tabs changed the same resume, the fields
 // each one changed are kept.
 
-import { SECTION_NAMES } from "@/components/editor/sections"
+import { CORE_SECTIONS, SECTIONS, type SectionName } from "@/components/editor/sections"
 import type { Resume, ResumeContent, ResumeField } from "./resume"
 import {
   changedPaths,
@@ -83,7 +83,7 @@ const blankResume = (template: string): Resume => ({
   skillsSection: [],
   leadershipExperienceSection: [],
   awardsSection: [],
-  sectionOrder: [...SECTION_NAMES],
+  sectionOrder: [...CORE_SECTIONS],
 })
 
 const without = (resumes: Record<string, Resume>, id: string) => Object.fromEntries(Object.entries(resumes).filter(([key]) => key !== id))
@@ -152,9 +152,18 @@ export function createResumeStore(delay = SAVE_DELAY) {
     saveSoon()
   }
 
-  function addSection(id: string, kind: ExtraKind): SectionRef | null {
+  /**
+   * Adds a section at the end, and gives back where it is: an optional one by
+   * its name (where it is already, if it's there), or a new text or bullet list.
+   */
+  function addSection(id: string, kind: ExtraKind | SectionName): SectionRef | null {
     if (!has(id)) return null
     const resume = state.resumes[id]
+    if (kind !== "text" && kind !== "list") {
+      const order = resolveSections(resume)
+      if (!order.includes(kind)) commit(id, { sectionOrder: [...order, kind] }, ["sectionOrder"])
+      return kind
+    }
     const extras: ExtraSections = resume.extraSections ?? {}
     const key = crypto.randomUUID()
     const ref = extraRef(key)
@@ -191,6 +200,16 @@ export function createResumeStore(delay = SAVE_DELAY) {
 
   function includeSection(id: string, key: string, included: boolean) {
     editSection(id, key, { leftOut: !included })
+  }
+
+  /** Takes an optional section off the resume, with its entries, and its title if it was renamed. */
+  function removeSection(id: string, name: SectionName) {
+    if (!has(id) || !SECTIONS[name].optional) return
+    const resume = state.resumes[id]
+    const { dataKey, headingKey } = SECTIONS[name]
+    const headings = Object.fromEntries(Object.entries(resume.headings ?? {}).filter(([key]) => key !== headingKey))
+    const changes: Partial<Resume> = { sectionOrder: resolveSections(resume).filter((ref) => ref !== name), [dataKey]: [], headings }
+    commit(id, changes, ["sectionOrder", dataKey, ...changedPaths("headings", resume.headings, headings)])
   }
 
   function deleteSection(id: string, key: string) {
@@ -460,6 +479,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
     addSection,
     editSection,
     includeSection,
+    removeSection,
     deleteSection,
     reorderSections,
     create,

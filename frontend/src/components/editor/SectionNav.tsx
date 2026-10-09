@@ -10,7 +10,7 @@ import { nextAnnouncement } from "./arrange"
 import { loadDragAndDrop, type DragAndDrop } from "./dragAndDrop"
 import { MoveButtons } from "./fields"
 import { WIDE_SCREEN } from "./layout"
-import { SECTIONS, type SectionName } from "./sections"
+import { SECTION_NAMES, SECTIONS, type SectionName } from "./sections"
 
 export type ActiveSection = "Profile" | SectionRef
 
@@ -22,7 +22,7 @@ interface SectionNavProps {
   active: ActiveSection
   onSelect: (section: ActiveSection) => void
   onReorder: (sections: SectionRef[]) => void
-  onAdd?: (kind: ExtraKind) => void
+  onAdd?: (kind: ExtraKind | SectionName) => void
 }
 
 const pad = (n: number) => String(n).padStart(2, "0")
@@ -102,6 +102,10 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
   const counts = new Map<string, number>()
   for (const title of titles.values()) counts.set(title, (counts.get(title) ?? 0) + 1)
   const titleOf = (name: SectionRef) => titles.get(name)!
+  // The optional sections that aren't on the resume, which Add section offers before a text or bullet list.
+  const addable = SECTION_NAMES.filter((name) => SECTIONS[name].optional && !sections.includes(name)).map(
+    (name) => [name, SECTIONS[name].title] as const,
+  )
   // Two sections can have the same title, so a screen reader also hears where each is.
   const labelOf = (name: SectionRef, index: number) =>
     (counts.get(titleOf(name)) ?? 0) > 1 ? `${titleOf(name)}, section ${index + 2}` : titleOf(name)
@@ -207,12 +211,7 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
           </button>
           {adding && (
             <div role="group" aria-label="Add section" className="flex flex-col gap-1 rounded-[4px] border border-rule bg-sheet p-2">
-              {(
-                [
-                  ["text", "Text"],
-                  ["list", "Bullet list"],
-                ] as const
-              ).map(([kind, title]) => (
+              {[...addable, ["text", "Text"] as const, ["list", "Bullet list"] as const].map(([kind, title]) => (
                 <button
                   key={kind}
                   type="button"

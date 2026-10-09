@@ -118,6 +118,13 @@ describe("cleanResume", () => {
     expect(new Set(clean.sectionOrder).size).toBe(clean.sectionOrder?.length)
   })
 
+  test("keeps the saved order, with the core sections, and an optional one only with entries", () => {
+    expect(cleanResume({ sectionOrder: ["Projects", "Work"] }).sectionOrder).toEqual(["Projects", "Work", "Education", "Skills"])
+    expect(cleanResume({ sectionOrder: ["Awards"] }).sectionOrder).toEqual(["Awards", "Education", "Work", "Skills", "Projects"])
+    const filled = cleanResume({ sectionOrder: ["Work"], awardsSection: [{ awardName: "Prize" }] })
+    expect(filled.sectionOrder).toEqual(["Work", "Education", "Skills", "Projects", "Awards"])
+  })
+
   test("turns bullets an earlier version kept as a list into lines, all of them", () => {
     const lines = Array.from({ length: 2000 }, (_, index) => `Shipped release ${index + 1}`)
     const clean = cleanResume({ workExperienceSection: [{ workDescription: lines }] })

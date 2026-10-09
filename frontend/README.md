@@ -34,8 +34,11 @@ npm run test:browser   # after a build; see below
 - `src/lib/resumeSections.ts` owns the sections a person adds: text or bullet
   lists. The summary is a profile field. Built-in sections keep their existing
   fields; extras have stable map identities and share the saved section order
-  through `extra:<key>` references. Opening an old resume creates no optional sections.
-  The editor's Add section catalog and move controls manage these identities.
+  through `extra:<key>` references. Opening an old resume creates none.
+  `resolveSections` is the order the editor shows and the PDF prints. A new
+  resume starts with the core sections; Publications, Volunteer, Leadership and
+  Awards & Certifications are `optional` (`components/editor/sections.ts`) and
+  show once they're in the saved order, from Add section, or have entries.
 - `src/lib/typst/` builds PDFs in a Web Worker. Its README covers adding a
   template.
 - `src/lib/resumeFile.ts`: every downloaded PDF carries its resume, so the PDF

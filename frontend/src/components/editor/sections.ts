@@ -43,6 +43,11 @@ interface Definition<Field extends string, Data extends string, Heading extends 
   choice?: ChoiceDef<Choice>
   /** Entries can also be added from a paper's DOI or link. */
   fromPaperLink?: boolean
+  /**
+   * Not on a new resume: the person adds it from Add section, and can delete
+   * it. A resume that has entries in it shows it either way.
+   */
+  optional?: true
 }
 
 /**
@@ -169,6 +174,7 @@ const DEFINITIONS = {
   Publications: {
     name: "Publications",
     title: "Publications",
+    optional: true,
     dataKey: "publicationsSection",
     headingKey: "publications",
     addLabel: "Add publication",
@@ -186,6 +192,7 @@ const DEFINITIONS = {
   Volunteership: {
     name: "Volunteership",
     title: "Volunteer",
+    optional: true,
     dataKey: "volunteerExperienceSection",
     headingKey: "volunteer",
     addLabel: "Add volunteering",
@@ -201,6 +208,7 @@ const DEFINITIONS = {
   Leadership: {
     name: "Leadership",
     title: "Leadership",
+    optional: true,
     dataKey: "leadershipExperienceSection",
     headingKey: "leadership",
     addLabel: "Add leadership",
@@ -216,6 +224,7 @@ const DEFINITIONS = {
   Awards: {
     name: "Awards",
     title: "Awards & Certifications",
+    optional: true,
     dataKey: "awardsSection",
     headingKey: "awards",
     addLabel: "Add award",
@@ -246,6 +255,9 @@ export type SectionDef = Definition<FieldKey, DataKey, HeadingKey, ChoiceKey>
 export const SECTIONS: Record<SectionName, SectionDef> = DEFINITIONS
 
 export const SECTION_NAMES = Object.keys(SECTIONS) as SectionName[]
+
+/** The sections a new resume starts with, in their order; the others are added from Add section. */
+export const CORE_SECTIONS = SECTION_NAMES.filter((name) => !SECTIONS[name].optional)
 
 /**
  * Tailwind classes for a field's width in the form's grid: 2 columns, or 4

@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import { useOpenResume, useResumeActions, useResumeField } from "@/context/ResumeContext"
 import { extraHeading, type ExtraSection } from "@/lib/resumeSections"
 import { useCheckActions, useCheckTarget } from "./CheckContext"
+import DeleteSection from "./DeleteSection"
 import { BulletsField, FlagNote, SectionHeading, selectLine } from "./fields"
 import { reducedMotion } from "./layout"
 
@@ -14,17 +15,12 @@ export default function ExtraSectionForm({ sectionId, position, onDelete }: { se
   const extraSections = useResumeField("extraSections")
   const section: ExtraSection | undefined = extraSections?.[sectionId]
   const root = useRef<HTMLDivElement>(null)
-  const cancel = useRef<HTMLButtonElement>(null)
-  const [confirming, setConfirming] = useState(false)
   const target = useCheckTarget()
   const { pending, claim } = useCheckActions()
   const place = target?.finding.place
   const here = place && "sectionId" in place && place.sectionId === sectionId ? place : null
   const flagAt = (field: "text" | "bullets") => (here?.kind === "extra-text" && here.field === field ? target!.finding : null)
 
-  useEffect(() => {
-    if (confirming) cancel.current?.focus()
-  }, [confirming])
   useEffect(() => {
     const place = target?.finding.place
     if (!target || !place || !("sectionId" in place) || place.sectionId !== sectionId || !pending(target.request)) return
@@ -41,32 +37,6 @@ export default function ExtraSectionForm({ sectionId, position, onDelete }: { se
 
   if (!section) return null
   const title = extraHeading(section)
-  // Back to the Delete button, as when the question is answered with Cancel or Escape.
-  const keep = () => {
-    setConfirming(false)
-    requestAnimationFrame(() => root.current?.querySelector<HTMLElement>("[data-delete]")?.focus())
-  }
-  const remove = confirming ? (
-    <span
-      className="flex flex-wrap items-center gap-3"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") keep()
-      }}
-    >
-      <span className="text-sm text-ink-2">Delete this section?</span>
-      <button ref={cancel} type="button" onClick={keep} className="text-sm underline underline-offset-4">
-        Cancel
-      </button>
-      <button type="button" onClick={onDelete} className="text-sm text-[#b42318] underline underline-offset-4">
-        Delete section
-      </button>
-    </span>
-  ) : (
-    <button type="button" data-delete onClick={() => setConfirming(true)} className="text-sm text-ink-2 underline underline-offset-4">
-      Delete section
-    </button>
-  )
-
   return (
     <div ref={root} className="flex flex-col gap-7">
       <SectionHeading
@@ -86,7 +56,7 @@ export default function ExtraSectionForm({ sectionId, position, onDelete }: { se
           />
           Include section in the PDF
         </label>
-        {remove}
+        <DeleteSection onDelete={onDelete} />
       </div>
       {section.leftOut && <p className="text-sm text-ink-2">This section stays saved here and is left out of the PDF and checks.</p>}
       {section.kind === "text" && (

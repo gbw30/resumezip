@@ -19,7 +19,7 @@ import DownloadFailed, { nextFailure, type Failure } from "@/components/site/Dow
 import NotSaved from "@/components/site/NotSaved"
 import { SECTIONS, type SectionName } from "@/components/editor/sections"
 import type { Resume } from "@/lib/resume"
-import { extraKey, resolveSections, type ExtraKind, type SectionRef } from "@/lib/resumeSections"
+import { extraKey, filledSections, resolveSections, type ExtraKind, type SectionRef } from "@/lib/resumeSections"
 import { resumeOf } from "@/lib/resumeStore"
 import { uniqueTitle } from "@/lib/resumeTitles"
 import { compilePreview, downloadResume, loadCompiler, printedOf, Superseded } from "@/lib/typst/compile"
@@ -73,7 +73,7 @@ export default function EditorPage() {
 // preview follows it in the store, so typing re-renders only the form being
 // typed in, not the editor around it.
 function Editor({ id }: { id: string }) {
-  const { getState, subscribe, addSection, deleteSection, reorderSections } = useResumeActions()
+  const { getState, subscribe, addSection, removeSection, deleteSection, reorderSections } = useResumeActions()
   const { read, update } = useOpenResume()
   const loaded = useResumeState((state) => state.loaded)
   // Whether this browser has the resume, once storage has loaded.
@@ -117,7 +117,16 @@ function Editor({ id }: { id: string }) {
   }, [found, template])
 
   // The saved order, plus any sections missing from older resumes.
-  const sections = useMemo(() => resolveSections({ sectionOrder: savedOrder, extraSections }), [savedOrder, extraSections])
+  // The optional sections with entries, which show even when the saved order lacks them. As
+  // text, so typing in one doesn't re-render the editor.
+  const filled = useResumeState((state) => {
+    const resume = resumeOf(state, id)
+    return resume ? filledSections(resume).join(" ") : ""
+  })
+  const sections = useMemo(
+    () => resolveSections({ sectionOrder: savedOrder, extraSections }, filled ? (filled.split(" ") as SectionName[]) : []),
+    [savedOrder, extraSections, filled],
+  )
   const selected = active === "Profile" || sections.includes(active) ? active : "Profile"
 
   const preview = useMemo(
@@ -239,7 +248,7 @@ function Editor({ id }: { id: string }) {
 
   const reorder = useCallback((order: SectionRef[]) => reorderSections(id, order), [reorderSections, id])
   const add = useCallback(
-    (kind: ExtraKind) => {
+    (kind: ExtraKind | SectionName) => {
       const ref = addSection(id, kind)
       if (!ref) return
       select(ref)
@@ -247,6 +256,19 @@ function Editor({ id }: { id: string }) {
     },
     [addSection, id, select],
   )
+  // Takes the section shown off the resume, and shows the one before it, or else after it.
+  const remove = useCallback(() => {
+    if (selected === "Profile") return
+    const index = sections.indexOf(selected)
+    const next: ActiveSection = sections[index - 1] ?? sections[index + 1] ?? "Profile"
+    const key = extraKey(selected)
+    if (key !== null) deleteSection(id, key)
+    else removeSection(id, selected as SectionName)
+    select(next)
+    requestAnimationFrame(() =>
+      (document.querySelector<HTMLElement>(`[data-section-ref="${next}"]`) ?? mainRef.current?.querySelector<HTMLElement>("h1"))?.focus(),
+    )
+  }, [sections, selected, id, deleteSection, removeSection, select])
   const chooseTemplate = useCallback((template: TemplateId) => update("selectedTemplate", template), [update])
   // The same element while what it shows is, so the left bar (memo) doesn't re-render with a new preview.
   const nav = useMemo(
@@ -401,24 +423,13 @@ function Editor({ id }: { id: string }) {
                 {selected === "Profile" ? (
                   <ProfileForm position={position(1)} />
                 ) : extraKey(selected) !== null ? (
-                  <ExtraSectionForm
-                    sectionId={extraKey(selected)!}
-                    position={position(sections.indexOf(selected) + 2)}
-                    onDelete={() => {
-                      const index = sections.indexOf(selected)
-                      const next: ActiveSection = sections[index - 1] ?? sections[index + 1] ?? "Profile"
-                      deleteSection(id, extraKey(selected)!)
-                      select(next)
-                      requestAnimationFrame(() =>
-                        (
-                          document.querySelector<HTMLElement>(`[data-section-ref="${next}"]`) ??
-                          mainRef.current?.querySelector<HTMLElement>("h1")
-                        )?.focus(),
-                      )
-                    }}
-                  />
+                  <ExtraSectionForm sectionId={extraKey(selected)!} position={position(sections.indexOf(selected) + 2)} onDelete={remove} />
                 ) : (
-                  <SectionForm section={SECTIONS[selected as SectionName]} position={position(sections.indexOf(selected) + 2)} />
+                  <SectionForm
+                    section={SECTIONS[selected as SectionName]}
+                    position={position(sections.indexOf(selected) + 2)}
+                    onDelete={SECTIONS[selected as SectionName].optional ? remove : undefined}
+                  />
                 )}
               </div>
             </div>

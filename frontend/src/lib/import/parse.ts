@@ -14,7 +14,7 @@ import {
   type SectionName,
 } from "@/components/editor/sections"
 import type { CompleteContent, ResumeContent } from "@/lib/resume"
-import type { ExtraSections, SectionRef } from "@/lib/resumeSections"
+import { extraKey, resolveSections, type ExtraSections, type SectionRef } from "@/lib/resumeSections"
 import { SOFT_HYPHEN, type Line, type Part } from "./lines"
 
 /** An entry's values, keyed by its section's field names. */
@@ -2065,10 +2065,6 @@ export function toResumeContent(parsed: ParsedResume, skip: Set<string> = new Se
   const resume: ResumeContent = {
     profileSection: { ...parsed.profile },
     headings: {},
-    sectionOrder: [
-      ...parsed.sections.map((section) => section.name),
-      ...SECTION_NAMES.filter((name) => !parsed.sections.some((section) => section.name === name)),
-    ],
   }
   for (const name of SECTION_NAMES) {
     const section = parsed.sections.find((found) => found.name === name)
@@ -2099,15 +2095,17 @@ export function toResumeContent(parsed: ParsedResume, skip: Set<string> = new Se
         : { ...common, kind, bullets: group.text.map((line) => `• ${line.replace(/^[•○]\s*/, "")}`).join("\n") }
     positions.set(`extra:${key}`, group.headingLine ?? group.lines[0] ?? Number.MAX_SAFE_INTEGER)
   })
-  if (Object.keys(extras).length) {
-    resume.extraSections = extras
-    const authored: SectionRef[] = [
-      ...parsed.sections.map((section) => section.name),
-      ...Object.keys(extras).map((key): SectionRef => `extra:${key}`),
-    ]
-    authored.sort((a, b) => (positions.get(a) ?? Number.MAX_SAFE_INTEGER) - (positions.get(b) ?? Number.MAX_SAFE_INTEGER))
-    resume.sectionOrder = [...authored, ...SECTION_NAMES.filter((name) => !authored.includes(name))]
-  }
+  if (Object.keys(extras).length) resume.extraSections = extras
+  // The sections found, in the file's order, but an optional one only with an
+  // entry ticked; then the core sections the file doesn't have.
+  const authored: SectionRef[] = [
+    ...parsed.sections.map((section) => section.name),
+    ...Object.keys(extras).map((key): SectionRef => `extra:${key}`),
+  ].filter(
+    (ref) => extraKey(ref) !== null || !SECTIONS[ref as SectionName].optional || resume[SECTIONS[ref as SectionName].dataKey]?.length,
+  )
+  authored.sort((a, b) => (positions.get(a) ?? Number.MAX_SAFE_INTEGER) - (positions.get(b) ?? Number.MAX_SAFE_INTEGER))
+  resume.sectionOrder = resolveSections({ ...resume, sectionOrder: authored })
   // Every section is set above.
   return resume as CompleteContent
 }

@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from "vitest"
-import { extraGroupKey, parseResume, toResumeContent, unplacedKey } from "./parse"
+import { CORE_SECTIONS } from "@/components/editor/sections"
+import { entryKey, extraGroupKey, parseResume, toResumeContent, unplacedKey } from "./parse"
 import { readFile } from "./read"
 import { wordFile } from "./testFiles"
 import type { Line } from "./lines"
@@ -41,6 +42,12 @@ describe("flexible section import review", () => {
     } finally {
       uuid.mockRestore()
     }
+  })
+
+  test("a resume from a file has the core sections, and the optional ones with an entry ticked", () => {
+    const parsed = parse("Mara Lin", ["Awards", true], "Dean's List, State University 2024")
+    expect(toResumeContent(parsed).sectionOrder).toEqual(["Awards", ...CORE_SECTIONS])
+    expect(toResumeContent(parsed, new Set([entryKey("Awards", 0)])).sectionOrder).toEqual(CORE_SECTIONS)
   })
 
   test("the summaries ticked go together in the profile's summary, in the file's order", () => {

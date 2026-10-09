@@ -126,14 +126,9 @@ export function cleanResume(input: unknown): ResumeContent {
   const resume = object(input)
   const profile = object(resume.profileSection)
   const headings = object(resume.headings)
-  const saved = (Array.isArray(resume.sectionOrder) ? resume.sectionOrder : []).filter(
-    (name, index, all): name is (typeof SECTION_NAMES)[number] =>
-      SECTION_NAMES.includes(name as (typeof SECTION_NAMES)[number]) && all.indexOf(name) === index,
-  )
 
   const clean: ResumeContent = {
     selectedTemplate: templateById(resume.selectedTemplate).id,
-    sectionOrder: [...saved, ...SECTION_NAMES.filter((name) => !saved.includes(name))],
     headings: Object.fromEntries(
       SECTION_NAMES.map((name) => SECTIONS[name].headingKey)
         .filter((key) => string(headings[key]).trim() !== "")
@@ -167,7 +162,8 @@ export function cleanResume(input: unknown): ResumeContent {
     if (!decoded.complete) throw new AttachmentError("The sections in this PDF are damaged. Try another saved PDF.")
     // The decoder is an allowlist; omit flags even when cleanResume is called directly.
     clean.extraSections = Object.fromEntries(Object.entries(decoded.sections).map(([key, { leftOut, ...section }]) => [key, section]))
-    clean.sectionOrder = resolveSections({ ...resume, extraSections: clean.extraSections })
   }
+  // The saved order's known sections, then the core ones it lacks and any optional one with entries.
+  clean.sectionOrder = resolveSections({ ...clean, sectionOrder: resume.sectionOrder })
   return clean
 }

@@ -11,6 +11,7 @@ import { nextAnnouncement } from "./arrange"
 import { loadDragAndDrop, loadedDragAndDrop } from "./dragAndDrop"
 import { BulletsField, Field, FlagNote, MoveButtons, SectionHeading, selectLine } from "./fields"
 import { reducedMotion, reveal, scrollerOf } from "./layout"
+import DeleteSection from "./DeleteSection"
 import PaperFromLink from "./PaperFromLink"
 import { FIELD_SPAN, type ChoiceDef, type ChoiceKey, type FieldKey, type SectionDef } from "./sections"
 
@@ -18,6 +19,8 @@ interface SectionFormProps {
   section: SectionDef
   /** e.g. "03 / 08" */
   position: string
+  /** Takes the section off the resume, for one that's optional. */
+  onDelete?: () => void
 }
 
 // How long an entry takes to slide open, closed or away (matches duration-300).
@@ -92,7 +95,7 @@ function slide(entries: Map<number, HTMLElement>, list: HTMLElement | null, move
 }
 
 /** The form for one list section (education, experience, ...): its title and entries. */
-function SectionForm({ section, position }: SectionFormProps) {
+function SectionForm({ section, position, onDelete }: SectionFormProps) {
   const { read, update: updateResume } = useOpenResume()
   const saved = useResumeField(section.dataKey)
   const headings = useResumeField("headings")
@@ -577,6 +580,12 @@ function SectionForm({ section, position }: SectionFormProps) {
           flag={here?.kind === "heading" || here?.kind === "section" ? target!.finding : null}
         />
       </div>
+
+      {onDelete && (
+        <div className="flex justify-end">
+          <DeleteSection onDelete={onDelete} />
+        </div>
+      )}
 
       {section.choice && <SectionChoice choice={section.choice} />}
 
