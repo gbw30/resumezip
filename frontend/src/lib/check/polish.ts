@@ -1,9 +1,9 @@
 // Polish (P1–P7 in issue #58): small things written one way, and spaced and
 // capitalized the usual way.
 
-import type { FieldKey, FieldKeyOf, SectionName } from "@/components/editor/sections"
+import type { FieldKey, SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
-import { fieldOf, LINK_FIELDS, type Place } from "./places"
+import { fieldOf, LINK_FIELDS, LOCATION_FIELDS, type Place } from "./places"
 import { textsOf, type ResumeView } from "./resume"
 import {
   ACRONYMS,
@@ -121,14 +121,6 @@ const STATE_NAMES = new Map(
   US_STATES.filter(([, name]) => !STATES_ALSO_COUNTRIES.includes(name)).map(([abbreviation, name]) => [name.toLowerCase(), abbreviation]),
 )
 const STATE_ABBREVIATIONS = new Map(US_STATES)
-
-// Where places are written, besides the profile's location.
-const LOCATION_FIELDS: { [Section in SectionName]?: FieldKeyOf<Section> } = {
-  Education: "schoolLocation",
-  Work: "workLocation",
-  Volunteership: "volunteerLocation",
-  Leadership: "leadershipLocation",
-}
 
 // "Austin, TX" or "Austin, Texas": how each place's state is written.
 function statesIn(resume: ResumeView): Way[] {
@@ -271,11 +263,9 @@ const allCaps: Rule = {
   },
 }
 
-// How each kind of shorthand is found: "&" only between words in a sentence
-// ("design & build", not "AT&T" or "Procter & Gamble"), "hr" and "yr" only in
-// lower case ("HR" is a department).
+// How each kind of shorthand is found: "hr" and "yr" only in lower case ("HR"
+// is a department).
 function shorthandPattern(short: string): RegExp {
-  if (short === "&") return / & (?=\p{Ll})/u
   if (/^(yrs?|hrs?)$/.test(short)) return new RegExp(String.raw`\b${short}\b`)
   if (short.includes("/")) return new RegExp(String.raw`(?<![\p{L}\p{N}/])${escaped(short)}(?!/)`, "iu")
   return new RegExp(String.raw`(?<!\p{L})${escaped(short)}(?!\p{L})`, "iu")

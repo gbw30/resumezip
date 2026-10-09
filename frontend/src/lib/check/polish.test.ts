@@ -58,6 +58,28 @@ describe("P2 a lowercase start", () => {
 })
 
 describe("P3 states and degrees written one way", () => {
+  test.each([
+    ["Education", "educationSection", "schoolLocation"],
+    ["Work", "workExperienceSection", "workLocation"],
+    ["Volunteership", "volunteerExperienceSection", "volunteerLocation"],
+    ["Leadership", "leadershipExperienceSection", "leadershipLocation"],
+  ] as const)("still checks %s locations after sharing the fields with S10", (section, dataKey, field) => {
+    const resume = {
+      profileSection: { location: "Austin, TX" },
+      [dataKey]: [
+        { id: 1, [field]: "Seattle, WA" },
+        { id: 2, [field]: "Boston, Massachusetts" },
+      ],
+    }
+    expect(check("P3", resume).findings).toEqual([
+      expect.objectContaining({
+        place: { kind: "entry", section, entry: 1, field },
+        message: "State written out, unlike your other places",
+        suggestion: "Write it “Boston, MA”.",
+      }),
+    ])
+  })
+
   test("flags a state written out among abbreviations, with the place rewritten", () => {
     const resume = {
       profileSection: { fullName: "Jake Ryan", location: "Austin, TX" },
@@ -159,19 +181,34 @@ describe("P5 words in capitals", () => {
 })
 
 describe("P6 shorthand", () => {
+  test.each([
+    ["Design & build w/ React", "w/", "with"],
+    ["Design & build w/o downtime", "w/o", "without"],
+    ["Design & build tools for mgmt", "mgmt", "management"],
+    ["Design & build approx. ten tools", "approx.", "about"],
+    ["Design & build thru automation", "thru", "through"],
+  ])("still flags shorthand in a bullet containing an ampersand: %s", (bullet, short, word) => {
+    expect(check("P6", resumeWith(job([bullet]))).findings).toEqual([
+      expect.objectContaining({ place: bulletAt(0), message: `“${short}” is shorthand`, suggestion: `Write “${word}”.` }),
+    ])
+  })
+
+  test("allows repeated ampersands in prose across different sections", () => {
+    const resume = {
+      ...resumeWith(job(["Design & build & maintain APIs"])),
+      projectsSection: [{ id: 1, projectName: "Tools", projectDescription: "• Parse & index documents" }],
+      volunteerExperienceSection: [{ id: 1, volunteerOrg: "Library", volunteerDescription: "• Teach & mentor students" }],
+      leadershipExperienceSection: [{ id: 1, leadershipOrg: "Club", leadershipDescription: "• Plan & organize meetings" }],
+    }
+    expect(check("P6", resume)).toMatchObject({ status: "passed", findings: [] })
+  })
+
   test("flags shorthand, with the word to write", () => {
-    const bullets = [
-      "Built it w/ React",
-      "Led the mgmt team",
-      "Cut costs approx. 40%",
-      "Design & build the API",
-      "Cut builds from 10 hrs to 2",
-    ]
+    const bullets = ["Built it w/ React", "Led the mgmt team", "Cut costs approx. 40%", "Cut builds from 10 hrs to 2"]
     expect(check("P6", resumeWith(job(bullets))).findings.map(({ message, suggestion }) => [message, suggestion])).toEqual([
       ["“w/” is shorthand", "Write “with”."],
       ["“mgmt” is shorthand", "Write “management”."],
       ["“approx.” is shorthand", "Write “about”."],
-      ["“&” is shorthand", "Write “and”."],
     ])
   })
 
@@ -183,8 +220,9 @@ describe("P6 shorthand", () => {
     expect(check("P6", resume).findings).toEqual([])
   })
 
-  test("leaves names and acronyms with an & or the same letters alone", () => {
+  test("leaves an & alone, and names and acronyms with the same letters", () => {
     const bullets = [
+      "Design & build the API",
       "Ran R&D for AT&T",
       "Partnered with Procter & Gamble",
       "Trained the HR team",

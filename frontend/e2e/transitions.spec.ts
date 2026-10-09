@@ -1,13 +1,14 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
-import { pageErrors, transitionsDone } from "./helpers"
+import { pageErrors, settled, transitionsDone } from "./helpers"
 
 // What a click brings up fades in, rather than appearing all at once, unless
 // the visitor asks for less motion.
 
 /**
- * Records opacity transitions before clicking, then waits for the new content
- * and its transitions. A one-time snapshot can miss a short fade on a busy CI
- * worker, or run before React inserts the new content.
+ * Records opacity transitions from before the click, then waits for the new
+ * content and for everything around it to settle. A one-time snapshot can miss
+ * a short fade on a busy CI worker, or run before React inserts the new
+ * content or the fade has started.
  */
 async function fadingIn(control: Locator, shown: Locator): Promise<string[]> {
   await transitionsDone(control.page())
@@ -24,7 +25,7 @@ async function fadingIn(control: Locator, shown: Locator): Promise<string[]> {
   })
   try {
     await expect(shown).toBeVisible()
-    await transitionsDone(control.page())
+    await settled(shown)
     // Preview rendering has its own fades. This assertion concerns the opened
     // content, including a surrounding dialog overlay or panel transition.
     return await shown.evaluate(

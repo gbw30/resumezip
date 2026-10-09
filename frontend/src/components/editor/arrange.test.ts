@@ -9,6 +9,7 @@ import {
   pastedList,
   setLeftOutLine,
   toggleMark,
+  typedList,
   withBullets,
 } from "./arrange"
 
@@ -121,17 +122,52 @@ describe("typing bullets", () => {
     // Set in from the left, as nested lists are.
     expect(pastedList("  - Led the team", "")).toBe("• Led the team")
     // Pasted after a bullet, the first line keeps that one, printed or left out.
-    expect(pastedList("- Led the team\n- Wrote the docs", "• ")).toBe("Led the team\n• Wrote the docs")
-    expect(pastedList("- Led the team", "○ ")).toBe("Led the team")
+    expect(pastedList("- Led the team\n- Wrote the docs", "• ")).toBe("• Led the team\n• Wrote the docs")
+    expect(pastedList("- Led the team", "○ ")).toBe("○ Led the team")
     // After words, the first line isn't the start of one.
-    expect(pastedList("- the team", "Led ")).toBe("- the team")
+    expect(pastedList("- the team", "Led ")).toBe("Led - the team")
   })
 
-  test("pasted lines that only look like a list, or start with a bullet, are left as they are", () => {
+  test("a pasted list's symbol bullets, from Word, Google Docs or a PDF, become one bullet each", () => {
+    expect(
+      pastedList(
+        "● Designed the navigation\n■ Led the team\n▪ Wrote the docs\n➢ Ran the tests\n· Shipped it\n◦ Grew it\n\uF0B7\tKept it",
+        "",
+      ),
+    ).toBe("• Designed the navigation\n• Led the team\n• Wrote the docs\n• Ran the tests\n• Shipped it\n• Grew it\n• Kept it")
+    // A symbol can touch its words, and a bullet of our own gets its space.
+    expect(pastedList("●Led the team\n•Wrote the docs", "")).toBe("• Led the team\n• Wrote the docs")
+    expect(pastedList("● Led the team", "• ")).toBe("• Led the team")
+  })
+
+  test("a pasted sub-bullet's “○” is printed, but one copied from a bullets box stays left out", () => {
+    // Google Docs' sub-bullets.
+    const pasted = pastedList("● Led the team\n    ○ Hired two people", "")
+    expect(pasted).toBe("• Led the team\n• Hired two people")
+    expect(bulletLines(withBullets(pasted)).filter((bullet) => bullet.leftOut)).toEqual([])
+    expect(pastedList("○ Hired two people", "• ")).toBe("• Hired two people")
+    // Cut from a bullets box and pasted back, even onto a new line's bullet.
+    expect(pastedList("○ Fed the cat\n• Built a loom", "", true)).toBe("○ Fed the cat\n• Built a loom")
+    expect(pastedList("○ Fed the cat", "• ", true)).toBe("○ Fed the cat")
+    expect(pastedList("Fed the cat", "• ", true)).toBe("• Fed the cat")
+  })
+
+  test("pasted lines that only look like a list are left as they are", () => {
     expect(pastedList("-5% costs\n*Bold* words\n1.5x faster\n2019 was busy\n2019. Promoted", "")).toBe(
       "-5% costs\n*Bold* words\n1.5x faster\n2019 was busy\n2019. Promoted",
     )
-    expect(pastedList("• Built a loom\n○ Fed the cat", "")).toBe("• Built a loom\n○ Fed the cat")
+  })
+
+  test("a “- ” or “* ” typed at the start of a bullet goes, as the bullet's there already", () => {
+    expect(typedList("• -", " ")).toBe("• ")
+    expect(typedList("• *", " ")).toBe("• ")
+    expect(typedList("•–", " ")).toBe("• ")
+    expect(typedList("○ -", " ")).toBe("○ ")
+    // Not until the space after it, and not when it's part of the words.
+    expect(typedList("• ", "-")).toBe("• -")
+    expect(typedList("• -", "5")).toBe("• -5")
+    expect(typedList("• **", " ")).toBe("• ** ")
+    expect(typedList("• Cut costs -", " ")).toBe("• Cut costs - ")
   })
 
   test("bold and italic marks go around the words, never the bullet, so a left-out bullet stays left out", () => {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import { pageErrors, transitionsDone } from "./helpers"
+import { pageErrors, settled } from "./helpers"
 
 /** Starts a new resume with a name in it, then makes the window `width` × `height`. */
 async function startWriting(page: Page, width?: number, height?: number) {
@@ -28,8 +28,9 @@ for (const [width, height] of [
     // The gallery fits in the window, and scrolls inside itself if it has to.
     const dialog = gallery(page)
     await expect(dialog).toBeVisible()
-    // Compare each template with the gallery's final size, after its scale transition.
-    await transitionsDone(page)
+    // Compare each template with the gallery's final size, once it has grown
+    // into place: a size read part-way is too small for the templates.
+    await settled(dialog)
     const box = (await dialog.boundingBox())!
     expect(box.x).toBeGreaterThanOrEqual(0)
     expect(box.y).toBeGreaterThanOrEqual(0)
@@ -100,7 +101,7 @@ test("on a wide screen the gallery opens under its button, and a click elsewhere
   await picker(page).click()
   const dialog = gallery(page)
   await expect(dialog).toBeVisible()
-  await transitionsDone(page)
+  await settled(dialog)
   const button = (await picker(page).boundingBox())!
   const box = (await dialog.boundingBox())!
   const viewport = page.viewportSize()!
