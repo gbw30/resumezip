@@ -460,3 +460,57 @@ describe("adding resumes", () => {
     expect(titles([stored(storage, "a"), stored(storage, "g")])).toEqual(["Ada", "Ada 2"])
   })
 })
+
+describe("replacing a resume with a file", () => {
+  // A PDF of Ada's resume from before its last edit.
+  const older = { id: "a", profileSection: { fullName: "Ada Byron" }, updatedAt: "2026-10-05T09:00:00.000Z" }
+
+  test("keeps when the file was last edited, so the same file opened again isn't newer or older", () => {
+    const storage = memoryStorage(saved(ada, grace))
+    const tab = openTab(storage)
+    tab.replace("a", older)
+    expect(tab.getState().resumes.a).toMatchObject({ resumeTitle: "Ada", profileSection: older.profileSection, updatedAt: older.updatedAt })
+    expect(stored(storage, "a")?.updatedAt).toBe(older.updatedAt)
+
+    // A file that doesn't say counts as edited now.
+    tab.replace("g", { profileSection: { fullName: "Grace Murray" } })
+    expect(tab.getState().resumes.g.updatedAt).toBe("2026-10-06T12:00:00.000Z")
+  })
+
+  test("can be undone, which puts back and saves the copy it replaced", () => {
+    const storage = memoryStorage(saved(ada))
+    const tab = openTab(storage)
+    const before = tab.getState().resumes.a
+    tab.replace("a", older)
+    expect(tab.getState().replaced).toMatchObject({ id: "a", undone: false })
+
+    tab.undoReplace("a")
+    expect(tab.getState().resumes.a).toBe(before)
+    expect(stored(storage, "a")).toEqual(before)
+    expect(tab.getState().replaced).toMatchObject({ id: "a", undone: true })
+  })
+
+  test("can't be undone once the resume changes again, so nothing newer is lost", () => {
+    const storage = memoryStorage(saved(ada))
+    const tab = openTab(storage)
+    tab.replace("a", older)
+    tab.edit("a", "resumeTitle", "Ada, after replacing")
+    expect(tab.getState().replaced).toBeNull()
+    tab.undoReplace("a")
+    expect(tab.getState().resumes.a).toMatchObject({ resumeTitle: "Ada, after replacing", profileSection: older.profileSection })
+  })
+
+  test("can't be undone once another tab changes the resume", () => {
+    const storage = memoryStorage(saved(ada))
+    const one = openTab(storage)
+    const two = openTab(storage)
+    one.replace("a", older)
+    two.receive(keyOf("a"))
+    two.edit("a", "resumeTitle", "Ada, edited in two")
+    two.flush()
+    one.receive(keyOf("a"))
+    expect(one.getState().replaced).toBeNull()
+    one.undoReplace("a")
+    expect(stored(storage, "a")).toMatchObject({ resumeTitle: "Ada, edited in two", profileSection: older.profileSection })
+  })
+})

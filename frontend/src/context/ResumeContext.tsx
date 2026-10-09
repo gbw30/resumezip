@@ -11,6 +11,7 @@ interface ResumeActions {
   createNewResume: (title: string, tag: string, template?: string) => string
   importResume: (content: ResumeContent, title: string, options?: { keepId?: boolean }) => string
   replaceResume: (id: string, content: ResumeContent) => void
+  undoReplace: (id: string) => void
   deleteResume: (id: string) => void
   deleteUnreadable: () => void
 }
@@ -113,6 +114,7 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
       },
       importResume: store.importResume,
       replaceResume: store.replace,
+      undoReplace: store.undoReplace,
       deleteResume: (id) => {
         store.remove(id)
         setCurrentResumeId((current) => (current === id ? null : current))
