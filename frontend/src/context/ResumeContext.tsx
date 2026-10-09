@@ -11,6 +11,10 @@ interface ResumeActions {
   importResume: (content: ResumeContent, title: string, options?: { keepId?: boolean }) => string
   replaceResume: (id: string, content: ResumeContent) => void
   undoReplace: (id: string) => void
+  /** Adds a copy of a resume, and returns its id. */
+  duplicateResume: (id: string) => string | undefined
+  /** Renames a resume, numbering the name if it's taken. */
+  renameResume: (id: string, title: string) => void
   /** Changes one field of a resume. */
   editResume: <Field extends ResumeField>(id: string, field: Field, value: Resume[Field]) => void
   deleteResume: (id: string) => void
@@ -109,6 +113,8 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
       importResume: store.importResume,
       replaceResume: store.replace,
       undoReplace: store.undoReplace,
+      duplicateResume: store.duplicate,
+      renameResume: store.rename,
       editResume: store.edit,
       deleteResume: store.remove,
       deleteUnreadable: store.deleteUnreadable,
