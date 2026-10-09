@@ -5,7 +5,7 @@ interface ExtraBase {
   heading: string
   leftOut?: boolean
 }
-export type ExtraSection = (ExtraBase & { kind: "summary" | "text"; text: string }) | (ExtraBase & { kind: "list"; bullets: string })
+export type ExtraSection = (ExtraBase & { kind: "text"; text: string }) | (ExtraBase & { kind: "list"; bullets: string })
 export type ExtraKind = ExtraSection["kind"]
 export type ExtraSections = Record<string, ExtraSection>
 export type SectionRef = SectionName | `extra:${string}`
@@ -17,7 +17,7 @@ const object = (value: unknown): value is Record<string, unknown> => !!value && 
 export const extraKey = (ref: string): string | null => (ref.startsWith("extra:") ? ref.slice(6) : null)
 export const extraRef = (key: string): SectionRef => `extra:${key}`
 export const sectionIncluded = (section: { leftOut?: boolean }) => section.leftOut !== true
-export const extraHeading = (section: ExtraSection) => section.heading.trim() || (section.kind === "summary" ? "Summary" : "New section")
+export const extraHeading = (section: ExtraSection) => section.heading.trim() || "New section"
 
 /** Decode only the new domain. Invalid members are salvaged separately from the original raw save. */
 export function readExtraSections(value: unknown, { local = false } = {}): { sections: ExtraSections; complete: boolean } {
@@ -42,14 +42,14 @@ export function readExtraSections(value: unknown, { local = false } = {}): { sec
 function readExtraSection(key: string, value: unknown): ExtraSection | null {
   if (!object(value)) return null
   const kind = value.kind
-  if (key === "summary" ? kind !== "summary" : !isUUID(key) || (kind !== "text" && kind !== "list")) return null
+  if (!isUUID(key) || (kind !== "text" && kind !== "list")) return null
   if (
     (value.heading !== undefined && typeof value.heading !== "string") ||
     (value.leftOut !== undefined && typeof value.leftOut !== "boolean")
   )
     return null
   const base = { heading: (value.heading ?? "") as string, ...(value.leftOut !== undefined && { leftOut: value.leftOut as boolean }) }
-  if (kind === "summary" || kind === "text") {
+  if (kind === "text") {
     if (value.text !== undefined && typeof value.text !== "string") return null
     return { ...base, kind, text: (value.text ?? "") as string }
   }
@@ -101,7 +101,5 @@ export function extraHasBody(section: ExtraSection): boolean {
 }
 
 export function newExtraSection(kind: ExtraKind): ExtraSection {
-  const heading = kind === "summary" ? "Summary" : "New section"
-  if (kind === "list") return { kind, heading, bullets: "" }
-  return { kind, heading, text: "" }
+  return kind === "list" ? { kind, heading: "New section", bullets: "" } : { kind, heading: "New section", text: "" }
 }

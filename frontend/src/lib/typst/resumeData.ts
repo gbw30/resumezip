@@ -14,6 +14,8 @@ export type { TemplateId }
 
 export interface TemplateData {
   profile: { name: string; location: string; phone: string; email: string; linkedin: string; github: string; website: string }
+  /** The profile's summary, printed under its own heading above the sections. */
+  summary: string[]
   headings: {
     education: string
     work: string
@@ -77,6 +79,12 @@ interface Experience {
 type Saved = Partial<Entry>
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "")
+
+// Prose as paragraphs, split at blank lines. A single line break stays in its paragraph.
+const paragraphs = (value: unknown) =>
+  text(value)
+    .split(/\r?\n\s*\r?\n/)
+    .filter(Boolean)
 
 // Links are displayed without their scheme, "www." or a trailing slash; the
 // templates add https:// back.
@@ -214,6 +222,7 @@ export function toTemplateData(saved: Resume): TemplateData {
       github: bareUrl(profile.profileGithub),
       website: bareUrl(profile.personalWebsite),
     },
+    summary: paragraphs(profile.summary),
     headings: {
       education: text(headings.edu),
       work: text(headings.work),
@@ -236,9 +245,7 @@ export function toTemplateData(saved: Resume): TemplateData {
               : {
                   kind: "text",
                   heading,
-                  paragraphs: text(section.text)
-                    .split(/\r?\n\s*\r?\n/)
-                    .filter(Boolean),
+                  paragraphs: paragraphs(section.text),
                 }
           return [`extra:${id}`, printable]
         }),

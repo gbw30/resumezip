@@ -5,9 +5,10 @@ via [typst.ts](https://github.com/Myriad-Dreamin/typst.ts). Nothing is sent to a
 server to build a PDF.
 
 - `resumeData.ts` maps the editor's resume data to the JSON the templates read.
-  Existing section arrays keep their original shape. Optional summary, text
-  and list sections are mapped into `extras`, keyed by their
-  `extra:<id>` ordering reference. Empty bodies have no printable descriptor.
+  Existing section arrays keep their original shape. The profile's summary is
+  `summary`, paragraphs every template prints under "Summary" above the
+  sections. Text and list sections a person adds are mapped into `extras`,
+  keyed by their `extra:<id>` ordering reference. Empty bodies have no printable descriptor.
   Prose stays literal; custom lists use the existing bold/italic bullet runs.
 - `compile.ts` is what the UI calls. It runs the compiler in a Web Worker, and
   replaces the worker if it goes quiet with work to do: 30 s while the compiler

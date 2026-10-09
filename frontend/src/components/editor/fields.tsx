@@ -40,6 +40,8 @@ interface FieldProps {
   autoComplete?: string
   /** A web address: phones show the keyboard for one, with no spelling marks and no capital first letter. */
   web?: boolean
+  /** A few lines of prose: a box that grows with them, where Enter starts a new line. */
+  multiline?: boolean
 }
 
 /**
@@ -73,28 +75,55 @@ export function FlagNote({ id, finding }: { id?: string; finding: Finding }) {
   )
 }
 
-/** A labelled, underlined text input. */
-export function Field({ label, value, placeholder, type = "text", className = "", onChange, name, flag, autoComplete, web }: FieldProps) {
+/** A labelled, underlined text input, or a box for a few lines of prose. */
+export function Field({
+  label,
+  value,
+  placeholder,
+  type = "text",
+  className = "",
+  onChange,
+  name,
+  flag,
+  autoComplete,
+  web,
+  multiline,
+}: FieldProps) {
   const noteId = useId()
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  useFitHeight(textareaRef, value)
+  const shared = {
+    value,
+    placeholder,
+    "aria-describedby": flag ? noteId : undefined,
+    "aria-invalid": flag?.level === "fix" || undefined,
+    className: `w-full min-w-0 border-0 bg-transparent py-2 text-base text-ink outline-none transition-colors placeholder:text-ink-2/50 focus-visible:outline-none ${
+      !flag ? "border-b border-rule-strong focus:border-accent" : "border-b-2 border-accent"
+    }`,
+  }
   return (
     <div data-field={name} className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
       <label className="flex min-w-0 flex-col gap-1.5">
         <span className="label-mono text-ink-2">{label}</span>
-        <input
-          type={type}
-          value={value}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
-          inputMode={web ? "url" : undefined}
-          spellCheck={web ? false : undefined}
-          autoCapitalize={web ? "off" : undefined}
-          onChange={(event) => onChange(event.target.value)}
-          aria-describedby={flag ? noteId : undefined}
-          aria-invalid={flag?.level === "fix" || undefined}
-          className={`w-full min-w-0 border-0 bg-transparent py-2 text-base text-ink outline-none transition-colors placeholder:text-ink-2/50 focus-visible:outline-none ${
-            !flag ? "border-b border-rule-strong focus:border-accent" : "border-b-2 border-accent"
-          }`}
-        />
+        {multiline ? (
+          <textarea
+            ref={textareaRef}
+            rows={3}
+            onChange={(event) => onChange(event.target.value)}
+            {...shared}
+            className={`${shared.className} resize-none leading-relaxed`}
+          />
+        ) : (
+          <input
+            type={type}
+            autoComplete={autoComplete}
+            inputMode={web ? "url" : undefined}
+            spellCheck={web ? false : undefined}
+            autoCapitalize={web ? "off" : undefined}
+            onChange={(event) => onChange(event.target.value)}
+            {...shared}
+          />
+        )}
       </label>
       {flag && <FlagNote id={noteId} finding={flag} />}
     </div>
@@ -157,6 +186,40 @@ export function MoveButtons({ name, first, last, onMove }: { name: string; first
 function fitHeight(textarea: HTMLTextAreaElement) {
   textarea.style.height = "auto"
   textarea.style.height = `${textarea.scrollHeight + 2}px`
+}
+
+/**
+ * Keeps a textarea as tall as its text as the text changes, and as its width
+ * does: a narrower box wraps onto more lines, as when the window is resized, a
+ * tablet turned, or the box shows after being hidden. `shown` is whatever
+ * swaps the textarea for another element and back, so it's measured afresh.
+ */
+function useFitHeight(ref: React.RefObject<HTMLTextAreaElement | null>, text: string, shown?: unknown) {
+  useLayoutEffect(() => {
+    if (ref.current) fitHeight(ref.current)
+  }, [ref, text, shown])
+
+  useEffect(() => {
+    const textarea = ref.current
+    if (!textarea) return
+    let width = textarea.clientWidth
+    let frame = 0
+    const observer = new ResizeObserver(() => {
+      const next = textarea.clientWidth
+      // Hidden while the preview shows on small screens: nothing to fit until it's back.
+      if (!next || next === width) return
+      width = next
+      // On the next frame: changing the box's height while it's being
+      // measured would make the browser report a ResizeObserver loop.
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => fitHeight(textarea))
+    })
+    observer.observe(textarea)
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(frame)
+    }
+  }, [ref, shown])
 }
 
 const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff
@@ -235,38 +298,12 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
   const selection = useRef<[number, number] | null>(null)
 
   // Grow to fit the text instead of scrolling inside the box (and again when
-  // it's back from arranging), and put the cursor where it goes.
+  // it's back from arranging), then put the cursor where it goes.
+  useFitHeight(textareaRef, text, arranging)
   useLayoutEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    fitHeight(textarea)
-    if (selection.current) textarea.setSelectionRange(...selection.current)
+    if (selection.current) textareaRef.current?.setSelectionRange(...selection.current)
     selection.current = null
   }, [text, arranging])
-
-  // A narrower box wraps onto more lines, so fit again when the width changes:
-  // resizing the window, turning a tablet, or the box showing after being hidden.
-  useEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    let width = textarea.clientWidth
-    let frame = 0
-    const observer = new ResizeObserver(() => {
-      const next = textarea.clientWidth
-      // Hidden while the preview shows on small screens: nothing to fit until it's back.
-      if (!next || next === width) return
-      width = next
-      // On the next frame: changing the box's height while it's being
-      // measured would make the browser report a ResizeObserver loop.
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => fitHeight(textarea))
-    })
-    observer.observe(textarea)
-    return () => {
-      observer.disconnect()
-      cancelAnimationFrame(frame)
-    }
-  }, [arranging])
 
   const change = useRef(onChange)
   change.current = onChange

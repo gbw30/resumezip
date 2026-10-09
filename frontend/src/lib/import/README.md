@@ -64,20 +64,20 @@ as too much text.
 
 Heading occurrences have deterministic review IDs and source-line provenance.
 Repeated headings stay independent, even when their visible words are identical.
-Clear prose summaries are offered as a Summary. Certifications are read as
+Clear prose summaries go in the profile's summary. Certifications are read as
 awards, as the editor keeps them in Awards & Certifications: "Certifications",
 "Licenses" and "Honors & Certifications" read into Awards, and "Education &
 Certifications" and "Skills & Certifications" into Education and Skills.
 
-The review can combine selected Summary groups into paragraphs, in source
-order. It shows that consolidation and uses the first selected heading and
-position. Unsupported groups can be kept as text sections or bullet lists, with
+The review puts the summaries ticked together, a paragraph each, in the file's
+order. Unsupported groups can be kept as text sections or bullet lists, with
 neither choice selected initially. Durable section UUIDs are created only when
 the person confirms the import. Copy and download preserve uncertain text and the original
 text of groups or entries excluded during review.
 
-The PDF checker calls `parseResume` with `{ purpose: "check" }`, which offers
-no summary, after accounting for confidently matched flexible-section ranges.
+The PDF checker reads with `readForChecks`, which parses again without the
+text of sections a person added once it has matched them. A summary reads as
+one there too, so the checker doesn't count it as text it can't place.
 
 It handles single and two-column layouts, headings in a margin column, dates in a
 column of their own, and Word files with or without heading styles and tables.

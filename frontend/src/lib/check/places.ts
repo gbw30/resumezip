@@ -53,7 +53,7 @@ export function placeExists(view: ResumeView, place: Place, pages = 0): boolean 
       if (!extra) return false
       if (place.field === "bullets")
         return extra.section.kind === "list" && (place.line === undefined || extra.bullets.some((bullet) => bullet.line === place.line))
-      return (extra.section.kind === "text" || extra.section.kind === "summary") && place.line === undefined
+      return extra.section.kind === "text" && place.line === undefined
     }
     case "profile":
       return PROFILE_FIELDS.some((field) => field.key === place.field)
@@ -91,7 +91,7 @@ export function textAt(view: ResumeView, place: Place): string {
         return place.line === undefined
           ? extra.bullets.map((bullet) => bullet.raw).join("\n")
           : (extra.bullets.find((bullet) => bullet.line === place.line)?.raw ?? "")
-      return extra.section.kind === "text" || extra.section.kind === "summary" ? extra.section.text.trim() : ""
+      return extra.section.kind === "text" ? extra.section.text.trim() : ""
     }
     case "profile":
       return view.profile[place.field] ?? ""

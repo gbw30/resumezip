@@ -266,8 +266,7 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                   </div>
                   {!off && combined.length > 1 && combined[0].id === group.id && (
                     <p className="mt-2 text-sm text-ink-2" role="status">
-                      {combined.length} selected groups will become one Summary section, in file order, using “{group.heading}” and this
-                      position.
+                      These {combined.length} go together in your profile&apos;s summary, in this order.
                     </p>
                   )}
                 </section>

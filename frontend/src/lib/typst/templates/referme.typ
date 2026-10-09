@@ -66,6 +66,11 @@
 
 // ---------- Sections ----------
 
+// The profile's summary, above the sections, set as a text section is.
+#if data.summary.len() > 0 {
+  section("Summary", extra-body((kind: "text", paragraphs: data.summary), bullets))
+}
+
 #for name in data.order {
   if data.extras.at(name, default: none) != none {
     let extra = data.extras.at(name)

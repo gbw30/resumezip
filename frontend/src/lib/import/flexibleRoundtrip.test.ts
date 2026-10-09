@@ -12,13 +12,12 @@ test("heuristic PDFs retain optional content and repeated unsupported groups acr
   for (const sample of samples) {
     const input: Resume = {
       selectedTemplate: sample.selectedTemplate,
-      profileSection: { fullName: "Mara Lin" },
+      profileSection: { fullName: "Mara Lin", summary: "Engineer building useful tools for curious people." },
       extraSections: {
-        summary: { kind: "summary", heading: "Summary", text: "Engineer building useful tools for curious people." },
         [first]: { kind: "text", heading: "Presentations", text: "First talk on accessible software." },
         [second]: { kind: "list", heading: "Presentations", bullets: "• Second talk on reliable systems." },
       },
-      sectionOrder: ["extra:summary", `extra:${first}`, `extra:${second}`],
+      sectionOrder: [`extra:${first}`, `extra:${second}`],
     }
     const { parsed } = await readBack(await render(input))
     const groups = parsed.extraGroups ?? []
@@ -32,7 +31,10 @@ test("heuristic PDFs retain optional content and repeated unsupported groups acr
     const keepAs = Object.fromEntries(parsed.unplaced.map((group, index) => [unplacedKey(group, index), "text" as const]))
     const kept = toResumeContent(parsed, new Set(), { keepAs })
     const sections: ExtraSection[] = Object.values(kept.extraSections ?? {})
-    const body = sections.map((section) => (section.kind === "list" ? section.bullets : section.text)).join(" ")
+    const body = [
+      kept.profileSection.summary,
+      ...sections.map((section) => (section.kind === "list" ? section.bullets : section.text)),
+    ].join(" ")
     for (const expected of [
       "Engineer building useful tools for curious people.",
       "First talk on accessible software.",

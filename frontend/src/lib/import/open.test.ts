@@ -165,7 +165,7 @@ describe("a resumezip PDF", () => {
 
   test.each([
     ['{"format":"resumezip","version":99,"resume":{}}', "newer version"],
-    ['{"format":"resumezip","version":2,"resume":{"extraSections":{"summary":{"kind":"list","bullets":"secret"}}}}', "damaged"],
+    ['{"format":"resumezip","version":2,"resume":{"extraSections":{"summary":{"kind":"summary","text":"secret"}}}}', "damaged"],
     ['{"format":"resumezip",', "damaged"],
   ])("a recognized unusable attachment stops opening without a heuristic fallback", async (content, message) => {
     attachment = content

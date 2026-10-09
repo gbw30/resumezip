@@ -216,8 +216,8 @@ const KNOWN_GAPS: Record<string, string[]> = {
  * sections in its own order, like a sidebar.
  */
 function printed(resume: Record<string, unknown>) {
-  // The sections a person adds aren't in the corpus; a summary read into one is checked on its own, below.
-  const { headings, order, extras, ...data } = toTemplateData(resume)
+  // The sections a person adds aren't in the corpus, and the summary is checked on its own, below.
+  const { headings, order, extras, summary, ...data } = toTemplateData(resume)
   const plain = (bullets: { text: string }[][]) => bullets.map((runs) => runs.map((run) => run.text).join(""))
   const withPlainBullets = <T extends { bullets: { text: string }[][] }>(entries: T[]) =>
     entries.map((entry) => ({ ...entry, bullets: plain(entry.bullets) }))
@@ -277,9 +277,7 @@ describe.each(files)("%s", (file) => {
         .sort()
     const summaries = parsed.extraGroups?.filter((group) => group.kind === "summary") ?? []
     if (summaries.length) {
-      const summary = resume.extraSections?.summary
-      expect(summary?.kind).toBe("summary")
-      expect(tokens(summary?.kind === "summary" ? summary.text : "")).toEqual(tokens(fixture.summary))
+      expect(tokens(resume.profileSection.summary ?? "")).toEqual(tokens(fixture.summary))
       expect(summaries).toHaveLength(1)
     }
   })

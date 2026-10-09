@@ -23,7 +23,7 @@ test("review consolidates selected singletons and keeps repeated unknown groups 
     buffer: wordFile(WORDS),
   })
   const review = page.getByRole("dialog", { name: "Here's what we found" })
-  await expect(review).toContainText("2 selected groups will become one Summary section")
+  await expect(review).toContainText("These 2 go together in your profile's summary")
   const choices = review.getByRole("combobox")
   await expect(choices).toHaveCount(2)
   await expect(choices.nth(0)).toHaveValue("")
@@ -48,8 +48,8 @@ test("review consolidates selected singletons and keeps repeated unknown groups 
         .filter(([key]) => key.startsWith("resume:"))
         .map(([, value]) => JSON.parse(value))[0],
   )
-  expect(saved.extraSections.summary.text).toBe("First paragraph.\n\nSecond paragraph.")
-  const custom = Object.entries(saved.extraSections).filter(([key]) => key !== "summary")
+  expect(saved.profileSection.summary).toBe("First paragraph.\n\nSecond paragraph.")
+  const custom = Object.entries(saved.extraSections)
   expect(custom.map(([, value]) => value)).toEqual([
     { kind: "text", heading: "Presentations", text: "First talk" },
     { kind: "list", heading: "Presentations", bullets: "• Second talk" },
@@ -88,4 +88,5 @@ test("narrow PDF review retains uncertain and excluded text in its download", as
         .map(([, value]) => JSON.parse(value))[0],
   )
   expect(saved.extraSections ?? {}).toEqual({})
+  expect(saved.profileSection.summary).toBe("")
 })

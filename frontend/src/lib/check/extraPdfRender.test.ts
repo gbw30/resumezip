@@ -18,12 +18,8 @@ test.each(samples.map((sample) => [sample.selectedTemplate as string, sample]))(
       // Upstream shares builtin defaults across templates. Exercise those actual
       // headings as occurrence anchors rather than the samples' custom headings.
       headings: {},
+      profileSection: { ...sample.profileSection, summary: "Curious engineer who builds reliable software.\n\nEnjoys **literal** prose." },
       extraSections: {
-        summary: {
-          kind: "summary",
-          heading: "Summary",
-          text: "Curious engineer who builds reliable software.\n\nEnjoys **literal** prose.",
-        },
         [first]: { kind: "text", heading: "Experience", text: "Personal interests outside professional work." },
         [second]: {
           kind: "list",
@@ -32,12 +28,11 @@ test.each(samples.map((sample) => [sample.selectedTemplate as string, sample]))(
         },
         [third]: { kind: "text", heading: "Interests", text: "Additional personal interests." },
       },
-      sectionOrder: ["extra:summary", `extra:${first}`, "Work", `extra:${second}`, `extra:${third}`],
+      sectionOrder: [`extra:${first}`, "Work", `extra:${second}`, `extra:${third}`],
     }
     const raw = await readBack(await render(resume))
     const result = readForChecks(raw.parsed.lines, pdfLayoutOf(viewOf(resume)))
     expect(result.extras.sections.map(({ sectionId, status }) => [sectionId, status])).toEqual([
-      ["summary", "matched"],
       [first, "matched"],
       [second, "matched"],
       [third, "matched"],

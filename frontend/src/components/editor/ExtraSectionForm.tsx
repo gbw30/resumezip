@@ -89,7 +89,7 @@ export default function ExtraSectionForm({ sectionId, position, onDelete }: { se
         {remove}
       </div>
       {section.leftOut && <p className="text-sm text-ink-2">This section stays saved here and is left out of the PDF and checks.</p>}
-      {(section.kind === "summary" || section.kind === "text") && (
+      {section.kind === "text" && (
         <div data-field="text" className="flex flex-col gap-2">
           <label className="flex flex-col gap-2">
             <span className="label-mono text-ink-2">Text</span>

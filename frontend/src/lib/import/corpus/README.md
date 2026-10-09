@@ -21,8 +21,9 @@ Each folder is one person:
 
 - `resume.json` is what their resume says, in the editor's format. It's the
   answer the parser should find. `summary` is printed by some layouts and is
-  checked when recognized as an optional Summary. `tech` on a job is printed
-  by some layouts but has no matching editor field, so it isn't checked.
+  checked against the profile's summary when one is read. `tech` on a job is
+  printed by some layouts but has no matching editor field, so it isn't
+  checked.
 - Each PDF is that resume in one layout, named after the layout.
 - A layout can also be written by hand, as a Typst file beside its PDF, for a
   shape too particular to print from `resume.json`. Its `resume.json` is then

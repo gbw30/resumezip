@@ -13,31 +13,22 @@ const empty = "05fb2807-bb55-45fd-a44a-376e408df6cc"
 const hidden = "654f555c-269a-4c18-b89e-a396bf7d8391"
 // With a section order that repeats and misses sections, as the editor never saves one.
 const mixed = asSaved({
-  profileSection: { fullName: "Ada Example" },
+  profileSection: { fullName: "Ada Example", summary: "Summary first paragraph.\nSecond line.\n\nLiteral #strong[words] and *asterisks*." },
   workExperienceSection: [{ id: 1, companyName: "Legacy Company", workRole: "Engineer", workDescription: "• Legacy printed detail" }],
   extraSections: {
-    summary: {
-      kind: "summary",
-      heading: "Introduction",
-      text: "Summary first paragraph.\nSecond line.\n\nLiteral #strong[words] and *asterisks*.",
-    },
     [first]: { kind: "text", heading: "Work", text: "Custom first body." },
     [second]: { kind: "list", heading: "Work", bullets: "• Custom **bold** and *italic* detail\n○ OMITTED BULLET SENTINEL" },
     [empty]: { kind: "text", heading: "EMPTY HEADING SENTINEL", text: "   " },
     [hidden]: { kind: "text", heading: "OMITTED HEADING SENTINEL", text: "OMITTED SECTION SENTINEL", leftOut: true },
   },
-  sectionOrder: ["extra:summary", "Work", `extra:${first}`, `extra:${second}`, `extra:${first}`, "extra:missing"],
+  sectionOrder: ["Work", `extra:${first}`, `extra:${second}`, `extra:${first}`, "extra:missing"],
 })
 
 describe("optional section template data", () => {
   test("keeps built-in identity separate from repeated custom headings and literal prose", () => {
     const data = toTemplateData(mixed)
-    expect(data.order.slice(0, 4)).toEqual(["extra:summary", "Work", `extra:${first}`, `extra:${second}`])
-    expect(data.extras["extra:summary"]).toEqual({
-      kind: "text",
-      heading: "Introduction",
-      paragraphs: ["Summary first paragraph.\nSecond line.", "Literal #strong[words] and *asterisks*."],
-    })
+    expect(data.order.slice(0, 3)).toEqual(["Work", `extra:${first}`, `extra:${second}`])
+    expect(data.summary).toEqual(["Summary first paragraph.\nSecond line.", "Literal #strong[words] and *asterisks*."])
     expect(data.extras[`extra:${first}`].heading).toBe("Work")
     expect(data.extras[`extra:${second}`].heading).toBe("Work")
     expect(data.work[0].company).toBe("Legacy Company")

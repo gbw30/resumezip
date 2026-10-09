@@ -38,16 +38,13 @@ export function readForChecks(lines: Line[], layout: PdfSectionLayout[]): { pars
   // The parser's existing side-heading split gives headings their own text
   // occurrence in every template, including those that put a heading beside
   // the first entry. No semantics from this first parse are trusted.
-  const initial = parseResume(lines, { purpose: "check" })
+  const initial = parseResume(lines)
   const original = initial.lines
   const extras = matchExtraPdf(original, layout)
   if (extras.excludedLines.length === 0) return { parsed: initial, extras }
   const excluded = new Set(extras.excludedLines)
   const indexes = original.flatMap((_, index) => (excluded.has(index) ? [] : [index]))
-  const parsed = parseResume(
-    indexes.map((index) => original[index]),
-    { purpose: "check" },
-  )
+  const parsed = parseResume(indexes.map((index) => original[index]))
   const source = parsed.lines.map((line, index) => indexes[(line as Line & { sourceIndex?: number }).sourceIndex ?? index])
   const remap = (values: number[]) => values.map((index) => source[index]).filter((index): index is number => index !== undefined)
   const remapHeading = (index: number | undefined) => (index === undefined ? undefined : (source[index] ?? index))

@@ -45,8 +45,16 @@ interface Definition<Field extends string, Data extends string, Heading extends 
   fromPaperLink?: boolean
 }
 
-/** A profile field: also how the browser can fill it in, and whether it's a web address. */
-type ProfileFieldDef<Key extends string = string> = FieldDef<Key> & { inputType?: string; autoComplete?: string; web?: true }
+/**
+ * A profile field: also how the browser can fill it in, whether it's a web
+ * address, and whether it's a few lines of prose (a box that grows) rather than one.
+ */
+type ProfileFieldDef<Key extends string = string> = FieldDef<Key> & {
+  inputType?: string
+  autoComplete?: string
+  web?: true
+  multiline?: true
+}
 
 const PROFILE = [
   { key: "fullName", label: "Full name", placeholder: "Jake Ryan", size: "full", autoComplete: "name" },
@@ -56,6 +64,14 @@ const PROFILE = [
   { key: "linkedin", label: "LinkedIn", placeholder: "linkedin.com/in/jake", size: "md", web: true },
   { key: "profileGithub", label: "GitHub", placeholder: "github.com/jake", size: "md", web: true },
   { key: "personalWebsite", label: "Website", placeholder: "jake.dev", size: "md", web: true },
+  // Printed under its own heading, above the sections. A blank line starts a new paragraph.
+  {
+    key: "summary",
+    label: "Summary",
+    placeholder: "Software engineer who builds fast, reliable web apps.",
+    size: "full",
+    multiline: true,
+  },
 ] as const satisfies readonly ProfileFieldDef[]
 
 /** A profile field's key, like "email". */

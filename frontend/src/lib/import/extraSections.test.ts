@@ -3,14 +3,6 @@ import { extraGroupKey, parseResume, toResumeContent, unplacedKey } from "./pars
 import { readFile } from "./read"
 import { wordFile } from "./testFiles"
 import type { Line } from "./lines"
-import type { ExtraSection, ExtraSections } from "@/lib/resumeSections"
-
-// An imported section by its key, as the kind the test expects it to be.
-function extra<Kind extends ExtraSection["kind"]>(content: { extraSections?: ExtraSections }, key: string, kind: Kind) {
-  const section = content.extraSections?.[key]
-  if (section?.kind !== kind) throw new Error(`expected a ${kind} section at ${key}`)
-  return section as ExtraSection & { kind: Kind }
-}
 
 const line = (text: string, heading = false, bullet = false): Line => ({
   text,
@@ -51,7 +43,7 @@ describe("flexible section import review", () => {
     }
   })
 
-  test("selected summary groups consolidate in source order using the first selected heading and position", () => {
+  test("the summaries ticked go together in the profile's summary, in the file's order", () => {
     const parsed = parse(
       "Mara Lin",
       ["Summary", true],
@@ -62,12 +54,12 @@ describe("flexible section import review", () => {
       "Second paragraph.",
     )
     const all = toResumeContent(parsed)
-    expect(extra(all, "summary", "summary")).toEqual({ kind: "summary", heading: "Summary", text: "First paragraph.\n\nSecond paragraph." })
-    expect(all.sectionOrder.slice(0, 2)).toEqual(["extra:summary", "Work"])
+    expect(all.profileSection.summary).toBe("First paragraph.\n\nSecond paragraph.")
+    expect(all.extraSections).toBeUndefined()
     const second = toResumeContent(parsed, new Set([extraGroupKey(parsed.extraGroups![0].id)]))
-    expect(extra(second, "summary", "summary").heading).toBe("Professional Summary")
-    expect(extra(second, "summary", "summary").text).toBe("Second paragraph.")
-    expect(second.sectionOrder.slice(0, 2)).toEqual(["Work", "extra:summary"])
+    expect(second.profileSection.summary).toBe("Second paragraph.")
+    const none = toResumeContent(parsed, new Set(parsed.extraGroups!.map((group) => extraGroupKey(group.id))))
+    expect(none.profileSection.summary).toBe("")
   })
 
   test("page-number removal retains original heading and body provenance", () => {
@@ -87,12 +79,12 @@ describe("flexible section import review", () => {
       [1, 2],
       [4, 5],
     ])
-    expect(extra(toResumeContent(parsed), "summary", "summary").text).toBe("First paragraph.\n\nSecond paragraph.")
+    expect(toResumeContent(parsed).profileSection.summary).toBe("First paragraph.\n\nSecond paragraph.")
   })
 
   test("summary prose keeps a literal circle and bullet summaries remain reviewable", () => {
     const prose = parse("Mara Lin", ["Summary", true], "○ This is literal prose.")
-    expect(extra(toResumeContent(prose), "summary", "summary").text).toBe("○ This is literal prose.")
+    expect(toResumeContent(prose).profileSection.summary).toBe("○ This is literal prose.")
     const bullets = parse("Mara Lin", ["Summary", true], ["Strong collaborator", false, true])
     expect(bullets.extraGroups).toEqual([])
     expect(bullets.unplaced[0].text).toEqual(["Strong collaborator"])

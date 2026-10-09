@@ -15,7 +15,8 @@ import { printedLayoutBullets } from "./pdf"
 
 const first = "11111111-1111-4111-8111-111111111111"
 const second = "22222222-2222-4222-8222-222222222222"
-const summary = { kind: "summary", heading: "Profile", text: "Literal **prose**.\n\nAnother paragraph." } as const satisfies ExtraSection
+const third = "33333333-3333-4333-8333-333333333333"
+const about = { kind: "text", heading: "About", text: "Literal **prose**.\n\nAnother paragraph." } as const satisfies ExtraSection
 const interests = {
   kind: "list",
   heading: "Interests",
@@ -24,8 +25,8 @@ const interests = {
 const hidden = { kind: "text", heading: "Private", text: "Hidden", leftOut: true } as const satisfies ExtraSection
 const resume: Resume = {
   profileSection: { fullName: "Ada Lovelace" },
-  extraSections: { summary, [first]: interests, [second]: hidden },
-  sectionOrder: [`extra:${first}`, "extra:summary"],
+  extraSections: { [third]: about, [first]: interests, [second]: hidden },
+  sectionOrder: [`extra:${first}`, `extra:${third}`],
 }
 
 describe("extra checker views and stable editor addresses", () => {
@@ -43,7 +44,7 @@ describe("extra checker views and stable editor addresses", () => {
         .join(" "),
     ).not.toMatch(/Secret|Hidden|Private/)
     expect(JSON.stringify(runChecks(resume).view)).not.toMatch(/Secret|Hidden|Private/)
-    expect(textsOf(view).find(({ place }) => place.kind === "extra-text" && place.sectionId === "summary")?.text).toContain("**prose**")
+    expect(textsOf(view).find(({ place }) => place.kind === "extra-text" && place.sectionId === third)?.text).toContain("**prose**")
     expect(hasEnoughToCheck(viewOf({ profileSection: resume.profileSection, extraSections: { [second]: hidden } }))).toBe(false)
   })
 
@@ -55,13 +56,13 @@ describe("extra checker views and stable editor addresses", () => {
     expect(describePlace(view, place)).toBe("Interests · bullet 2")
     expect(placeExists(view, { ...place, line: 0 })).toBe(false)
     expect(placeExists(view, { ...place, sectionId: second })).toBe(false)
-    const moved = viewOf({ ...resume, sectionOrder: ["extra:summary", `extra:${first}`] })
+    const moved = viewOf({ ...resume, sectionOrder: [`extra:${third}`, `extra:${first}`] })
     expect(findingKey("G1", place, textAt(view, place))).toBe(findingKey("G1", place, textAt(moved, place)))
   })
 
   test("checks prose and lists for grammar", () => {
     const texts = grammarTexts(viewOf(resume))
-    expect(texts.some(({ place }) => place.kind === "extra-text" && place.sectionId === "summary")).toBe(true)
+    expect(texts.some(({ place }) => place.kind === "extra-text" && place.sectionId === third)).toBe(true)
     expect(texts.some(({ place }) => place.kind === "extra-text" && place.field === "bullets")).toBe(true)
     const report = runChecks(resume, { rules: RULES.filter(({ id }) => /^(B|P)[0-9]/.test(id)) })
     expect(report.findings.filter(({ place }) => "sectionId" in place)).toEqual([])
@@ -76,13 +77,13 @@ describe("extra checker views and stable editor addresses", () => {
     })
     expect(placeExists(shifted, { ...place, line: 3 })).toBe(true)
     expect(samePlaceSource(before, shifted, place)).toBe(false)
-    const reordered = viewOf({ ...resume, sectionOrder: ["extra:summary", `extra:${first}`] })
+    const reordered = viewOf({ ...resume, sectionOrder: [`extra:${third}`, `extra:${first}`] })
     expect(samePlaceSource(before, reordered, place)).toBe(true)
     // Finding text can be only 'classic'; the whole source guards changes.
-    const textPlace: Place = { kind: "extra-text", sectionId: "summary", field: "text" }
+    const textPlace: Place = { kind: "extra-text", sectionId: third, field: "text" }
     const edited = viewOf({
       ...resume,
-      extraSections: { ...resume.extraSections, summary: { ...summary, text: "Literal **prose** with different context." } },
+      extraSections: { ...resume.extraSections, [third]: { ...about, text: "Literal **prose** with different context." } },
     })
     expect(samePlaceSource(before, edited, textPlace)).toBe(false)
   })

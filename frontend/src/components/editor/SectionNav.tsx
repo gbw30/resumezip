@@ -209,7 +209,6 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
             <div role="group" aria-label="Add section" className="flex flex-col gap-1 rounded-[4px] border border-rule bg-sheet p-2">
               {(
                 [
-                  ["summary", "Summary"],
                   ["text", "Text"],
                   ["list", "Bullet list"],
                 ] as const
@@ -218,12 +217,11 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
                   key={kind}
                   type="button"
                   aria-label={`Add ${title} section`}
-                  disabled={kind === "summary" && !!extras && Object.hasOwn(extras, kind)}
                   onClick={() => {
                     onAdd(kind)
                     setAdding(false)
                   }}
-                  className="rounded-[4px] px-2 py-2 text-left text-sm hover:bg-paper disabled:opacity-40"
+                  className="rounded-[4px] px-2 py-2 text-left text-sm hover:bg-paper"
                 >
                   {title}
                 </button>

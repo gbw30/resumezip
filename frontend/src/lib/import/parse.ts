@@ -1792,8 +1792,7 @@ function withoutPageNumbers<T extends Line>(lines: T[]): T[] {
   return lines.filter((line) => !(ends.has(line) && Number(line.text.match(PAGE_NUMBER)?.[1]) === line.page))
 }
 
-/** Imports offer uncertain groups for review; checks retain the original built-in parsing semantics. */
-export function parseResume(file: Line[], { purpose = "import" }: { purpose?: "import" | "check" } = {}): ParsedResume {
+export function parseResume(file: Line[]): ParsedResume {
   const input = splitSideHeadings(withoutPageNumbers(file.map((line, sourceIndex) => ({ ...line, sourceIndex }))))
   const lines: ParseLine[] = input.map((line, index) => ({ ...line, index }))
   const body = bodySize(lines)
@@ -1979,7 +1978,8 @@ export function parseResume(file: Line[], { purpose = "import" }: { purpose?: "i
         ),
     )
     const normalized = normalizeHeading(label)
-    const summary = purpose === "import" && SUMMARY_HEADINGS.has(normalized) && !sectionLines.some((line) => line.bullet)
+    // A summary is prose: one in bullets isn't read as one.
+    const summary = SUMMARY_HEADINGS.has(normalized) && !sectionLines.some((line) => line.bullet)
     const kind: FoundOccurrence["kind"] = summary ? "summary" : meaning.section === null ? "unsupported" : "builtin"
     const indexes = sectionLines.flatMap(lineIndexes)
     const occurrence: FoundOccurrence = {
@@ -2081,12 +2081,10 @@ export function toResumeContent(parsed: ParsedResume, skip: Set<string> = new Se
   for (const occurrence of parsed.occurrences ?? []) {
     if (occurrence.section && !positions.has(occurrence.section)) positions.set(occurrence.section, occurrence.headingLine)
   }
+  // The summaries ticked go in the profile's summary, a paragraph each, in the file's order.
   const summaries = (parsed.extraGroups ?? []).filter((group) => group.kind === "summary" && !skip.has(extraGroupKey(group.id)))
-  if (summaries.length) {
-    const first = summaries[0]
-    positions.set("extra:summary", first.headingLine)
-    extras.summary = { kind: "summary", heading: first.heading, text: summaries.map((group) => group.text.join("\n")).join("\n\n") }
-  }
+  if (summaries.length)
+    resume.profileSection = { ...resume.profileSection, summary: summaries.map((group) => group.text.join("\n")).join("\n\n") }
   parsed.unplaced.forEach((group, index) => {
     const kind = choices.keepAs?.[unplacedKey(group, index)]
     if (!kind) return

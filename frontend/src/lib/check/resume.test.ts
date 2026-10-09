@@ -35,6 +35,7 @@ describe("reading a resume for the checks", () => {
       linkedin: "",
       profileGithub: "",
       personalWebsite: "",
+      summary: "",
     })
     expect(view.sections.Work[0].values).toMatchObject({ workRole: "Engineer", workLocation: "", workStartDate: "" })
     expect(view.sections.Projects).toEqual([])

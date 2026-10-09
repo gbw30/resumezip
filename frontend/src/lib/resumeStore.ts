@@ -156,8 +156,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
     if (!has(id)) return null
     const resume = state.resumes[id]
     const extras: ExtraSections = resume.extraSections ?? {}
-    const key = kind === "summary" ? kind : crypto.randomUUID()
-    if (Object.hasOwn(extras, key)) return extraRef(key)
+    const key = crypto.randomUUID()
     const ref = extraRef(key)
     commit(id, { extraSections: { ...extras, [key]: newExtraSection(kind) }, sectionOrder: [...resolveSections(resume), ref] }, [
       `extraSections.${key}`,
@@ -184,7 +183,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
         ...section,
         ...(heading !== undefined && { heading }),
         ...(leftOut !== undefined && { leftOut }),
-        ...((section.kind === "summary" || section.kind === "text") && text !== undefined && { text }),
+        ...(section.kind === "text" && text !== undefined && { text }),
         ...(section.kind === "list" && bullets !== undefined && { bullets }),
       }
     })
