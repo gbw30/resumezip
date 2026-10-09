@@ -9,6 +9,7 @@ import { plainText } from "@/lib/typst/resumeData"
 import {
   bulletLines,
   cursorWithBullets,
+  lineStartOf,
   moveBullet,
   moveLine,
   newBullet,
@@ -16,6 +17,7 @@ import {
   pastedList,
   setLeftOutLine,
   toggleMark,
+  typedList,
   withBullets,
   type Edited,
 } from "./arrange"
@@ -158,6 +160,15 @@ const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff
 // True while typeInto types, so what it types goes in as it is.
 let typing = false
 
+// What was last copied or cut from a bullets box. Pasted back, its "○" bullets
+// stay left out; a "○" pasted from anywhere else is a sub-bullet, and printed.
+let copied: string | undefined
+
+const rememberCopied = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const { selectionStart, selectionEnd, value } = event.currentTarget
+  copied = value.slice(selectionStart, selectionEnd)
+}
+
 /**
  * Changes a text box's text to `next` as typing would, replacing only the part
  * that changed, so the browser can undo it with the person's own typing.
@@ -271,7 +282,8 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
   // Words typed or pasted on a line with no bullet get one in the same edit, so
   // Ctrl+Z takes back both at once. (Left to React, the bullet would be added
   // after the edit, which clears the browser's undo history.) A pasted list's
-  // own markers become its bullets, so it doesn't get two.
+  // own markers become its bullets, so it doesn't get two, and a "- " typed
+  // after a bullet goes.
   useEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
@@ -281,14 +293,16 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
       const given = (event.data ?? event.dataTransfer?.getData("text/plain"))?.replace(/\r\n?/g, "\n")
       if (!given) return
       const { selectionStart: start, selectionEnd: end, value } = textarea
-      const words =
-        event.inputType === "insertFromPaste" ? pastedList(given, value.slice(value.lastIndexOf("\n", start - 1) + 1, start)) : given
-      const typed = value.slice(0, start) + words + value.slice(end)
+      const from = lineStartOf(value, start)
+      const before = value.slice(from, start)
+      // The line up to the cursor once it's typed or pasted in.
+      const head = event.inputType === "insertFromPaste" ? pastedList(given, before, given === copied) : typedList(before, given)
+      const typed = value.slice(0, from) + head + value.slice(end)
       const next = withBullets(typed)
       // Nothing to change: the browser puts it in as it is.
-      if (next === typed && words === given) return
+      if (next === typed && head === before + given) return
       event.preventDefault()
-      const cursor = cursorWithBullets(typed, start + words.length)
+      const cursor = cursorWithBullets(typed, from + head.length)
       edit(textarea, { text: next, start: cursor, end: cursor })
     }
     textarea.addEventListener("beforeinput", onBeforeInput)
@@ -365,6 +379,8 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
           rows={4}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
+          onCopy={rememberCopied}
+          onCut={rememberCopied}
           className={`w-full resize-none overflow-hidden rounded-[4px] border bg-sheet px-3.5 py-3 text-[15px] leading-[1.7] text-ink outline-none transition-colors placeholder:text-ink-2/50 focus-visible:outline-none ${
             !flag ? "border-rule focus:border-accent" : "border-accent ring-1 ring-accent"
           }`}

@@ -3,6 +3,7 @@
 // them out, and what Enter and the bold and italic keys do. Blank lines stay
 // where they are.
 
+import { BULLET_CHARS } from "@/lib/import/lines"
 import { isLeftOutLine, LEFT_OUT_BULLET } from "@/lib/leftOut"
 
 export interface BulletLine {
@@ -59,26 +60,43 @@ export function cursorWithBullets(text: string, at: number): number {
 }
 
 // A list marker at the start of a line, as lists copied from elsewhere have:
-// "- ", "* ", "– ", "— ", "1. " or "1) ", up to "999. ". Not "-5%", "*bold*",
-// "1.5x", or a year, as in "2019. Promoted".
-const LIST_MARKER = /^\s*(?:[-–—*]|\d{1,3}[.)])\s+/
+// a symbol from BULLET_CHARS, like "●", "▪", the "○" of Google Docs'
+// sub-bullets or Word's "", or "- ", "* ", "– ", "— ", "1. " or "1) ", up to
+// "999. ". Not "-5%", "*bold*", "1.5x", or a year, as in "2019. Promoted". No
+// word starts with one of the symbols, so they can touch their words.
+const LIST_MARKER = new RegExp(String.raw`^\s*(?:[${BULLET_CHARS}]\s*|(?:[-–—*]|\d{1,3}[.)])\s+)`)
 
 /**
- * Text pasted into a bullets box, with a bullet in place of each list marker
- * that starts a line, so a pasted list gets one bullet per line, not two.
- * `before` is the line it's pasted into, up to the cursor. After a bullet
- * there, the first line's marker just goes; after words, it isn't at the
+ * The line a list is pasted into, up to the cursor (`before`), with `text`
+ * pasted after it: a bullet in place of each list marker that starts a line,
+ * so a pasted list gets one bullet per line, not two. After a bullet in
+ * `before`, the first line's marker just goes; after words, it isn't at the
  * start of a line, so it stays.
+ *
+ * A "○" pasted from elsewhere is a sub-bullet, so it's printed. Text copied
+ * from a bullets box (`copiedHere`) keeps its own bullets instead, so a
+ * left-out one cut and pasted stays left out, even onto a new line's "• ".
  */
-export function pastedList(text: string, before: string): string {
-  return text
-    .split("\n")
-    .map((line, index) => {
-      if (index > 0 || !before.trim()) return line.replace(LIST_MARKER, "• ")
-      return /^\s*[•○]\s*$/.test(before) ? line.replace(LIST_MARKER, "") : line
-    })
-    .join("\n")
+export function pastedList(text: string, before: string, copiedHere = false): string {
+  const own = (line: string) => copiedHere && /^\s*[•○]/.test(line)
+  const listed = (line: string) => (own(line) ? line : line.replace(LIST_MARKER, "• "))
+  const [first, ...rest] = text.split("\n")
+  let head = before + first
+  if (!before.trim()) head = before + listed(first)
+  else if (/^\s*[•○]\s*$/.test(before)) head = own(first) ? first : before + first.replace(LIST_MARKER, "")
+  return [head, ...rest.map(listed)].join("\n")
 }
+
+// A bullet, then "- " or "* " (or "– ", "— "), up to the cursor.
+const TYPED_MARKER = /^([•○])[^\S\n]*[-–—*][^\S\n]$/
+
+/**
+ * The line up to the cursor (`before`), with `typed` typed after it. "- " or
+ * "* " at the start of a line starts a list in other editors, but here the
+ * line has its bullet already, so the marker goes once the space after it is
+ * typed. Only then, so "-5%" stays as typed.
+ */
+export const typedList = (before: string, typed: string) => (before + typed).replace(TYPED_MARKER, "$1 ")
 
 /** The bullets in a field's text, in order. */
 export function bulletLines(text: string): BulletLine[] {
@@ -116,8 +134,8 @@ export function setLeftOutLine(text: string, line: number, leftOut: boolean): st
   return lines.join("\n")
 }
 
-// Where the line with `at` in it starts.
-const lineStartOf = (text: string, at: number) => (at > 0 ? text.lastIndexOf("\n", at - 1) + 1 : 0)
+/** Where the line with `at` in it starts. */
+export const lineStartOf = (text: string, at: number) => (at > 0 ? text.lastIndexOf("\n", at - 1) + 1 : 0)
 
 /** Text with the cursor, or a selection, in it. */
 export interface Edited {
