@@ -3,12 +3,12 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { Check, Loader2 } from "lucide-react"
 import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
 import type { ResumeWithId } from "@/lib/resume"
 import { downloadResume } from "@/lib/typst/compile"
 import { templateById } from "@/lib/templates"
 import { RESUME_TAGS } from "./CreateResumeModal"
+import { CopyIcon, DownloadIcon, PencilIcon, RowAction, TrashIcon } from "./RowActions"
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" })
 const dateFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" })
@@ -116,17 +116,22 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
   const header = "label-mono border-b border-rule py-3.5 text-left font-normal text-ink-2"
   const cell = "border-b border-rule py-[18px]"
 
+  // The picture opens the resume too. The name's link is the one announced, so this one's skipped.
   const thumbnail = (resume: ResumeWithId) => (
-    <Image
-      src={templateById(resume.selectedTemplate).image}
-      alt=""
-      width={46}
-      height={60}
-      className="h-[60px] w-[46px] shrink-0 bg-sheet object-cover object-top ring-1 ring-rule"
-    />
+    <Link href={`/create/new/${resume.id}`} tabIndex={-1} aria-hidden="true" className="shrink-0">
+      <Image
+        src={templateById(resume.selectedTemplate).image}
+        alt=""
+        width={46}
+        height={60}
+        className="h-[60px] w-[46px] bg-sheet object-cover object-top ring-1 ring-rule transition-shadow hover:ring-rule-strong"
+      />
+    </Link>
   )
 
-  // The name, which opens the resume, or a box to rename it in.
+  // The name, which opens the resume, and a pencil to rename it; or, while
+  // renaming, a box to type the name in. On wide screens the pencil shows
+  // when the row is pointed at, or it's focused.
   const name = (resume: ResumeWithId, className: string) =>
     renaming?.id === resume.id ? (
       <input
@@ -145,47 +150,37 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
         className="w-full min-w-0 border-0 border-b border-accent bg-transparent py-0.5 font-serif text-[21px] leading-tight text-ink outline-none placeholder:text-ink-2 focus-visible:outline-none"
       />
     ) : (
-      <Link href={`/create/new/${resume.id}`} title={nameOf(resume)} data-resume-link={resume.id} className={className}>
-        {nameOf(resume)}
-      </Link>
+      <div className="flex min-w-0 items-start gap-0.5">
+        <Link href={`/create/new/${resume.id}`} title={nameOf(resume)} data-resume-link={resume.id} className={className}>
+          {nameOf(resume)}
+        </Link>
+        <RowAction
+          label="Rename"
+          data-rename={resume.id}
+          onClick={() => setRenaming({ id: resume.id, draft: resume.resumeTitle ?? "" })}
+          className="-my-2 transition-opacity md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100"
+        >
+          <PencilIcon />
+        </RowAction>
+      </div>
     )
 
   const actions = (resume: ResumeWithId) => (
     <>
-      <Link href={`/create/new/${resume.id}`} className="px-2 py-2.5 text-sm underline underline-offset-4 hover:decoration-2">
-        Open
-      </Link>
-      <button
-        type="button"
+      <RowAction label="Duplicate" onClick={() => duplicate(resume)}>
+        <CopyIcon copied={resume.id === copied} />
+      </RowAction>
+      <RowAction
+        label={resume.id in downloaded ? "Downloaded" : "Download"}
         onClick={() => download(resume)}
         disabled={downloading.includes(resume.id)}
-        className="inline-flex items-center gap-1.5 px-2 py-2.5 text-sm text-ink-2 transition-colors hover:text-ink disabled:cursor-wait"
+        busy={downloading.includes(resume.id)}
       >
-        {downloading.includes(resume.id) ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-        ) : (
-          resume.id in downloaded && <Check className="h-3.5 w-3.5" aria-hidden="true" />
-        )}
-        {resume.id in downloaded ? "Downloaded" : "Download"}
-      </button>
-      <button type="button" onClick={() => duplicate(resume)} className="px-2 py-2.5 text-sm text-ink-2 transition-colors hover:text-ink">
-        Duplicate
-      </button>
-      <button
-        type="button"
-        data-rename={resume.id}
-        onClick={() => setRenaming({ id: resume.id, draft: resume.resumeTitle ?? "" })}
-        className="px-2 py-2.5 text-sm text-ink-2 transition-colors hover:text-ink"
-      >
-        Rename
-      </button>
-      <button
-        type="button"
-        onClick={() => onDelete(resume)}
-        className="py-2.5 pl-2 pr-2 text-sm text-ink-2 transition-colors hover:text-[#b42318] md:pr-0"
-      >
-        Delete
-      </button>
+        <DownloadIcon state={downloading.includes(resume.id) ? "busy" : resume.id in downloaded ? "done" : "idle"} />
+      </RowAction>
+      <RowAction label="Delete" danger tipAtEnd onClick={() => onDelete(resume)}>
+        <TrashIcon />
+      </RowAction>
     </>
   )
 
@@ -216,7 +211,7 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
         {resumes.map((resume) => (
           <li
             key={resume.id}
-            className={`flex gap-4 border-b border-rule pb-3 pt-5 transition-colors duration-700 ${resume.id === copied ? "bg-accent/5" : ""}`}
+            className={`group/row flex gap-4 border-b border-rule pb-3 pt-5 transition-colors duration-700 ${resume.id === copied ? "bg-accent/5" : ""}`}
           >
             {thumbnail(resume)}
             <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -225,7 +220,7 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
                 {[resume.resumeTag && tagName(resume.resumeTag), templateById(resume.selectedTemplate).name].filter(Boolean).join(" · ")}
               </span>
               <span className="font-mono text-[12px] text-ink-2">{formatEdited(resume.updatedAt)}</span>
-              <div className="-ml-2 mt-1 flex flex-wrap">{actions(resume)}</div>
+              <div className="-ml-2.5 mt-1 flex gap-1">{actions(resume)}</div>
             </div>
           </li>
         ))}
@@ -252,7 +247,7 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
           </thead>
           <tbody>
             {resumes.map((resume) => (
-              <tr key={resume.id} className={`transition-colors duration-700 ${resume.id === copied ? "bg-accent/5" : ""}`}>
+              <tr key={resume.id} className={`group/row transition-colors duration-700 ${resume.id === copied ? "bg-accent/5" : ""}`}>
                 {/* A name breaks anywhere it has to, so however long it is, it can't
                     widen the table and push the other columns off the screen. Past
                     two lines it's cut short, and shown in full on hover. */}
@@ -271,7 +266,9 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
                 {/* On one line each, so the name gets the rest of the row. */}
                 <td className={`${cell} whitespace-nowrap pr-6 text-[15px]`}>{templateById(resume.selectedTemplate).name}</td>
                 <td className={`${cell} whitespace-nowrap pr-6 font-mono text-[13px] text-ink-2`}>{formatEdited(resume.updatedAt)}</td>
-                <td className={`${cell} whitespace-nowrap text-right`}>{actions(resume)}</td>
+                <td className={cell}>
+                  <div className="flex justify-end gap-1">{actions(resume)}</div>
+                </td>
               </tr>
             ))}
           </tbody>
