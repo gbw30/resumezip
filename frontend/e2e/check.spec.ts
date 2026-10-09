@@ -10,6 +10,80 @@ async function newResume(page: Page) {
   await expect(page).toHaveURL(/\/create\/new\//)
 }
 
+// While held, the compiler's worker isn't sent resumes to compile, so the
+// preview and the checks on the PDF wait, and the score with them.
+async function holdablePreviews(page: Page) {
+  await page.addInitScript(() => {
+    const held: (() => void)[] = []
+    let holding = false
+    ;(window as any).holdPreviews = (hold: boolean) => {
+      holding = hold
+      if (!hold) for (const send of held.splice(0)) send()
+    }
+    const RealWorker = window.Worker
+    window.Worker = class extends RealWorker {
+      postMessage(message: any, options?: any) {
+        // A resume to compile has an id and a template; the grammar checker's texts have no template.
+        if (holding && message?.id !== undefined && message?.template !== undefined) held.push(() => super.postMessage(message, options))
+        else super.postMessage(message, options)
+      }
+    }
+  })
+}
+
+const holdPreviews = (page: Page, hold: boolean) => page.evaluate((hold) => (window as any).holdPreviews(hold), hold)
+
+/** A new resume with a name and an entry, so there's something to check, and its preview on screen. */
+async function resumeToCheck(page: Page) {
+  await newResume(page)
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Company").fill("Analytical Engines")
+  await expect(page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()).toBeVisible()
+}
+
+/** How many CSS animations, as a spinner's, are running in an element. Transitions don't count. */
+const animationsIn = (locator: Locator) =>
+  locator.evaluate(
+    (element) =>
+      document.getAnimations().filter((animation) => {
+        const target = (animation.effect as KeyframeEffect | null)?.target
+        return "animationName" in animation && animation.playState === "running" && !!target && element.contains(target)
+      }).length,
+  )
+
+/**
+ * Notes how much of each arc added to the score ring is drawn the moment it's
+ * added, in percent, until the returned function is called.
+ */
+async function watchArcs(score: Locator): Promise<() => Promise<number[]>> {
+  const watching = await score.evaluateHandle((element) => {
+    const drawn: number[] = []
+    const observer = new MutationObserver((records) => {
+      for (const node of records.flatMap((record) => [...record.addedNodes])) {
+        if (!(node instanceof SVGCircleElement)) continue
+        // Read before it's painted: a transition that's just started is still where it starts from.
+        const style = getComputedStyle(node)
+        drawn.push(Math.round(100 * (1 - parseFloat(style.strokeDashoffset) / parseFloat(style.strokeDasharray))))
+      }
+    })
+    observer.observe(element, { childList: true, subtree: true })
+    return { drawn, stop: () => observer.disconnect() }
+  })
+  return async () => {
+    const drawn = await watching.evaluate(({ drawn, stop }) => {
+      stop()
+      return drawn
+    })
+    await watching.dispose()
+    return drawn
+  }
+}
+
 test("the left bar switches between writing and checking, and remembers which", async ({ page }) => {
   const errors = pageErrors(page)
   await newResume(page)
@@ -195,6 +269,44 @@ test("the score goes up as a problem is fixed", async ({ page }) => {
   expect(errors).toEqual([])
 })
 
+test("the score ring moves while the score is worked out: an arc runs round it, it fills up to the score, and it pulses while checked again", async ({
+  page,
+}) => {
+  const errors = pageErrors(page)
+  await holdablePreviews(page)
+  await resumeToCheck(page)
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+  const score = panel.getByRole("region", { name: "Resume score" })
+
+  // A change the preview hasn't caught up with keeps the checks on the PDF
+  // waiting, and the score with them. Meanwhile an arc runs round the ring.
+  await holdPreviews(page, true)
+  await page.getByLabel("Role").fill("Analyst")
+  await page.getByRole("tab", { name: /^Check/ }).click()
+  await expect(score).toContainText("Checking")
+  await expect.poll(() => animationsIn(score)).toBeGreaterThan(0)
+
+  // Once the score is in, the ring fills up to it from empty, then stops moving.
+  const arcs = await watchArcs(score)
+  await holdPreviews(page, false)
+  await expect(score.getByText(/^\d+$/)).toBeVisible()
+  expect(await arcs()).toEqual([0])
+  await expect(panel.getByRole("status")).toBeHidden()
+  await expect.poll(() => animationsIn(score)).toBe(0)
+
+  // Checked again after a change, the ring keeps the score and pulses until it's done.
+  await holdPreviews(page, true)
+  await page.getByLabel("Role").fill("Lead analyst")
+  await expect(panel.getByRole("status")).toContainText("Checking the PDF…")
+  await expect(score.getByText(/^\d+$/)).toBeVisible()
+  await expect.poll(() => animationsIn(score)).toBeGreaterThan(0)
+  await holdPreviews(page, false)
+  await expect(panel.getByRole("status")).toBeHidden()
+  await expect.poll(() => animationsIn(score)).toBe(0)
+
+  expect(errors).toEqual([])
+})
+
 test("choosing a finding opens its field, where it shows while Check is open, fixing it clears it, and a suggestion can be dismissed", async ({
   page,
 }) => {
@@ -358,6 +470,40 @@ test("when the preview can't be built, the checker says its PDF checks are left 
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
   await expect(panel.getByRole("status")).toContainText("The preview couldn't be built, so the checks on the PDF are left out.")
   expect(errors).toEqual([])
+})
+
+test.describe("with less motion", () => {
+  test.use({ reducedMotion: "reduce" })
+
+  test("the score ring stays still: nothing runs round it, it shows the score at once, and it doesn't pulse", async ({ page }) => {
+    const errors = pageErrors(page)
+    await holdablePreviews(page)
+    await resumeToCheck(page)
+    const panel = page.getByRole("tabpanel", { name: /^Check/ })
+    const score = panel.getByRole("region", { name: "Resume score" })
+
+    await holdPreviews(page, true)
+    await page.getByLabel("Role").fill("Analyst")
+    await page.getByRole("tab", { name: /^Check/ }).click()
+    await expect(score).toContainText("Checking")
+    expect(await animationsIn(score)).toBe(0)
+
+    const arcs = await watchArcs(score)
+    await holdPreviews(page, false)
+    await expect(score.getByText(/^\d+$/)).toBeVisible()
+    const [drawn] = await arcs()
+    expect(drawn).toBeGreaterThan(0)
+    await expect(panel.getByRole("status")).toBeHidden()
+
+    await holdPreviews(page, true)
+    await page.getByLabel("Role").fill("Lead analyst")
+    await expect(panel.getByRole("status")).toContainText("Checking the PDF…")
+    expect(await animationsIn(score)).toBe(0)
+    await holdPreviews(page, false)
+    await expect(panel.getByRole("status")).toBeHidden()
+
+    expect(errors).toEqual([])
+  })
 })
 
 test.describe("on a phone", () => {

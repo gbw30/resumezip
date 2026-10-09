@@ -103,7 +103,7 @@ export default function CheckPanel() {
   const checkingGrammar = view.grammarLanguage !== "other" && (waitingFor("grammar") || grammar !== "ready")
   return (
     <div className="flex flex-col gap-5 px-3 py-4 xl:p-0">
-      <ScoreHeader total={score.total} mustFix={score.mustFix} fixes={fixes} />
+      <ScoreHeader total={score.total} mustFix={score.mustFix} fixes={fixes} updating={checking.size > 0} />
       <div className="flex flex-col gap-1.5 px-2 text-sm text-ink-2">
         <label htmlFor="grammar-language">Spelling and grammar language</label>
         <select
@@ -216,13 +216,24 @@ function useShownCategories(findings: readonly Finding[], checking: ReadonlyMap<
  * The resume score on a ring, a word for how it reads, in a line what it
  * measures, and whether a must-fix is holding it down.
  */
-function ScoreHeader({ total, mustFix = false, fixes = 0 }: { total: number | "checking" | null; mustFix?: boolean; fixes?: number }) {
+function ScoreHeader({
+  total,
+  mustFix = false,
+  fixes = 0,
+  updating = false,
+}: {
+  total: number | "checking" | null
+  mustFix?: boolean
+  fixes?: number
+  /** Whether some categories are being checked, so the score may change. */
+  updating?: boolean
+}) {
   const id = useId()
   const band = typeof total === "number" ? bandOf(total) : null
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3 px-2">
       <div className="flex items-center gap-4">
-        <ScoreRing total={total} />
+        <ScoreRing total={total} updating={updating} />
         <div className="flex min-w-0 flex-col gap-1">
           <h2 id={id} className="label-mono text-ink-2">
             Resume score
@@ -244,8 +255,12 @@ function ScoreHeader({ total, mustFix = false, fixes = 0 }: { total: number | "c
   )
 }
 
-/** The score in a ring that fills up to it. */
-function ScoreRing({ total }: { total: number | "checking" | null }) {
+/**
+ * The score in a ring that fills up to it, from empty when it first shows.
+ * Until there's a score an arc runs round the ring, and while the score is
+ * checked again after a change, the ring pulses.
+ */
+function ScoreRing({ total, updating }: { total: number | "checking" | null; updating: boolean }) {
   const scored = typeof total === "number"
   return (
     <div className="relative h-[68px] w-[68px] shrink-0">
@@ -260,8 +275,25 @@ function ScoreRing({ total }: { total: number | "checking" | null }) {
             strokeWidth="3"
             strokeLinecap="round"
             strokeDasharray={RING_LENGTH}
-            style={{ strokeDashoffset: RING_LENGTH * (1 - total / 100) }}
-            className="stroke-accent transition-[stroke-dashoffset] duration-500 ease-out motion-reduce:transition-none"
+            // Variables rather than an inline stroke-dashoffset, which would
+            // outrank `starting:` (@starting-style) and keep a new ring from
+            // starting empty.
+            style={{ "--ring-empty": RING_LENGTH, "--ring-offset": RING_LENGTH * (1 - total / 100) } as React.CSSProperties}
+            className={`stroke-accent transition-[stroke-dashoffset] duration-1000 ease-out [stroke-dashoffset:var(--ring-offset)] motion-reduce:transition-none starting:[stroke-dashoffset:var(--ring-empty)] ${
+              updating ? "animate-pulse motion-reduce:animate-none" : ""
+            }`}
+          />
+        )}
+        {total === "checking" && (
+          <circle
+            cx="18"
+            cy="18"
+            r={RING_RADIUS}
+            fill="none"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray={`${RING_LENGTH / 4} ${RING_LENGTH}`}
+            className="origin-center animate-spin stroke-accent motion-reduce:hidden"
           />
         )}
       </svg>
