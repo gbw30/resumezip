@@ -265,19 +265,14 @@ describe.each(files)("%s", (file) => {
     expect(Object.fromEntries(known.map((field) => [field, valueAt(got, field)]))).toMatchSnapshot()
   })
 
-  test("the import keeps the summary's words", async () => {
+  test("the import reads the summary as it was typed", async () => {
     const [person] = file.split("/")
     const fixture = JSON.parse(readFileSync(path.join(CORPUS, person, "resume.json"), "utf8"))
     const { parsed, resume } = await readBack(new Uint8Array(readFileSync(path.join(CORPUS, `${file}.pdf`))))
-    const tokens = (text: string) =>
-      text
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .filter(Boolean)
-        .sort()
     const summaries = parsed.extraGroups?.filter((group) => group.kind === "summary") ?? []
     if (summaries.length) {
-      expect(tokens(resume.profileSection.summary ?? "")).toEqual(tokens(fixture.summary))
+      // As typed: the PDF's lines are joined back up where they only wrapped.
+      expect(resume.profileSection.summary).toBe(fixture.summary)
       expect(summaries).toHaveLength(1)
     }
   })

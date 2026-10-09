@@ -121,6 +121,13 @@ describe("flexible section import review", () => {
     expect(parsed.unplaced).toEqual([])
   })
 
+  test("text it couldn't place is tidied: no soft hyphens, doubled spaces or stray separators", () => {
+    const parsed = parse("Mara Lin", ["Presentations", true], "• Talk on accessible soft\u00ADware  at Example Con |")
+    expect(parsed.unplaced.map((group) => group.text)).toEqual([["Talk on accessible software at Example Con"]])
+    const top = parse("Mara Lin", "Open-source  maintain\u00ADer |", ["Presentations", true], "First talk")
+    expect(top.unplaced[0]).toMatchObject({ heading: "Top of the resume", text: ["Open-source maintainer"] })
+  })
+
   test("repeated unsupported headings remain independently selectable with durable UUIDs only at confirmation", () => {
     const parsed = parse("Mara Lin", ["Presentations", true], "First talk", ["Presentations", true], "Second talk")
     expect(parsed.unplaced.map((group) => group.heading)).toEqual(["Presentations", "Presentations"])

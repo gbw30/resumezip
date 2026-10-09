@@ -554,6 +554,22 @@ function wrapsInto(line: ParseLine, next: ParseLine): boolean {
   return line.box[2] + (word.length + 1) * charWidth * 1.15 >= line.margin - 2
 }
 
+/**
+ * Prose as it was written rather than as it was printed: a line that ran to
+ * its column's edge is joined back up with the line it wrapped onto, so each
+ * line here is one the person typed (or a bullet). Word files have no
+ * wrapping to undo.
+ */
+function unwrapped(lines: ParseLine[]): string[] {
+  const written: string[] = []
+  lines.forEach((line, i) => {
+    if (i > 0 && !line.bullet && wrapsInto(lines[i - 1], line))
+      written[written.length - 1] = joinWrapped(written[written.length - 1], line.text)
+    else written.push(line.text)
+  })
+  return written.map(tidy).filter(Boolean)
+}
+
 /** A date laid out the way an entry's is: set apart from the rest of its line, or alone on it. */
 const datedLikeTitle = (line: Line) => (line.parts.length > 1 ? hasDate(line) : dateOnly(line.text))
 
@@ -1928,7 +1944,7 @@ export function parseResume(file: Line[]): ParsedResume {
     ...new Set(indexes.map((index) => input[index]?.sourceIndex).filter((index): index is number => index !== undefined)),
   ]
   const addUnplaced = (heading: string, lineIndexes: number[], text: string[], headingLine = lineIndexes[0] ?? -1) => {
-    const kept = text.map((line) => line.trim()).filter(Boolean)
+    const kept = text.map(tidy).filter(Boolean)
     if (kept.length === 0) return
     unplaced.push({
       id: `unplaced:${headingLine}:${unplaced.length}`,
@@ -1995,7 +2011,7 @@ export function parseResume(file: Line[]): ParsedResume {
     if (sectionLines.length === 0) return
 
     if (kind === "summary") {
-      extraGroups.push({ ...occurrence, kind, text: sectionLines.map((line) => line.text) })
+      extraGroups.push({ ...occurrence, kind, text: unwrapped(sectionLines) })
       return
     }
 
@@ -2007,12 +2023,7 @@ export function parseResume(file: Line[]): ParsedResume {
         education.entries[0].lines.push(...sectionLines.map((line) => line.index))
         return
       }
-      addUnplaced(
-        titleCase(label),
-        indexes,
-        sectionLines.map((line) => line.text),
-        start.index,
-      )
+      addUnplaced(titleCase(label), indexes, unwrapped(sectionLines), start.index)
       return
     }
 
