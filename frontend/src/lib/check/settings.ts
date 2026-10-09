@@ -143,7 +143,7 @@ export const PERSONAL_DETAILS = [
  */
 export const SSN = /\b\d{3}[- ]\d{2}[- ]\d{4}\b|\b(ssn|social security(\s+(number|no\.?))?)\s*[:#]?\s*\d{9}\b/i
 
-// Sections & entries (S1–S9).
+// Sections & entries (S1–S10).
 
 /** A skills line with this many items or more reads as a list to skim past. */
 export const MAX_SKILLS_PER_LINE = 15
@@ -368,11 +368,14 @@ export const NUMBER_LABELS = [
   "series", "chapter",
 ]
 
-/** Shorthand and slang, and the word to write instead. */
+/**
+ * Shorthand and slang, and the word to write instead. Not "&": "design &
+ * build" reads fine, and it saves room on a line.
+ */
 export const SHORTHAND: [string, string][] = [
   ["w/o", "without"], ["w/", "with"], ["b/c", "because"], ["mgmt", "management"], ["mgr", "manager"],
   ["approx.", "about"], ["approx", "about"], ["govt", "government"], ["thru", "through"], ["esp.", "especially"],
-  ["yrs", "years"], ["yr", "year"], ["hrs", "hours"], ["hr", "hour"], ["&", "and"],
+  ["yrs", "years"], ["yr", "year"], ["hrs", "hours"], ["hr", "hour"],
 ]
 
 // Readable by hiring software (R1–R6).
@@ -392,8 +395,11 @@ export const FINE_SYMBOLS = ["©", "®", "™"]
 /** This many lines or fewer on the last page is a spill-over. */
 export const SPILL_LINES = 5
 
-/** A bullet whose last line has this many words or fewer leaves a gap. */
-export const SHORT_LAST_LINE = 4
+/**
+ * A bullet whose last line has this many words or fewer leaves a gap. Four
+ * words fill enough of a line to leave be.
+ */
+export const SHORT_LAST_LINE = 3
 
 /** A bullet that runs this many lines or more is hard to skim. */
 export const LONG_BULLET_LINES = 3
