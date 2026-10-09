@@ -143,11 +143,11 @@ for (const { width, layout } of [
     await expect(preview.getByRole("button", { name: "250%" })).toBeVisible()
     await expect.poll(async () => apart(await middleOf(email), cursor), { message: "the email is still under the cursor" }).toBeLessThan(3)
 
-    // And back out again.
+    // And back out again: 250% ÷ 1.1¹⁰.
     await page.keyboard.down("Control")
     for (let i = 0; i < 10; i++) await page.mouse.wheel(0, 100)
     await page.keyboard.up("Control")
-    await expect(preview.getByRole("button", { name: "150%" })).toBeVisible()
+    await expect(preview.getByRole("button", { name: "96%" })).toBeVisible()
     await expect.poll(async () => apart(await middleOf(email), cursor), { message: "the email is still under the cursor" }).toBeLessThan(3)
 
     expect(errors).toEqual([])
@@ -236,5 +236,36 @@ test("zooming keeps the page on screen, and draws it sharp at the new size", asy
   const painted = (await page.evaluate(() => window.painted))!
   expect(painted.frames).toBeGreaterThan(10)
   expect(painted.blank).toBe(0)
+  expect(errors).toEqual([])
+})
+
+test("a pinch zooms as far as the fingers move, and a mouse wheel's notch a tenth", async ({ page }) => {
+  const errors = pageErrors(page)
+  await page.setViewportSize({ width: 1280, height: 720 })
+  const { preview, email } = await startResume(page)
+  const cursor = (await middleOf(email))!
+  await page.mouse.move(cursor.x, cursor.y)
+  await countBlankFrames(preview)
+
+  // Chrome and Firefox send a pinch as a run of small Ctrl + scrolls, each of
+  // -100 × ln(scale) pixels. These make e^0.36, or 143%.
+  await page.keyboard.down("Control")
+  for (let i = 0; i < 12; i++) await page.mouse.wheel(0, -3)
+  await page.keyboard.up("Control")
+  await expect(preview.getByRole("button", { name: "143%" })).toBeVisible()
+
+  // A notch scrolls 100 pixels at once: 143% × 1.1.
+  await page.keyboard.down("Control")
+  await page.mouse.wheel(0, -100)
+  await page.keyboard.up("Control")
+  await expect(preview.getByRole("button", { name: "158%" })).toBeVisible()
+
+  // The buttons go to the next tenth either way.
+  await preview.getByRole("button", { name: "Zoom out" }).click()
+  await expect(preview.getByRole("button", { name: "150%" })).toBeVisible()
+  await preview.getByRole("button", { name: "Zoom in" }).click()
+  await expect(preview.getByRole("button", { name: "160%" })).toBeVisible()
+
+  expect((await page.evaluate(() => window.painted))!.blank).toBe(0)
   expect(errors).toEqual([])
 })

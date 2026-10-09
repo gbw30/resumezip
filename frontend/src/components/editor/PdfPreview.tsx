@@ -25,9 +25,10 @@ interface Drawing {
 }
 
 const MAX_PAGE_WIDTH = 640
-const ZOOM_STEP = 0.1
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 2.5
+// The most one Ctrl + scroll zooms by, as a factor: a mouse wheel's notch.
+const WHEEL_STEP = 1.1
 // Height over width: every template prints on US Letter.
 const PAGE_RATIO = 11 / 8.5
 // Space between pages, matching gap-4.
@@ -134,7 +135,8 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
       event.preventDefault()
       const pages = pagesRef.current
       if (pages) anchorRef.current = anchorAt(pages, event.clientX, event.clientY, heldRef.current)
-      setZoom((z) => clampZoom(z + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)))
+      const factor = wheelZoom(event)
+      setZoom((z) => clampZoom(z * factor))
     }
     scroller.addEventListener("wheel", onWheel, { passive: false })
     return () => scroller.removeEventListener("wheel", onWheel)
@@ -221,7 +223,7 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
             type="button"
             aria-label="Zoom out"
             aria-disabled={zoom <= MIN_ZOOM || undefined}
-            onClick={() => zoomFromMiddle((z) => clampZoom(z - ZOOM_STEP))}
+            onClick={() => zoomFromMiddle((z) => stepZoom(z, -1))}
             className={iconButton}
           >
             −
@@ -233,7 +235,7 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
             type="button"
             aria-label="Zoom in"
             aria-disabled={zoom >= MAX_ZOOM || undefined}
-            onClick={() => zoomFromMiddle((z) => clampZoom(z + ZOOM_STEP))}
+            onClick={() => zoomFromMiddle((z) => stepZoom(z, 1))}
             className={iconButton}
           >
             +
@@ -338,7 +340,28 @@ function copyPlainText(event: ClipboardEvent) {
 }
 
 function clampZoom(zoom: number) {
-  return Math.round(Math.min(Math.max(zoom, MIN_ZOOM), MAX_ZOOM) * 10) / 10
+  return Math.min(Math.max(zoom, MIN_ZOOM), MAX_ZOOM)
+}
+
+/**
+ * How much a Ctrl + scroll zooms by, as a factor. Chrome and Firefox report
+ * pinching a trackpad as a scroll of -100 × ln(scale) pixels, a few at a time,
+ * so following that keeps the page under the fingers. A mouse wheel's notch
+ * scrolls much further at once (100 pixels in Chrome on Windows) and zooms a
+ * step, as does a notch of a wheel that counts in lines or pages.
+ */
+function wheelZoom({ deltaY, deltaMode }: WheelEvent) {
+  if (deltaMode !== WheelEvent.DOM_DELTA_PIXEL) return WHEEL_STEP ** -Math.sign(deltaY)
+  return Math.min(Math.max(Math.exp(-deltaY / 100), 1 / WHEEL_STEP), WHEEL_STEP)
+}
+
+/**
+ * The buttons go to the next tenth, as from a pinch's 143% to 150% or 140%.
+ * They count from the percentage shown, so a click always changes it.
+ */
+function stepZoom(zoom: number, direction: 1 | -1) {
+  const tenths = Math.round(zoom * 100) / 10
+  return clampZoom((direction > 0 ? Math.floor(tenths) + 1 : Math.ceil(tenths) - 1) / 10)
 }
 
 // In whole pixels, as react-pdf sizes a page's canvas.
