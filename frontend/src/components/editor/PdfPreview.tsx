@@ -2,25 +2,29 @@
 
 import type { PDFWorker } from "pdfjs-dist"
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent } from "react"
-import { Document, Page, pdfjs } from "react-pdf"
+// react-pdf's styles are in the page's first download, though its code isn't
+// (see below). Next loads a later chunk's CSS as a React stylesheet resource,
+// and React suspends renders until it's in: what was typed into the form
+// meanwhile was lost, as React reset each field to the value it last rendered.
 import "react-pdf/dist/esm/Page/AnnotationLayer.css"
 import "react-pdf/dist/esm/Page/TextLayer.css"
 import { compilerStatus, onCompilerStatus } from "@/lib/typst/compile"
 import { scrollerOf, uncovered } from "./layout"
 import PrintingPage from "./PrintingPage"
 
+type ReactPdf = typeof import("./reactPdf")
+
 // The worker is bundled with the app, like the one lib/import/open.ts uses.
 // pdfjs-dist is pinned to react-pdf's version so both share one copy and the
-// worker matches the library.
+// worker matches the library. reactPdf.ts points pdf.js at the same file.
 const WORKER_URL = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
-pdfjs.GlobalWorkerOptions.workerSrc = WORKER_URL
 
 // Every preview is loaded in one pdf.js worker, started with the first. Given
 // none, pdf.js starts a worker for each PDF, which loads its script again, and
 // ends it when the PDF closes; a worker it was given is left running. react-pdf
 // loads a PDF again when its options change, so they stay one object.
 let documentOptions: { worker: PDFWorker } | null = null
-const previewOptions = () => (documentOptions ??= { worker: new pdfjs.PDFWorker() })
+const previewOptions = (pdfjs: ReactPdf["pdfjs"]) => (documentOptions ??= { worker: new pdfjs.PDFWorker() })
 
 // The worker only starts with the first PDF, so the first preview would wait
 // for it to download once Typst's PDF is ready. Instead it's fetched into the
@@ -107,6 +111,29 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
   // Set just before the zoom changes, and used up once the pages have their new size.
   const anchorRef = useRef<ZoomAnchor | null>(null)
   const heldRef = useRef<HeldAnchor | null>(null)
+
+  // react-pdf and pdf.js are a third of the editor's code, so they aren't in
+  // the page's first download: the form can be used sooner, and the stand-in
+  // page shows meanwhile. They load as soon as the editor opens rather than
+  // with the first PDF, so a returning visitor, whose compiler is cached,
+  // doesn't wait for them after it. A failed download is tried again with the
+  // next PDF, and only said once there's a PDF to show.
+  const [pdf, setPdf] = useState<ReactPdf | null>(null)
+  useEffect(() => {
+    if (pdf) return
+    let live = true
+    import("./reactPdf").then(
+      (module) => {
+        if (live) setPdf(module)
+      },
+      () => {
+        if (live && pdfUrl) setLoadError(true)
+      },
+    )
+    return () => {
+      live = false
+    }
+  }, [pdf, pdfUrl])
 
   const downloaded = useSyncExternalStore(onCompilerStatus, compilerDownloaded, () => false)
   useEffect(() => {
@@ -279,7 +306,7 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
       <div
         ref={scrollerRef}
         tabIndex={0}
-        onCopy={copyPlainText}
+        onCopy={(event) => pdf && copyPlainText(event, pdf.pdfjs)}
         className="relative min-h-[480px] flex-1 overflow-auto px-5 pb-10 focus-visible:outline-offset-[-2px] md:px-8"
       >
         {loadError || (error && drawings.length === 0) ? (
@@ -297,55 +324,56 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
             {/* A <Document> loads and parses its file, so the drawings of a PDF share one.
                 react-pdf then keeps one page per page number for links within the PDF, and drops
                 it when an older drawing goes; the templates only link out. */}
-            {files.map((file) => (
-              <Document
-                key={file}
-                file={file}
-                options={previewOptions()}
-                // A link in the preview, such as the person's LinkedIn, opens in a new tab rather than leaving the editor.
-                externalLinkTarget="_blank"
-                onLoadSuccess={({ numPages }) => onLoadSuccess(file, numPages)}
-                onLoadError={() => onLoadError(file)}
-                loading={null}
-              >
-                {drawings
-                  .filter((drawing) => drawing.file === file)
-                  .map((drawing) => (
-                    <div
-                      key={drawing.width}
-                      className={`flex flex-col gap-4 ${drawing === shownDrawing ? "" : "invisible absolute inset-0"}`}
-                    >
-                      {/* Every page, one under the other; the panel scrolls through them. Each
-                          takes the zoom's size straight away, and what's drawn is stretched
-                          to fit until it's drawn again at that size. */}
-                      {Array.from({ length: drawing.pages ?? 0 }, (_, index) => (
-                        <div
-                          key={index}
-                          className="bg-sheet shadow-[0_1px_2px_rgba(17,19,24,0.06),0_18px_40px_-16px_rgba(17,19,24,0.22)]"
-                          style={{ width: pageWidth, height: pageHeight(pageWidth) }}
-                        >
+            {pdf &&
+              files.map((file) => (
+                <pdf.Document
+                  key={file}
+                  file={file}
+                  options={previewOptions(pdf.pdfjs)}
+                  // A link in the preview, such as the person's LinkedIn, opens in a new tab rather than leaving the editor.
+                  externalLinkTarget="_blank"
+                  onLoadSuccess={({ numPages }) => onLoadSuccess(file, numPages)}
+                  onLoadError={() => onLoadError(file)}
+                  loading={null}
+                >
+                  {drawings
+                    .filter((drawing) => drawing.file === file)
+                    .map((drawing) => (
+                      <div
+                        key={drawing.width}
+                        className={`flex flex-col gap-4 ${drawing === shownDrawing ? "" : "invisible absolute inset-0"}`}
+                      >
+                        {/* Every page, one under the other; the panel scrolls through them. Each
+                            takes the zoom's size straight away, and what's drawn is stretched
+                            to fit until it's drawn again at that size. */}
+                        {Array.from({ length: drawing.pages ?? 0 }, (_, index) => (
                           <div
-                            className="origin-top-left"
-                            style={{ width: drawing.width, transform: `scale(${pageWidth / drawing.width})` }}
+                            key={index}
+                            className="bg-sheet shadow-[0_1px_2px_rgba(17,19,24,0.06),0_18px_40px_-16px_rgba(17,19,24,0.22)]"
+                            style={{ width: pageWidth, height: pageHeight(pageWidth) }}
                           >
-                            <Page
-                              pageNumber={index + 1}
-                              width={drawing.width}
-                              loading={null}
-                              // The text layer, for selecting and copying, is the costliest
-                              // part. It's drawn once a drawing is on screen, not for one
-                              // out of sight that a newer one may replace.
-                              renderTextLayer={drawing.ready && drawing === shownDrawing}
-                              renderAnnotationLayer
-                              onRenderSuccess={() => onRenderSuccess(drawing, index + 1)}
-                            />
+                            <div
+                              className="origin-top-left"
+                              style={{ width: drawing.width, transform: `scale(${pageWidth / drawing.width})` }}
+                            >
+                              <pdf.Page
+                                pageNumber={index + 1}
+                                width={drawing.width}
+                                loading={null}
+                                // The text layer, for selecting and copying, is the costliest
+                                // part. It's drawn once a drawing is on screen, not for one
+                                // out of sight that a newer one may replace.
+                                renderTextLayer={drawing.ready && drawing === shownDrawing}
+                                renderAnnotationLayer
+                                onRenderSuccess={() => onRenderSuccess(drawing, index + 1)}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-              </Document>
-            ))}
+                        ))}
+                      </div>
+                    ))}
+                </pdf.Document>
+              ))}
           </div>
         )}
       </div>
@@ -364,7 +392,7 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
 // rich copy would carry its transparent color and placeholder font into
 // whatever it's pasted into. The text is normalized the same way too, so a
 // ligature such as "ﬁ" would paste as "fi".
-function copyPlainText(event: ClipboardEvent) {
+function copyPlainText(event: ClipboardEvent, pdfjs: ReactPdf["pdfjs"]) {
   const text = window.getSelection()?.toString()
   if (!text) return
   event.clipboardData.setData("text/plain", pdfjs.normalizeUnicode(text))

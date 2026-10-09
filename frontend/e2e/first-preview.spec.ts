@@ -34,6 +34,11 @@ function compilerWorkers(page: Page): string[] {
   return urls
 }
 
+// Text in the code of react-pdf, which draws the preview, and of the drag and
+// drop for sections, to tell their scripts from the rest of the app's.
+const REACT_PDF = "react-pdf__Document"
+const DRAG_AND_DROP = "Press space bar to start a drag"
+
 test("the editor shows a stand-in page until the first preview, and downloads only the app's fonts", async ({ page }) => {
   const errors = pageErrors(page)
   const requested: string[] = []
@@ -231,6 +236,79 @@ test("pdf.js's worker downloads while the first preview is still being made", as
   releaseFonts()
   await expect(preview.locator("canvas")).toBeVisible()
   expect(errors).toEqual([])
+})
+
+test("the form can be used before the code that draws the preview and drags sections has downloaded", async ({ page }) => {
+  const errors = pageErrors(page)
+  await saveResume(page)
+  // The page's first download is what its HTML names. Everything after it,
+  // scripts, styles and fonts alike, is held back until it's released.
+  const firstDownload = new Set<string>()
+  await page.route(/\/create\/new\//, async (route) => {
+    const response = await route.fetch()
+    for (const [file] of (await response.text()).matchAll(/static\/[\w/.-]+/g)) firstDownload.add(file)
+    await route.fulfill({ response })
+  })
+  let release = () => {}
+  const released = new Promise<void>((resolve) => (release = resolve))
+  const held = new Set<string>()
+  await page.route(/\/_next\/static\//, async (route) => {
+    if (firstDownload.has(new URL(route.request().url()).pathname.replace("/_next/", ""))) return route.continue()
+    const response = await route.fetch()
+    const code = await response.text()
+    for (const mark of [REACT_PDF, DRAG_AND_DROP]) if (code.includes(mark)) held.add(mark)
+    await released
+    await route.fulfill({ response })
+  })
+  await page.goto(`/create/new/${resume.id}`)
+
+  // Both are asked for as soon as the editor opens, before either is needed.
+  await expect.poll(() => [...held].sort()).toEqual([DRAG_AND_DROP, REACT_PDF].sort())
+  // Key by key, as each key is a render: while styles that came after the
+  // page were downloading, React held renders back and the field lost each key.
+  const name = page.getByLabel("Full name")
+  await name.clear()
+  await name.pressSequentially("Grace Hopper")
+  await expect(name).toHaveValue("Grace Hopper")
+  const sections = page.getByRole("navigation", { name: "Sections" })
+  const experience = sections.getByRole("button", { name: /^\d+ Experience$/ })
+  await experience.click()
+  await expect(page.getByRole("heading", { name: "Experience" })).toBeVisible()
+  const preview = page.getByRole("region", { name: "Live preview" })
+  await expect(preview.getByRole("status", { name: "Loading preview" })).toBeVisible()
+  await expect(sections.getByRole("button", { name: "Reorder Experience" })).toHaveCount(0)
+
+  // The sections are put back as draggable ones, and the one with the focus keeps it.
+  await experience.focus()
+  release()
+  await expect(sections.getByRole("button", { name: "Reorder Experience" })).toBeVisible()
+  await expect(experience).toBeFocused()
+  await expect(preview.getByText(/Grace Hopper/i).first()).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test("if the code that draws the preview fails to download, the next PDF tries it again", async ({ page }) => {
+  const errors = pageErrors(page)
+  await saveResume(page)
+  let failed = false
+  await page.route("**/_next/static/chunks/**", async (route) => {
+    if (failed) return route.continue()
+    const response = await route.fetch()
+    if ((await response.text()).includes(REACT_PDF)) {
+      failed = true
+      return route.abort("internetdisconnected")
+    }
+    return route.fulfill({ response })
+  })
+  await page.goto(`/create/new/${resume.id}`)
+  await expect.poll(() => failed).toBe(true)
+
+  // Whether the first PDF came before the failure or is still to come, a PDF comes after it.
+  await page.getByLabel("Full name").fill("Grace Hopper")
+  const preview = page.getByRole("region", { name: "Live preview" })
+  await expect(preview.getByText(/Grace Hopper/i).first()).toBeVisible()
+  // Only the failed download, which the browser logs.
+  expect(errors.filter((error) => !/^Failed to load resource/.test(error))).toEqual([])
 })
 
 test("visitors saving data don't download the compiler ahead, on the home page or the dashboard", async ({ page }) => {
