@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState, type ClipboardEvent } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent } from "react"
 import { Document, Page, pdfjs } from "react-pdf"
 import "react-pdf/dist/esm/Page/AnnotationLayer.css"
 import "react-pdf/dist/esm/Page/TextLayer.css"
+import { scrollerOf, uncovered } from "./layout"
 import PrintingPage from "./PrintingPage"
 
 // The worker is bundled with the app, like the one lib/import/open.ts uses.
@@ -25,6 +26,8 @@ const MAX_PAGE_WIDTH = 640
 const ZOOM_STEP = 0.1
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 2.5
+// Height over width: every template prints on US Letter.
+const PAGE_RATIO = 11 / 8.5
 // Space between pages, matching gap-4.
 const PAGE_GAP = 16
 // How long the stand-in page takes to fade out over the first preview.
@@ -38,12 +41,37 @@ interface PdfPreviewProps {
   updating?: boolean
 }
 
+/**
+ * A point that stays where it is on screen while the zoom changes: the
+ * cursor, or the middle of the panel for the buttons. It's kept as a place on
+ * one page, since the gaps between pages don't grow with the zoom.
+ */
+interface ZoomAnchor {
+  clientX: number
+  clientY: number
+  /** The page it's on, from 0. */
+  page: number
+  /** Where it is across and down that page, as shares of the page's width and height. */
+  x: number
+  y: number
+}
+
+/** The last zoom's anchor, and where it left the pages on screen. */
+interface HeldAnchor {
+  anchor: ZoomAnchor
+  box: DOMRect
+}
+
 export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPreviewProps) {
   const [documents, setDocuments] = useState<LoadedDocument[]>([])
   const [zoom, setZoom] = useState(1)
   const [loadError, setLoadError] = useState(false)
   const [availableWidth, setAvailableWidth] = useState(MAX_PAGE_WIDTH)
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const pagesRef = useRef<HTMLDivElement>(null)
+  // Set just before the zoom changes, and used up once the pages have their new size.
+  const anchorRef = useRef<ZoomAnchor | null>(null)
+  const heldRef = useRef<HeldAnchor | null>(null)
 
   // Keep the PDF on screen while the new one loads; drop older pending ones.
   useEffect(() => {
@@ -68,18 +96,52 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
     return () => observer.disconnect()
   }, [])
 
-  // Ctrl/Cmd + scroll zooms.
+  // Ctrl/Cmd + scroll zooms around the cursor. Outside Safari, pinching a
+  // trackpad comes as this too.
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey && !event.metaKey) return
       event.preventDefault()
+      const pages = pagesRef.current
+      if (pages) anchorRef.current = anchorAt(pages, event.clientX, event.clientY, heldRef.current)
       setZoom((z) => clampZoom(z + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)))
     }
     scroller.addEventListener("wheel", onWheel, { passive: false })
     return () => scroller.removeEventListener("wheel", onWheel)
   }, [])
+
+  // The pages grow or shrink from their top left corner, so scroll the anchor
+  // back under where it was before the browser paints. react-pdf resizes each
+  // canvas in an effect after this, so the pages' new size is worked out
+  // rather than measured.
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current
+    const pages = pagesRef.current
+    anchorRef.current = null
+    if (!anchor || !pages || !scrollerRef.current) return
+    const at = onScreen(anchor, pages.getBoundingClientRect())
+    // Across, the panel scrolls. Up and down, the panel does on wide screens and
+    // the page on small ones, which would scroll smoothly without "instant".
+    // Rounded, as WebKit would drop the fraction of a pixel instead.
+    scrollerRef.current.scrollBy({ left: Math.round(at.x - anchor.clientX), behavior: "instant" })
+    scrollerOf(pages).scrollBy({ top: Math.round(at.y - anchor.clientY), behavior: "instant" })
+    heldRef.current = { anchor, box: pages.getBoundingClientRect() }
+  }, [zoom])
+
+  // The buttons zoom around the middle of what's showing of the panel.
+  function zoomFromMiddle(change: (zoom: number) => number) {
+    const scroller = scrollerRef.current
+    const pages = pagesRef.current
+    if (scroller && pages) {
+      const box = scroller.getBoundingClientRect()
+      const view = uncovered()
+      const middle = (Math.max(box.top, view.top) + Math.min(box.top + scroller.clientHeight, view.bottom)) / 2
+      anchorRef.current = anchorAt(pages, box.left + scroller.clientWidth / 2, middle, heldRef.current)
+    }
+    setZoom(change)
+  }
 
   const shownDocument = documents.findLast((doc) => doc.ready) ?? documents[documents.length - 1]
   const numPages = shownDocument?.pages ?? 1
@@ -133,19 +195,19 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
             type="button"
             aria-label="Zoom out"
             aria-disabled={zoom <= MIN_ZOOM || undefined}
-            onClick={() => setZoom((z) => clampZoom(z - ZOOM_STEP))}
+            onClick={() => zoomFromMiddle((z) => clampZoom(z - ZOOM_STEP))}
             className={iconButton}
           >
             −
           </button>
-          <button type="button" onClick={() => setZoom(1)} title="Reset zoom" className="w-12 text-center hover:text-ink">
+          <button type="button" onClick={() => zoomFromMiddle(() => 1)} title="Reset zoom" className="w-12 text-center hover:text-ink">
             {Math.round(zoom * 100)}%
           </button>
           <button
             type="button"
             aria-label="Zoom in"
             aria-disabled={zoom >= MAX_ZOOM || undefined}
-            onClick={() => setZoom((z) => clampZoom(z + ZOOM_STEP))}
+            onClick={() => zoomFromMiddle((z) => clampZoom(z + ZOOM_STEP))}
             className={iconButton}
           >
             +
@@ -168,8 +230,9 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
         ) : (
           // The out-of-date page fades a little, after a moment, so a quick switch doesn't flicker.
           <div
+            ref={pagesRef}
             className={`relative mx-auto transition-opacity duration-300 ${updating ? "opacity-50 delay-150" : ""}`}
-            style={{ width: pageWidth, minHeight: numPages * pageWidth * (11 / 8.5) + (numPages - 1) * PAGE_GAP }}
+            style={{ width: pageWidth, minHeight: numPages * pageWidth * PAGE_RATIO + (numPages - 1) * PAGE_GAP }}
           >
             {!faded && <PrintingPage width={pageWidth} leaving={!waiting} />}
             {documents.map((doc) => (
@@ -229,4 +292,29 @@ function copyPlainText(event: ClipboardEvent) {
 
 function clampZoom(zoom: number) {
   return Math.round(Math.min(Math.max(zoom, MIN_ZOOM), MAX_ZOOM) * 10) / 10
+}
+
+// In whole pixels, as react-pdf sizes a page's canvas.
+const pageHeight = (width: number) => Math.floor(width * PAGE_RATIO)
+
+/**
+ * Where a point on screen falls on the pages. Zooming again around the same
+ * point, with nothing moved since, keeps to the last zoom's anchor: browsers
+ * scroll by whole pixels, and measuring the point afresh each time would add
+ * up the rounding until it crept away from the cursor.
+ */
+function anchorAt(pages: HTMLElement, clientX: number, clientY: number, held: HeldAnchor | null): ZoomAnchor {
+  const box = pages.getBoundingClientRect()
+  const still = held && held.box.left === box.left && held.box.top === box.top && held.box.width === box.width
+  if (still && held.anchor.clientX === clientX && held.anchor.clientY === clientY) return held.anchor
+  const pitch = pageHeight(box.width) + PAGE_GAP
+  const down = clientY - box.top
+  const page = Math.max(0, Math.floor(down / pitch))
+  return { clientX, clientY, page, x: (clientX - box.left) / box.width, y: (down - page * pitch) / pageHeight(box.width) }
+}
+
+/** Where an anchor is on screen with the pages laid out in `box`. */
+function onScreen(anchor: ZoomAnchor, box: DOMRect) {
+  const height = pageHeight(box.width)
+  return { x: box.left + anchor.x * box.width, y: box.top + anchor.page * (height + PAGE_GAP) + anchor.y * height }
 }
