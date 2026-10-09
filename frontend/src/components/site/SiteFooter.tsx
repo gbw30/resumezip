@@ -28,12 +28,15 @@ export default function SiteFooter() {
     if (!track || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
     let looked = false
     const observer = new IntersectionObserver(
-      ([entry]) => {
+      (entries) => {
+        // A busy page can have several looks queued for one call, oldest first: the last is where it is now.
+        const entry = entries[entries.length - 1]
         const first = !looked
         looked = true
         // Once it's nearly all in view, not as it peeks in. (Measured by how much of it shows, not by a margin
         // from the window's edge: a tall window's margin would be taller than what the page leaves under it.)
-        setZip((now) => ({ shut: entry.intersectionRatio >= SHUT_AT, live: now.live || !first }))
+        // A first call with several looks has already moved, so it isn't a stationary first look.
+        setZip((now) => ({ shut: entry.intersectionRatio >= SHUT_AT, live: now.live || !first || entries.length > 1 }))
       },
       { threshold: [0, SHUT_AT] },
     )
