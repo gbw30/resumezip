@@ -5,13 +5,15 @@
 // the app if jsDelivr can't be reached. The grammar checker's WebAssembly is
 // downloaded the same way (downloadChecked).
 
+import { sha256 } from "@noble/hashes/sha2.js"
+
 export const COMPILER_PACKAGE = "@myriaddreamin/typst-ts-web-compiler"
 export const COMPILER_VERSION = "0.7.0"
 export const COMPILER_FILE = "pkg/typst_ts_web_compiler_bg.wasm"
 export const COMPILER_CDN_URL = `https://cdn.jsdelivr.net/npm/${COMPILER_PACKAGE}@${COMPILER_VERSION}/${COMPILER_FILE}`
 
-/** The file's SHA-384, for subresource integrity. compilerSource.test.ts checks it against the installed package. */
-export const COMPILER_INTEGRITY = "sha384-YB32Rpk4pOvEGytOZweRBgdbuwNueLVpzJUQojjit/A8AveMWxDW8eT9ROz98jDo"
+/** The file's SHA-256, in subresource-integrity form. compilerSource.test.ts checks it against the installed package. */
+export const COMPILER_INTEGRITY = "sha256-H8loQ4pnI2bf7DnJbIQsJu0pyv9OsbyqsZpsYIZ95f0="
 
 /** The file's size in bytes, uncompressed, for saying how much of it has arrived. Checked like COMPILER_INTEGRITY. */
 export const COMPILER_SIZE = 28_325_178
@@ -36,11 +38,11 @@ export async function compileChecked(
     // One copy is compiled; the other is hashed, and watched for stalls until
     // it's all in. Compiling the rest can take a while on a slow computer.
     const copy = response.clone().body!
-    const hashed = sha384(copy, (bytes) => {
+    const hashed = integrityOf(copy, (chunk) => {
       stall.reset()
-      onData?.(bytes)
+      onData?.(chunk.length)
     }).finally(stall.stop)
-    const [module, { hash }] = await Promise.all([WebAssembly.compileStreaming(response), hashed])
+    const [module, hash] = await Promise.all([WebAssembly.compileStreaming(response), hashed])
     if (hash !== integrity) throw new Error(`${url} isn't the expected file`)
     return module
   } catch (error) {
@@ -63,9 +65,13 @@ export async function downloadChecked(url: string, integrity: string, idleMs: nu
   try {
     const response = await fetch(url, { credentials: "omit", signal: stall.signal })
     if (!response.ok || !response.body) throw new Error(`${url} answered ${response.status}`)
-    const { hash, bytes } = await sha384(response.body, stall.reset)
+    const chunks: Uint8Array[] = []
+    const hash = await integrityOf(response.body, (chunk) => {
+      stall.reset()
+      chunks.push(chunk)
+    })
     if (hash !== integrity) throw new Error(`${url} isn't the expected file`)
-    return bytes
+    return joined(chunks)
   } catch (error) {
     // Stop the download if it's still going.
     stall.abort(error)
@@ -88,25 +94,31 @@ function stallTimer(url: string, idleMs: number) {
   return { signal: controller.signal, reset, stop: () => clearTimeout(timer), abort: (reason: unknown) => controller.abort(reason) }
 }
 
-/** A stream's bytes and their SHA-384 in subresource-integrity form, calling `onData` with the number of bytes each time some arrives. */
-async function sha384(
-  stream: ReadableStream<Uint8Array>,
-  onData: (bytes: number) => void,
-): Promise<{ hash: string; bytes: Uint8Array<ArrayBuffer> }> {
-  const chunks: Uint8Array[] = []
-  let size = 0
+/**
+ * A stream's SHA-256 in subresource-integrity form, hashed a chunk at a time
+ * as it arrives, calling `onData` with each chunk. SubtleCrypto can only hash
+ * a whole buffer, which would mean keeping the whole file to hash it, and it
+ * copies its input as well: two extra copies of the 28 MB compiler. SHA-256
+ * rather than SHA-384, as in JavaScript it's about twice as fast, so on a slow
+ * phone it's less likely to fall behind the download, which would hold up the
+ * compiler and leave the chunks it hasn't reached waiting in memory.
+ */
+async function integrityOf(stream: ReadableStream<Uint8Array>, onData: (chunk: Uint8Array) => void): Promise<string> {
+  const hash = sha256.create()
   const reader = stream.getReader()
   for (let read = await reader.read(); !read.done; read = await reader.read()) {
-    chunks.push(read.value)
-    size += read.value.length
-    onData(read.value.length)
+    onData(read.value)
+    hash.update(read.value)
   }
-  const bytes = new Uint8Array(size)
+  return `sha256-${btoa(String.fromCharCode(...hash.digest()))}`
+}
+
+function joined(chunks: Uint8Array[]): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(chunks.reduce((size, chunk) => size + chunk.length, 0))
   let at = 0
   for (const chunk of chunks) {
     bytes.set(chunk, at)
     at += chunk.length
   }
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-384", bytes))
-  return { hash: `sha384-${btoa(String.fromCharCode(...digest))}`, bytes }
+  return bytes
 }
