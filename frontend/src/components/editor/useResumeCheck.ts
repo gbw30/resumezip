@@ -1,36 +1,73 @@
 "use client"
 
-import { useCallback, useDeferredValue, useMemo, useRef } from "react"
-import { useResumeContext } from "@/context/ResumeContext"
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
+import { useOpenResume, useResumeActions } from "@/context/ResumeContext"
 import { runChecks, type Finding, type GrammarReading, type PdfReading } from "@/lib/check/engine"
 import { addWord, CHECK_FIELD, changeCheck, dismiss, restore, type CheckState } from "@/lib/check/state"
 import { hasLeftOut } from "@/lib/leftOut"
+import type { Resume } from "@/lib/resume"
 
 /**
- * Checks the open resume as it changes. The checks run on a deferred copy of
- * it, so what's typed shows first and the findings follow. PDF rules run once
- * `pdf` (the latest preview, as the resume reader read it) is given, and
- * grammar rules once `grammar` (what the grammar checker found in each piece
- * of text) is.
+ * The open resume as it was when its changes last paused for `delay`
+ * milliseconds, so what follows it, like the checks, runs once typing pauses
+ * rather than on every key. A change to what the person told the checker
+ * (dismissing a finding, adding a word) shows at once. While the resume is
+ * gone, as when another tab deletes it, it's the last one there was.
  */
-export function useResumeCheck(pdf?: PdfReading, grammar?: GrammarReading) {
-  const { formData, updateFormData } = useResumeContext()
-  // `pdf` is of the resume as it is now, so the two are deferred together:
-  // the PDF rules never compare a resume with a PDF of another version, and a
-  // keystroke doesn't run the checks again on the old resume before the new.
-  const latestInput = useMemo(() => ({ resume: formData, pdf, grammar }), [formData, pdf, grammar])
+export function usePausedResume(delay: number): Resume {
+  const { subscribe } = useResumeActions()
+  const { read } = useOpenResume()
+  // Only shown with the resume open, so there's one to start from.
+  const [resume, setResume] = useState(() => read() ?? {})
+  useEffect(() => {
+    let last = read()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    // Anything changed between the first render and now is taken in at once.
+    if (last) setResume(last)
+    const unsubscribe = subscribe(() => {
+      const next = read()
+      if (!next || next === last) return
+      const now = next[CHECK_FIELD] !== last?.[CHECK_FIELD]
+      last = next
+      clearTimeout(timer)
+      if (now) setResume(next)
+      else timer = setTimeout(() => setResume(next), delay)
+    })
+    return () => {
+      unsubscribe()
+      clearTimeout(timer)
+    }
+  }, [subscribe, read, delay])
+  return resume
+}
+
+/**
+ * Checks `resume` as it changes. The checks run on a deferred copy of it, so
+ * what's typed shows first and the findings follow. PDF rules run once `pdf`
+ * (the preview of `resume`, as the resume reader read it) is given, and
+ * grammar rules once `grammar` (what the grammar checker found in each piece
+ * of text) is. The changes it gives, like dismissing a finding, are made to
+ * the open resume as it is now.
+ */
+export function useResumeCheck(resume: Resume, pdf?: PdfReading, grammar?: GrammarReading) {
+  const { read, update } = useOpenResume()
+  // `pdf` is of `resume`, so the two are deferred together: the PDF rules
+  // never compare a resume with a PDF of another version, and a change doesn't
+  // run the checks again on the old resume before the new.
+  const latestInput = useMemo(() => ({ resume, pdf, grammar }), [resume, pdf, grammar])
   const input = useDeferredValue(latestInput)
   const report = useMemo(() => runChecks(input.resume, { pdf: input.pdf, grammar: input.grammar }), [input])
 
+  const latestReport = useRef(report)
+  latestReport.current = report
   // Changes start from the resume as it is now, not as last checked.
-  const latest = useRef({ formData, report })
-  latest.current = { formData, report }
   const change = useCallback(
     (next: (state: CheckState) => CheckState) => {
-      const value = changeCheck(latest.current.formData, next)
-      if (value) updateFormData(CHECK_FIELD, value)
+      const resume = read()
+      const value = resume && changeCheck(resume, next)
+      if (value) update(CHECK_FIELD, value)
     },
-    [updateFormData],
+    [read, update],
   )
 
   /**
@@ -40,9 +77,8 @@ export function useResumeCheck(pdf?: PdfReading, grammar?: GrammarReading) {
    * that are needed again once it's put back.
    */
   const dismissFinding = useCallback(
-    (finding: Finding) =>
-      change((state) => dismiss(state, finding, hasLeftOut(latest.current.formData) ? undefined : latest.current.report)),
-    [change],
+    (finding: Finding) => change((state) => dismiss(state, finding, hasLeftOut(read() ?? {}) ? undefined : latestReport.current)),
+    [change, read],
   )
   /** Brings a dismissed finding back. */
   const restoreFinding = useCallback((finding: Finding) => change((state) => restore(state, finding.key)), [change])
@@ -53,10 +89,12 @@ export function useResumeCheck(pdf?: PdfReading, grammar?: GrammarReading) {
     [change],
   )
 
-  // The same object until the report changes, so CheckContext's value (and
-  // everything reading it) doesn't change on renders that changed nothing.
-  return useMemo(
-    () => ({ report, dismiss: dismissFinding, restore: restoreFinding, addWord: addKnownWord, setGrammarLanguage }),
-    [report, dismissFinding, restoreFinding, addKnownWord, setGrammarLanguage],
+  // The actions keep their identity for as long as the resume is open, so
+  // what uses only them never re-renders with a new report.
+  const actions = useMemo(
+    () => ({ dismiss: dismissFinding, restore: restoreFinding, addWord: addKnownWord, setGrammarLanguage }),
+    [dismissFinding, restoreFinding, addKnownWord, setGrammarLanguage],
   )
+  /** The report, and the resume it's of. */
+  return { report, checked: input.resume, actions }
 }

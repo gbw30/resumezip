@@ -1,9 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useId, useRef } from "react"
+import { memo, useId, useRef } from "react"
 import { hasEnoughToCheck } from "@/lib/check/labels"
-import { useCheck, type Mode } from "./CheckContext"
+import { useCheck, useCheckActions, type Mode } from "./CheckContext"
 import CheckPanel from "./CheckPanel"
 import { WIDE_SCREEN } from "./layout"
 
@@ -24,8 +24,9 @@ interface LeftBarProps {
  * what the checker found. Below WIDE_SCREEN it's a bar above the form, pinned
  * in Write mode so the section tabs stay at hand.
  */
-export default function LeftBar({ hidden, children }: LeftBarProps) {
-  const { report, mode, chooseMode } = useCheck()
+function LeftBar({ hidden, children }: LeftBarProps) {
+  const { report, mode } = useCheck()
+  const { chooseMode } = useCheckActions()
   const id = useId()
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const bar = useRef<HTMLElement>(null)
@@ -108,3 +109,6 @@ export default function LeftBar({ hidden, children }: LeftBarProps) {
     </aside>
   )
 }
+
+// The editor passes the same children until the section list changes, so a new preview doesn't re-render the bar.
+export default memo(LeftBar)

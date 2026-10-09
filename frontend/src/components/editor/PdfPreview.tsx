@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent } from "react"
+import { memo, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent } from "react"
 import { Document, Page, pdfjs } from "react-pdf"
 import "react-pdf/dist/esm/Page/AnnotationLayer.css"
 import "react-pdf/dist/esm/Page/TextLayer.css"
@@ -85,7 +85,7 @@ interface HeldAnchor {
   box: DOMRect
 }
 
-export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPreviewProps) {
+function PdfPreview({ pdfUrl, error, updating = false }: PdfPreviewProps) {
   const [drawings, setDrawings] = useState<Drawing[]>([])
   const [zoom, setZoom] = useState(1)
   // Catches up with the zoom once it settles. Until then, the pages on screen
@@ -349,6 +349,9 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
     </div>
   )
 }
+
+// Re-renders with a new PDF, and not with the rest of the editor.
+export default memo(PdfPreview)
 
 // Copying from the preview gives plain text, as pdf.js's own viewer does. The
 // selected text is the invisible copy over the canvas, so the browser's usual
