@@ -124,7 +124,7 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
   ].filter(Boolean)
   const leftovers = parsed.unplaced.reduce((sum, group) => sum + group.text.length, 0)
   const foundNothing = !profile.fullName && parsed.sections.length === 0 && !parsed.extraGroups?.length
-  const selectedGroups = (kind: "summary" | "certifications") =>
+  const selectedGroups = (kind: "summary") =>
     (parsed.extraGroups ?? []).filter((group) => group.kind === kind && !skipped.has(extraGroupKey(group.id)))
   const reviewText = [
     ...parsed.unplaced.map((group) => [group.heading, ...group.text].join("\n")),
@@ -264,15 +264,10 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                   <div className={`mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed ${off ? "opacity-45" : ""}`}>
                     {group.text.join("\n")}
                   </div>
-                  {group.kind === "certifications" && (
-                    <p className="mt-2 text-xs text-ink-2">
-                      {plural(group.entries?.length ?? 0, "credential")} recognized. Uncertain details stay below for review.
-                    </p>
-                  )}
                   {!off && combined.length > 1 && combined[0].id === group.id && (
                     <p className="mt-2 text-sm text-ink-2" role="status">
-                      {combined.length} selected groups will become one {group.kind === "summary" ? "Summary" : "Certifications"} section,
-                      in file order, using “{group.heading}” and this position.
+                      {combined.length} selected groups will become one Summary section, in file order, using “{group.heading}” and this
+                      position.
                     </p>
                   )}
                 </section>

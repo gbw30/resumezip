@@ -39,29 +39,7 @@ export function pdfLayoutOf(view: ResumeView): PdfSectionLayout[] {
     }
     const extra = view.extras[id]
     if (!extra || extra.blank) return []
-    const section = extra.section
-    let parts: PdfTextPart[]
-    if (section.kind === "certifications") {
-      parts = section.entries.flatMap((entry) => {
-        const values: PdfTextPart[] = []
-        for (const field of ["name", "issuer", "issued", "expires", "credentialId", "link"] as const) {
-          const raw = entry[field].trim()
-          if (!raw) continue
-          const text =
-            field === "link"
-              ? raw
-                  .replace(/^https?:\/\//i, "")
-                  .replace(/^www\./i, "")
-                  .replace(/\/+$/, "")
-              : raw
-          const prefix =
-            field === "issued" ? "Issued: " : field === "expires" ? "Expires: " : field === "credentialId" ? "Credential ID: " : ""
-          if (prefix) values.push({ text: prefix })
-          values.push({ text, place: { kind: "credential", sectionId: "certifications", entryId: entry.id, field } })
-        }
-        return values
-      })
-    } else parts = extraTexts(view, id).filter(({ place }) => place.kind !== "extra-heading")
+    const parts = extraTexts(view, id).filter(({ place }) => place.kind !== "extra-heading")
     return [{ ref, heading: extra.heading, parts }]
   })
 }

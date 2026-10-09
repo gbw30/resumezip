@@ -67,7 +67,6 @@ export function readForChecks(lines: Line[], layout: PdfSectionLayout[]): { pars
     group.lines = remap(group.lines)
     group.headingLine = remapHeading(group.headingLine)!
     group.sourceLines = group.sourceLines.map((index) => indexes[index])
-    for (const entry of group.entries ?? []) entry.lines = remap(entry.lines)
   }
   parsed.lines = original
   return { parsed, extras }

@@ -104,11 +104,7 @@ const entryCount = (resume: unknown) => {
     SECTION_NAMES.reduce((count, name) => {
       const entries = object(resume)[SECTIONS[name].dataKey]
       return count + (Array.isArray(entries) ? entries.length : 0)
-    }, 0) +
-    Object.values(extras).reduce(
-      (count: number, section) => count + 1 + (Array.isArray(object(section).entries) ? (object(section).entries as unknown[]).length : 0),
-      0,
-    )
+    }, 0) + Object.keys(extras).length
   )
 }
 
@@ -170,12 +166,7 @@ export function cleanResume(input: unknown): ResumeContent {
     const decoded = readExtraSections(resume.extraSections)
     if (!decoded.complete) throw new AttachmentError("The sections in this PDF are damaged. Try another saved PDF.")
     // The decoder is an allowlist; omit flags even when cleanResume is called directly.
-    clean.extraSections = Object.fromEntries(
-      Object.entries(decoded.sections).map(([key, { leftOut, ...section }]) => [
-        key,
-        section.kind === "certifications" ? { ...section, entries: section.entries.map(({ leftOut, ...entry }) => entry) } : section,
-      ]),
-    )
+    clean.extraSections = Object.fromEntries(Object.entries(decoded.sections).map(([key, { leftOut, ...section }]) => [key, section]))
     clean.sectionOrder = resolveSections({ ...resume, extraSections: clean.extraSections })
   }
   return clean

@@ -69,7 +69,7 @@
 #for name in data.order {
   if data.extras.at(name, default: none) != none {
     let extra = data.extras.at(name)
-    section(extra.heading, extra-body(extra, bullets, (url, body) => web-link(url, ul(body))))
+    section(extra.heading, extra-body(extra, bullets))
   } else if name == "Education" and data.education.len() > 0 {
     // Lines are 4.71pt apart, as in a paragraph, and schools 1pt further.
     section(heading-or(hd.education, "Education"), data.education.map(e => {

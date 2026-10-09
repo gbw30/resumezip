@@ -10,8 +10,6 @@ import { isLeftOut, isLeftOutLine } from "@/lib/leftOut"
 import type { Resume } from "@/lib/resume"
 import { plainText } from "@/lib/typst/resumeData"
 import {
-  CERTIFICATION_FIELDS,
-  credentialIncluded,
   extraHasBody,
   extraHeading,
   extraKey,
@@ -151,12 +149,7 @@ export function viewOf(resume: Resume): ResumeView {
     Object.entries(extrasOf(resume))
       .filter(([, section]) => sectionIncluded(section))
       .map(([id, saved]) => {
-        const section =
-          saved.kind === "certifications"
-            ? { ...saved, entries: saved.entries.filter(credentialIncluded) }
-            : saved.kind === "list"
-              ? { ...saved, bullets: linesOf(saved.bullets).join("\n") }
-              : saved
+        const section = saved.kind === "list" ? { ...saved, bullets: linesOf(saved.bullets).join("\n") } : saved
         return [
           id,
           {
@@ -232,13 +225,7 @@ export function extraTexts(view: ResumeView, sectionId: string): { place: Place;
   if (!extra || extra.blank) return []
   const result: { place: Place; text: string }[] = [{ place: { kind: "extra-heading", sectionId }, text: extra.heading }]
   const section = extra.section
-  if (section.kind === "certifications") {
-    for (const entry of section.entries)
-      for (const field of CERTIFICATION_FIELDS) {
-        if (entry[field].trim())
-          result.push({ place: { kind: "credential", sectionId: "certifications", entryId: entry.id, field }, text: entry[field].trim() })
-      }
-  } else if (section.kind === "list") {
+  if (section.kind === "list") {
     for (const bullet of extra.bullets)
       result.push({ place: { kind: "extra-text", sectionId, field: "bullets", line: bullet.line }, text: bullet.text })
   } else if (section.text.trim()) result.push({ place: { kind: "extra-text", sectionId, field: "text" }, text: section.text.trim() })

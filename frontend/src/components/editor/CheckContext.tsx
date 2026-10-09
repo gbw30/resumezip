@@ -106,7 +106,7 @@ export function sectionOf(place: Place): ActiveSection | null {
         : place.section
 }
 
-const PLACE_PARTS = ["field", "section", "sectionId", "entry", "entryId", "line", "page"] as const
+const PLACE_PARTS = ["field", "section", "sectionId", "entry", "line", "page"] as const
 
 // The same problem: one rule at one place. Its text and message can change
 // as the person types, and it's still the one they're fixing.

@@ -9,7 +9,6 @@ import path from "node:path"
 import { describe, expect, test } from "vitest"
 import { toTemplateData } from "@/lib/typst/resumeData"
 import { differences, readBack } from "./testRender"
-import { parseResume, toResumeContent } from "./parse"
 
 const CORPUS = path.resolve("src/lib/import/corpus")
 
@@ -217,7 +216,8 @@ const KNOWN_GAPS: Record<string, string[]> = {
  * sections in its own order, like a sidebar.
  */
 function printed(resume: Record<string, unknown>) {
-  const { headings, order, ...data } = toTemplateData(resume)
+  // The sections a person adds aren't in the corpus; a summary read into one is checked on its own, below.
+  const { headings, order, extras, ...data } = toTemplateData(resume)
   const plain = (bullets: { text: string }[][]) => bullets.map((runs) => runs.map((run) => run.text).join(""))
   const withPlainBullets = <T extends { bullets: { text: string }[][] }>(entries: T[]) =>
     entries.map((entry) => ({ ...entry, bullets: plain(entry.bullets) }))
@@ -246,10 +246,8 @@ describe.each(files)("%s", (file) => {
   test("reads back no worse than before", async () => {
     const [person] = file.split("/")
     const want = printed(JSON.parse(readFileSync(path.join(CORPUS, person, "resume.json"), "utf8")))
-    const { parsed } = await readBack(new Uint8Array(readFileSync(path.join(CORPUS, `${file}.pdf`))))
-    // Keep every existing builtin field/snapshot assertion independent of the
-    // deliberate #50 import routing. Default-import conservation is checked below.
-    const got = printed(toResumeContent(parseResume(parsed.lines, { purpose: "check" })))
+    const { resume } = await readBack(new Uint8Array(readFileSync(path.join(CORPUS, `${file}.pdf`))))
+    const got = printed(resume)
 
     const wrong = differences(want, got)
     const known = KNOWN_GAPS[file] ?? []
@@ -267,7 +265,7 @@ describe.each(files)("%s", (file) => {
     expect(Object.fromEntries(known.map((field) => [field, valueAt(got, field)]))).toMatchSnapshot()
   })
 
-  test("new import routing retains summaries, credentials and mixed-group review text", async () => {
+  test("the import keeps the summary's words", async () => {
     const [person] = file.split("/")
     const fixture = JSON.parse(readFileSync(path.join(CORPUS, person, "resume.json"), "utf8"))
     const { parsed, resume } = await readBack(new Uint8Array(readFileSync(path.join(CORPUS, `${file}.pdf`))))
@@ -283,19 +281,6 @@ describe.each(files)("%s", (file) => {
       expect(summary?.kind).toBe("summary")
       expect(tokens(summary?.kind === "summary" ? summary.text : "")).toEqual(tokens(fixture.summary))
       expect(summaries).toHaveLength(1)
-    }
-    for (const group of parsed.extraGroups ?? []) {
-      if (group.kind !== "certifications") continue
-      // Even an uncertain date/issuer split must retain the extracted words,
-      // either in a credential field or in its review leftovers, without duplication.
-      const fields = (group.entries ?? []).flatMap((entry) => Object.values(entry.fields))
-      const leftovers = parsed.unplaced.filter((rest) => rest.headingLine === group.headingLine).flatMap((rest) => rest.text)
-      expect(tokens([...fields, ...leftovers].join(" "))).toEqual(tokens(group.text.join(" ")))
-    }
-    for (const occurrence of parsed.occurrences ?? []) {
-      if (occurrence.kind !== "unsupported" || !/certifications?/i.test(occurrence.heading)) continue
-      const leftovers = parsed.unplaced.filter((rest) => rest.headingLine === occurrence.headingLine).flatMap((rest) => rest.text)
-      expect(tokens(leftovers.join(" "))).toEqual(tokens(occurrence.lines.map((index) => parsed.lines[index].text).join(" ")))
     }
   })
 })

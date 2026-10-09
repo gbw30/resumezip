@@ -31,23 +31,8 @@ test.each(samples.map((sample) => [sample.selectedTemplate as string, sample]))(
           bullets: "○ Private reading\n• **Reading** classic fiction\n• *Hiking* in the mountains",
         },
         [third]: { kind: "text", heading: "Interests", text: "Additional personal interests." },
-        certifications: {
-          kind: "certifications",
-          heading: "Certifications",
-          entries: [
-            {
-              id: first,
-              name: "Cloud Engineer",
-              issuer: "Example Association",
-              issued: "Jan 2024",
-              expires: "Jan 2027",
-              credentialId: "ID-42",
-              link: "https://www.example.org/credentials/42/",
-            },
-          ],
-        },
       },
-      sectionOrder: ["extra:summary", `extra:${first}`, "Work", `extra:${second}`, `extra:${third}`, "extra:certifications"],
+      sectionOrder: ["extra:summary", `extra:${first}`, "Work", `extra:${second}`, `extra:${third}`],
     }
     const raw = await readBack(await render(resume))
     const result = readForChecks(raw.parsed.lines, pdfLayoutOf(viewOf(resume)))
@@ -56,7 +41,6 @@ test.each(samples.map((sample) => [sample.selectedTemplate as string, sample]))(
       [first, "matched"],
       [second, "matched"],
       [third, "matched"],
-      ["certifications", "matched"],
     ])
     const report = runChecks(resume, {
       rules: RULES.filter(({ id }) => ["R2", "R3", "R4"].includes(id)),

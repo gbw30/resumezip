@@ -6,7 +6,7 @@
 
 import { SECTIONS } from "@/components/editor/sections"
 import type { Resume } from "@/lib/resume"
-import { credentialIncluded, extraKey, extrasOf, sectionIncluded, type ExtraSection } from "./resumeSections"
+import { extraKey, extrasOf, sectionIncluded, type ExtraSection } from "./resumeSections"
 
 /** What a left-out bullet starts with, instead of "•". */
 export const LEFT_OUT_BULLET = "○"
@@ -35,10 +35,7 @@ const printedBullets = (value: unknown) =>
 /** Whether anything in the resume is left out: an entry, or a bullet. */
 export function hasLeftOut(resume: Resume): boolean {
   const extraLeftOut = Object.values(extrasOf(resume)).some(
-    (section) =>
-      !sectionIncluded(section) ||
-      (section.kind === "list" && section.bullets.split("\n").some(isLeftOutLine)) ||
-      (section.kind === "certifications" && section.entries.some((entry) => !credentialIncluded(entry))),
+    (section) => !sectionIncluded(section) || (section.kind === "list" && section.bullets.split("\n").some(isLeftOutLine)),
   )
   return (
     extraLeftOut ||
@@ -89,7 +86,6 @@ export function printedResume(resume: Resume): Resume {
         .map(([key, section]) => {
           const { leftOut, ...kept } = section
           if (kept.kind === "list") kept.bullets = printedBullets(kept.bullets) as string
-          if (kept.kind === "certifications") kept.entries = kept.entries.filter(credentialIncluded).map(({ leftOut, ...entry }) => entry)
           return [key, kept as ExtraSection]
         }),
     )

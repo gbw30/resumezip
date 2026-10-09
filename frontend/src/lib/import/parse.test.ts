@@ -198,7 +198,7 @@ describe("a heading it doesn't know by name", () => {
   const school = [line([["State University", 36], ["2016 – 2020", 480]], { bold: true }), line([["Bachelor of Science in Nursing", 36]], { italic: true })]
 
   test("is known by a word that says what it holds, when it looks like the others", () => {
-    const { parsed, resume } = read("Education", [
+    const { resume } = read("Education", [
       ...school,
       heading("Clinical Experience"),
       line([["Registered Nurse", 36], ["2020 – Present", 480]], { bold: true }),
@@ -208,10 +208,7 @@ describe("a heading it doesn't know by name", () => {
       line([["Certified Emergency Nurse, BCEN", 36], ["2025", 480]]),
     ])
     expect(resume.workExperienceSection).toMatchObject([{ workRole: "Registered Nurse", companyName: "St. David’s Medical Center" }])
-    expect(resume.awardsSection).toEqual([])
-    expect(parsed.unplaced).toMatchObject([{ heading: "Honors & Certifications", text: ["Certified Emergency Nurse, BCEN 2025"] }])
-    const checked = toResumeContent(parseResume(parsed.lines, { purpose: "check" }))
-    expect(checked.awardsSection).toMatchObject([{ awardName: "Certified Emergency Nurse", awardOrg: "BCEN", awardDate: "2025" }])
+    expect(resume.awardsSection).toMatchObject([{ awardName: "Certified Emergency Nurse", awardOrg: "BCEN", awardDate: "2025" }])
   })
 
   test("about interests keeps its words as the skill's name", () => {

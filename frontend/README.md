@@ -31,8 +31,8 @@ npm run test:browser   # after a build; see below
   serves at every resume's address, `/create/new/<id>`. The editor reads the
   open resume a field at a time (`useResumeField`), so a key typed re-renders
   only the form it's typed in; `useResumeContext` re-renders with every change.
-- `src/lib/resumeSections.ts` owns optional Summary, Certifications, custom
-  text and bullet-list sections. Built-in sections keep their existing fields;
+- `src/lib/resumeSections.ts` owns optional Summary, custom text and
+  bullet-list sections. Built-in sections keep their existing fields;
   extras have stable map identities and share the saved section order through
   `extra:<key>` references. Opening an old resume creates no optional sections.
   The editor's Add section catalog and move controls manage these identities.

@@ -15,7 +15,6 @@ import { printedLayoutBullets } from "./pdf"
 
 const first = "11111111-1111-4111-8111-111111111111"
 const second = "22222222-2222-4222-8222-222222222222"
-const credential = "33333333-3333-4333-8333-333333333333"
 const summary = { kind: "summary", heading: "Profile", text: "Literal **prose**.\n\nAnother paragraph." } as const satisfies ExtraSection
 const interests = {
   kind: "list",
@@ -23,32 +22,11 @@ const interests = {
   bullets: "○ Secret\n\n• **Reading** fiction\n• Hiking",
 } as const satisfies ExtraSection
 const hidden = { kind: "text", heading: "Private", text: "Hidden", leftOut: true } as const satisfies ExtraSection
-// The second credential has only some of its fields, as the editor never saves one.
-const resume = asSaved({
+const resume: Resume = {
   profileSection: { fullName: "Ada Lovelace" },
-  extraSections: {
-    summary,
-    [first]: interests,
-    [second]: hidden,
-    certifications: {
-      kind: "certifications",
-      heading: "Credentials",
-      entries: [
-        {
-          id: credential,
-          name: "Cloud Engineer",
-          issuer: "Example",
-          issued: "2024",
-          expires: "2027",
-          credentialId: "ID-42",
-          link: "https://www.example.org/id/",
-        },
-        { id: second, name: "Secret license", leftOut: true },
-      ],
-    },
-  },
-  sectionOrder: [`extra:${first}`, "extra:summary", "extra:certifications"],
-})
+  extraSections: { summary, [first]: interests, [second]: hidden },
+  sectionOrder: [`extra:${first}`, "extra:summary"],
+}
 
 describe("extra checker views and stable editor addresses", () => {
   test("keeps builtin semantic order separate, privacy intact and original list offsets", () => {
@@ -69,7 +47,7 @@ describe("extra checker views and stable editor addresses", () => {
     expect(hasEnoughToCheck(viewOf({ profileSection: resume.profileSection, extraSections: { [second]: hidden } }))).toBe(false)
   })
 
-  test("targets a custom bullet or credential by identity and rejects removed or omitted targets", () => {
+  test("targets a custom bullet by identity and rejects removed or omitted targets", () => {
     const view = viewOf(resume)
     const place: Place = { kind: "extra-text", sectionId: first, field: "bullets", line: 2 }
     expect(placeExists(view, place)).toBe(true)
@@ -77,18 +55,14 @@ describe("extra checker views and stable editor addresses", () => {
     expect(describePlace(view, place)).toBe("Interests · bullet 2")
     expect(placeExists(view, { ...place, line: 0 })).toBe(false)
     expect(placeExists(view, { ...place, sectionId: second })).toBe(false)
-    const at: Place = { kind: "credential", sectionId: "certifications", entryId: credential, field: "name" }
-    expect(textAt(view, at)).toBe("Cloud Engineer")
-    expect(placeExists(view, { ...at, entryId: second })).toBe(false)
-    const moved = viewOf({ ...resume, sectionOrder: ["extra:certifications"] })
-    expect(findingKey("G1", at, textAt(view, at))).toBe(findingKey("G1", at, textAt(moved, at)))
+    const moved = viewOf({ ...resume, sectionOrder: ["extra:summary", `extra:${first}`] })
+    expect(findingKey("G1", place, textAt(view, place))).toBe(findingKey("G1", place, textAt(moved, place)))
   })
 
-  test("checks prose and lists for grammar but excludes credential names, IDs, links and dates", () => {
+  test("checks prose and lists for grammar", () => {
     const texts = grammarTexts(viewOf(resume))
     expect(texts.some(({ place }) => place.kind === "extra-text" && place.sectionId === "summary")).toBe(true)
     expect(texts.some(({ place }) => place.kind === "extra-text" && place.field === "bullets")).toBe(true)
-    expect(texts.some(({ place }) => place.kind === "credential")).toBe(false)
     const report = runChecks(resume, { rules: RULES.filter(({ id }) => /^(B|P)[0-9]/.test(id)) })
     expect(report.findings.filter(({ place }) => "sectionId" in place)).toEqual([])
   })
@@ -102,7 +76,7 @@ describe("extra checker views and stable editor addresses", () => {
     })
     expect(placeExists(shifted, { ...place, line: 3 })).toBe(true)
     expect(samePlaceSource(before, shifted, place)).toBe(false)
-    const reordered = viewOf({ ...resume, sectionOrder: ["extra:certifications", `extra:${first}`] })
+    const reordered = viewOf({ ...resume, sectionOrder: ["extra:summary", `extra:${first}`] })
     expect(samePlaceSource(before, reordered, place)).toBe(true)
     // Finding text can be only 'classic'; the whole source guards changes.
     const textPlace: Place = { kind: "extra-text", sectionId: "summary", field: "text" }

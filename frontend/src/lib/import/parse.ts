@@ -14,7 +14,7 @@ import {
   type SectionName,
 } from "@/components/editor/sections"
 import type { CompleteContent, ResumeContent } from "@/lib/resume"
-import type { Certification, ExtraSections, SectionRef } from "@/lib/resumeSections"
+import type { ExtraSections, SectionRef } from "@/lib/resumeSections"
 import { SOFT_HYPHEN, type Line, type Part } from "./lines"
 
 /** An entry's values, keyed by its section's field names. */
@@ -39,23 +39,17 @@ export interface FoundOccurrence {
   lines: number[]
   sourceLines: number[]
   section: SectionName | null
-  kind: "builtin" | "summary" | "certifications" | "unsupported"
-}
-
-export interface FoundCredential {
-  fields: Record<string, string>
-  lines: number[]
+  kind: "builtin" | "summary" | "unsupported"
 }
 
 export interface FoundExtraGroup {
   id: string
-  kind: "summary" | "certifications"
+  kind: "summary"
   heading: string
   headingLine: number
   lines: number[]
   sourceLines: number[]
   text: string[]
-  entries?: FoundCredential[]
 }
 
 export interface ParsedResume {
@@ -253,9 +247,6 @@ const SUMMARY_HEADINGS = new Set([
   "overview",
   "bio",
 ])
-const CERTIFICATION_HEADINGS = new Set(["certifications", "certificates", "certification", "licenses", "licenses and certifications"])
-const MIXED_CREDENTIAL_HEADINGS =
-  /\b(?:awards?|honors?|skills?|education|achievements?)\b.*\bcertifications?\b|\bcertifications?\b.*\b(?:awards?|honors?|skills?|education|achievements?)\b/
 
 const words = (text: string) => text.split(/\s+/).filter(Boolean)
 const isAllCaps = (text: string) => /[A-Z]/.test(text) && !/[a-z]/.test(text) && text.replace(/[^A-Z]/g, "").length >= 3
@@ -1607,66 +1598,6 @@ function readAwards(lines: ParseLine[]): SectionResult {
 }
 
 const lineIndexes = (line: ParseLine) => [line.index, ...(line.merged ?? [])]
-const CREDENTIAL_FIELDS: Record<string, string> = {
-  name: "name",
-  credential: "name",
-  certification: "name",
-  certificate: "name",
-  issuer: "issuer",
-  "issued by": "issuer",
-  organization: "issuer",
-  issued: "issued",
-  "issue date": "issued",
-  date: "issued",
-  expires: "expires",
-  "expiry date": "expires",
-  "expiration date": "expires",
-  "credential id": "credentialId",
-  "certificate id": "credentialId",
-  id: "credentialId",
-  link: "link",
-  url: "link",
-}
-
-/** Only explicit labels are assigned to credential fields. Uncertain fragments stay reviewable. */
-function readCredentials(lines: ParseLine[]): { entries: FoundCredential[]; leftover: SectionResult["leftover"] } {
-  const entries: FoundCredential[] = []
-  const leftover: SectionResult["leftover"] = { lines: [], text: [] }
-  for (const line of lines) {
-    const fields: Record<string, string> = {}
-    const residual: string[] = []
-    const parts = line.text.split(/\s*[|\u00B7]\s*|\s+[\u2013\u2014]\s+/).filter(Boolean)
-    for (const [index, part] of parts.entries()) {
-      const labeled = part.match(/^([\w ]+):\s*(.+)$/)
-      const key = labeled && CREDENTIAL_FIELDS[labeled[1].trim().toLowerCase()]
-      if (key && !fields[key]) fields[key] = labeled![2].trim()
-      else if (/^(?:https?:\/\/|www\.)\S+$/i.test(part) && !fields.link) fields.link = part
-      else if (index === 0 && !labeled && !/[.!?]$/.test(part)) fields.name = part.trim()
-      else residual.push(part)
-    }
-    const previous = entries.at(-1)
-    if (
-      !fields.name &&
-      previous &&
-      Object.keys(fields).length &&
-      !line.bullet &&
-      Object.keys(fields).every((key) => !previous.fields[key])
-    ) {
-      Object.assign(previous.fields, fields)
-      previous.lines.push(...lineIndexes(line))
-    } else if (fields.name) {
-      entries.push({ fields, lines: lineIndexes(line) })
-    } else {
-      // No defensible credential boundary: preserve the whole line, not an invented entry.
-      residual.splice(0, residual.length, line.text)
-    }
-    if (residual.length) {
-      leftover.lines.push(...lineIndexes(line))
-      leftover.text.push(residual.join(" | "))
-    }
-  }
-  return { entries, leftover }
-}
 
 // ---------------------------------------------------------------- profile
 
@@ -2049,15 +1980,7 @@ export function parseResume(file: Line[], { purpose = "import" }: { purpose?: "i
     )
     const normalized = normalizeHeading(label)
     const summary = purpose === "import" && SUMMARY_HEADINGS.has(normalized) && !sectionLines.some((line) => line.bullet)
-    const certification = purpose === "import" && CERTIFICATION_HEADINGS.has(normalized)
-    const mixed = purpose === "import" && MIXED_CREDENTIAL_HEADINGS.test(normalized)
-    const kind: FoundOccurrence["kind"] = summary
-      ? "summary"
-      : certification
-        ? "certifications"
-        : mixed || meaning.section === null
-          ? "unsupported"
-          : "builtin"
+    const kind: FoundOccurrence["kind"] = summary ? "summary" : meaning.section === null ? "unsupported" : "builtin"
     const indexes = sectionLines.flatMap(lineIndexes)
     const occurrence: FoundOccurrence = {
       id: `heading:${start.index}`,
@@ -2071,24 +1994,8 @@ export function parseResume(file: Line[], { purpose = "import" }: { purpose?: "i
     occurrences.push(occurrence)
     if (sectionLines.length === 0) return
 
-    if (kind === "summary" || kind === "certifications") {
-      const group: FoundExtraGroup = { ...occurrence, kind, text: sectionLines.map((line) => line.text) }
-      if (kind === "certifications") {
-        const credentials = readCredentials(sectionLines)
-        group.entries = credentials.entries
-        addUnplaced(label, credentials.leftover.lines, credentials.leftover.text, start.index)
-      }
-      extraGroups.push(group)
-      return
-    }
-
-    if (mixed) {
-      addUnplaced(
-        label,
-        indexes,
-        sectionLines.map((line) => line.text),
-        start.index,
-      )
+    if (kind === "summary") {
+      extraGroups.push({ ...occurrence, kind, text: sectionLines.map((line) => line.text) })
       return
     }
 
@@ -2174,28 +2081,11 @@ export function toResumeContent(parsed: ParsedResume, skip: Set<string> = new Se
   for (const occurrence of parsed.occurrences ?? []) {
     if (occurrence.section && !positions.has(occurrence.section)) positions.set(occurrence.section, occurrence.headingLine)
   }
-  for (const kind of ["summary", "certifications"] as const) {
-    const groups = (parsed.extraGroups ?? []).filter((group) => group.kind === kind && !skip.has(extraGroupKey(group.id)))
-    if (!groups.length) continue
-    const first = groups[0]
-    positions.set(`extra:${kind}`, first.headingLine)
-    if (kind === "summary") {
-      extras.summary = { kind, heading: first.heading, text: groups.map((group) => group.text.join("\n")).join("\n\n") }
-    } else {
-      const entries: Certification[] = groups.flatMap((group) =>
-        (group.entries ?? []).map((entry) => ({
-          id: crypto.randomUUID(),
-          name: "",
-          issuer: "",
-          issued: "",
-          expires: "",
-          credentialId: "",
-          link: "",
-          ...entry.fields,
-        })),
-      )
-      extras.certifications = { kind, heading: first.heading, entries }
-    }
+  const summaries = (parsed.extraGroups ?? []).filter((group) => group.kind === "summary" && !skip.has(extraGroupKey(group.id)))
+  if (summaries.length) {
+    const first = summaries[0]
+    positions.set("extra:summary", first.headingLine)
+    extras.summary = { kind: "summary", heading: first.heading, text: summaries.map((group) => group.text.join("\n")).join("\n\n") }
   }
   parsed.unplaced.forEach((group, index) => {
     const kind = choices.keepAs?.[unplacedKey(group, index)]

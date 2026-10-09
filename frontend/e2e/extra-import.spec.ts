@@ -8,8 +8,6 @@ const WORDS = [
   "First paragraph.",
   "PROFESSIONAL SUMMARY",
   "Second paragraph.",
-  "CERTIFICATIONS",
-  "Cloud Engineer | Issuer: Example Co",
   "PRESENTATIONS",
   "First talk",
   "PRESENTATIONS",
@@ -51,8 +49,7 @@ test("review consolidates selected singletons and keeps repeated unknown groups 
         .map(([, value]) => JSON.parse(value))[0],
   )
   expect(saved.extraSections.summary.text).toBe("First paragraph.\n\nSecond paragraph.")
-  expect(saved.extraSections.certifications.entries[0]).toMatchObject({ name: "Cloud Engineer", issuer: "Example Co" })
-  const custom = Object.entries(saved.extraSections).filter(([key]) => !["summary", "certifications"].includes(key))
+  const custom = Object.entries(saved.extraSections).filter(([key]) => key !== "summary")
   expect(custom.map(([, value]) => value)).toEqual([
     { kind: "text", heading: "Presentations", text: "First talk" },
     { kind: "list", heading: "Presentations", bullets: "• Second talk" },
@@ -67,9 +64,7 @@ test("narrow PDF review retains uncertain and excluded text in its download", as
   await page.locator('input[type="file"]').setInputFiles({
     name: "Flexible.pdf",
     mimeType: "application/pdf",
-    buffer: textPdf([
-      ["Mara Lin", "SUMMARY", "Private draft paragraph.", "AWARDS AND CERTIFICATIONS", "Community award and uncertain credential"],
-    ]),
+    buffer: textPdf([["Mara Lin", "SUMMARY", "Private draft paragraph.", "PRESENTATIONS", "Talk on accessible software"]]),
   })
   const review = page.getByRole("dialog", { name: "Here's what we found" })
   await expect(review.getByRole("combobox")).toHaveValue("")
@@ -83,7 +78,7 @@ test("narrow PDF review retains uncertain and excluded text in its download", as
   for await (const chunk of stream!) chunks.push(Buffer.from(chunk))
   const text = Buffer.concat(chunks).toString("utf8")
   expect(text).toContain("Private draft paragraph.")
-  expect(text).toContain("Community award and uncertain credential")
+  expect(text).toContain("Talk on accessible software")
   await review.getByRole("button", { name: "Create resume", exact: true }).click()
   await expect(review).toBeHidden()
   const saved = await page.evaluate(

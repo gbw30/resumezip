@@ -5,10 +5,9 @@ the parser (`../parse.ts`) doesn't read any of them worse. `../corpus.test.ts`
 opens each PDF the way "Open a file" does and compares what it finds with what
 the resume says, field by field. It runs with `npm test`.
 
-Built-in field comparisons use the checker's parser mode to preserve the
-historical baseline separately from flexible-section import routing. Default
-imports also verify summary words against the fixture and ensure credential
-and mixed-group text survives in fields or review leftovers without duplication.
+The comparison goes through the same import as "Open a file". Sections a
+person adds aren't in the corpus, so they're left out of it; a summary the
+import reads is checked against the fixture's words on its own.
 
 Everyone here is made up. Their email addresses are at example.com and their
 phone numbers are in the 555-0100 to 555-0199 range set aside for fiction.

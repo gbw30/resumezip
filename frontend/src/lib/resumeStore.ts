@@ -36,11 +36,9 @@ import { DEFAULT_TEMPLATE } from "./templates"
 import {
   extraKey,
   extraRef,
-  newCertification,
   newExtraSection,
   readExtraSections,
   resolveSections,
-  type CredentialPatch,
   type ExtraKind,
   type ExtraPatch,
   type ExtraSection,
@@ -146,7 +144,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
   }
 
   // Commands read the latest snapshot, preserve untouched member references and
-  // publish one update. A section (including all its credentials) is one merge unit.
+  // publish one update. A section is one merge unit.
   function commit(id: string, changes: Partial<Resume>, paths: string[]) {
     if (!has(id) || !paths.length) return
     markChanged(id, ...paths, "updatedAt")
@@ -158,7 +156,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
     if (!has(id)) return null
     const resume = state.resumes[id]
     const extras: ExtraSections = resume.extraSections ?? {}
-    const key = kind === "summary" || kind === "certifications" ? kind : crypto.randomUUID()
+    const key = kind === "summary" ? kind : crypto.randomUUID()
     if (Object.hasOwn(extras, key)) return extraRef(key)
     const ref = extraRef(key)
     commit(id, { extraSections: { ...extras, [key]: newExtraSection(kind) }, sectionOrder: [...resolveSections(resume), ref] }, [
@@ -211,48 +209,6 @@ export function createResumeStore(delay = SAVE_DELAY) {
     const resume = state.resumes[id]
     const next = resolveSections({ ...resume, sectionOrder: order })
     if (JSON.stringify(resolveSections(resume)) !== JSON.stringify(next)) commit(id, { sectionOrder: next }, ["sectionOrder"])
-  }
-
-  function addCredential(id: string): string | null {
-    const section = state.resumes[id]?.extraSections?.certifications as ExtraSection | undefined
-    if (section?.kind !== "certifications") return null
-    const entry = newCertification()
-    changeSection(id, "certifications", (current) =>
-      current.kind === "certifications" ? { ...current, entries: [...current.entries, entry] } : current,
-    )
-    return entry.id
-  }
-
-  function editCredential(id: string, entryId: string, patch: CredentialPatch) {
-    changeSection(id, "certifications", (section) =>
-      section.kind !== "certifications"
-        ? section
-        : {
-            ...section,
-            entries: section.entries.map((entry) => (entry.id === entryId ? { ...entry, ...patch, id: entry.id } : entry)),
-          },
-    )
-  }
-
-  function includeCredential(id: string, entryId: string, included: boolean) {
-    editCredential(id, entryId, { leftOut: !included })
-  }
-
-  function deleteCredential(id: string, entryId: string) {
-    changeSection(id, "certifications", (section) =>
-      section.kind === "certifications" ? { ...section, entries: section.entries.filter((entry) => entry.id !== entryId) } : section,
-    )
-  }
-
-  function moveCredential(id: string, entryId: string, by: -1 | 1) {
-    changeSection(id, "certifications", (section) => {
-      if (section.kind !== "certifications") return section
-      const index = section.entries.findIndex((entry) => entry.id === entryId)
-      if (index < 0 || index + by < 0 || index + by >= section.entries.length) return section
-      const entries = [...section.entries]
-      ;[entries[index], entries[index + by]] = [entries[index + by], entries[index]]
-      return { ...section, entries }
-    })
   }
 
   /** Adds an empty resume, and returns its id. */
@@ -507,11 +463,6 @@ export function createResumeStore(delay = SAVE_DELAY) {
     includeSection,
     deleteSection,
     reorderSections,
-    addCredential,
-    editCredential,
-    includeCredential,
-    deleteCredential,
-    moveCredential,
     create,
     importResume,
     duplicate,

@@ -64,23 +64,20 @@ as too much text.
 
 Heading occurrences have deterministic review IDs and source-line provenance.
 Repeated headings stay independent, even when their visible words are identical.
-Clear prose summaries and dedicated Certifications headings are offered as the
-new optional sections. Only explicit credential labels assign issuer, dates,
-credential IDs or links; uncertain fragments remain available for review. Mixed
-headings such as "Awards & Certifications" remain uncertain as a whole.
+Clear prose summaries are offered as a Summary. Certifications are read as
+awards, as the editor keeps them in Awards & Certifications: "Certifications",
+"Licenses" and "Honors & Certifications" read into Awards, and "Education &
+Certifications" and "Skills & Certifications" into Education and Skills.
 
-The review can combine selected Summary groups into paragraphs, and selected
-credential groups into one Certifications section, in source order. It shows
-that consolidation and uses the first selected heading and position. Unsupported
-groups can be kept as text sections or bullet lists, with neither choice selected
-initially. Durable section and credential UUIDs are created only when the person
-confirms the import. Copy and download preserve uncertain text and the original
+The review can combine selected Summary groups into paragraphs, in source
+order. It shows that consolidation and uses the first selected heading and
+position. Unsupported groups can be kept as text sections or bullet lists, with
+neither choice selected initially. Durable section UUIDs are created only when
+the person confirms the import. Copy and download preserve uncertain text and the original
 text of groups or entries excluded during review.
 
-The PDF checker calls `parseResume` with `{ purpose: "check" }` after accounting
-for confidently matched flexible-section ranges. This preserves the original
-built-in Awards interpretation of headings such as "Awards & Certifications";
-ordinary imports continue to leave these mixed groups for review.
+The PDF checker calls `parseResume` with `{ purpose: "check" }`, which offers
+no summary, after accounting for confidently matched flexible-section ranges.
 
 It handles single and two-column layouts, headings in a margin column, dates in a
 column of their own, and Word files with or without heading styles and tables.

@@ -98,58 +98,29 @@ describe("flexible section import review", () => {
     expect(bullets.unplaced[0].text).toEqual(["Strong collaborator"])
   })
 
-  test("credential labels are interpreted conservatively and uncertain fragments survive", () => {
-    const parsed = parse(
-      "Mara Lin",
-      ["Certifications", true],
-      "Cloud Engineer | Issuer: Example Co | Issued: May 2024 | Expires: 2027 | Credential ID: ABC-123 | https://example.com/verify",
-      "Safety Training | uncertain detail",
-      ["Certificates", true],
-      "First Aid",
-    )
-    expect(parsed.extraGroups).toHaveLength(2)
-    expect(parsed.unplaced[0].text).toEqual(["uncertain detail"])
-    const content = toResumeContent(parsed)
-    expect(extra(content, "certifications", "certifications").entries).toHaveLength(3)
-    expect(extra(content, "certifications", "certifications").entries[0]).toMatchObject({
-      name: "Cloud Engineer",
-      issuer: "Example Co",
-      issued: "May 2024",
-      expires: "2027",
-      credentialId: "ABC-123",
-      link: "https://example.com/verify",
-    })
-    expect(new Set(extra(content, "certifications", "certifications").entries.map((entry: { id: string }) => entry.id)).size).toBe(3)
-  })
-
-  test("mixed Awards and Certifications await a deliberate choice without being split or duplicated", () => {
-    const parsed = parse("Mara Lin", ["Awards & Certifications", true], "Community Award, Example Org", "Cloud Certificate, Example Co")
-    expect(parsed.sections).toEqual([])
+  // Certifications are awards, as they are on the editor's Awards & Certifications.
+  test.each([
+    "Certifications",
+    "Licenses and Certifications",
+    "Awards & Certifications",
+    "Honors & Certifications",
+    "Certifications & Awards",
+  ])("%s are read into Awards", (heading) => {
+    const parsed = parse("Mara Lin", [heading, true], "Community Award, Example Org 2024")
+    expect(parsed.sections.map((section) => section.name)).toEqual(["Awards"])
+    expect(parsed.sections[0].entries[0].fields.awardName).toBe("Community Award")
+    expect(parsed.unplaced).toEqual([])
     expect(parsed.extraGroups).toEqual([])
-    expect(parsed.unplaced[0].text).toEqual(["Community Award, Example Org", "Cloud Certificate, Example Co"])
-    expect(toResumeContent(parsed).extraSections).toBeUndefined()
-    const id = unplacedKey(parsed.unplaced[0], 0)
-    const content = toResumeContent(parsed, new Set(), { keepAs: { [id]: "text" } })
-    expect(Object.values(content.extraSections ?? {})).toEqual([
-      { kind: "text", heading: "Awards & Certifications", text: "Community Award, Example Org\nCloud Certificate, Example Co" },
-    ])
-    expect(content.awardsSection).toEqual([])
   })
 
-  test.each(["Certifications", "Awards & Certifications", "Certifications & Awards"])(
-    "checker parsing preserves the original Awards semantics for %s",
-    (heading) => {
-      const rows = [line("Mara Lin"), line(heading, true), line("Community Award, Example Org 2024")]
-      const checked = parseResume(rows, { purpose: "check" })
-      expect(checked.sections.map((section) => section.name)).toEqual(["Awards"])
-      expect(checked.sections[0].entries[0].fields.awardName).toBe("Community Award")
-      expect(checked.unplaced).toEqual([])
-      expect(checked.extraGroups).toEqual([])
-      const imported = parseResume(rows)
-      expect(imported.sections).toEqual([])
-      expect(imported.extraGroups?.length || imported.unplaced.length).toBeGreaterThan(0)
-    },
-  )
+  test.each([
+    ["Education & Certifications", "Education"],
+    ["Skills & Certifications", "Skills"],
+  ])("%s are read into %s", (heading, section) => {
+    const parsed = parse("Mara Lin", [heading, true], "University of Michigan, B.S. in Economics, 2024")
+    expect(parsed.sections.map((found) => found.name)).toEqual([section])
+    expect(parsed.unplaced).toEqual([])
+  })
 
   test("repeated unsupported headings remain independently selectable with durable UUIDs only at confirmation", () => {
     const parsed = parse("Mara Lin", ["Presentations", true], "First talk", ["Presentations", true], "Second talk")
@@ -169,19 +140,11 @@ describe("flexible section import review", () => {
   })
 
   test("Word parsing preserves recognized groups and uncertain leftover words for review", async () => {
-    const paragraphs = [
-      "Mara Lin",
-      "SUMMARY",
-      "Engineer building useful tools.",
-      "CERTIFICATIONS",
-      "Cloud Engineer | Issuer: Example Co",
-      "PRESENTATIONS",
-      "Talk on accessible software",
-    ]
+    const paragraphs = ["Mara Lin", "SUMMARY", "Engineer building useful tools.", "PRESENTATIONS", "Talk on accessible software"]
     const result = await readFile({ kind: "docx", data: new Uint8Array(wordFile(paragraphs)).buffer })
     expect("parsed" in result).toBe(true)
     if (!("parsed" in result)) return
-    expect(result.parsed.extraGroups?.map((group) => group.kind)).toEqual(["summary", "certifications"])
+    expect(result.parsed.extraGroups?.map((group) => group.kind)).toEqual(["summary"])
     expect(result.parsed.unplaced.flatMap((group) => group.text)).toContain("Talk on accessible software")
   })
 })

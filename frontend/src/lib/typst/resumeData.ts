@@ -49,13 +49,7 @@ export interface TemplateData {
 }
 
 export type ExtraTemplateSection =
-  | { kind: "text"; heading: string; paragraphs: string[] }
-  | { kind: "list"; heading: string; bullets: Run[][] }
-  | {
-      kind: "certifications"
-      heading: string
-      certificates: { name: string; issuer: string; issued: string; expires: string; credentialId: string; link: string }[]
-    }
+  { kind: "text"; heading: string; paragraphs: string[] } | { kind: "list"; heading: string; bullets: Run[][] }
 
 /** A stretch of a bullet's text: **bold**, *italic* or ***both*** where the user marked it. */
 interface Run {
@@ -239,28 +233,13 @@ export function toTemplateData(saved: Resume): TemplateData {
           const printable: ExtraTemplateSection =
             section.kind === "list"
               ? { kind: "list", heading, bullets: bullets(section.bullets) }
-              : section.kind === "certifications"
-                ? {
-                    kind: "certifications",
-                    heading,
-                    certificates: section.entries
-                      .map((entry) => ({
-                        name: text(entry.name),
-                        issuer: text(entry.issuer),
-                        issued: text(entry.issued),
-                        expires: text(entry.expires),
-                        credentialId: text(entry.credentialId),
-                        link: bareUrl(entry.link),
-                      }))
-                      .filter((entry) => Object.values(entry).some((field) => field.length > 0)),
-                  }
-                : {
-                    kind: "text",
-                    heading,
-                    paragraphs: text(section.text)
-                      .split(/\r?\n\s*\r?\n/)
-                      .filter(Boolean),
-                  }
+              : {
+                  kind: "text",
+                  heading,
+                  paragraphs: text(section.text)
+                    .split(/\r?\n\s*\r?\n/)
+                    .filter(Boolean),
+                }
           return [`extra:${id}`, printable]
         }),
     ),

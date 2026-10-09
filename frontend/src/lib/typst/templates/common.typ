@@ -105,29 +105,12 @@
 }
 
 // Optional sections share content formatting, while every template supplies
-// its own heading, bullet and link styles. Prose is literal text, not markup.
-// Keep paragraphs and certificates breakable so long sections span pages.
-#let extra-body(extra, show-bullets, show-link) = {
+// its own heading and bullet styles. Prose is literal text, not markup.
+// Keep paragraphs breakable so long sections span pages.
+#let extra-body(extra, show-bullets) = {
   if extra.kind == "text" {
     extra.paragraphs.map(value => par(value.split("\n").join(linebreak()))).join(v(0.6em))
   } else if extra.kind == "list" {
     show-bullets(extra.bullets)
-  } else if extra.kind == "certifications" {
-    // Permit emergency wrapping of long IDs and URL segments even in
-    // templates that otherwise keep words whole. Never box or truncate them.
-    extra.certificates.map(cert => {
-      let parts = ()
-      if has(cert.name) { parts.push(strong(cert.name)) }
-      if has(cert.issuer) { parts.push(cert.issuer) }
-      let dates = ()
-      if has(cert.issued) { dates.push("Issued: " + cert.issued) }
-      if has(cert.expires) { dates.push("Expires: " + cert.expires) }
-      let lines = ()
-      if parts.len() > 0 { lines.push(parts.join([, ])) }
-      if dates.len() > 0 { lines.push(dates.join([; ])) }
-      if has(cert.credentialId) { lines.push(text(hyphenate: true, "Credential ID: " + cert.credentialId)) }
-      if has(cert.link) { lines.push(text(hyphenate: true, show-link(cert.link, cert.link))) }
-      par(lines.join(linebreak()))
-    }).join(v(0.6em))
   }
 }

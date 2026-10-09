@@ -4,7 +4,6 @@
 
 import { PROFILE_FIELDS, SECTIONS, type FieldKey, type FieldKeyOf, type ProfileKey, type SectionName } from "@/components/editor/sections"
 import { entryAt, type ResumeView } from "./resume"
-import { CERTIFICATION_FIELDS, type Certification } from "@/lib/resumeSections"
 
 export type Place =
   // A profile field, like "email".
@@ -18,13 +17,12 @@ export type Place =
   | { kind: "entry"; section: SectionName; entry: number; field?: FieldKey; line?: number }
   | { kind: "extra-heading"; sectionId: string }
   | { kind: "extra-text"; sectionId: string; field: "text" | "bullets"; line?: number }
-  | { kind: "credential"; sectionId: "certifications"; entryId: string; field?: (typeof CERTIFICATION_FIELDS)[number] }
   // The PDF as a whole, or one of its pages (from 1).
   | { kind: "page"; page?: number }
 
 /** The field a place is in: a profile field, or one of an entry's. */
 export const fieldOf = (place: Place) =>
-  place.kind === "profile" || place.kind === "entry" || place.kind === "extra-text" || place.kind === "credential" ? place.field : undefined
+  place.kind === "profile" || place.kind === "entry" || place.kind === "extra-text" ? place.field : undefined
 
 /** Fields that hold a link or an email address rather than words. */
 export const LINK_FIELDS: ReadonlySet<ReturnType<typeof fieldOf>> = new Set<ReturnType<typeof fieldOf>>([
@@ -35,7 +33,6 @@ export const LINK_FIELDS: ReadonlySet<ReturnType<typeof fieldOf>> = new Set<Retu
   "projectGithub",
   "additionalLink",
   "publicationLink",
-  "link",
 ])
 
 /** Where an entry was, in the sections that have one: jobs, schools and roles. */
@@ -44,11 +41,6 @@ export const LOCATION_FIELDS: { [Section in SectionName]?: FieldKeyOf<Section> }
   Work: "workLocation",
   Volunteership: "volunteerLocation",
   Leadership: "leadershipLocation",
-}
-
-export function credentialAt(view: ResumeView, entryId: string): Certification | undefined {
-  const section = view.extras.certifications?.section
-  return section?.kind === "certifications" ? section.entries.find((entry) => entry.id === entryId) : undefined
 }
 
 /** Whether a place is on this resume, so the editor can open it. `pages` is how many the PDF has. */
@@ -63,8 +55,6 @@ export function placeExists(view: ResumeView, place: Place, pages = 0): boolean 
         return extra.section.kind === "list" && (place.line === undefined || extra.bullets.some((bullet) => bullet.line === place.line))
       return (extra.section.kind === "text" || extra.section.kind === "summary") && place.line === undefined
     }
-    case "credential":
-      return !!credentialAt(view, place.entryId) && (place.field === undefined || CERTIFICATION_FIELDS.includes(place.field))
     case "profile":
       return PROFILE_FIELDS.some((field) => field.key === place.field)
     case "heading":
@@ -102,10 +92,6 @@ export function textAt(view: ResumeView, place: Place): string {
           ? extra.bullets.map((bullet) => bullet.raw).join("\n")
           : (extra.bullets.find((bullet) => bullet.line === place.line)?.raw ?? "")
       return extra.section.kind === "text" || extra.section.kind === "summary" ? extra.section.text.trim() : ""
-    }
-    case "credential": {
-      const entry = credentialAt(view, place.entryId)
-      return entry ? (place.field === undefined ? [entry.name, entry.issuer].filter(Boolean).join(", ") : entry[place.field].trim()) : ""
     }
     case "profile":
       return view.profile[place.field] ?? ""
@@ -163,8 +149,6 @@ function pathOf(place: Place): string {
       return `extra.${place.sectionId}.heading`
     case "extra-text":
       return `extra.${place.sectionId}.${place.field}`
-    case "credential":
-      return `extra.${place.sectionId}.${place.entryId}.${place.field ?? "entry"}`
     case "profile":
       return `profile.${place.field}`
     case "heading":

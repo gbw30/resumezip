@@ -71,7 +71,7 @@
 #for name in data.order {
   if data.extras.at(name, default: none) != none {
     let extra = data.extras.at(name)
-    section(extra.heading, entries((extra-body(extra, bullets, (url, body) => web-link(url, ul(body))),)))
+    section(extra.heading, entries((extra-body(extra, bullets),)))
   } else if name == "Education" and data.education.len() > 0 {
     section(heading-or(hd.education, "Education"), entries(data.education.map(e => {
       let degree = e.degree

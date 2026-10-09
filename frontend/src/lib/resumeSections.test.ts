@@ -6,30 +6,13 @@ import { AttachmentError, fromAttachment, MAX_ENTRIES, toAttachment, TooLongErro
 import { changedPaths, keyOf, readKeptAside, readResume, readSaved } from "./resumeStorage"
 import { createResumeStore } from "./resumeStore"
 import type { Resume } from "./resume"
-import {
-  extraHasBody,
-  readExtraSections,
-  resolveSections,
-  type Certification,
-  type ExtraSection,
-  type ExtraSections,
-} from "./resumeSections"
+import { extraHasBody, readExtraSections, resolveSections, type ExtraSection, type ExtraSections } from "./resumeSections"
 import { asSaved } from "./testResume"
 
 const a = "11111111-1111-4111-8111-111111111111"
 const b = "22222222-2222-4222-8222-222222222222"
-const c = "33333333-3333-4333-8333-333333333333"
 const summary = { kind: "summary", heading: "Summary", text: "Hello" } as const satisfies ExtraSection
 const text = { kind: "text", heading: "Other", text: "First paragraph.\n\n○ Literal prose." } as const satisfies ExtraSection
-const cert: Certification = {
-  id: c,
-  name: "Engineer",
-  issuer: "Institute",
-  issued: "2020",
-  expires: "",
-  credentialId: "123",
-  link: "https://example.com",
-}
 const resume: Resume = {
   id: "r",
   resumeTitle: "Example",
@@ -38,9 +21,8 @@ const resume: Resume = {
     summary,
     [a]: text,
     [b]: { kind: "list", heading: "Other", bullets: "• Public\n○ SECRET\n• Last" },
-    certifications: { kind: "certifications", heading: "Certifications", entries: [cert] },
   },
-  sectionOrder: ["Work", `extra:${b}`, "extra:summary", `extra:${a}`, "extra:certifications"],
+  sectionOrder: ["Work", `extra:${b}`, "extra:summary", `extra:${a}`],
 }
 const envelope = (content: unknown, version = 2) => JSON.stringify({ format: "resumezip", version, resume: content })
 const tabs = (content: Record<string, unknown> = resume) => {
@@ -80,9 +62,7 @@ describe("section identity and validation", () => {
       { [a]: summary },
       { bad: text },
       { summary: { ...summary, text: 4 } },
-      { certifications: { kind: "certifications", entries: [{ ...cert, id: "bad" }] } },
-      { certifications: { kind: "certifications", entries: [cert, cert] } },
-      { certifications: { kind: "certifications", entries: [{ ...cert, issued: null }] } },
+      { certifications: { kind: "certifications", heading: "Certifications", entries: [] } },
     ])
       expect(readExtraSections(bad).complete).toBe(false)
   })
@@ -102,7 +82,7 @@ describe("atomic section actions and cross-tab merging", () => {
     expect(first.getState().resumes.r).not.toHaveProperty("extraSections")
     expect(write).not.toHaveBeenCalled()
   })
-  test("singletons, immutable kinds, credentials, moves and deletion update once", () => {
+  test("a singleton is added once, and each change updates once", () => {
     const { first } = tabs({ id: "r" })
     const listener = vi.fn()
     first.subscribe(listener)
@@ -110,17 +90,9 @@ describe("atomic section actions and cross-tab merging", () => {
     expect(listener).toHaveBeenCalledTimes(1)
     expect(first.addSection("r", "summary")).toBe("extra:summary")
     expect(listener).toHaveBeenCalledTimes(1)
-    first.addSection("r", "certifications")
-    const id = first.addCredential("r")!
-    first.editCredential("r", id, { name: "Registered", issued: "next year" })
-    first.includeCredential("r", id, false)
-    expect(extra(first.getState().resumes.r, "certifications", "certifications").entries[0]).toMatchObject({
-      id,
-      name: "Registered",
-      issued: "next year",
-      leftOut: true,
-    })
-    first.deleteCredential("r", id)
+    first.editSection("r", "summary", { text: "Registered", leftOut: true })
+    expect(listener).toHaveBeenCalledTimes(2)
+    expect(extra(first.getState().resumes.r, "summary", "summary")).toMatchObject({ text: "Registered", leftOut: true })
     first.deleteSection("r", "summary")
     expect(first.getState().resumes.r.extraSections).not.toHaveProperty("summary")
     expect(resolveSections(first.getState().resumes.r)).not.toContain("extra:summary")
@@ -190,22 +162,17 @@ describe("public v1/v2 save files and local recovery", () => {
     expect(attachment).not.toContain("SECRET")
     expect(attachment).not.toContain("leftOut")
     expect(fromAttachment(attachment)?.extraSections?.[a]).toEqual(text)
-    expect(extra(fromAttachment(attachment), "certifications", "certifications").entries[0].id).toBe(c)
     const empty = toAttachment({ extraSections: { summary: { ...summary, text: "" } } })
     expect(JSON.parse(empty).version).toBe(2)
     expect(extra(fromAttachment(empty), "summary", "summary").text).toBe("")
   })
-  test("whole omissions and credential omissions are removed before version selection", () => {
-    const certifications: ExtraSection = {
-      kind: "certifications",
-      heading: "Certifications",
-      entries: [{ ...cert, name: "SECRET", leftOut: true }],
-    }
-    const input: Resume = { extraSections: { summary: { ...summary, leftOut: true }, certifications } }
+  test("left-out sections and lines are removed before the version is chosen", () => {
+    const list: ExtraSection = { kind: "list", heading: "Other", bullets: "○ SECRET" }
+    const input: Resume = { extraSections: { summary: { ...summary, leftOut: true }, [b]: list } }
     expect(hasLeftOut(input)).toBe(true)
     expect(toAttachment(input)).not.toContain("SECRET")
     expect(JSON.parse(toAttachment(input)).version).toBe(2)
-    input.extraSections = { ...input.extraSections, certifications: { ...certifications, leftOut: true } }
+    input.extraSections = { ...input.extraSections, [b]: { ...list, leftOut: true } }
     expect(JSON.parse(toAttachment(input)).version).toBe(1)
     expect(printedResume(input).extraSections).toEqual({})
   })
@@ -220,12 +187,11 @@ describe("public v1/v2 save files and local recovery", () => {
     ])
       expect(() => fromAttachment(file)).toThrow(AttachmentError)
   })
-  test("structural limit includes instances and credentials", () => {
-    const entries = Array.from({ length: MAX_ENTRIES }, (_, index) => ({
-      ...cert,
-      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
-    }))
-    expect(() => fromAttachment(envelope({ extraSections: { certifications: { kind: "certifications", entries } } }))).toThrow(TooLongError)
+  test("the limit on entries counts sections too", () => {
+    const extraSections = Object.fromEntries(
+      Array.from({ length: MAX_ENTRIES + 1 }, (_, index) => [`00000000-0000-4000-8000-${String(index).padStart(12, "0")}`, text]),
+    )
+    expect(() => fromAttachment(envelope({ extraSections }))).toThrow(TooLongError)
   })
   test("malformed local data is kept aside before salvage; preservation failure leaves original", () => {
     const raw = JSON.stringify({ ...resume, extraSections: { [a]: text, summary: { kind: "summary", text: 4 } }, future: "kept" })
@@ -241,14 +207,8 @@ describe("public v1/v2 save files and local recovery", () => {
     expect(readSaved(blocked, "r").status).toBe("full")
     expect(blocked.getItem(keyOf("r"))).toBe(raw)
   })
-  test("future local section and credential fields are backed up before a narrower save", () => {
-    const raw = JSON.stringify({
-      ...resume,
-      extraSections: {
-        summary: { ...summary, futureNotes: "saved information" },
-        certifications: { kind: "certifications", entries: [{ ...cert, futureNotes: "saved credential" }] },
-      },
-    })
+  test("a section's fields from a later version are backed up before a narrower save", () => {
+    const raw = JSON.stringify({ ...resume, extraSections: { summary: { ...summary, futureNotes: "saved information" } } })
     const storage = memoryStorage({ [keyOf("r")]: raw })
     expect(readResume(raw).complete).toBe(false)
     readSaved(storage, "r")

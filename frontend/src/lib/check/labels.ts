@@ -4,7 +4,6 @@
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type FieldKeyOf, type SectionName } from "@/components/editor/sections"
 import type { Place } from "./places"
 import { entryAt, type Entry, type ResumeView } from "./resume"
-import { credentialAt } from "./places"
 
 /**
  * A name and at least one entry with something in it. Until then the
@@ -56,11 +55,6 @@ export function describePlace(view: ResumeView, place: Place): string {
       const extra = view.extras[place.sectionId]
       const bullet = extra?.bullets.find((bullet) => bullet.line === place.line)
       return `${extra?.heading ?? "Section"}${bullet ? ` · bullet ${bullet.number}` : ""}`
-    }
-    case "credential": {
-      const entry = credentialAt(view, place.entryId)
-      const labels = { name: "Name", issuer: "Issuer", issued: "Issued", expires: "Expires", credentialId: "Credential ID", link: "Link" }
-      return `${view.extras.certifications?.heading ?? "Certifications"} → ${entry?.name || "Credential"}${place.field ? ` · ${labels[place.field]}` : ""}`
     }
     case "profile":
       return `Profile → ${PROFILE_FIELDS.find((field) => field.key === place.field)?.label ?? place.field}`

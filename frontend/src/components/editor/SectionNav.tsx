@@ -210,7 +210,6 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
               {(
                 [
                   ["summary", "Summary"],
-                  ["certifications", "Certifications"],
                   ["text", "Text"],
                   ["list", "Bullet list"],
                 ] as const
@@ -219,7 +218,7 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
                   key={kind}
                   type="button"
                   aria-label={`Add ${title} section`}
-                  disabled={(kind === "summary" || kind === "certifications") && !!extras && Object.hasOwn(extras, kind)}
+                  disabled={kind === "summary" && !!extras && Object.hasOwn(extras, kind)}
                   onClick={() => {
                     onAdd(kind)
                     setAdding(false)

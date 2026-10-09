@@ -16,12 +16,11 @@ sent anywhere.
   place in the editor as `index`, so places are built from that, and entries
   are looked up with `entryAt`, never by their place in the list.
 - `ResumeView.order` remains builtin-only for rules about jobs, dates and
-  skills. `allOrder`, `extras` and `textsOf` also cover optional summary,
-  custom text/list sections and credentials. Prose is literal; custom list
-  bullets use the existing formatting and preserve original line offsets.
-  Extra places use stable section keys and credential UUIDs, so reordering them
-  preserves targets and dismissals. Grammar skips credential names, issuers,
-  codes, links and dates; custom lists do not receive job-specific advice.
+  skills. `allOrder`, `extras` and `textsOf` also cover the optional summary
+  and custom text/list sections. Prose is literal; custom list bullets use the
+  existing formatting and preserve original line offsets. Extra places use
+  stable section keys, so reordering them preserves targets and dismissals.
+  Custom lists do not receive job-specific advice.
 - `extraPdf.ts` matches actual extracted section occurrences in the import
   worker, including repeated headings, before builtin semantic checks run.
   Only complete matching ranges are removed; original PDF line addresses
