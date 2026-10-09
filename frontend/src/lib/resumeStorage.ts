@@ -7,6 +7,11 @@
 import { SECTIONS } from "@/components/editor/sections"
 import { CHECK_FIELD } from "@/lib/check/state"
 import type { Resume } from "./resume"
+import { idOf, keyOf, LEGACY_KEY } from "./resumeKeys"
+
+// The keys, and localStorage itself, are in lib/resumeKeys.ts, so pages can
+// look for saved resumes without loading this.
+export { getStorage, idOf, keyOf, LEGACY_KEY, RESUME_PREFIX } from "./resumeKeys"
 
 /**
  * Saved data that can't be read is kept instead of being saved over, each
@@ -18,20 +23,10 @@ const KEPT = new RegExp(`^${UNREADABLE_PREFIX}(\\d+)-[a-z0-9]*$`)
 /** Whether a localStorage key holds saved data kept aside. */
 export const isKeptAside = (key: string) => KEPT.test(key)
 
-/** Each resume is saved under a key of its own: this, then its id. */
-export const RESUME_PREFIX = "resume:"
-/** The localStorage key a resume is saved under. */
-export const keyOf = (id: string) => RESUME_PREFIX + id
-
-/** The id of the resume saved under a localStorage key, or null if it isn't one. */
-export const idOf = (key: string) => (key.startsWith(RESUME_PREFIX) ? key.slice(RESUME_PREFIX.length) : null)
-
 /** In a resume's changed fields: all of them, as for a new resume. */
 export const EVERY_FIELD = "*"
 
-/** Where earlier versions saved every resume, as one JSON object by id. */
-export const LEGACY_KEY = "allResumes"
-/** A copy of what was saved there, kept once when it's moved. */
+/** A copy of what was saved under LEGACY_KEY, kept once when it's moved. */
 export const BACKUP_KEY = "allResumes-backup"
 
 type Resumes = Record<string, Resume>
@@ -42,17 +37,6 @@ type Resumes = Record<string, Resume>
  * "failed" when anything else stops a save.
  */
 export type SaveStatus = "saved" | "blocked" | "full" | "failed"
-
-/** localStorage, or null when the browser won't let the site use it. */
-export function getStorage(): Storage | null {
-  try {
-    // Reading it throws when the browser blocks sites from saving data, and
-    // some apps' built-in browsers don't have it.
-    return window.localStorage ?? null
-  } catch {
-    return null
-  }
-}
 
 export interface SavedResumes {
   /** The saved resumes that could be read, by id. */
