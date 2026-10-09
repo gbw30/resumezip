@@ -56,9 +56,24 @@ function readExtraSection(key: string, value: unknown): ExtraSection | null {
   return { ...base, kind: "list", bullets: (value.bullets ?? "") as string }
 }
 
-// Saved data, so both are read as unknown and checked here.
+// The sections read from each map, by the map: the preview, the checker and
+// the section list all ask for the same one, several times a key typed, and a
+// change makes a new map.
+const readMaps = new WeakMap<object, ExtraSections>()
+
+/**
+ * A resume's added sections, the ones that can be read. Saved data, so it's
+ * read as unknown and checked; what comes back is shared, not to be changed.
+ */
 export function extrasOf(resume: { extraSections?: unknown }): ExtraSections {
-  return resume.extraSections === undefined ? {} : readExtraSections(resume.extraSections).sections
+  const value = resume.extraSections
+  if (!object(value)) return {}
+  let sections = readMaps.get(value)
+  if (!sections) {
+    sections = readExtraSections(value).sections
+    readMaps.set(value, sections)
+  }
+  return sections
 }
 
 /** What resolveSections reads of a resume: its order, its sections, and whether the optional ones have entries. */

@@ -6,7 +6,7 @@ import { AttachmentError, fromAttachment, MAX_ENTRIES, toAttachment, TooLongErro
 import { changedPaths, keyOf, readKeptAside, readResume, readSaved } from "./resumeStorage"
 import { createResumeStore } from "./resumeStore"
 import type { Resume } from "./resume"
-import { extraHasBody, readExtraSections, resolveSections, type ExtraSection, type ExtraSections } from "./resumeSections"
+import { extraHasBody, extrasOf, readExtraSections, resolveSections, type ExtraSection, type ExtraSections } from "./resumeSections"
 import { asSaved } from "./testResume"
 
 const a = "11111111-1111-4111-8111-111111111111"
@@ -77,6 +77,12 @@ describe("section identity and validation", () => {
       { certifications: { kind: "certifications", heading: "Certifications", entries: [] } },
     ])
       expect(readExtraSections(bad).complete).toBe(false)
+  })
+  test("each map of sections is read once, and a new map afresh", () => {
+    const read = extrasOf(resume)
+    expect(extrasOf(resume)).toBe(read)
+    expect(extrasOf({ ...resume, extraSections: { ...resume.extraSections } })).not.toBe(read)
+    expect(extrasOf({ extraSections: "damaged" })).toEqual({})
   })
   test("empty and hidden-only bodies do not print", () => {
     expect(extraHasBody({ kind: "list", heading: "x", bullets: "○ Secret\n• " })).toBe(false)
