@@ -5,6 +5,8 @@ declare global {
   interface Window {
     /** How many resumes the page has sent to the compiler, counted by a test. */
     compiles?: number
+    /** How many pdf.js workers the page has started, counted by a test. */
+    pdfWorkers?: number
     /** Frames since a test started counting them, and how many showed no finished page. */
     painted?: { frames: number; blank: number }
   }
@@ -96,6 +98,32 @@ test("renaming doesn't rebuild the preview, and fast typing ends on the latest t
   await page.getByLabel("Email").pressSequentially("ada@example.com", { delay: 20 })
   await expect(preview.getByText("ada@example.com").first()).toBeVisible()
 
+  expect(errors).toEqual([])
+})
+
+test("the preview starts pdf.js's worker once, not for each new PDF", async ({ page }) => {
+  const errors = pageErrors(page)
+  // Each one loads a 1.3 MB script as it starts.
+  await page.addInitScript(() => {
+    window.pdfWorkers = 0
+    const RealWorker = window.Worker
+    window.Worker = class extends RealWorker {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options)
+        if (String(url).includes("pdf.worker")) window.pdfWorkers = (window.pdfWorkers ?? 0) + 1
+      }
+    }
+  })
+  await page.goto("/")
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page).toHaveURL(/\/create\/new\//)
+  const preview = page.getByRole("region", { name: "Live preview" })
+  // Each name is a new PDF, on screen once its text is.
+  for (const name of ["Ada Lovelace", "Grace Hopper", "Mary Somerville"]) {
+    await page.getByLabel("Full name").fill(name)
+    await expect(preview.getByText(new RegExp(name, "i")).first()).toBeVisible()
+  }
+  expect(await page.evaluate(() => window.pdfWorkers)).toBe(1)
   expect(errors).toEqual([])
 })
 
