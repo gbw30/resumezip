@@ -88,6 +88,23 @@ async function openSection(page: Page, section: string, resume: { id: string } &
     .click()
 }
 
+test("a click on an entry's heading opens it, and on the open entry's heading closes it", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+  const done = page.getByRole("button", { name: "Done editing entry 1" })
+  await expect(done).toBeVisible()
+
+  await page.getByText("Entry 1", { exact: true }).click()
+  await expect(done).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Edit entry 1" })).toBeVisible()
+
+  // Closed, it shows its summary, which opens it again.
+  await page.getByText("Engineer, Google").click()
+  await expect(done).toBeVisible()
+
+  expect(errors).toEqual([])
+})
+
 test("entries move up and down from the keyboard, and stay moved", async ({ page }) => {
   const errors = pageErrors(page)
   await openSection(page, "Experience")

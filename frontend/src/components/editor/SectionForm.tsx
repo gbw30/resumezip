@@ -301,12 +301,12 @@ export default function SectionForm({ section, position }: SectionFormProps) {
                 <section className="-mx-1 min-h-0 overflow-hidden px-1">
                   <div className={`border-t pb-7 pt-4 transition-colors duration-300 ${isOpen ? "border-ink" : "border-rule"}`}>
                     <div className="flex items-start justify-between gap-4">
-                      {/* A closed entry also opens with a click on its summary. Its Edit button is the way in from the keyboard. */}
+                      {/* A click on an entry's heading also opens it, or closes it if it's open. From the keyboard, it's Edit and Done. */}
                       <div
-                        className={`flex min-w-0 flex-col gap-1 ${isOpen ? "" : "group flex-1 cursor-pointer"}`}
-                        onClick={isOpen ? undefined : () => open(entry.id, entry.id)}
+                        className="group flex min-w-0 flex-1 cursor-pointer flex-col gap-1"
+                        onClick={() => open(isOpen ? null : entry.id, entry.id)}
                       >
-                        <span className="label-mono text-ink-2">
+                        <span className={`label-mono text-ink-2 ${isOpen ? "transition-colors group-hover:text-ink" : ""}`}>
                           Entry {index + 1}
                           {leftOut && " · Left out"}
                         </span>
