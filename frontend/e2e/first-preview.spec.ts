@@ -3,7 +3,9 @@ import { pageErrors } from "./helpers"
 
 // The first preview waits for the PDF compiler to download. A stand-in page
 // shows meanwhile (components/editor/PrintingPage.tsx), and the dashboard
-// starts the download before the editor opens (lib/typst/compile.ts).
+// starts the download before the editor opens (lib/typst/compile.ts), as do
+// the home page on a computer (components/home/PrefetchCompiler.tsx) and
+// reaching for "Start writing" (components/site/StartWriting.tsx).
 
 const resume = {
   id: "first-preview",
@@ -109,12 +111,139 @@ test("the dashboard starts the compiler, and the editor uses the same one", asyn
   expect(errors).toEqual([])
 })
 
-test("visitors saving data don't download the compiler on the dashboard", async ({ page }) => {
+test("on a computer, the home page downloads the compiler once it has settled, and the editor builds it from that", async ({
+  page,
+  browserName,
+}) => {
+  const errors = pageErrors(page)
+  const workers = compilerWorkers(page)
+  const downloads: string[] = []
+  page.on("request", (request) => {
+    if (request.url().endsWith(".wasm")) downloads.push(request.url())
+  })
+  await page.goto("/")
+  await expect.poll(() => workers.length).toBe(1)
+  // The download itself is checked in Chromium, where the page sees its workers' requests.
+  if (browserName === "chromium") await expect.poll(() => downloads.length).toBe(1)
+  const downloadedAhead = downloads.length
+
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page.getByRole("region", { name: "Live preview" }).locator("canvas")).toBeVisible()
+  expect(workers).toHaveLength(1)
+  // The editor doesn't download the compiler again.
+  expect(downloads).toHaveLength(downloadedAhead)
+  expect(errors).toEqual([])
+})
+
+test("if the home page's download of the compiler fails, the editor uses the app's own copy without trying jsDelivr again", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "The page sees its workers' requests in Chromium")
+  const errors = pageErrors(page)
+  const fromJsDelivr: string[] = []
+  await page.route(/^https:\/\/cdn\.jsdelivr\.net\/.*\.wasm$/, (route) => {
+    fromJsDelivr.push(route.request().url())
+    return route.abort()
+  })
+  await page.goto("/")
+  await expect.poll(() => fromJsDelivr.length).toBe(1)
+
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page.getByRole("region", { name: "Live preview" }).locator("canvas")).toBeVisible()
+  expect(fromJsDelivr).toHaveLength(1)
+  expect(errors).toEqual([])
+})
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
+
+  test("reading the home page doesn't download the compiler", async ({ page, browserName }) => {
+    test.skip(browserName !== "chromium", "Checked in Chromium, whose touch emulation gives the page a phone's coarse pointer")
+    const workers = compilerWorkers(page)
+    await page.goto("/")
+    await expect(page.getByRole("link", { name: "Start writing" }).first()).toBeVisible()
+    await page.waitForTimeout(2_000)
+    expect(workers).toEqual([])
+  })
+})
+
+test("a mouse resting on Start writing starts the editor's downloads before the click, and looking over the templates' pictures doesn't", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "The page sees its workers' requests in Chromium")
+  const errors = pageErrors(page)
+  // The fonts of the template to print, which only come once someone starts
+  // writing: the home page's own download is of the compiler alone.
+  const fonts: string[] = []
+  page.on("request", (request) => {
+    if (/\.(otf|ttf)$/.test(request.url())) fonts.push(request.url())
+  })
+  await page.goto("/")
+  const pictures = page.getByRole("region", { name: "Templates" }).getByRole("link", { name: / template/ })
+  for (const picture of await pictures.all()) await picture.hover()
+  await page.waitForTimeout(1_500)
+  expect(fonts).toEqual([])
+
+  const startWriting = page.getByRole("link", { name: "Start writing" }).first()
+  await startWriting.hover()
+  await expect.poll(() => fonts.length).toBeGreaterThan(0)
+  await startWriting.click()
+  await expect(page.getByRole("region", { name: "Live preview" }).locator("canvas")).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test("pressing a template's picture starts the compiler before the click", async ({ page }) => {
+  const errors = pageErrors(page)
+  const workers = compilerWorkers(page)
+  await page.goto("/templates")
+  await page.getByRole("link", { name: /^Harvard template/ }).hover()
+  await page.waitForTimeout(500)
+  expect(workers).toEqual([])
+
+  await page.mouse.down()
+  await expect.poll(() => workers.length).toBe(1)
+  await page.mouse.up()
+  await expect(page.getByRole("region", { name: "Live preview" }).locator("canvas")).toBeVisible()
+  expect(workers).toHaveLength(1)
+  expect(errors).toEqual([])
+})
+
+test("pdf.js's worker downloads while the first preview is still being made", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "The page sees its workers' requests in Chromium")
+  const errors = pageErrors(page)
+  await saveResume(page)
+  // The fonts are held back, so the first PDF can't be made yet.
+  let releaseFonts = () => {}
+  const fontsHeld = new Promise<void>((resolve) => (releaseFonts = resolve))
+  await page.route(/\.(otf|ttf)$/, async (route) => {
+    await fontsHeld
+    await route.continue()
+  })
+  const requested: string[] = []
+  page.on("request", (request) => requested.push(request.url()))
+  await page.goto(`/create/new/${resume.id}`)
+
+  const preview = page.getByRole("region", { name: "Live preview" })
+  await expect.poll(() => requested.some((url) => url.includes("pdf.worker"))).toBe(true)
+  await expect(preview.getByRole("status", { name: "Loading preview" })).toBeVisible()
+  releaseFonts()
+  await expect(preview.locator("canvas")).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test("visitors saving data don't download the compiler ahead, on the home page or the dashboard", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "connection", { value: { saveData: true, effectiveType: "4g" } })
   })
-  await saveResume(page)
   const workers = compilerWorkers(page)
+  await page.goto("/")
+  await page.getByRole("link", { name: "Start writing" }).first().hover()
+  await page.waitForTimeout(1_000)
+  expect(workers).toEqual([])
+
+  await saveResume(page)
   await page.goto("/create/dashboard")
   await expect(page.getByRole("link", { name: resume.resumeTitle }).first()).toBeVisible()
   await page.waitForTimeout(3_000)
