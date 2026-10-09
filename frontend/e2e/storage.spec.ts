@@ -148,6 +148,13 @@ test("saved data that can't be read is kept instead of being saved over", async 
     sessionStorage.setItem("seeded", "yes")
     localStorage.setItem("allResumes", text)
   }, unreadable)
+  // As a visitor saving data, so the dashboard doesn't start downloading the
+  // PDF compiler a second after it opens: the reload below would cut that
+  // short, which Safari logs as an error, and nothing on the page shows when
+  // it's done.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "connection", { value: { saveData: true, effectiveType: "4g" } })
+  })
   await page.goto("/create/dashboard")
   const kept = keptAside(page)
 
@@ -157,8 +164,9 @@ test("saved data that can't be read is kept instead of being saved over", async 
   expect(await seriousAccessibilityProblems(page)).toEqual([])
 
   // It's still there after a reload, and downloads exactly as it was saved.
-  // The reload waits until the dashboard has finished loading the editor's
-  // code in the background, which Safari logs as an error when it's cut off.
+  // The reload waits until the dashboard has fetched the pages its links go
+  // to, as Next.js does ahead of a click, which Safari also logs as an error
+  // when it's cut off.
   await page.waitForLoadState("networkidle")
   await page.reload()
   await expect(note).toBeVisible()

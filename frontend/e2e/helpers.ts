@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright"
-import type { Page } from "@playwright/test"
+import { expect, type Locator, type Page } from "@playwright/test"
 
 // Safari logs these when a page is left while something is still loading in
 // the background, and the visitor never sees them: the PDF compiler or its
@@ -63,6 +63,28 @@ export async function transitionsDone(page: Page): Promise<void> {
         .map((animation) => animation.finished.catch(() => undefined)),
     ),
   )
+}
+
+/**
+ * Waits until no transition is under way on an element, on what contains it
+ * or on what's in it, as a dialog growing into place, so a box read next is
+ * its final one. Each look comes two frames on: a transition can start with
+ * the next frame, and its transitionrun event comes with the one after.
+ */
+export async function settled(locator: Locator): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        locator.evaluate(async (element) => {
+          await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
+          return document.getAnimations().filter((animation) => {
+            const target = (animation.effect as KeyframeEffect | null)?.target
+            return "transitionProperty" in animation && !!target && (target.contains(element) || element.contains(target))
+          }).length
+        }),
+      { message: "nothing on, in or around it is transitioning" },
+    )
+    .toBe(0)
 }
 
 /**
