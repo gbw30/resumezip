@@ -40,9 +40,11 @@ export function OpenErrorDialog({ message, onClose, onRetry }: { message: string
 }
 
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" })
+// When a copy was last edited, as a time: NaN if it doesn't say.
+const timeOf = (value: unknown) => (typeof value === "string" ? Date.parse(value) : NaN)
 const formatWhen = (value: unknown) => {
-  const date = new Date(typeof value === "string" ? value : NaN)
-  return Number.isNaN(date.getTime()) ? "an unknown time" : when.format(date)
+  const time = timeOf(value)
+  return Number.isNaN(time) ? "an unknown time" : when.format(time)
 }
 
 interface ConflictDialogProps {
@@ -66,20 +68,30 @@ export function ConflictDialog({
   onKeepBoth,
   onReplace,
 }: ConflictDialogProps) {
+  // Without both times, neither copy is newer (NaN compares false).
+  const fileOlder = timeOf(fileEdited) < timeOf(existingEdited)
+  const fileNewer = timeOf(fileEdited) > timeOf(existingEdited)
+  // Replacing is the main choice only when it loses nothing.
+  const replaceFirst = fileNewer && !existingLeftOut
   return (
     <Modal title="You already have this resume" onClose={onCancel}>
       <p className="mt-4 break-words text-[15px] leading-relaxed text-ink-2">
-        &ldquo;{existingTitle || "Untitled resume"}&rdquo; is in this browser, last edited {formatWhen(existingEdited)}. The PDF is from{" "}
-        {formatWhen(fileEdited)}.{existingLeftOut && " What you left out of the PDF isn't in the file, so replacing deletes it."}
+        &ldquo;{existingTitle || "Untitled resume"}&rdquo; is in this browser, last edited {formatWhen(existingEdited)}.{" "}
+        {fileOlder
+          ? `The PDF is older, from ${formatWhen(fileEdited)}. Replacing loses your changes since then.`
+          : fileNewer
+            ? `The PDF is newer, from ${formatWhen(fileEdited)}.`
+            : `The PDF is from ${formatWhen(fileEdited)}.`}
+        {existingLeftOut && " What you left out of the PDF isn't in the file, so replacing deletes it."}
       </p>
       <div className="mt-7 flex flex-wrap justify-end gap-2">
         <button type="button" onClick={onCancel} className={quiet}>
           Cancel
         </button>
-        <button type="button" onClick={onKeepBoth} className={existingLeftOut ? primary : secondary}>
+        <button type="button" onClick={onKeepBoth} className={replaceFirst ? secondary : primary}>
           Keep both
         </button>
-        <button type="button" onClick={onReplace} className={existingLeftOut ? secondary : primary}>
+        <button type="button" onClick={onReplace} className={replaceFirst ? primary : secondary}>
           Replace with the PDF
         </button>
       </div>

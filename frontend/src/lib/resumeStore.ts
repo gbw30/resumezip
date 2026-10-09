@@ -47,10 +47,33 @@ export interface ResumeState {
   savedAt: number
   /** Saved data that couldn't be read, kept aside instead of being saved over. */
   unreadable: string[]
+  /** The resume last replaced with a file's content on this page, until it changes again. Only kept in memory. */
+  replaced: Replaced | null
+}
+
+/**
+ * A resume replaced with a file's content, and the copy it replaced. It lasts
+ * while the resume is one or the other: once it changes, here or in another
+ * tab, putting it back would lose that change.
+ */
+export interface Replaced {
+  id: string
+  before: Resume
+  after: Resume
+  /** Whether it's been put back as it was before. */
+  undone: boolean
 }
 
 /** Before anything has been read, as when the page is rendered on the server. */
-export const INITIAL_STATE: ResumeState = { resumes: {}, loaded: false, saveStatus: "saved", unsaved: false, savedAt: 0, unreadable: [] }
+export const INITIAL_STATE: ResumeState = {
+  resumes: {},
+  loaded: false,
+  saveStatus: "saved",
+  unsaved: false,
+  savedAt: 0,
+  unreadable: [],
+  replaced: null,
+}
 
 /** How long typing pauses before the changes are saved, in milliseconds. */
 export const SAVE_DELAY = 400
@@ -93,6 +116,11 @@ export function createResumeStore(delay = SAVE_DELAY) {
   // Every change to what's waiting to be saved is followed by a setState, which notes it.
   function setState(next: Partial<ResumeState>) {
     state = { ...state, ...next, unsaved: pending.size > 0 || deleted.size > 0 }
+    // Every way a resume can change goes through here, so this is where a replaced one stops being undoable.
+    const { replaced } = state
+    if (replaced && resumeOf(state, replaced.id) !== (replaced.undone ? replaced.before : replaced.after)) {
+      state = { ...state, replaced: null }
+    }
     for (const listener of listeners) listener()
   }
 
@@ -194,12 +222,30 @@ export function createResumeStore(delay = SAVE_DELAY) {
     flush()
   }
 
-  /** Replaces a resume's content with a file's, keeping its name and tag. */
+  /**
+   * Replaces a resume's content with a file's, keeping its name and tag. It
+   * keeps the file's last-edited time too, not now: opening the same file
+   * again then finds nothing different, and a newer file still looks newer.
+   * Until the resume changes again, undoReplace puts back the copy it replaced.
+   */
   function replace(id: string, content: ResumeContent) {
     if (!has(id)) return
+    const before = state.resumes[id]
     markChanged(id, EVERY_FIELD)
-    const resume = { ...state.resumes[id], ...content, id, updatedAt: new Date().toISOString() }
-    setState({ resumes: { ...state.resumes, [id]: resume } })
+    const after = { ...before, ...content, id, updatedAt: content.updatedAt ?? new Date().toISOString() }
+    setState({ resumes: { ...state.resumes, [id]: after }, replaced: { id, before, after, undone: false } })
+    flush()
+  }
+
+  /** Puts back the copy that replace last replaced, if the resume hasn't changed since. */
+  function undoReplace(id: string) {
+    // Another tab may have saved a change this tab hasn't heard of yet. Taken
+    // in first, it ends the undo like a change here, rather than being saved over.
+    receive(keyOf(id))
+    const { replaced } = state
+    if (replaced?.id !== id || replaced.undone) return
+    markChanged(id, EVERY_FIELD)
+    setState({ resumes: { ...state.resumes, [id]: replaced.before }, replaced: { ...replaced, undone: true } })
     flush()
   }
 
@@ -383,6 +429,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
     duplicate,
     rename,
     replace,
+    undoReplace,
     remove,
     flush,
     receive,

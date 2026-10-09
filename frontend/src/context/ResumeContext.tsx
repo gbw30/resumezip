@@ -10,6 +10,7 @@ interface ResumeActions {
   createNewResume: (title: string, tag: string, template?: string) => string
   importResume: (content: ResumeContent, title: string, options?: { keepId?: boolean }) => string
   replaceResume: (id: string, content: ResumeContent) => void
+  undoReplace: (id: string) => void
   /** Adds a copy of a resume, and returns its id. */
   duplicateResume: (id: string) => string | undefined
   /** Renames a resume, numbering the name if it's taken. */
@@ -111,6 +112,7 @@ export const FormProvider = ({ children }: { children: React.ReactNode }) => {
       createNewResume: store.create,
       importResume: store.importResume,
       replaceResume: store.replace,
+      undoReplace: store.undoReplace,
       duplicateResume: store.duplicate,
       renameResume: store.rename,
       editResume: store.edit,
