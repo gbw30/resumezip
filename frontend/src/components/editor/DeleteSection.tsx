@@ -21,9 +21,10 @@ export default function DeleteSection({ onDelete }: { onDelete: () => void }) {
     requestAnimationFrame(() => button.current?.focus())
   }
 
+  // The question fades in where the button was (`starting:` is CSS @starting-style).
   return confirming ? (
     <span
-      className="flex flex-wrap items-center gap-3"
+      className="flex flex-wrap items-center gap-3 transition-opacity duration-150 ease-out motion-reduce:transition-none starting:opacity-0"
       onKeyDown={(event) => {
         if (event.key === "Escape") keep()
       }}
