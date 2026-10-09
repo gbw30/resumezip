@@ -1,23 +1,14 @@
 // Bullets (B1–B9 in issue #58): how each one starts, what's in it, and how
 // many a job has. Every finding points at the bullet it's about.
 
-import type { SectionName } from "@/components/editor/sections"
+import { SECTIONS, type SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
 import { hasEnded } from "./readDate"
 import type { Entry } from "./resume"
-import {
-  BULLETS_WITH_NUMBERS,
-  BUZZWORDS,
-  MAX_BULLETS,
-  MIN_BULLETS_FOR_NUMBERS,
-  NEAR_DUPLICATE_LENGTH,
-  NUMBER_WORDS,
-  SAME_START,
-  VAGUE_WORDS,
-  WEAK_STARTS,
-} from "./settings"
-import { bulletsIn, escaped, firstWord, mostCommon, opening } from "./text"
-import { alternativesTo, inTenseOf, verbOf } from "./verbs"
+import { BUZZWORDS, MAX_BULLETS, NEAR_DUPLICATE_LENGTH, SAME_START, VAGUE_WORDS, WEAK_STARTS } from "./settings"
+import { bulletsIn, escaped, firstWord, opening } from "./text"
+import { hasOutcome, hasScope, isGenericBullet } from "./bulletEvidence"
+import { alternativesTo, inTenseOf, verbAtStart, verbOf } from "./verbs"
 
 // Jobs and roles, whose bullets say what the person did. A project's bullets
 // often say what the project is instead ("Interactive map of…"), so they're
@@ -28,6 +19,8 @@ const WEAK = new RegExp(`^(${WEAK_STARTS.map(escaped).join("|")})\\b`, "i")
 
 /** "I", "me", "my", "we" or "our" in a bullet, as written; null if there's none. */
 export function pronounIn(text: string): string | null {
+  // Product handles, links and quoted names are not narrative pronouns.
+  text = text.replace(/(?:https?:\/\/|www\.)\S+|\S+@\S+|["“][^"”]+["”]/g, (value) => " ".repeat(value.length))
   for (const match of text.matchAll(/\b(I|i|me|my|we|our|Me|My|We|Our)\b/g)) {
     const word = match[0]
     const before = text.slice(0, match.index)
@@ -49,7 +42,7 @@ const weakStarts: Rule = {
   level: "look",
   reads: "form",
   title: "No weak starts like “Responsible for”",
-  why: "They describe a duty, not what you did.",
+  why: "A specific action helps explain your own contribution.",
   check: ({ resume }) => {
     const bullets = bulletsIn(resume)
     if (bullets.length === 0) return null
@@ -57,7 +50,9 @@ const weakStarts: Rule = {
       checked: bullets.length,
       problems: bullets.flatMap(({ bullet, place }) => {
         const found = WEAK.exec(opening(bullet.text))
-        return found ? [{ place, message: `“${found[1]}” is a weak start`, suggestion: "Start with what you did, like “Led” or “Built”." }] : []
+        return found
+          ? [{ place, message: `“${found[1]}” is a weak start`, suggestion: "Name your own contribution, without overstating your role." }]
+          : []
       }),
     }
   },
@@ -65,11 +60,12 @@ const weakStarts: Rule = {
 
 const actionVerbs: Rule = {
   id: "B2",
+  advisory: true,
   category: "bullets",
   level: "look",
   reads: "form",
-  title: "Bullets start with an action verb",
-  why: "Starting with a verb puts what you did first.",
+  title: "Make your contribution clear",
+  why: "An action or result can help explain your contribution; other sentence forms can work too.",
   check: ({ resume }) => {
     const bullets = bulletsIn(resume, ROLES)
     if (bullets.length === 0) return null
@@ -79,50 +75,64 @@ const actionVerbs: Rule = {
         const text = opening(bullet.text)
         // A number first ("50% faster…") is fine; weak starts and "I" have rules of their own.
         if (!text || /^\p{N}/u.test(text) || WEAK.test(text) || pronounIn(firstWord(text)) !== null) return []
-        return verbOf(firstWord(text)) ? [] : [{ place, message: "Doesn't start with an action verb", suggestion: "Start with what you did, like “Built” or “Led”." }]
+        // If the opening word could also name a subject, don't prescribe its
+        // sentence structure ("Research findings informed policy").
+        return verbAtStart(text) || verbOf(firstWord(text)) || hasScope(text) || hasOutcome(text)
+          ? []
+          : [
+              {
+                place,
+                message: "Could you name your action?",
+                suggestion: "An action or a clear result can help explain your contribution.",
+              },
+            ]
       }),
     }
   },
 }
 
-const NUMBER = new RegExp(String.raw`\p{N}|[%$€£]|\b(?:${NUMBER_WORDS.join("|")})\b`, "iu")
-
-const numbers: Rule = {
+const scopeAndResults: Rule = {
   id: "B3",
   category: "bullets",
   level: "look",
   reads: "form",
-  title: "About half your bullets have a number",
-  why: "Numbers show how big your work was: how much, how many, how fast.",
+  title: "Show the scope or result of your work",
+  why: "A result can be a useful change, not just a number. This check looks for cues, not proof of quality.",
   check: ({ resume }) => {
-    const bullets = bulletsIn(resume)
-    if (bullets.length < MIN_BULLETS_FOR_NUMBERS) return null
-    const without = bullets.filter(({ bullet }) => !NUMBER.test(bullet.text))
-    const share = (bullets.length - without.length) / bullets.length
-    if (share >= BULLETS_WITH_NUMBERS) return { checked: bullets.length, problems: [] }
-    // One finding for the resume, in the section with the most bullets to add one to.
-    const section = mostCommon(without.map(({ entry }) => entry.section))!
+    const entries = Object.values(resume.sections)
+      .flat()
+      .filter((entry) => entry.bullets.length > 0)
+    if (entries.length === 0) return null
     return {
-      checked: bullets.length,
-      credit: share / BULLETS_WITH_NUMBERS,
-      problems: [
-        {
-          place: { kind: "section", section },
-          message: `${bullets.length - without.length} of ${bullets.length} bullets have a number`,
-          suggestion: "Add how much, how many or how fast where you can. About half is a good aim.",
-        },
-      ],
+      // Only roles count toward the score; for a project it's advice (below).
+      checked: entries.filter((entry) => ROLES.includes(entry.section)).length,
+      problems: entries.flatMap((entry) =>
+        entry.bullets.some(({ text }) => hasScope(text) || hasOutcome(text))
+          ? []
+          : [
+              {
+                place: { kind: "entry" as const, section: entry.section, entry: entry.index, field: entry.bullets[0].field },
+                // A role with no result anywhere in it counts, though dismissing
+                // gives the points back, as the cues can miss one. A project's
+                // bullets often say what it is instead, so there it's only advice.
+                advisory: !ROLES.includes(entry.section),
+                message: "Could you add the scope or result?",
+                suggestion: "Say who used the work, what changed, or how much it covered, where you can. A clear result needs no number.",
+              },
+            ],
+      ),
     }
   },
 }
 
 const pronouns: Rule = {
   id: "B4",
+  advisory: true,
   category: "bullets",
   level: "look",
   reads: "form",
   title: "No “I”, “me”, “my”, “we” or “our”",
-  why: "A resume is about you, so it leaves them out.",
+  why: "Starting with the action can make a bullet shorter.",
   check: ({ resume }) => {
     const bullets = bulletsIn(resume)
     if (bullets.length === 0) return null
@@ -141,10 +151,11 @@ const VAGUE = new RegExp(String.raw`(?<![\w-])(${VAGUE_WORDS.map(escaped).join("
 
 const buzzwords: Rule = {
   id: "B5",
+  advisory: true,
   category: "bullets",
   level: "look",
   reads: "form",
-  title: "No buzzwords or vague words",
+  title: "Back up claims with detail",
   why: "Words anyone could claim say less than what you did.",
   check: ({ resume }) => {
     const bullets = bulletsIn(resume)
@@ -152,8 +163,12 @@ const buzzwords: Rule = {
     return {
       checked: bullets.length,
       problems: bullets.flatMap(({ bullet, place }): Problem[] => {
+        if (hasScope(bullet.text) || hasOutcome(bullet.text)) return []
         const buzz = BUZZ.exec(bullet.text)
-        if (buzz) return [{ place, message: `“${buzz[1]}” says little on its own`, suggestion: "Show it with what you did instead." }]
+        // A trait claimed at the start is different from describing another
+        // person or a named project later in the sentence.
+        if (buzz && opening(bullet.text).startsWith(buzz[1]))
+          return [{ place, message: `“${buzz[1]}” says little on its own`, suggestion: "Show it with what you did instead." }]
         const vague = VAGUE.exec(bullet.text)
         return vague ? [{ place, message: `“${vague[1]}” is vague`, suggestion: "Say which ones, or how many." }] : []
       }),
@@ -163,40 +178,42 @@ const buzzwords: Rule = {
 
 const sameStart: Rule = {
   id: "B6",
+  advisory: true,
   category: "bullets",
   level: "look",
   reads: "form",
   title: "Varied opening verbs",
-  why: "Different verbs read better, and say more about what you did.",
+  why: "Vary nearby openings when another verb fits your contribution.",
   check: ({ resume }) => {
-    const starts = bulletsIn(resume).flatMap((placed) => {
-      const word = firstWord(placed.bullet.text)
-      const verb = verbOf(word)
-      return verb && verb.tense !== "ing" ? [{ ...placed, word, verb }] : []
-    })
-    if (starts.length < SAME_START) return null
-    const totals = new Map<string, number>()
-    for (const { verb } of starts) totals.set(verb.base, (totals.get(verb.base) ?? 0) + 1)
-    const seen = new Map<string, number>()
+    const bullets = bulletsIn(resume)
+    if (bullets.length < SAME_START) return null
+    let previous: Entry | undefined
+    let last = ""
+    let count = 0
     const problems: Problem[] = []
-    for (const { place, word, verb } of starts) {
-      const count = (seen.get(verb.base) ?? 0) + 1
-      seen.set(verb.base, count)
-      // The first two are fine; from the third on, each gets other verbs to try.
-      if (count < SAME_START) continue
-      const others = alternativesTo(verb)
+    for (const { place, entry, bullet } of bullets) {
+      const action = verbAtStart(bullet.text)
+      const base = action?.verb.tense === "ing" ? "" : (action?.verb.base ?? "")
+      count = entry === previous && base && base === last ? count + 1 : 1
+      previous = entry
+      last = base
+      if (!action || !base || count < SAME_START) continue
+      const others = alternativesTo(action.verb)
       problems.push({
         place,
-        message: `“${word}” starts ${totals.get(verb.base)} bullets`,
-        suggestion: others.length ? `Try ${others.map((other) => `“${other}”`).join(", ").replace(/, ([^,]*)$/, " or $1")}.` : "Try a different verb.",
+        message: `“${action.word}” starts ${count} nearby bullets`,
+        suggestion: others.length
+          ? `If they fit what you did, consider ${others.map((other) => `“${other}”`).join(", ")}.`
+          : "Vary the verb if a different one fits what you did.",
       })
     }
-    return { checked: starts.length, problems }
+    return { checked: bullets.length, problems }
   },
 }
 
 const pastTense: Rule = {
   id: "B7",
+  advisory: true,
   category: "bullets",
   level: "look",
   reads: "form",
@@ -213,40 +230,70 @@ const pastTense: Rule = {
     return {
       checked: bullets.length,
       problems: bullets.flatMap(({ bullet, place }) => {
-        const word = firstWord(bullet.text)
-        const verb = verbOf(word)
-        if (verb?.tense !== "present" || !verb.past) return []
-        return [{ place, message: `“${word}” is present tense, but this has ended`, suggestion: `Try “${inTenseOf(verb.base, { ...verb, tense: "past" })}”.` }]
+        const action = verbAtStart(bullet.text)
+        if (!action || action.verb.tense !== "present" || !action.verb.past) return []
+        const { word, verb } = action
+        return [
+          {
+            place,
+            message: `“${word}” is present tense, but this has ended`,
+            suggestion: `Try “${inTenseOf(verb.base, { ...verb, tense: "past" })}”.`,
+          },
+        ]
       }),
     }
   },
 }
 
-const bulletCount: Rule = {
+const descriptions: Rule = {
   id: "B8",
   category: "bullets",
   level: "look",
   reads: "form",
-  title: `Every job has bullets, and no more than ${MAX_BULLETS}`,
-  why: `Three to ${MAX_BULLETS} bullets give a job enough detail without burying the best of it.`,
-  check: ({ resume }) => {
-    const jobs = resume.sections.Work.filter((entry) => !entry.blank)
-    if (jobs.length === 0) return null
+  title: "Descriptions explain your contribution",
+  why: "Specific descriptions show what you did or made. A bullet count alone cannot tell that.",
+  check: ({ resume, today }) => {
+    const entries = [...ROLES, "Projects" as const].flatMap((section) => resume.sections[section]).filter((entry) => !entry.blank)
+    if (entries.length === 0) return null
     return {
-      checked: jobs.length,
-      problems: jobs.flatMap((entry): Problem[] => {
+      checked: entries.length,
+      problems: entries.flatMap((entry): Problem[] => {
+        const field = SECTIONS[entry.section].fields.find((field) => field.type === "bullets")!.key
+        const place = { kind: "entry" as const, section: entry.section, entry: entry.index, field }
         if (entry.bullets.length === 0) {
-          return [{ place: { kind: "entry", section: "Work", entry: entry.index, field: "workDescription" }, message: "No bullets", suggestion: "Add 3 or more lines on what you did." }]
+          // An older additional role can be listed briefly once another
+          // role in its section describes the work.
+          const peers = entries.filter((other) => other.section === entry.section)
+          const additional = peers.indexOf(entry) > 0 && hasEnded(entry, today) && peers.some((other) => other.bullets.length > 0)
+          return [
+            {
+              place,
+              advisory: additional,
+              message: "No description",
+              suggestion: "Describe your contribution if this experience matters to the role you want.",
+            },
+          ]
         }
-        if (entry.bullets.length <= MAX_BULLETS) return []
-        const extra = entry.bullets[MAX_BULLETS]
-        return [
-          {
-            place: { kind: "entry", section: "Work", entry: entry.index, field: extra.field, line: extra.line },
-            message: `${entry.bullets.length} bullets`,
-            suggestion: `Keep the ${MAX_BULLETS} that matter most.`,
-          },
-        ]
+        const generic = entry.bullets.filter(({ text }) => isGenericBullet(text))
+        const problems: Problem[] = generic.length
+          ? [
+              {
+                place: { ...place, line: generic[0].line },
+                advisory: generic.length < entry.bullets.length,
+                message: "Name the work more specifically",
+                suggestion: "Which tools, reports or tasks? Say what you made or did and who it was for.",
+              },
+            ]
+          : []
+        if (resume.type !== "academic" && entry.bullets.length > MAX_BULLETS) {
+          problems.push({
+            place,
+            advisory: true,
+            message: `${entry.bullets.length} bullets to review`,
+            suggestion: "Keep the detail that matters to this application. Older or less relevant work can be shorter.",
+          })
+        }
+        return problems
       }),
     }
   },
@@ -288,21 +335,45 @@ const repeated: Rule = {
   check: ({ resume }) => {
     const bullets = bulletsIn(resume)
     if (bullets.length < 2) return null
-    const seen: string[] = []
+    const seen: { text: string; where: string }[] = []
     const problems: Problem[] = []
-    for (const { bullet, place } of bullets) {
+    for (const { bullet, place, entry } of bullets) {
       const text = comparable(bullet.text)
       if (!text) continue
-      // A letter or two apart in a long bullet, as "account" and "accounts", is a copy.
+      // A small edit may be an accidental copy, or genuinely different work.
       const limit = Math.floor(text.length / NEAR_DUPLICATE_LENGTH)
-      const closest = Math.min(...seen.map((other) => distance(text, other, limit)), limit + 1)
-      if (closest <= limit) {
-        problems.push({ place, message: closest === 0 ? "Same as another bullet" : "Almost the same as another bullet", suggestion: "Change or delete one of them." })
+      let match: (typeof seen)[number] | undefined
+      let closest = limit + 1
+      for (const other of seen) {
+        const difference = distance(text, other.text, limit)
+        if (difference < closest) {
+          match = other
+          closest = difference
+        }
+        if (closest === 0) break
       }
-      seen.push(text)
+      if (closest <= limit) {
+        problems.push({
+          place,
+          message: closest === 0 ? "Same as another bullet" : "Almost the same as another bullet",
+          advisory: closest !== 0,
+          suggestion: `Compare with ${match!.where}. Keep both if they describe different work.`,
+        })
+      }
+      seen.push({ text, where: `${SECTIONS[entry.section].title}, entry ${entry.index + 1}, bullet ${bullet.number}` })
     }
     return { checked: bullets.length, problems }
   },
 }
 
-export const BULLET_RULES: readonly Rule[] = [weakStarts, actionVerbs, numbers, pronouns, buzzwords, sameStart, pastTense, bulletCount, repeated]
+export const BULLET_RULES: readonly Rule[] = [
+  weakStarts,
+  actionVerbs,
+  scopeAndResults,
+  pronouns,
+  buzzwords,
+  sameStart,
+  pastTense,
+  descriptions,
+  repeated,
+]

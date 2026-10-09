@@ -1,7 +1,7 @@
 // How the Check panel says where a finding is ("Experience → Google ·
 // bullet 2"), and whether there's enough of a resume to check yet.
 
-import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
+import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type FieldKeyOf, type SectionName } from "@/components/editor/sections"
 import type { Place } from "./places"
 import { entryAt, type Entry, type ResumeView } from "./resume"
 import { credentialAt } from "./places"
@@ -19,7 +19,7 @@ const titleOf = (view: ResumeView, section: SectionName) => view.headings[sectio
 
 // What an entry is best known by in a short label: its company, school or
 // project, rather than a role that several entries can share.
-const NAME_FIELD: Record<SectionName, string> = {
+const NAME_FIELD: { [Section in SectionName]: FieldKeyOf<Section> } = {
   Education: "schoolName",
   Work: "companyName",
   Skills: "skillName",

@@ -4,13 +4,13 @@
 // plain JSON strings, which Typst never evaluates as markup, so no escaping
 // is needed.
 
+import { SECTION_NAMES, type SectionName } from "@/components/editor/sections"
 import { printedResume } from "@/lib/leftOut"
+import type { Entry, Resume } from "@/lib/resume"
 import { extraHeading, extraHasBody, extrasOf, resolveSections } from "@/lib/resumeSections"
 import { templateById, type TemplateId } from "@/lib/templates"
 
 export type { TemplateId }
-
-export const DEFAULT_SECTION_ORDER = ["Education", "Work", "Skills", "Projects", "Publications", "Volunteership", "Leadership", "Awards"]
 
 export interface TemplateData {
   profile: { name: string; location: string; phone: string; email: string; linkedin: string; github: string; website: string }
@@ -75,7 +75,8 @@ interface Experience {
   bullets: Run[][]
 }
 
-type Entry = Record<string, unknown>
+// An entry as saved: older resumes can lack any of its fields.
+type Saved = Partial<Entry>
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "")
 
@@ -112,7 +113,11 @@ function runs(line: string, bold = false, italic = false): Run[] {
   for (const match of line.matchAll(MARKED)) {
     add(line.slice(at, match.index))
     const [, both, strong, emph] = match
-    for (const run of both !== undefined ? runs(both, true, true) : strong !== undefined ? runs(strong, true, italic) : runs(emph, bold, true)) {
+    for (const run of both !== undefined
+      ? runs(both, true, true)
+      : strong !== undefined
+        ? runs(strong, true, italic)
+        : runs(emph, bold, true)) {
       const last = out[out.length - 1]
       if (last && last.bold === run.bold && last.italic === run.italic) last.text += run.text
       else out.push(run)
@@ -143,7 +148,9 @@ export function ownerMatcher(owner: string): (name: string) => boolean {
   const names = plain(owner).split(/\s+/).filter(Boolean)
   const last = names[names.length - 1]
   return (name) => {
-    const words = plain(name).split(/[\s.,]+/).filter(Boolean)
+    const words = plain(name)
+      .split(/[\s.,]+/)
+      .filter(Boolean)
     if (names.length < 2) return names.length === 1 && words.length === 1 && words[0] === last
     return words.includes(last) && words.some((word) => word !== last && word[0] === names[0][0])
   }
@@ -170,9 +177,9 @@ export function doiOf(link: string): string {
 }
 
 // Maps a section's entries, dropping ones the user added but left blank.
-function entries<T extends Record<string, string | unknown[]>>(value: unknown, map: (entry: Entry) => T): T[] {
+function entries<T extends Record<string, string | unknown[]>>(value: unknown, map: (entry: Saved) => T): T[] {
   return (Array.isArray(value) ? value : [])
-    .map((entry) => map(entry && typeof entry === "object" ? entry : {}))
+    .map((entry) => map(entry && typeof entry === "object" ? (entry as Saved) : {}))
     .filter((entry) => Object.values(entry).some((field) => field.length > 0))
 }
 
@@ -184,14 +191,14 @@ export function templateIdOf(value: unknown): TemplateId {
  * The saved order, plus any sections missing from older resumes, at the end,
  * as the editor shows them. Unknown names and repeats are dropped.
  */
-export function sectionOrder(value: unknown): string[] {
+export function sectionOrder(value: unknown): SectionName[] {
   const saved = (Array.isArray(value) ? value : []).filter(
-    (name, index, all) => DEFAULT_SECTION_ORDER.includes(name) && all.indexOf(name) === index,
+    (name, index, all): name is SectionName => SECTION_NAMES.includes(name) && all.indexOf(name) === index,
   )
-  return [...saved, ...DEFAULT_SECTION_ORDER.filter((name) => !saved.includes(name))]
+  return [...saved, ...SECTION_NAMES.filter((name) => !saved.includes(name))]
 }
 
-export function toTemplateData(saved: Record<string, any>): TemplateData {
+export function toTemplateData(saved: Resume): TemplateData {
   // What the person left out isn't printed.
   const resume = printedResume(saved)
   const profile = resume.profileSection ?? {}
@@ -225,10 +232,12 @@ export function toTemplateData(saved: Record<string, any>): TemplateData {
       const printable: ExtraTemplateSection = section.kind === "list"
         ? { kind: "list", heading, bullets: bullets(section.bullets) }
         : section.kind === "certifications"
-          ? { kind: "certifications", heading, certificates: entries(section.entries, (entry) => ({
-            name: text(entry.name), issuer: text(entry.issuer), issued: text(entry.issued), expires: text(entry.expires),
-            credentialId: text(entry.credentialId), link: bareUrl(entry.link),
-          })) }
+          ? { kind: "certifications", heading, certificates: section.entries
+            .map((entry) => ({
+              name: text(entry.name), issuer: text(entry.issuer), issued: text(entry.issued), expires: text(entry.expires),
+              credentialId: text(entry.credentialId), link: bareUrl(entry.link),
+            }))
+            .filter((entry) => Object.values(entry).some((field) => field.length > 0)) }
           : { kind: "text", heading, paragraphs: text(section.text).split(/\r?\n\s*\r?\n/).filter(Boolean) }
       return [`extra:${id}`, printable]
     })),

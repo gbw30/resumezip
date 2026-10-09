@@ -1,9 +1,9 @@
-// Sections & entries (S1–S9 in issue #58): what the resume has, and whether
-// each entry says what it is.
+// Sections & entries (S1–S9 in issue #58, and S10): what the resume has, and
+// whether each entry says what it is and where it was.
 
-import { SECTIONS, type SectionName } from "@/components/editor/sections"
+import { SECTIONS, type FieldKey, type FieldKeyOf, type SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
-import type { Place } from "./places"
+import { LOCATION_FIELDS, type Place } from "./places"
 import { textsOf, type Entry } from "./resume"
 import {
   COLLEGE_DEGREE,
@@ -16,7 +16,7 @@ import {
   SCHOOL_YEAR_STARTS,
 } from "./settings"
 
-const at = (entry: Entry, field?: string): Place => ({ kind: "entry", section: entry.section, entry: entry.index, field })
+const at = (entry: Entry, field?: FieldKey): Place => ({ kind: "entry", section: entry.section, entry: entry.index, field })
 
 const filled = (entries: Entry[]) => entries.filter((entry) => !entry.blank)
 
@@ -24,7 +24,7 @@ const filled = (entries: Entry[]) => entries.filter((entry) => !entry.blank)
 const EXPERIENCE: SectionName[] = ["Work", "Projects", "Leadership", "Volunteership"]
 
 // What says what an entry is: its role and company, its school and degree.
-const NAMED_BY: Partial<Record<SectionName, string[]>> = {
+const NAMED_BY: { [Section in SectionName]?: FieldKeyOf<Section>[] } = {
   Education: ["schoolName", "degree"],
   Work: ["workRole", "companyName"],
   Projects: ["projectName"],
@@ -34,7 +34,7 @@ const NAMED_BY: Partial<Record<SectionName, string[]>> = {
   Awards: ["awardName"],
 }
 
-const labelOf = (section: SectionName, field: string) => SECTIONS[section].fields.find((def) => def.key === field)?.label ?? field
+const labelOf = (section: SectionName, field: FieldKey) => SECTIONS[section].fields.find((def) => def.key === field)?.label ?? field
 
 /**
  * The items in a list typed with commas, semicolons or bars, leaving those
@@ -71,18 +71,24 @@ const experience: Rule = {
   reads: "form",
   title: "Experience, projects, leadership or volunteering",
   why: "It's what a recruiter reads most closely: what you've done.",
-  check: ({ resume }) => ({
-    checked: 1,
-    problems: EXPERIENCE.some((section) => filled(resume.sections[section]).length > 0)
-      ? []
-      : [
-          {
-            place: { kind: "section", section: "Work" },
-            message: "Add experience, projects, leadership or volunteering",
-            suggestion: "Class projects and clubs count.",
-          },
-        ],
-  }),
+  check: ({ resume }) => {
+    const entries = EXPERIENCE.flatMap((section) => filled(resume.sections[section]))
+    // Titles, tools and links identify an entry, but don't describe what the
+    // person did. Only printed descriptions can satisfy this essential check.
+    if (entries.some((entry) => entry.bullets.some((bullet) => /\p{L}/u.test(bullet.text)))) return { checked: 1, problems: [] }
+    const first = entries[0]
+    const description = first && SECTIONS[first.section].fields.find((field) => field.type === "bullets")?.key
+    return {
+      checked: 1,
+      problems: [
+        {
+          place: first ? at(first, description) : { kind: "section", section: "Work" },
+          message: first ? "Describe what you did in an experience or project" : "Add experience, projects, leadership or volunteering",
+          suggestion: "Describe a contribution in a job, class project, club, leadership role or volunteer experience.",
+        },
+      ],
+    }
+  },
 }
 
 const education: Rule = {
@@ -94,7 +100,10 @@ const education: Rule = {
   why: "Most job posts ask for a degree or school, so recruiters look for it.",
   check: ({ resume }) => ({
     checked: 1,
-    problems: filled(resume.sections.Education).length > 0 ? [] : [{ place: { kind: "section", section: "Education" }, message: "Add your education" }],
+    problems:
+      filled(resume.sections.Education).length > 0
+        ? []
+        : [{ place: { kind: "section", section: "Education" }, message: "Add your education" }],
   }),
 }
 
@@ -113,8 +122,45 @@ const named: Rule = {
       for (const entry of filled(resume.sections[section])) {
         checked += fields.length
         for (const field of fields.filter((key) => !entry.values[key])) {
-          problems.push({ place: at(entry, field), message: `No ${labelOf(section, field).toLowerCase()}` })
+          // An explicitly independent role already explains why there is no
+          // single employer. Ordinary job titles still need an organization.
+          if (
+            section === "Work" &&
+            field === "companyName" &&
+            /\b(?:freelanc(?:e|er)|self[ -]employed|independent contractor)\b/i.test(entry.values.workRole)
+          )
+            continue
+          problems.push({
+            place: at(entry, field),
+            message: `No ${labelOf(section, field).toLowerCase()}`,
+            ...(section === "Work" && { level: "fix" as const }),
+            ...(section === "Work" &&
+              field === "companyName" && { suggestion: "Name the employer, or identify the work as self-employed or freelance." }),
+          })
         }
+      }
+    }
+    return checked ? { checked, problems } : null
+  },
+}
+
+const located: Rule = {
+  id: "S10",
+  category: "sections",
+  level: "look",
+  reads: "form",
+  title: "Every job, school and role has its location",
+  why: "Recruiters look at where you worked and studied, and some jobs need someone nearby.",
+  check: ({ resume }) => {
+    let checked = 0
+    const problems: Problem[] = []
+    for (const section of resume.order) {
+      const field = LOCATION_FIELDS[section]
+      if (!field) continue
+      for (const entry of filled(resume.sections[section])) {
+        checked++
+        if (!entry.values[field])
+          problems.push({ place: at(entry, field), message: "No location", suggestion: "Add the city, like “Austin, TX”, or “Remote”." })
       }
     }
     return checked ? { checked, problems } : null
@@ -276,4 +322,15 @@ const references: Rule = {
   }),
 }
 
-export const SECTION_RULES: readonly Rule[] = [experience, education, named, blank, skills, projects, highSchool, coursework, references]
+export const SECTION_RULES: readonly Rule[] = [
+  experience,
+  education,
+  named,
+  blank,
+  skills,
+  projects,
+  highSchool,
+  coursework,
+  references,
+  located,
+]

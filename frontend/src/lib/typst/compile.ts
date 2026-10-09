@@ -1,7 +1,10 @@
 // Compiles resumes to PDF in the browser. The Typst compiler (and its large
-// WebAssembly download) is only loaded the first time a resume is compiled.
+// WebAssembly download) is only loaded once a resume is about to be compiled
+// (loadCompiler), or the first time one is.
 
+import type { Resume } from "@/lib/resume"
 import { toAttachment } from "@/lib/resumeFile"
+import { COMPILER_CDN_URL } from "./compilerSource"
 import { templateIdOf, toTemplateData, type TemplateData, type TemplateId } from "./resumeData"
 
 /** What a resume prints: its template and the data the template reads. Renaming a resume doesn't change it. */
@@ -11,7 +14,7 @@ export interface Printed {
 }
 
 /** What a resume, in the editor's format, prints. */
-export const printedOf = (resume: Record<string, any>): Printed => ({
+export const printedOf = (resume: Resume): Printed => ({
   template: templateIdOf(resume.selectedTemplate),
   data: toTemplateData(resume),
 })
@@ -53,11 +56,11 @@ export const failureOf = (error: unknown): PdfFailure => (error instanceof PdfEr
 export type CompileResponse = { id: number; pdf: Uint8Array } | { id: number; error: string; failure: PdfFailure }
 
 /**
- * What the page sends the worker: a resume to compile, or word to start
+ * What the page sends the worker: a resume to compile; word to start
  * loading the compiler, and the fonts of the template likely to come first,
- * before one comes.
+ * before one comes; or word to only download the compiler, for a later load.
  */
-export type WorkerRequest = CompileRequest | { load: true; template?: TemplateId }
+export type WorkerRequest = CompileRequest | { load: true; template?: TemplateId } | { prefetch: true }
 
 /**
  * What the worker sends: an answer; word that it's getting on, with the share
@@ -152,11 +155,29 @@ function getWorker(): Worker {
     }
     watch()
   }
+  // A worker that can't start, as when the page is left while its scripts
+  // load, or that crashes, is replaced. That handles its error, so it isn't
+  // also reported to the page as an uncaught one.
   created.onerror = (event) => {
+    event.preventDefault()
     if (worker === created) restart(new PdfError(event.message || "The Typst worker failed", "crash"))
   }
   worker = created
+  preconnect(COMPILER_CDN_URL)
   return created
+}
+
+// A new worker starts by downloading the compiler from jsDelivr. Connecting
+// there takes a few round trips (DNS, TCP, TLS), which happen while the
+// worker's own script loads instead of after it. The worker's requests share
+// the page's connections; this one is anonymous, like the download. Chrome
+// skips the hint in private windows, which browser tests run in.
+function preconnect(url: string) {
+  const link = document.createElement("link")
+  link.rel = "preconnect"
+  link.href = new URL(url).origin
+  link.crossOrigin = "anonymous"
+  document.head.append(link)
 }
 
 /**
@@ -175,6 +196,21 @@ export function loadCompiler(template?: TemplateId) {
   }
 }
 
+/**
+ * Downloads the compiler, without building it or its fonts, for a visitor
+ * likely to write who hasn't started yet. loadCompiler, or the first PDF,
+ * then builds it from that download, even one still under way. Does nothing
+ * once anything has started the compiler. Like loadCompiler, it never throws.
+ */
+export function prefetchCompiler() {
+  if (worker) return
+  try {
+    getWorker().postMessage({ prefetch: true } satisfies WorkerRequest)
+  } catch {
+    // Left for the first PDF to report.
+  }
+}
+
 /** Whether the visitor has asked to save data or is on a very slow connection, so nothing should download before it's needed. */
 export function savingData(): boolean {
   const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
@@ -187,7 +223,7 @@ interface CompileOptions {
 }
 
 /** Compiles a resume, in the editor's format, to PDF bytes. */
-export function compileResume(resume: Record<string, any>, { attach = false }: CompileOptions = {}): Promise<Uint8Array> {
+export function compileResume(resume: Resume, { attach = false }: CompileOptions = {}): Promise<Uint8Array> {
   return send(printedOf(resume), attach ? toAttachment(resume) : undefined)
 }
 
@@ -249,7 +285,7 @@ function startNextPreview() {
 }
 
 /** Compiles a resume and saves it as "<title>.pdf", with the resume attached. */
-export async function downloadResume(resume: Record<string, any>): Promise<void> {
+export async function downloadResume(resume: Resume): Promise<void> {
   const url = toUrl(await compileResume(resume, { attach: true }))
   const link = document.createElement("a")
   link.href = url

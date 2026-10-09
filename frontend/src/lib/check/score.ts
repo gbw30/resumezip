@@ -11,9 +11,9 @@
 // all, earns nothing. While a must-fix is left, the score stays at
 // MUST_FIX_MAX or below.
 
-import type { Report, Rule, RuleResult } from "./engine"
+import type { Finding, Report, Rule, RuleResult } from "./engine"
 import { hasEnoughToCheck } from "./labels"
-import { CATEGORIES, LEAST_PENALTY, LEVELS, MUST_FIX_MAX, type CategoryId } from "./settings"
+import { CATEGORIES, LEAST_PENALTY, LEVELS, MUST_FIX_MAX, SCORE_BANDS, type CategoryId } from "./settings"
 
 /** How a category did. */
 export interface CategoryScore {
@@ -40,7 +40,15 @@ export interface Score {
 // grammar checker failed partway. One that doesn't apply, broke, is still
 // waiting for the PDF or the grammar checker, or has seen only part of the
 // text (partial) and found nothing there is left out: that's no pass yet.
-const counts = (result: RuleResult) => result.status === "failed" || (result.status === "passed" && !result.partial)
+const counts = (result: RuleResult) =>
+  !result.rule.advisory &&
+  result.scoring !== null &&
+  (result.status === "failed" || result.status === "passed") &&
+  (!result.partial || failed(result))
+
+const creditOf = (result: RuleResult) => result.scoring?.credit ?? result.credit
+const levelOf = (result: RuleResult) => result.scoring?.level ?? result.rule.level
+const failed = (result: RuleResult) => result.scoring?.failed ?? result.status === "failed"
 
 /**
  * What a rule takes from its category, as a share of its points: nothing when
@@ -48,8 +56,8 @@ const counts = (result: RuleResult) => result.status === "failed" || (result.sta
  * LEAST_PENALTY of it and the rest by how much of the resume fails it.
  */
 function penaltyOf(result: RuleResult): number {
-  if (result.status !== "failed") return 0
-  return LEVELS[result.rule.level].penalty * (LEAST_PENALTY + (1 - LEAST_PENALTY) * (1 - result.credit))
+  if (!failed(result)) return 0
+  return LEVELS[levelOf(result)].penalty * (LEAST_PENALTY + (1 - LEAST_PENALTY) * (1 - creditOf(result)))
 }
 
 /**
@@ -59,6 +67,8 @@ function penaltyOf(result: RuleResult): number {
  */
 export const wholePoints = (points: number) => Math.floor(points + 1e-9)
 
+// Coverage weights stay fixed when a contextual finding is resolved. Otherwise
+// fixing an issue can lower the passing share by shrinking its denominator.
 const weight = (result: RuleResult) => LEVELS[result.rule.level].penalty
 
 /**
@@ -71,13 +81,14 @@ export function categoryScore(id: CategoryId, results: readonly RuleResult[]): C
   const ran = results.filter((result) => result.rule.category === id && counts(result))
   if (ran.length === 0) return { id, points, earned: 0, applies: false, mustFix: false }
   const left = Math.max(0, 1 - ran.reduce((sum, result) => sum + penaltyOf(result), 0))
-  const passing = ran.reduce((sum, result) => sum + weight(result) * result.credit, 0) / ran.reduce((sum, result) => sum + weight(result), 0)
+  const passing =
+    ran.reduce((sum, result) => sum + weight(result) * creditOf(result), 0) / ran.reduce((sum, result) => sum + weight(result), 0)
   return {
     id,
     points,
     earned: points * Math.min(left, passing),
     applies: true,
-    mustFix: ran.some((result) => result.status === "failed" && result.rule.level === "fix"),
+    mustFix: ran.some((result) => failed(result) && levelOf(result) === "fix"),
   }
 }
 
@@ -95,6 +106,9 @@ export function totalOf(categories: readonly CategoryScore[]): number | null {
   const total = (100 * counted.reduce((sum, category) => sum + category.earned, 0)) / possible
   return wholePoints(hasMustFix(counted) ? Math.min(total, MUST_FIX_MAX) : total)
 }
+
+/** The word for a score out of 100 (SCORE_BANDS). */
+export const bandOf = (total: number) => SCORE_BANDS.find((band) => total >= band.least) ?? SCORE_BANDS[SCORE_BANDS.length - 1]
 
 /** The resume's score, from what the checker found (`runChecks`). */
 export function scoreOf(report: Report): Score {
@@ -137,6 +151,34 @@ export function keepScores(kept: KeptScores, now: Score, checking: ReadonlyMap<C
     return
   }
   for (const category of now.categories) if (!checking.has(category.id)) kept.set(category.id, category)
+}
+
+/** Each category's must-fix count as last checked, kept while it's checked again. */
+export type KeptFixes = Map<CategoryId, number>
+
+const fixesIn = (findings: readonly Finding[], id: CategoryId) =>
+  findings.filter((finding) => finding.category === id && finding.level === "fix").length
+
+/** Keeps each category's must-fix count while it isn't being checked, and lets go of them as `keepScores` does. */
+export function keepFixes(kept: KeptFixes, report: Report, checking: ReadonlyMap<CategoryId, unknown>): void {
+  if (!hasEnoughToCheck(report.view)) {
+    kept.clear()
+    return
+  }
+  for (const { id } of CATEGORIES) if (!checking.has(id)) kept.set(id, fixesIn(report.findings, id))
+}
+
+/**
+ * How many must-fixes hold the score down, as shown. A category being checked
+ * again counts them as last checked, or as found since if there are more, as
+ * `shownScore`'s `mustFix` does, so the count agrees with the cap while the
+ * PDF or the text is read again.
+ */
+export function shownFixes(report: Report, kept: ReadonlyMap<CategoryId, number>, checking: ReadonlyMap<CategoryId, unknown>): number {
+  return CATEGORIES.reduce((sum, { id }) => {
+    const now = fixesIn(report.findings, id)
+    return sum + (checking.has(id) ? Math.max(now, kept.get(id) ?? 0) : now)
+  }, 0)
 }
 
 /**

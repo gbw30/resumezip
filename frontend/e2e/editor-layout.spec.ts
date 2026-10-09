@@ -162,11 +162,22 @@ test("crossing 1280px keeps the form where it was scrolled to", async ({ page })
   // A short window, so the form has room to scroll.
   await writeExperience(page, 1440, 450)
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
-  await page.getByLabel("Location", { exact: true }).evaluate((input) => input.scrollIntoView({ block: "start", behavior: "instant" }))
-  expect(Math.abs(await locationFromTop(page))).toBeLessThan(2)
+  const location = page.getByLabel("Location", { exact: true })
   // The page notes where the form is scrolled to when the scroll event
-  // arrives, with the next frame, so the window is resized after that.
-  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
+  // arrives, with the next frame, so Location has to still be at the top
+  // then. The new entry may still be scrolling smoothly into view, and WebKit
+  // can carry on with that after this scroll, so it's scrolled again until it
+  // stays.
+  await expect
+    .poll(
+      async () => {
+        await location.evaluate((input) => input.scrollIntoView({ block: "start", behavior: "instant" }))
+        await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
+        return Math.abs(await locationFromTop(page))
+      },
+      { message: "Location stays at the top before the window is resized" },
+    )
+    .toBeLessThan(2)
 
   // The form scrolls with the page below 1280px and in its own pane above,
   // and Location stays at the top of it either way.

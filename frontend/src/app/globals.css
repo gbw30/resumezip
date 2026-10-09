@@ -11,6 +11,69 @@
   --color-rule-strong: #c9c9c4; /* input underlines, outlined buttons */
   --color-accent: #2e5be6;
   --color-accent-soft: #a8b9f2;
+  --color-alert: #b42318; /* must-fix findings (6.6:1 against white) */
+}
+
+/* Fine diagonal hatching for a quiet note, over its background color. */
+@utility bg-hatch {
+  background-image: repeating-linear-gradient(135deg, rgb(17 19 24 / 0.05) 0 1px, transparent 1px 7px);
+}
+
+/* The footer's zipper (components/site/SiteFooter.tsx): the logo's key drawn at
+   full width, as on the social card. It's shut, and doesn't move. */
+@layer components {
+  /* --u is the logo's unit: its key is 56 across and its ring 26. From the ring
+     at the page's margin to the right edge, it's the logo. */
+  .zip-footer {
+    --u: 1px;
+    --zipper-bg: #171717;
+  }
+  @media (min-width: 48rem) {
+    .zip-footer {
+      --u: 1.5px;
+    }
+  }
+  .zipper {
+    /* The ring's left edge: the page's own margin. */
+    --rest: max(1.25rem, calc(50cqw - 720px + 1.25rem));
+    position: relative;
+    container-type: inline-size;
+    height: calc(32 * var(--u));
+  }
+  @media (min-width: 48rem) {
+    .zipper {
+      --rest: max(2.5rem, calc(50cqw - 720px + 2.5rem));
+    }
+  }
+  .zipper-bar {
+    position: absolute;
+    top: calc(10 * var(--u));
+    right: 0;
+    left: calc(var(--rest) + 23 * var(--u));
+    height: calc(6 * var(--u));
+    background: currentColor;
+  }
+  /* Starts where the logo's teeth do, so the pattern lines up. */
+  .zipper-teeth {
+    position: absolute;
+    top: calc(16 * var(--u));
+    right: 0;
+    left: calc(var(--rest) + 34 * var(--u));
+    height: calc(8 * var(--u));
+    background: repeating-linear-gradient(90deg, currentColor 0 calc(3 * var(--u)), transparent calc(3 * var(--u)) calc(6 * var(--u)));
+  }
+  .zipper-pull {
+    position: absolute;
+    top: 0;
+    left: var(--rest);
+    box-sizing: border-box;
+    width: calc(26 * var(--u));
+    height: calc(26 * var(--u));
+    border: calc(6 * var(--u)) solid var(--color-accent);
+    border-radius: 50%;
+    /* Hollow, but nothing on the line shows through it: it's filled with the footer's color. */
+    background: var(--zipper-bg);
+  }
 }
 
 /* Fonts are loaded by next/font in app/layout.tsx. The home page uses the
@@ -109,7 +172,113 @@
   }
 }
 
-/* Section reordering (@hello-pangea/dnd) */
+/* Dragging sections and entries (@hello-pangea/dnd) */
 [data-rfd-drag-handle-context-id] {
   cursor: grab;
+}
+
+/* Row actions: the dashboard's icon buttons (components/dashboard/RowActions.tsx).
+   Each icon's parts move on their own, with a little spring. Only where
+   there's a pointer to hover with, and only for people who don't ask for less
+   motion. */
+.row-action svg * {
+  transform-box: fill-box;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.row-action svg {
+  transition: transform 160ms ease-out;
+}
+.row-action:active:not(:disabled) svg {
+  transform: scale(0.86);
+}
+.row-action .trash-lid {
+  transform-origin: right bottom;
+}
+.row-action .pencil {
+  transform-origin: left bottom;
+}
+.row-action .tick {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: tick-draw 420ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+.row-action .download-arrow.is-busy {
+  animation: arrow-drop 900ms cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.row-action .is-copied .copy-front {
+  animation: copy-lift 520ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .row-action:hover .copy-front {
+    transform: translate(1.5px, -1.5px);
+  }
+  .row-action:hover .copy-back {
+    transform: translate(-1px, 1px);
+  }
+  .row-action:hover:not(:disabled) .download-arrow:not(.is-busy) {
+    animation: arrow-bob 900ms ease-in-out infinite;
+  }
+  .row-action:hover .trash-lid {
+    transform: translateY(-2px) rotate(-14deg);
+  }
+  .row-action:hover .pencil {
+    animation: pencil-write 600ms ease-in-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-action svg *,
+  .row-action svg {
+    transition: none;
+  }
+  .row-action .download-arrow.is-busy,
+  .row-action .is-copied .copy-front {
+    animation: none;
+  }
+  .row-action .download-arrow.is-busy {
+    opacity: 0.4;
+  }
+  .row-action .tick {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes arrow-bob {
+  50% {
+    transform: translateY(2px);
+  }
+}
+@keyframes arrow-drop {
+  from {
+    transform: translateY(-9px);
+    opacity: 0;
+  }
+  45% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(5px);
+    opacity: 0;
+  }
+}
+@keyframes tick-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes copy-lift {
+  40% {
+    transform: translate(3px, -3px);
+  }
+}
+@keyframes pencil-write {
+  25% {
+    transform: rotate(-10deg);
+  }
+  60% {
+    transform: rotate(6deg) translateX(1px);
+  }
 }

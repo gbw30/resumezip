@@ -1,17 +1,19 @@
 // Polish (P1–P7 in issue #58): small things written one way, and spaced and
 // capitalized the usual way.
 
-import type { SectionName } from "@/components/editor/sections"
+import type { FieldKey, SectionName } from "@/components/editor/sections"
 import type { Problem, Rule } from "./engine"
-import { fieldOf, LINK_FIELDS, type Place } from "./places"
+import { fieldOf, LINK_FIELDS, LOCATION_FIELDS, type Place } from "./places"
 import { textsOf, type ResumeView } from "./resume"
 import {
   ACRONYMS,
   DEGREE_ABBREVIATIONS,
   LOWERCASE_NAMES,
+  NAME_FIELDS,
   NOT_COUNTED_AFTER,
   NUMBER_LABELS,
   NUMBER_UNITS,
+  NUMBER_WORDS,
   SHORTHAND,
   STATES_ALSO_COUNTRIES,
   US_STATES,
@@ -21,9 +23,22 @@ import { verbOf } from "./verbs"
 
 const capitalized = (word: string) => word[0].toUpperCase() + word.slice(1).toLowerCase()
 
+const NAME_KEYS = new Set<string | undefined>(NAME_FIELDS)
+const TITLE_KEYS = new Set<string | undefined>(["workRole", "volunteerRole", "leadershipRole", "awardName", "publicationTitle"])
+const namesIn = (resume: ResumeView) =>
+  new Set(
+    textsOf(resume)
+      .filter(({ place }) => NAME_KEYS.has(fieldOf(place)))
+      .flatMap(({ text }) => text.toLowerCase().match(/[\p{L}\p{N}.+-]+/gu) ?? []),
+  )
+
+// Quoted terminology and code are intentional text, not prose to copyedit.
+const proseOf = (text: string) => text.replace(/`[^`]*`|“[^”]*”|"[^"]*"|‘[^’]*’|(?<!\p{L})'[^']+'(?!\p{L})|\b[\w.]+\([^)]*\)/gu, " ")
+
 const endings: Rule = {
   id: "P1",
   category: "polish",
+  advisory: true,
   level: "look",
   reads: "form",
   title: "Bullets end the same way",
@@ -32,16 +47,37 @@ const endings: Rule = {
     const bullets = bulletsIn(resume)
     if (bullets.length < 2) return null
     const period = (text: string) => text.trimEnd().endsWith(".")
-    const usual = mostCommon(bullets.map(({ bullet }) => period(bullet.text)))
+    const groups = new Map<string, typeof bullets>()
+    for (const placed of bullets) {
+      if (/\b(?:etc|Inc|Ltd|[A-Z])\.$/.test(placed.bullet.text)) continue
+      const key = `${placed.entry.section}:${placed.entry.index}`
+      groups.set(key, [...(groups.get(key) ?? []), placed])
+    }
+    const problems: Problem[] = []
+    for (const group of groups.values()) {
+      if (group.length < 2) continue
+      const usual = mostCommon(group.map(({ bullet }) => period(bullet.text)))
+      problems.push(
+        ...group
+          .filter(({ bullet }) => period(bullet.text) !== usual)
+          .map(({ place }) =>
+            usual
+              ? {
+                  place,
+                  message: "No period at the end, unlike your other bullets",
+                  suggestion: "Consider matching the punctuation in this entry, unless sentence structure differs.",
+                }
+              : {
+                  place,
+                  message: "Ends with a period, unlike your other bullets",
+                  suggestion: "Consider matching the punctuation in this entry, unless sentence structure differs.",
+                },
+          ),
+      )
+    }
     return {
       checked: bullets.length,
-      problems: bullets
-        .filter(({ bullet }) => period(bullet.text) !== usual)
-        .map(({ place }) =>
-          usual
-            ? { place, message: "No period at the end, unlike your other bullets", suggestion: "Add one, or take them off the others." }
-            : { place, message: "Ends with a period, unlike your other bullets", suggestion: "Take it off, or add one to the others." },
-        ),
+      problems,
     }
   },
 }
@@ -51,19 +87,22 @@ const LOWERCASE = new Set(LOWERCASE_NAMES)
 const capitalStarts: Rule = {
   id: "P2",
   category: "polish",
+  advisory: true,
   level: "look",
   reads: "form",
   title: "Bullets start with a capital letter",
   why: "A capital letter starts each bullet like a sentence.",
   check: ({ resume }) => {
     const bullets = bulletsIn(resume)
+    const names = namesIn(resume)
     if (bullets.length === 0) return null
     return {
       checked: bullets.length,
       problems: bullets.flatMap(({ bullet, place }) => {
+        if (/^["“'‘`]/.test(bullet.text)) return []
         const word = firstWord(bullet.text)
         // "iOS" and "npm" are written that way on purpose.
-        if (!/^\p{Ll}/u.test(word) || word !== word.toLowerCase() || LOWERCASE.has(word)) return []
+        if (!/^\p{Ll}/u.test(word) || word !== word.toLowerCase() || LOWERCASE.has(word) || names.has(word)) return []
         return [{ place, message: "Starts with a lowercase letter", suggestion: `Start with “${word[0].toUpperCase()}${word.slice(1)}”.` }]
       }),
     }
@@ -83,19 +122,12 @@ const STATE_NAMES = new Map(
 )
 const STATE_ABBREVIATIONS = new Map(US_STATES)
 
-// Where places are written, besides the profile's location.
-const LOCATION_FIELDS: Partial<Record<SectionName, string>> = {
-  Education: "schoolLocation",
-  Work: "workLocation",
-  Volunteership: "volunteerLocation",
-  Leadership: "leadershipLocation",
-}
-
 // "Austin, TX" or "Austin, Texas": how each place's state is written.
 function statesIn(resume: ResumeView): Way[] {
   const places: { place: Place; text: string }[] = [{ place: { kind: "profile", field: "location" }, text: resume.profile.location }]
-  for (const [section, field] of Object.entries(LOCATION_FIELDS) as [SectionName, string][]) {
-    for (const entry of resume.sections[section]) places.push({ place: { kind: "entry", section, entry: entry.index, field }, text: entry.values[field] })
+  for (const [section, field] of Object.entries(LOCATION_FIELDS) as [SectionName, FieldKey][]) {
+    for (const entry of resume.sections[section])
+      places.push({ place: { kind: "entry", section, entry: entry.index, field }, text: entry.values[field] })
   }
   return places.flatMap(({ place, text }): Way[] => {
     const parts = text.split(",")
@@ -128,6 +160,7 @@ function degreesIn(resume: ResumeView): Way[] {
 const oneWay: Rule = {
   id: "P3",
   category: "polish",
+  advisory: true,
   level: "look",
   reads: "form",
   title: "States and degrees written one way",
@@ -150,29 +183,34 @@ const oneWay: Rule = {
 }
 
 const SPACING: { pattern: RegExp; message: string; suggestion: (found: RegExpExecArray) => string }[] = [
-  { pattern: /\S {2,}\S/, message: "Two spaces in a row", suggestion: () => "Use one space." },
+  { pattern: /\p{L} {2}\p{L}/u, message: "Two spaces in a row", suggestion: () => "Use one space." },
   { pattern: /(\S+) +([,.;:])(?=\s|$)/, message: "A space before punctuation", suggestion: (found) => `Write “${found[1]}${found[2]}”.` },
   { pattern: /([\p{L}\p{N})]+),(\p{L}+)/u, message: "No space after a comma", suggestion: (found) => `Write “${found[1]}, ${found[2]}”.` },
   // "users.Built", but not "Node.js", "ASP.NET" or "U.S.".
-  { pattern: /(\p{Ll}{2,})\.(\p{Lu}\p{Ll}+)/u, message: "No space after a period", suggestion: (found) => `Write “${found[1]}. ${found[2]}”.` },
+  {
+    pattern: /(\p{Ll}{2,})\.(\p{Lu}\p{Ll}+)/u,
+    message: "No space after a period",
+    suggestion: (found) => `Write “${found[1]}. ${found[2]}”.`,
+  },
 ]
 
 const spacing: Rule = {
   id: "P4",
   category: "polish",
+  advisory: true,
   level: "look",
   reads: "form",
   title: "Clean spacing",
-  why: "Stray or missing spaces look careless in print.",
+  why: "Even spacing can make prose easier to read.",
   check: ({ resume }) => {
-    const texts = textsOf(resume).filter(({ place }) => !LINK_FIELDS.has(fieldOf(place) ?? ""))
+    const texts = textsOf(resume).filter(({ place }) => !LINK_FIELDS.has(fieldOf(place)) && !NAME_KEYS.has(fieldOf(place)))
     if (texts.length === 0) return null
     return {
       checked: texts.length,
       // Each kind of spacing problem in a text, so all of them show at once.
       problems: texts.flatMap(({ place, text }) =>
         SPACING.flatMap(({ pattern, message, suggestion }) => {
-          const found = pattern.exec(text)
+          const found = pattern.exec(proseOf(text))
           return found ? [{ place, message, suggestion: suggestion(found) }] : []
         }),
       ),
@@ -185,36 +223,49 @@ const KNOWN_CAPITALS = new Set(ACRONYMS)
 const allCaps: Rule = {
   id: "P5",
   category: "polish",
+  advisory: true,
   level: "look",
   reads: "form",
-  title: "No words in capitals that aren't acronyms",
-  why: "Capitals read as shouting, except in acronyms.",
+  title: "Capitalization in prose",
+  why: "Ordinary words are easier to read in sentence case; names and acronyms can differ.",
   check: ({ resume }) => {
     // Not the profile (a name can be in capitals on purpose), or the lists of
     // tools and courses, which are full of names written in capitals.
     const texts = textsOf(resume).filter(
       ({ place }) =>
-        place.kind === "entry" && place.section !== "Skills" && place.field !== "coursework" && !LINK_FIELDS.has(place.field ?? ""),
+        place.kind === "entry" &&
+        place.section !== "Skills" &&
+        place.field !== "coursework" &&
+        !LINK_FIELDS.has(place.field) &&
+        !NAME_KEYS.has(place.field) &&
+        !TITLE_KEYS.has(place.field),
     )
+    const names = namesIn(resume)
     if (texts.length === 0) return null
     return {
       checked: texts.length,
       problems: texts.flatMap(({ place, text }) => {
-        const found = [...text.matchAll(/\b[A-Z]{5,}\b/g)].find(([word]) => !KNOWN_CAPITALS.has(word) && !/^[IVXLCDM]+$/.test(word))
+        const found = [...proseOf(text).matchAll(/\b[A-Z]{5,}\b/g)].find(
+          ([word]) => !KNOWN_CAPITALS.has(word) && !names.has(word.toLowerCase()) && !/^[IVXLCDM]+$/.test(word),
+        )
         if (!found) return []
         const word = found[0]
         const rewrite = found.index === 0 ? capitalized(word) : word.toLowerCase()
-        return [{ place, message: `“${word}” in capitals`, suggestion: `Unless it's an acronym, write it “${rewrite}”.` }]
+        return [
+          {
+            place,
+            message: `“${word}” in capitals`,
+            suggestion: `If this is ordinary prose, consider “${rewrite}”. Keep the case of names and acronyms.`,
+          },
+        ]
       }),
     }
   },
 }
 
-// How each kind of shorthand is found: "&" only between words in a sentence
-// ("design & build", not "AT&T" or "Procter & Gamble"), "hr" and "yr" only in
-// lower case ("HR" is a department).
+// How each kind of shorthand is found: "hr" and "yr" only in lower case ("HR"
+// is a department).
 function shorthandPattern(short: string): RegExp {
-  if (short === "&") return / & (?=\p{Ll})/u
   if (/^(yrs?|hrs?)$/.test(short)) return new RegExp(String.raw`\b${short}\b`)
   if (short.includes("/")) return new RegExp(String.raw`(?<![\p{L}\p{N}/])${escaped(short)}(?!/)`, "iu")
   return new RegExp(String.raw`(?<!\p{L})${escaped(short)}(?!\p{L})`, "iu")
@@ -224,20 +275,31 @@ const SHORTHANDS = SHORTHAND.map(([short, word]) => ({ word, pattern: shorthandP
 const shorthand: Rule = {
   id: "P6",
   category: "polish",
+  advisory: true,
   level: "look",
   reads: "form",
   title: "No shorthand like “w/” or “mgmt”",
-  why: "Shorthand reads as a note to yourself, not a finished resume.",
+  why: "Spelling out unfamiliar shorthand can help readers; titles, names and units can keep their usual form.",
   check: ({ resume }) => {
     // Bullets, and fields like a role or a skill ("Project Mgr"); not links.
-    const texts = textsOf(resume).filter(({ place }) => !LINK_FIELDS.has(fieldOf(place) ?? ""))
+    const texts = textsOf(resume).filter(
+      ({ place }) => !LINK_FIELDS.has(fieldOf(place)) && !NAME_KEYS.has(fieldOf(place)) && !TITLE_KEYS.has(fieldOf(place)),
+    )
     if (texts.length === 0) return null
     return {
       checked: texts.length,
       problems: texts.flatMap(({ place, text }) => {
         for (const { word, pattern } of SHORTHANDS) {
-          const found = pattern.exec(text)?.[0].trim()
+          const prose = proseOf(text)
+          const match = pattern.exec(prose)
+          const found = match?.[0].trim()
           if (!found) continue
+          const before = prose.slice(0, match!.index).trimEnd()
+          if (
+            /^(?:hrs?|yrs?)$/.test(found) &&
+            (/\d$/.test(before) || NUMBER_WORDS.includes(before.match(/\p{L}+$/u)?.[0].toLowerCase() ?? ""))
+          )
+            continue
           const full = /^\p{Lu}/u.test(found) ? word[0].toUpperCase() + word.slice(1) : word
           return [{ place, message: `“${found}” is shorthand`, suggestion: `Write “${full}”.` }]
         }
@@ -255,7 +317,11 @@ const DIGIT = new RegExp(String.raw`(?<![\p{L}\p{N}$€£.,/-])[2-9]${COUNTED}`,
 const LABELS = new Set(NUMBER_LABELS)
 
 // The word before a number in a text.
-const wordBefore = (text: string, index: number) => text.slice(0, index).trimEnd().match(/[\p{L}\p{N}.-]+$/u)?.[0] ?? ""
+const wordBefore = (text: string, index: number) =>
+  text
+    .slice(0, index)
+    .trimEnd()
+    .match(/[\p{L}\p{N}.-]+$/u)?.[0] ?? ""
 
 // A digit counting something ("Led 3 engineers"), but not a version or a
 // label: not after a name ("Python 2", "iOS 7", "Java 8 services"), or after
@@ -275,6 +341,7 @@ const WORD_COUNT = new RegExp(String.raw`\b(?:${WORDS_FOR.join("|")})\b${COUNTED
 // A count written as a word ("five engineers"), but not a label ("phase three").
 function wordCount(text: string): string | undefined {
   for (const found of text.matchAll(WORD_COUNT)) {
+    if (found.index === 0) continue
     if (!LABELS.has(wordBefore(text, found.index).toLowerCase())) return found[0]
   }
 }
@@ -304,6 +371,7 @@ const NUMBER_WAYS = [
 const numbersOneWay: Rule = {
   id: "P7",
   category: "polish",
+  advisory: true,
   level: "look",
   reads: "form",
   title: "Numbers written one way",
@@ -319,7 +387,9 @@ const numbersOneWay: Rule = {
         const word = ways.word(placed.bullet.text)?.trim()
         return digit || word ? [{ ...placed, digit, word }] : []
       })
-      const oneWay = written.filter(({ digit, word }) => !digit !== !word).map(({ digit }) => (digit ? ("digit" as const) : ("word" as const)))
+      const oneWay = written
+        .filter(({ digit, word }) => !digit !== !word)
+        .map(({ digit }) => (digit ? ("digit" as const) : ("word" as const)))
       const usual = mostCommon(oneWay) ?? ways.usually
       for (const { place, bullet, digit, word } of written) {
         const key = `${fieldOf(place)}|${bullet.line}|${place.kind === "entry" ? `${place.section}.${place.entry}` : ""}`

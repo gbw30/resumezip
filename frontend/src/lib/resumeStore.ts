@@ -9,7 +9,8 @@
 // without being saved again; if both tabs changed the same resume, the fields
 // each one changed are kept.
 
-import type { ResumeContent } from "./resumeFile"
+import { SECTION_NAMES } from "@/components/editor/sections"
+import type { Resume, ResumeContent, ResumeField } from "./resume"
 import {
   changedPaths,
   deleteKeptAside,
@@ -34,9 +35,6 @@ import { numberDuplicateTitles, uniqueTitle } from "./resumeTitles"
 import { DEFAULT_TEMPLATE } from "./templates"
 import { extraKey, extraRef, newCertification, newExtraSection, readExtraSections, resolveSections, type CredentialPatch, type ExtraKind, type ExtraPatch, type ExtraSection, type ExtraSections, type SectionRef } from "./resumeSections"
 
-/** A resume as the editor stores it; its fields are listed in components/editor/sections.ts. */
-export type Resume = Record<string, any>
-
 export interface ResumeState {
   /** Every resume saved in this browser, by id. */
   resumes: Record<string, Resume>
@@ -58,7 +56,11 @@ export const INITIAL_STATE: ResumeState = { resumes: {}, loaded: false, saveStat
 /** How long typing pauses before the changes are saved, in milliseconds. */
 export const SAVE_DELAY = 400
 
-const blankResume = (template: string) => ({
+/** The resume saved under `id`, if there's one. Ids come from addresses and files, so one like "constructor" is only an id. */
+export const resumeOf = (state: ResumeState, id: string): Resume | undefined =>
+  Object.hasOwn(state.resumes, id) ? state.resumes[id] : undefined
+
+const blankResume = (template: string): Resume => ({
   profileSection: {},
   headings: {},
   selectedTemplate: template,
@@ -70,11 +72,10 @@ const blankResume = (template: string) => ({
   skillsSection: [],
   leadershipExperienceSection: [],
   awardsSection: [],
-  sectionOrder: ["Education", "Work", "Skills", "Projects", "Publications", "Volunteership", "Leadership", "Awards"],
+  sectionOrder: [...SECTION_NAMES],
 })
 
-const without = (resumes: Record<string, Resume>, id: string) =>
-  Object.fromEntries(Object.entries(resumes).filter(([key]) => key !== id))
+const without = (resumes: Record<string, Resume>, id: string) => Object.fromEntries(Object.entries(resumes).filter(([key]) => key !== id))
 
 export type ResumeStore = ReturnType<typeof createResumeStore>
 
@@ -123,7 +124,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
   }
 
   /** Changes one field of a resume. It's saved once typing pauses. */
-  function edit(id: string, field: string, value: unknown) {
+  function edit<Field extends ResumeField>(id: string, field: Field, value: Resume[Field]) {
     if (!has(id)) return
     markChanged(id, ...changedPaths(field, state.resumes[id][field], value), "updatedAt")
     const resume = { ...state.resumes[id], [field]: value, updatedAt: new Date().toISOString() }
@@ -245,9 +246,39 @@ export function createResumeStore(delay = SAVE_DELAY) {
     return id
   }
 
+  /**
+   * Adds a copy of a resume, everything in it under a new id, named
+   * "<name> copy", and returns its id.
+   */
+  function duplicate(id: string): string | undefined {
+    if (!has(id)) return undefined
+    const original = state.resumes[id]
+    const copy = crypto.randomUUID()
+    add(copy, `${original.resumeTitle?.trim() || "Untitled resume"} copy`, {
+      ...structuredClone(original),
+      id: copy,
+      updatedAt: new Date().toISOString(),
+    })
+    return copy
+  }
+
+  /** Renames a resume, as the editor's title does: a blank name is "Untitled resume", and a taken one is numbered. */
+  function rename(id: string, title: string) {
+    if (!has(id)) return
+    const others = Object.entries(state.resumes).filter(([key]) => key !== id)
+    const resumeTitle = uniqueTitle(
+      title,
+      others.map(([, resume]) => resume?.resumeTitle),
+    )
+    if (resumeTitle !== state.resumes[id].resumeTitle) edit(id, "resumeTitle", resumeTitle)
+  }
+
   // A new resume is saved straight away. A repeated name gets a number, e.g. "Untitled resume 2".
   function add(id: string, title: string, resume: Resume) {
-    const resumeTitle = uniqueTitle(title, Object.values(state.resumes).map((other) => other?.resumeTitle))
+    const resumeTitle = uniqueTitle(
+      title,
+      Object.values(state.resumes).map((other) => other?.resumeTitle),
+    )
     deleted.delete(id)
     markChanged(id, EVERY_FIELD)
     setState({ resumes: { ...state.resumes, [id]: { ...resume, resumeTitle } } })
@@ -450,6 +481,8 @@ export function createResumeStore(delay = SAVE_DELAY) {
     moveCredential,
     create,
     importResume,
+    duplicate,
+    rename,
     replace,
     remove,
     flush,

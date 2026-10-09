@@ -1,4 +1,7 @@
 import { describe, expect, test } from "vitest"
+import type { Resume } from "@/lib/resume"
+import type { ExtraSection } from "@/lib/resumeSections"
+import { asSaved } from "@/lib/testResume"
 import { readForChecks } from "@/lib/import/read"
 import { viewOf, textsOf } from "./resume"
 import { hasEnoughToCheck, describePlace } from "./labels"
@@ -13,19 +16,23 @@ import { printedLayoutBullets } from "./pdf"
 const first = "11111111-1111-4111-8111-111111111111"
 const second = "22222222-2222-4222-8222-222222222222"
 const credential = "33333333-3333-4333-8333-333333333333"
-const resume = {
+const summary = { kind: "summary", heading: "Profile", text: "Literal **prose**.\n\nAnother paragraph." } as const satisfies ExtraSection
+const interests = { kind: "list", heading: "Interests", bullets: "○ Secret\n\n• **Reading** fiction\n• Hiking" } as const satisfies ExtraSection
+const hidden = { kind: "text", heading: "Private", text: "Hidden", leftOut: true } as const satisfies ExtraSection
+// The second credential has only some of its fields, as the editor never saves one.
+const resume = asSaved({
   profileSection: { fullName: "Ada Lovelace" },
   extraSections: {
-    summary: { kind: "summary", heading: "Profile", text: "Literal **prose**.\n\nAnother paragraph." },
-    [first]: { kind: "list", heading: "Interests", bullets: "○ Secret\n\n• **Reading** fiction\n• Hiking" },
-    [second]: { kind: "text", heading: "Private", text: "Hidden", leftOut: true },
+    summary,
+    [first]: interests,
+    [second]: hidden,
     certifications: { kind: "certifications", heading: "Credentials", entries: [
       { id: credential, name: "Cloud Engineer", issuer: "Example", issued: "2024", expires: "2027", credentialId: "ID-42", link: "https://www.example.org/id/" },
       { id: second, name: "Secret license", leftOut: true },
     ] },
   },
   sectionOrder: [`extra:${first}`, "extra:summary", "extra:certifications"],
-}
+})
 
 describe("extra checker views and stable editor addresses", () => {
   test("keeps builtin semantic order separate, privacy intact and original list offsets", () => {
@@ -38,7 +45,7 @@ describe("extra checker views and stable editor addresses", () => {
     expect(textsOf(view).map(({ text }) => text).join(" ")).not.toMatch(/Secret|Hidden|Private/)
     expect(JSON.stringify(runChecks(resume).view)).not.toMatch(/Secret|Hidden|Private/)
     expect(textsOf(view).find(({ place }) => place.kind === "extra-text" && place.sectionId === "summary")?.text).toContain("**prose**")
-    expect(hasEnoughToCheck(viewOf({ profileSection: resume.profileSection, extraSections: { [second]: resume.extraSections[second] } }))).toBe(false)
+    expect(hasEnoughToCheck(viewOf({ profileSection: resume.profileSection, extraSections: { [second]: hidden } }))).toBe(false)
   })
 
   test("targets a custom bullet or credential by identity and rejects removed or omitted targets", () => {
@@ -68,21 +75,21 @@ describe("extra checker views and stable editor addresses", () => {
   test("rejects a deferred target when an insertion leaves its old line valid but changes its source", () => {
     const before = viewOf(resume)
     const place: Place = { kind: "extra-text", sectionId: first, field: "bullets", line: 2 }
-    const shifted = viewOf({ ...resume, extraSections: { ...resume.extraSections, [first]: { ...resume.extraSections[first], bullets: "○ New hidden line\n" + resume.extraSections[first].bullets } } })
+    const shifted = viewOf({ ...resume, extraSections: { ...resume.extraSections, [first]: { ...interests, bullets: "○ New hidden line\n" + interests.bullets } } })
     expect(placeExists(shifted, { ...place, line: 3 })).toBe(true)
     expect(samePlaceSource(before, shifted, place)).toBe(false)
     const reordered = viewOf({ ...resume, sectionOrder: ["extra:certifications", `extra:${first}`] })
     expect(samePlaceSource(before, reordered, place)).toBe(true)
     // Finding text can be only 'classic'; the whole source guards changes.
     const textPlace: Place = { kind: "extra-text", sectionId: "summary", field: "text" }
-    const edited = viewOf({ ...resume, extraSections: { ...resume.extraSections, summary: { ...resume.extraSections.summary, text: "Literal **prose** with different context." } } })
+    const edited = viewOf({ ...resume, extraSections: { ...resume.extraSections, summary: { ...summary, text: "Literal **prose** with different context." } } })
     expect(samePlaceSource(before, edited, textPlace)).toBe(false)
   })
 })
 
 describe("actual extra PDF occurrences", () => {
   test("matches identical repeated headings and bodies one-to-one", () => {
-    const source = { extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction" }, [second]: { kind: "text", heading: "Interests", text: "Reading fiction" } } }
+    const source: Resume = { extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction" }, [second]: { kind: "text", heading: "Interests", text: "Reading fiction" } } }
     const result = matchExtraPdf([line("Interests"), line("Reading fiction"), line("Interests"), line("Reading fiction")], pdfLayoutOf(viewOf(source)))
     expect(result.sections.map(({ sectionId, status, lines }) => ({ sectionId, status, lines }))).toEqual([
       { sectionId: first, status: "matched", lines: [0, 1] }, { sectionId: second, status: "matched", lines: [2, 3] },
@@ -90,7 +97,7 @@ describe("actual extra PDF occurrences", () => {
   })
 
   test("does not hide missing, changed, or ambiguous text; only uncertainty makes R3 partial", () => {
-    const source = { extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction" } } }
+    const source: Resume = { extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction" } } }
     for (const lines of [[line("Interests"), line("Unexpected text")], [line("Interests"), line("Reading fiction"), line("Interests"), line("Reading fiction")], []]) {
       const result = readForChecks(lines, pdfLayoutOf(viewOf(source)))
       expect(result.extras.excludedLines).toEqual([])
@@ -101,21 +108,21 @@ describe("actual extra PDF occurrences", () => {
   })
 
   test("does not attribute extraction order inversions to precise custom IDs", () => {
-    const source = { extraSections: { [first]: { kind: "text", heading: "First", text: "One" }, [second]: { kind: "text", heading: "Second", text: "Two" } } }
+    const source: Resume = { extraSections: { [first]: { kind: "text", heading: "First", text: "One" }, [second]: { kind: "text", heading: "Second", text: "Two" } } }
     const result = matchExtraPdf([line("Second"), line("Two"), line("First"), line("One")], pdfLayoutOf(viewOf(source)))
     expect(result.sections.map(({ status }) => status)).toEqual(["ambiguous", "ambiguous"])
     expect(result.excludedLines).toEqual([])
   })
 
   test("literal prose containing a standalone builtin heading keeps its own occurrence", () => {
-    const source = { extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction\nAwards\nMore prose" } }, awardsSection: [{ awardName: "Prize" }], sectionOrder: [`extra:${first}`, "Awards"], headings: { awards: "Awards" } }
+    const source = asSaved({ extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction\nAwards\nMore prose" } }, awardsSection: [{ awardName: "Prize" }], sectionOrder: [`extra:${first}`, "Awards"], headings: { awards: "Awards" } })
     const result = matchExtraPdf([line("Interests"), line("Reading fiction"), line("Awards"), line("More prose"), line("Awards"), line("Prize")], pdfLayoutOf(viewOf(source)))
     expect(result.sections[0].status).toBe("matched")
     expect(result.excludedLines).toEqual([0, 1, 2, 3])
   })
 
   test("a matching prose suffix cannot swallow the only required builtin heading occurrence", () => {
-    const source = { extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction\nAwards\nPrize" } }, awardsSection: [{ awardName: "Prize" }], sectionOrder: [`extra:${first}`, "Awards"], headings: { awards: "Awards" } }
+    const source = asSaved({ extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction\nAwards\nPrize" } }, awardsSection: [{ awardName: "Prize" }], sectionOrder: [`extra:${first}`, "Awards"], headings: { awards: "Awards" } })
     const result = matchExtraPdf([line("Interests"), line("Reading fiction"), line("Awards"), line("Prize")], pdfLayoutOf(viewOf(source)))
     expect(result.sections[0].status).toBe("ambiguous")
     expect(result.excludedLines).toEqual([])
@@ -123,14 +130,14 @@ describe("actual extra PDF occurrences", () => {
 
   test("shared builtin defaults bound the preceding custom section", () => {
     for (const selectedTemplate of ["jake", "referme", "ian"]) {
-      const source = { selectedTemplate, extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction" } }, leadershipExperienceSection: [{ leadershipRole: "President", leadershipOrg: "Student Council" }], sectionOrder: [`extra:${first}`, "Leadership"] }
+      const source = asSaved({ selectedTemplate, extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction" } }, leadershipExperienceSection: [{ leadershipRole: "President", leadershipOrg: "Student Council" }], sectionOrder: [`extra:${first}`, "Leadership"] })
       const result = matchExtraPdf([line("Interests"), line("Reading fiction"), line("Leadership Experience"), line("Student Council"), line("President")], pdfLayoutOf(viewOf(source)))
       expect(result.sections[0].status).toBe("matched")
     }
   })
 
   test("unresolved custom builtin-name collisions cannot invent builtin field failures", () => {
-    const source = { extraSections: { [first]: { kind: "text", heading: "Experience", text: "Personal interests" } }, workExperienceSection: [{ workRole: "Engineer", companyName: "Example" }], sectionOrder: [`extra:${first}`, "Work"] }
+    const source = asSaved({ extraSections: { [first]: { kind: "text", heading: "Experience", text: "Personal interests" } }, workExperienceSection: [{ workRole: "Engineer", companyName: "Example" }], sectionOrder: [`extra:${first}`, "Work"] })
     const lines = [line("Experience", { size: 14 }), line("Wrong extracted text"), line("Experience", { size: 14 }), line("Engineer, Example")]
     const result = readForChecks(lines, pdfLayoutOf(viewOf(source)))
     const report = runChecks(source, { rules: RULES.filter(({ id }) => ["R2", "R3", "R4"].includes(id)), pdf: { ...reading(lines), ...result } })
@@ -139,7 +146,7 @@ describe("actual extra PDF occurrences", () => {
   })
 
   test("an unresolved custom heading alias cannot invent builtin entry counts either", () => {
-    const source = { profileSection: { fullName: "Ada Lovelace" }, extraSections: { [first]: { kind: "text", heading: "Work Experience", text: "Reading fiction" } }, workExperienceSection: [{ workRole: "Engineer", companyName: "Acme" }], sectionOrder: [`extra:${first}`, "Work"] }
+    const source = asSaved({ profileSection: { fullName: "Ada Lovelace" }, extraSections: { [first]: { kind: "text", heading: "Work Experience", text: "Reading fiction" } }, workExperienceSection: [{ workRole: "Engineer", companyName: "Acme" }], sectionOrder: [`extra:${first}`, "Work"] })
     const lines = [line("Ada Lovelace", { size: 20 }), line("Work Experience", { size: 14 }), line("Reader, Library"), line("Experience", { size: 14 }), line("Engineer, Acme")]
     const result = readForChecks(lines, pdfLayoutOf(viewOf(source)))
     const report = runChecks(source, { rules: RULES.filter(({ id }) => ["R2", "R3"].includes(id)), pdf: { ...reading(lines), ...result } })
@@ -148,7 +155,7 @@ describe("actual extra PDF occurrences", () => {
   })
 
   test("a custom Experience heading cannot create a builtin job; remaining original line indexes survive", () => {
-    const source = { profileSection: { fullName: "Ada Lovelace" }, extraSections: { [first]: { kind: "text", heading: "Experience", text: "My personal interests" } }, sectionOrder: [`extra:${first}`, "Work"], workExperienceSection: [{ companyName: "Example", workRole: "Engineer" }] }
+    const source = asSaved({ profileSection: { fullName: "Ada Lovelace" }, extraSections: { [first]: { kind: "text", heading: "Experience", text: "My personal interests" } }, sectionOrder: [`extra:${first}`, "Work"], workExperienceSection: [{ companyName: "Example", workRole: "Engineer" }] })
     const lines = [line("Ada Lovelace", { size: 20 }), line("Experience", { size: 14 }), line("My personal interests"), line("Experience", { size: 14 }), line("Engineer, Example"), line("2024 - Present")]
     const result = readForChecks(lines, pdfLayoutOf(viewOf(source)))
     expect(result.extras.sections[0].status).toBe("matched")
@@ -161,7 +168,7 @@ describe("actual extra PDF occurrences", () => {
   })
 
   test("a wrapped custom list retains original editor offset in physical layout checks", () => {
-    const source = { extraSections: { [first]: { kind: "list", heading: "Interests", bullets: "○ Secret\n• Reading classic fiction" } } }
+    const source: Resume = { extraSections: { [first]: { kind: "list", heading: "Interests", bullets: "○ Secret\n• Reading classic fiction" } } }
     const lines = [line("Interests"), line("Reading classic"), line("fiction")]
     const result = readForChecks(lines, pdfLayoutOf(viewOf(source)))
     const bullets = printedLayoutBullets(viewOf(source), { ...reading(lines), ...result })

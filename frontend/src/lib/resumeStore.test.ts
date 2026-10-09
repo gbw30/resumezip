@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { memoryStorage } from "./memoryStorage"
+import type { Resume } from "./resume"
 import { createResumeStore, SAVE_DELAY } from "./resumeStore"
 import { keyOf, LEGACY_KEY, readResume } from "./resumeStorage"
 
@@ -7,7 +8,8 @@ const ada = { id: "a", resumeTitle: "Ada", profileSection: { fullName: "Ada Love
 const grace = { id: "g", resumeTitle: "Grace", profileSection: { fullName: "Grace Hopper" }, updatedAt: "2026-10-06T10:00:00.000Z" }
 
 /** localStorage contents with these resumes saved, each under its own key. */
-const saved = (...resumes: { id: string; [field: string]: unknown }[]) => Object.fromEntries(resumes.map((resume) => [keyOf(resume.id), JSON.stringify(resume)]))
+const saved = (...resumes: { id: string; [field: string]: unknown }[]) =>
+  Object.fromEntries(resumes.map((resume) => [keyOf(resume.id), JSON.stringify(resume)]))
 const stored = (storage: Storage, id: string) => readResume(storage.getItem(keyOf(id)) ?? "").resume
 
 /**
@@ -133,7 +135,7 @@ describe("two tabs", () => {
     const one = openTab(storage)
     const two = openTab(storage)
     one.edit("a", "profileSection", { fullName: "Ada King" })
-    two.edit("a", "workExperienceSection", [{ companyName: "Analytical Engines" }])
+    two.edit("a", "workExperienceSection", [{ id: 1, companyName: "Analytical Engines" }])
     one.flush()
     two.flush()
     one.receive(keyOf("a"))
@@ -451,10 +453,52 @@ describe("adding resumes", () => {
   test("resumes saved with the same name are numbered when the page opens, and that's saved", () => {
     const storage = memoryStorage(saved(ada, { ...grace, resumeTitle: "Ada" }))
     const tab = openTab(storage)
-    const titles = (resumes: (Record<string, any> | null | undefined)[]) => resumes.map((resume) => resume?.resumeTitle).sort()
+    const titles = (resumes: (Resume | null | undefined)[]) => resumes.map((resume) => resume?.resumeTitle).sort()
     expect(titles(Object.values(tab.getState().resumes))).toEqual(["Ada", "Ada 2"])
 
     vi.advanceTimersByTime(SAVE_DELAY)
     expect(titles([stored(storage, "a"), stored(storage, "g")])).toEqual(["Ada", "Ada 2"])
+  })
+
+  test("a copy has everything in the resume under a new id, named as a copy", () => {
+    const original = {
+      ...ada,
+      selectedTemplate: "harvard",
+      sectionOrder: ["skillsSection", "workExperienceSection"],
+      headings: { skillsSection: "Toolbox" },
+      workExperienceSection: [{ id: 1, companyName: "Analytical Engines", leftOut: true as const }],
+    }
+    const storage = memoryStorage(saved(original))
+    const tab = openTab(storage)
+    const first = tab.duplicate("a")!
+    const second = tab.duplicate("a")!
+    expect(first).not.toBe("a")
+    const { id: _, resumeTitle: __, updatedAt: ___, ...content } = original
+    expect(stored(storage, first)).toMatchObject({ ...content, id: first, resumeTitle: "Ada copy" })
+    expect(stored(storage, second)?.resumeTitle).toBe("Ada copy 2")
+    // Changing the copy leaves the original as it was.
+    tab.edit(first, "workExperienceSection", [])
+    expect(tab.getState().resumes.a.workExperienceSection).toHaveLength(1)
+    expect(tab.duplicate("missing")).toBeUndefined()
+  })
+})
+
+describe("renaming", () => {
+  test("follows the editor's rules: blank is untitled, and a taken name is numbered", () => {
+    const storage = memoryStorage(saved(ada, grace))
+    const tab = openTab(storage)
+    tab.rename("g", "  Ada ")
+    expect(tab.getState().resumes.g.resumeTitle).toBe("Ada 2")
+    tab.rename("g", "   ")
+    expect(tab.getState().resumes.g.resumeTitle).toBe("Untitled resume")
+    vi.advanceTimersByTime(SAVE_DELAY)
+    expect(stored(storage, "g")?.resumeTitle).toBe("Untitled resume")
+  })
+
+  test("to the same name changes nothing, not even when it was edited", () => {
+    const tab = openTab(memoryStorage(saved(ada)))
+    tab.rename("a", "Ada")
+    expect(tab.getState().resumes.a.updatedAt).toBe(ada.updatedAt)
+    expect(tab.getState().unsaved).toBe(false)
   })
 })

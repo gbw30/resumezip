@@ -1,18 +1,18 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Plus } from "lucide-react"
-import { useResumeContext } from "@/context/ResumeContext"
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react"
+import type { DraggableProvided, DropResult } from "@hello-pangea/dnd"
+import { GripVertical, Plus } from "lucide-react"
+import { useOpenResume, useResumeField } from "@/context/ResumeContext"
 import { isLeftOut } from "@/lib/leftOut"
-import { useCheck } from "./CheckContext"
+import type { Entry } from "@/lib/resume"
+import { useCheckActions, useCheckTarget } from "./CheckContext"
 import { nextAnnouncement } from "./arrange"
+import { loadDragAndDrop, loadedDragAndDrop } from "./dragAndDrop"
 import { BulletsField, Field, FlagNote, MoveButtons, SectionHeading, selectLine } from "./fields"
 import { reducedMotion, reveal, scrollerOf } from "./layout"
 import PaperFromLink from "./PaperFromLink"
-import { FIELD_SPAN, type ChoiceDef, type SectionDef } from "./sections"
-
-// `leftOut` is set on entries left out of the PDF (see lib/leftOut.ts).
-type Entry = { id: number; leftOut?: true; [field: string]: any }
+import { FIELD_SPAN, type ChoiceDef, type ChoiceKey, type FieldKey, type SectionDef } from "./sections"
 
 interface SectionFormProps {
   section: SectionDef
@@ -22,6 +22,19 @@ interface SectionFormProps {
 
 // How long an entry takes to slide open, closed or away (matches duration-300).
 const SLIDE_MS = 300
+
+// How long a moved entry takes to slide to its new place, then how long it
+// stays lit up after, to show which one moved.
+const MOVE_MS = 200
+const LIT_MS = 900
+// The id of those animations, to tell them from the CSS transitions on the same elements.
+const MOVING = "moving"
+
+/** Lit up, an entry sits on a sheet a little wider than its words. It covers the entry it slides past. */
+const litUp = (color: string): Keyframe => ({ backgroundColor: color, boxShadow: `-12px 0 ${color}, 12px 0 ${color}` })
+
+// An entry being dragged sits on the same sheet, lifted off the page.
+const LIFTED = "bg-sheet shadow-[-12px_0_var(--color-sheet),12px_0_var(--color-sheet),0_16px_32px_-12px_rgb(17_19_24/0.3)]"
 
 // Where a field is typed in: not the Include boxes in an entry's heading, or
 // in a bullets field being arranged.
@@ -36,14 +49,56 @@ function pointAt(target: HTMLElement | null | undefined, line?: number, view: HT
   view?.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" })
 }
 
+/** Where each entry is drawn, mid-slide or not, from the top of their list. */
+function placesOf(entries: Map<number, HTMLElement>, list: HTMLElement | null): Map<number, number> {
+  const top = list?.getBoundingClientRect().top ?? 0
+  return new Map([...entries].map(([id, element]) => [id, element.getBoundingClientRect().top - top]))
+}
+
+/** Stops the entries' slides and lights, so the next move can start them afresh. */
+function stopMoving(entries: Map<number, HTMLElement>) {
+  for (const element of entries.values()) {
+    for (const animation of element.getAnimations()) if (animation.id === MOVING) animation.cancel()
+  }
+}
+
+/**
+ * Slides each entry from where it was drawn (`from`) to its place now, and
+ * lights up the one that moved. With less motion, it only lights up.
+ */
+function slide(entries: Map<number, HTMLElement>, list: HTMLElement | null, moved: number, from: Map<number, number>) {
+  const to = placesOf(entries, list)
+  const still = reducedMotion()
+  // The sheet's color as a color, so the keyframes don't rely on var() in script animations.
+  const lit = litUp(getComputedStyle(document.documentElement).getPropertyValue("--color-sheet").trim())
+  const unlit = litUp("transparent")
+  for (const [id, element] of entries) {
+    const start = from.get(id)
+    const by = start === undefined || still ? 0 : start - (to.get(id) ?? start)
+    const sliding = Math.abs(by) >= 1
+    if (id === moved) {
+      const keyframes = sliding
+        ? [
+            { ...lit, transform: `translateY(${by}px)`, zIndex: 1, easing: "ease-out" },
+            { ...lit, transform: "none", zIndex: 1, offset: MOVE_MS / (MOVE_MS + LIT_MS), easing: "ease-in" },
+            { ...unlit, transform: "none" },
+          ]
+        : [{ ...lit, easing: "ease-in" }, unlit]
+      element.animate(keyframes, { id: MOVING, duration: (sliding ? MOVE_MS : 0) + LIT_MS })
+    } else if (sliding) {
+      element.animate([{ transform: `translateY(${by}px)` }, { transform: "none" }], { id: MOVING, duration: MOVE_MS, easing: "ease-out" })
+    }
+  }
+}
+
 /** The form for one list section (education, experience, ...): its title and entries. */
-export default function SectionForm({ section, position }: SectionFormProps) {
-  const { formData, updateFormData } = useResumeContext()
-  const entries: Entry[] = Array.isArray(formData[section.dataKey]) ? formData[section.dataKey] : []
+function SectionForm({ section, position }: SectionFormProps) {
+  const { read, update: updateResume } = useOpenResume()
+  const saved = useResumeField(section.dataKey)
+  const headings = useResumeField("headings")
+  const entries = Array.isArray(saved) ? saved : []
   const latest = useRef(entries)
   latest.current = entries
-  const owner = useRef("")
-  owner.current = formData.profileSection?.fullName ?? ""
 
   // One entry is open at a time; the rest collapse to a one-line summary.
   const [openId, setOpenId] = useState<number | null>(entries[0]?.id ?? null)
@@ -52,6 +107,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const [removingId, setRemovingId] = useState<number | null>(null)
   const elements = useRef(new Map<number, HTMLElement>())
+  const list = useRef<HTMLElement | null>(null)
   const addButton = useRef<HTMLButtonElement>(null)
   const cancelButton = useRef<HTMLButtonElement>(null)
   const heading = useRef<HTMLDivElement>(null)
@@ -59,9 +115,41 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   opened.current = openId
   // Said to screen readers when an entry moves.
   const [announcement, setAnnouncement] = useState("")
+  // A move that hasn't slid yet: which entry moved, where each entry was drawn
+  // before it, and the scroller whose scroll anchoring is off meanwhile.
+  const moving = useRef<{ id: number; from: Map<number, number>; scroller?: HTMLElement; frame?: number } | null>(null)
+  const [dnd, setDnd] = useState(loadedDragAndDrop)
+
+  // Drag and drop puts the entries on the page anew as it arrives, so it
+  // waits while the person is in one of them: they'd lose the cursor, and
+  // what Ctrl+Z would take back.
+  useEffect(() => {
+    if (dnd) return
+    let live = true
+    let stop = () => {}
+    loadDragAndDrop().then(
+      (module) => {
+        if (!live) return
+        if (!list.current?.contains(document.activeElement)) return setDnd(module)
+        const leave = (event: FocusEvent) => {
+          if (event.relatedTarget instanceof Node && list.current?.contains(event.relatedTarget)) return
+          stop()
+          setDnd(module)
+        }
+        document.addEventListener("focusout", leave)
+        stop = () => document.removeEventListener("focusout", leave)
+      },
+      () => {},
+    )
+    return () => {
+      live = false
+      stop()
+    }
+  }, [dnd])
 
   // What the checker points at in this section, while the person fixes it.
-  const { target, pending, claim } = useCheck()
+  const target = useCheckTarget()
+  const { pending, claim } = useCheckActions()
   const place = target?.finding.place
   const here = place && "section" in place && place.section === section.name ? place : null
   const flagAt = (index: number, field?: string) =>
@@ -114,7 +202,20 @@ export default function SectionForm({ section, position }: SectionFormProps) {
     return () => cancelAnimationFrame(frame)
   }, [openId])
 
-  const save = (next: Entry[]) => updateFormData(section.dataKey, next)
+  // The entries slide a frame after a move, not as it's put on the page:
+  // MoveButtons brings the moved entry's button into view first, and it has
+  // to measure where the entry ends up, not where the slide draws it.
+  useLayoutEffect(() => {
+    const waiting = moving.current
+    if (!waiting || waiting.frame !== undefined) return
+    waiting.frame = requestAnimationFrame(() => {
+      moving.current = null
+      if (waiting.scroller) waiting.scroller.style.overflowAnchor = ""
+      slide(elements.current, list.current, waiting.id, waiting.from)
+    })
+  }, [saved])
+
+  const save = (next: Entry[]) => updateResume(section.dataKey, next)
 
   /**
    * Puts the cursor in an entry's first field, except on touch screens where it
@@ -167,11 +268,11 @@ export default function SectionForm({ section, position }: SectionFormProps) {
    * entries, so nothing typed while a paper was being looked up is lost.
    * `show` brings the opened entry into view and puts the cursor in it.
    */
-  const addEntries = (values: Record<string, string>[], show = true) => {
+  const addEntries = (values: Partial<Record<FieldKey, string>>[], show = true) => {
     const current = latest.current
     const id = current.length > 0 ? Math.max(...current.map((entry) => entry.id)) + 1 : 1
     const blank = Object.fromEntries(section.fields.map((field) => [field.key, ""]))
-    save([...current, ...values.map((value, index) => ({ ...blank, ...value, id: id + index }) as Entry)])
+    save([...current, ...values.map((value, index): Entry => ({ ...blank, ...value, id: id + index }))])
     setConfirmingId(null)
     setOpenId(id)
     if (!show) return
@@ -206,23 +307,51 @@ export default function SectionForm({ section, position }: SectionFormProps) {
     setTimeout(() => remove(id), SLIDE_MS)
   }
 
-  const update = (id: number, key: string, value: string) =>
+  const update = (id: number, key: FieldKey, value: string) =>
     save(entries.map((entry) => (entry.id === id ? { ...entry, [key]: value } : entry)))
 
   /**
    * Moves an entry up or down one place. Its id stays the same, so it stays
    * open if it was, and React keeps the focus on the button that moved it.
+   * It slides to its new place, and the entry it passes slides the other way.
    */
   const move = (id: number, by: -1 | 1) => {
     const current = latest.current
     const from = current.findIndex((entry) => entry.id === id)
     const to = from + by
     if (from < 0 || to < 0 || to >= current.length) return
+    const element = elements.current.get(id)
+    if (element) {
+      // From where they're drawn now, or before an earlier move that hasn't slid yet.
+      moving.current ??= { id, from: placesOf(elements.current, list.current) }
+      moving.current.id = id
+      // Scroll anchoring would shift the page as the entries trade places, and
+      // the slide would start with a jump. It's back on once the slide starts.
+      moving.current.scroller = scrollerOf(element)
+      moving.current.scroller.style.overflowAnchor = "none"
+      stopMoving(elements.current)
+    }
     const next = [...current]
     next.splice(to, 0, ...next.splice(from, 1))
     save(next)
     setConfirmingId(null)
     setAnnouncement((last) => nextAnnouncement(last, `Moved to ${to + 1} of ${current.length}`))
+  }
+
+  /**
+   * Puts a dragged entry where it was dropped, and lights it up there. Drag
+   * and drop has moved it there already, and tells screen readers where.
+   */
+  const onDragEnd = ({ draggableId, destination }: DropResult) => {
+    const current = latest.current
+    const id = Number(draggableId)
+    const from = current.findIndex((entry) => entry.id === id)
+    if (!destination || from < 0 || destination.index === from) return
+    const next = [...current]
+    next.splice(destination.index, 0, ...next.splice(from, 1))
+    moving.current = { id, from: new Map() }
+    save(next)
+    setConfirmingId(null)
   }
 
   /** Leaves an entry out of the PDF, or puts it back. An entry that's in has no `leftOut` at all. */
@@ -235,7 +364,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
       }),
     )
 
-  const title = formData.headings?.[section.headingKey] || section.title
+  const title = headings?.[section.headingKey] || section.title
   // "Add experience", or "Add to Work History" once the person has renamed the section.
   const addLabel = title === section.title ? section.addLabel : `Add to ${title}`
   const quiet = "py-2 text-sm text-ink-2 transition-colors hover:text-ink"
@@ -252,217 +381,247 @@ export default function SectionForm({ section, position }: SectionFormProps) {
     </button>
   )
 
+  /** An entry, the same with drag and drop or without, so it doesn't move as drag and drop arrives. */
+  const renderEntry = (entry: Entry, index: number, drag?: DraggableProvided, dragging = false) => {
+    const isOpen = entry.id === openId
+    const confirming = entry.id === confirmingId
+    // Its first filled field stands in when the usual ones are empty, like a paper's link added by hand.
+    const summary =
+      section.summary
+        .map((key) => entry[key]?.trim())
+        .filter(Boolean)
+        .join(", ") || section.fields.map((field) => entry[field.key]?.trim()).find(Boolean)
+    const name = `entry ${index + 1}`
+    const leftOut = isLeftOut(entry)
+
+    return (
+      <div
+        key={entry.id}
+        ref={(element) => {
+          drag?.innerRef(element)
+          if (element) elements.current.set(entry.id, element)
+          else elements.current.delete(entry.id)
+        }}
+        {...drag?.draggableProps}
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
+          entry.id === removingId ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr]"
+        } ${dragging ? LIFTED : ""}`}
+      >
+        {/* Room on the sides so focus outlines aren't clipped while it slides. */}
+        <section className="-mx-1 min-h-0 overflow-hidden px-1">
+          <div className={`border-t pb-7 pt-4 transition-colors duration-300 ${isOpen ? "border-ink" : "border-rule"}`}>
+            <div className="flex items-start justify-between gap-4">
+              {/* A click on an entry's heading also opens it, or closes it if it's open. From the keyboard, it's Edit and Done. */}
+              <div
+                className="group flex min-w-0 flex-1 cursor-pointer flex-col gap-1"
+                onClick={() => open(isOpen ? null : entry.id, entry.id)}
+              >
+                <span className={`label-mono text-ink-2 ${isOpen ? "transition-colors group-hover:text-ink" : ""}`}>
+                  Entry {index + 1}
+                  {leftOut && " · Left out"}
+                </span>
+                {!isOpen && (
+                  <span
+                    className={`truncate text-[15px] underline-offset-4 group-hover:underline ${summary && !leftOut ? "text-ink" : "text-ink-2"}`}
+                  >
+                    {summary || "Empty entry"}
+                  </span>
+                )}
+              </div>
+
+              <div
+                className="flex shrink-0 flex-wrap items-center justify-end gap-x-4"
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && confirming) {
+                    event.stopPropagation()
+                    cancelDelete(entry.id)
+                  }
+                }}
+              >
+                {!confirming && (
+                  <>
+                    <span key="move" className="flex shrink-0 items-center">
+                      <span
+                        {...drag?.dragHandleProps}
+                        aria-label={drag && `Reorder ${name}`}
+                        className="rounded-[4px] p-1.5 text-ink-2 transition-colors hover:text-ink"
+                      >
+                        <GripVertical className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <MoveButtons
+                        name={name}
+                        first={index === 0}
+                        last={index === entries.length - 1}
+                        onMove={(by) => move(entry.id, by)}
+                      />
+                    </span>
+                    <label key="include" className="flex cursor-pointer items-center gap-2 py-2 text-sm text-ink-2">
+                      <input
+                        type="checkbox"
+                        checked={!leftOut}
+                        onChange={(event) => setLeftOut(entry.id, !event.target.checked)}
+                        aria-label={`Include ${name} in the PDF`}
+                        className="h-4 w-4 accent-accent"
+                      />
+                      Include
+                    </label>
+                  </>
+                )}
+                {!isOpen ? (
+                  <button
+                    key="edit"
+                    type="button"
+                    onClick={() => open(entry.id, entry.id)}
+                    aria-label={`Edit ${name}`}
+                    className="py-2 text-sm text-ink underline underline-offset-4 hover:decoration-2"
+                  >
+                    Edit
+                  </button>
+                ) : confirming ? (
+                  <>
+                    <span key="question" className="py-2 text-sm text-ink" role="status">
+                      Delete this entry?
+                    </span>
+                    <button key="cancel" ref={cancelButton} type="button" onClick={() => cancelDelete(entry.id)} className={quiet}>
+                      Cancel
+                    </button>
+                    <button
+                      key="confirm"
+                      type="button"
+                      onClick={() => confirmRemove(entry.id)}
+                      className="py-2 text-sm font-medium text-[#b42318] underline-offset-4 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      key="delete"
+                      data-delete
+                      type="button"
+                      onClick={() => setConfirmingId(entry.id)}
+                      aria-label={`Delete ${name}`}
+                      className="py-2 text-sm text-ink-2 transition-colors hover:text-[#b42318]"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      key="done"
+                      type="button"
+                      onClick={() => open(null, entry.id)}
+                      aria-label={`Done editing ${name}`}
+                      className="py-2 text-sm text-ink underline underline-offset-4 hover:decoration-2"
+                    >
+                      Done
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* The fields slide open and closed. */}
+            <div
+              className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
+                entry.id === shownId && isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+              }`}
+            >
+              {/* The container whose width lays out the fields (FIELD_SPAN). It's here rather than
+                  around the whole form: Safari before 26 doesn't place a fixed element inside a
+                  query container right (WebKit bug 284945), and an entry being dragged is fixed. */}
+              <div className="@container -mx-1 min-h-0 overflow-hidden px-1" inert={!isOpen}>
+                <div className="grid grid-cols-2 gap-x-7 gap-y-6 pb-1 pt-5 @lg:grid-cols-4">
+                  {leftOut && (
+                    <p className="col-span-2 text-[13px] leading-normal text-ink-2 @lg:col-span-4">
+                      Left out of the PDF, and of the copy of the resume inside it. It stays here, in this browser.
+                    </p>
+                  )}
+                  {flagAt(index) && (
+                    <div className="col-span-2 @lg:col-span-4">
+                      <FlagNote finding={flagAt(index)!} />
+                    </div>
+                  )}
+                  {section.fields.map((field) => {
+                    const Input = field.type === "bullets" ? BulletsField : Field
+                    const flag = flagAt(index, field.key)
+                    return (
+                      <Input
+                        key={field.key}
+                        name={field.key}
+                        label={field.label}
+                        placeholder={field.placeholder}
+                        value={entry[field.key] ?? ""}
+                        onChange={(value) => update(entry.id, field.key, value)}
+                        className={FIELD_SPAN[field.size]}
+                        flag={flag}
+                        request={flag ? target!.request : undefined}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <div ref={heading}>
         <SectionHeading
           position={position}
           title={title}
-          onRename={(name) => updateFormData("headings", { ...formData.headings, [section.headingKey]: name })}
+          onRename={(name) => updateResume("headings", { ...headings, [section.headingKey]: name })}
           flag={here?.kind === "heading" || here?.kind === "section" ? target!.finding : null}
         />
       </div>
 
-      {section.choice && (
-        <SectionChoice
-          choice={section.choice}
-          value={formData[section.choice.key]}
-          onChange={(value) => updateFormData(section.choice!.key, value)}
-        />
-      )}
+      {section.choice && <SectionChoice choice={section.choice} />}
 
-      {entries.length === 0 && (
-        <p className="border-t border-ink pt-5 text-[15px] text-ink-2">Nothing here yet.</p>
-      )}
+      {entries.length === 0 && <p className="border-t border-ink pt-5 text-[15px] text-ink-2">Nothing here yet.</p>}
 
-      {entries.length > 0 && (
-        <div className="flex flex-col">
-          {entries.map((entry, index) => {
-            const isOpen = entry.id === openId
-            const confirming = entry.id === confirmingId
-            // Its first filled field stands in when the usual ones are empty, like a paper's link added by hand.
-            const summary =
-              section.summary.map((key) => entry[key]?.trim()).filter(Boolean).join(", ") ||
-              section.fields.map((field) => entry[field.key]?.trim()).find(Boolean)
-            const name = `entry ${index + 1}`
-            const leftOut = isLeftOut(entry)
-
-            return (
-              <div
-                key={entry.id}
-                ref={(element) => {
-                  if (element) elements.current.set(entry.id, element)
-                  else elements.current.delete(entry.id)
-                }}
-                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
-                  entry.id === removingId ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr]"
-                }`}
-              >
-                {/* Room on the sides so focus outlines aren't clipped while it slides. */}
-                <section className="-mx-1 min-h-0 overflow-hidden px-1">
-                  <div
-                    className={`border-t pb-7 pt-4 transition-colors duration-300 ${isOpen ? "border-ink" : "border-rule"}`}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      {/* A closed entry also opens with a click on its summary. Its Edit button is the way in from the keyboard. */}
-                      <div
-                        className={`flex min-w-0 flex-col gap-1 ${isOpen ? "" : "group flex-1 cursor-pointer"}`}
-                        onClick={isOpen ? undefined : () => open(entry.id, entry.id)}
-                      >
-                        <span className="label-mono text-ink-2">
-                          Entry {index + 1}
-                          {leftOut && " · Left out"}
-                        </span>
-                        {!isOpen && (
-                          <span
-                            className={`truncate text-[15px] underline-offset-4 group-hover:underline ${summary && !leftOut ? "text-ink" : "text-ink-2"}`}
-                          >
-                            {summary || "Empty entry"}
-                          </span>
-                        )}
-                      </div>
-
-                      <div
-                        className="flex shrink-0 flex-wrap items-center justify-end gap-x-4"
-                        onKeyDown={(event) => {
-                          if (event.key === "Escape" && confirming) {
-                            event.stopPropagation()
-                            cancelDelete(entry.id)
-                          }
-                        }}
-                      >
-                        {!confirming && (
-                          <>
-                            <MoveButtons
-                              key="move"
-                              name={name}
-                              first={index === 0}
-                              last={index === entries.length - 1}
-                              onMove={(by) => move(entry.id, by)}
-                            />
-                            <label key="include" className="flex cursor-pointer items-center gap-2 py-2 text-sm text-ink-2">
-                              <input
-                                type="checkbox"
-                                checked={!leftOut}
-                                onChange={(event) => setLeftOut(entry.id, !event.target.checked)}
-                                aria-label={`Include ${name} in the PDF`}
-                                className="h-4 w-4 accent-accent"
-                              />
-                              Include
-                            </label>
-                          </>
-                        )}
-                        {!isOpen ? (
-                          <button
-                            key="edit"
-                            type="button"
-                            onClick={() => open(entry.id, entry.id)}
-                            aria-label={`Edit ${name}`}
-                            className="py-2 text-sm text-ink underline underline-offset-4 hover:decoration-2"
-                          >
-                            Edit
-                          </button>
-                        ) : confirming ? (
-                          <>
-                            <span key="question" className="py-2 text-sm text-ink" role="status">
-                              Delete this entry?
-                            </span>
-                            <button
-                              key="cancel"
-                              ref={cancelButton}
-                              type="button"
-                              onClick={() => cancelDelete(entry.id)}
-                              className={quiet}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              key="confirm"
-                              type="button"
-                              onClick={() => confirmRemove(entry.id)}
-                              className="py-2 text-sm font-medium text-[#b42318] underline-offset-4 hover:underline"
-                            >
-                              Delete
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              key="delete"
-                              data-delete
-                              type="button"
-                              onClick={() => setConfirmingId(entry.id)}
-                              aria-label={`Delete ${name}`}
-                              className="py-2 text-sm text-ink-2 transition-colors hover:text-[#b42318]"
-                            >
-                              Delete
-                            </button>
-                            <button
-                              key="done"
-                              type="button"
-                              onClick={() => open(null, entry.id)}
-                              aria-label={`Done editing ${name}`}
-                              className="py-2 text-sm text-ink underline underline-offset-4 hover:decoration-2"
-                            >
-                              Done
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* The fields slide open and closed. */}
-                    <div
-                      className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
-                        entry.id === shownId && isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-                      }`}
-                    >
-                      <div className="-mx-1 min-h-0 overflow-hidden px-1" inert={!isOpen}>
-                        <div className="grid grid-cols-2 gap-x-7 gap-y-6 pb-1 pt-5 @lg:grid-cols-4">
-                          {leftOut && (
-                            <p className="col-span-2 text-[13px] leading-normal text-ink-2 @lg:col-span-4">
-                              Left out of the PDF, and of the copy of the resume inside it. It stays here, in this browser.
-                            </p>
-                          )}
-                          {flagAt(index) && (
-                            <div className="col-span-2 @lg:col-span-4">
-                              <FlagNote finding={flagAt(index)!} />
-                            </div>
-                          )}
-                          {section.fields.map((field) => {
-                            const Input = field.type === "bullets" ? BulletsField : Field
-                            const flag = flagAt(index, field.key)
-                            return (
-                              <Input
-                                key={field.key}
-                                name={field.key}
-                                label={field.label}
-                                placeholder={field.placeholder}
-                                value={entry[field.key] ?? ""}
-                                onChange={(value) => update(entry.id, field.key, value)}
-                                className={FIELD_SPAN[field.size]}
-                                flag={flag}
-                                request={flag ? target!.request : undefined}
-                              />
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      {entries.length > 0 &&
+        (dnd ? (
+          <dnd.DragDropContext onBeforeCapture={() => stopMoving(elements.current)} onDragEnd={onDragEnd}>
+            <dnd.Droppable droppableId="entries">
+              {(drop) => (
+                <div
+                  ref={(element) => {
+                    drop.innerRef(element)
+                    list.current = element
+                  }}
+                  {...drop.droppableProps}
+                  className="flex flex-col"
+                >
+                  {entries.map((entry, index) => (
+                    <dnd.Draggable key={entry.id} draggableId={String(entry.id)} index={index} isDragDisabled={entry.id === confirmingId}>
+                      {(drag, snapshot) => renderEntry(entry, index, drag, snapshot.isDragging)}
+                    </dnd.Draggable>
+                  ))}
+                  {drop.placeholder}
+                </div>
+              )}
+            </dnd.Droppable>
+          </dnd.DragDropContext>
+        ) : (
+          <div
+            ref={(element) => {
+              list.current = element
+            }}
+            className="flex flex-col"
+          >
+            {entries.map((entry, index) => renderEntry(entry, index))}
+          </div>
+        ))}
 
       <p role="status" className="sr-only">
         {announcement}
       </p>
 
       {section.fromPaperLink ? (
-        <PaperFromLink entries={() => latest.current} owner={() => owner.current} onAdd={addEntries}>
+        <PaperFromLink entries={() => latest.current} owner={() => read()?.profileSection?.fullName ?? ""} onAdd={addEntries}>
           {addButtonElement}
         </PaperFromLink>
       ) : (
@@ -472,8 +631,13 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   )
 }
 
+// Re-renders with its own fields and the finding being fixed, not with a new preview.
+export default memo(SectionForm)
+
 /** A choice that applies to the whole section, like how project links are printed. */
-function SectionChoice({ choice, value, onChange }: { choice: ChoiceDef; value: unknown; onChange: (value: string) => void }) {
+function SectionChoice({ choice }: { choice: ChoiceDef<ChoiceKey> }) {
+  const { update } = useOpenResume()
+  const value = useResumeField(choice.key)
   const selected = choice.options.find((option) => option.value === value) ?? choice.options[0]
   return (
     <div className="-mt-3 flex flex-col gap-3">
@@ -494,7 +658,7 @@ function SectionChoice({ choice, value, onChange }: { choice: ChoiceDef; value: 
                 name={choice.key}
                 value={option.value}
                 checked={option === selected}
-                onChange={() => onChange(option.value)}
+                onChange={() => update(choice.key, option.value)}
                 className="sr-only"
               />
               {option.label}

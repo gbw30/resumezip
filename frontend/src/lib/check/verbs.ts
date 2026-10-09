@@ -2,7 +2,8 @@
 // rules can ask for action verbs, varied ones, and the past tense for what
 // has ended. The verbs are listed in settings.ts.
 
-import { ACTION_VERBS, NOT_ACTION_VERBS, VERB_SYNONYMS } from "./settings"
+import { ACTION_VERBS, BULLET_INTRO_ADVERBS, NOT_ACTION_VERBS, VERB_SYNONYMS } from "./settings"
+import { firstWord, opening } from "./text"
 
 /** A verb at the start of a bullet. */
 export interface Verb {
@@ -47,7 +48,7 @@ const NOT_VERBS = new Set(NOT_ACTION_VERBS)
 
 /**
  * The verb a word is, if it is one: a listed verb in any form, or any word
- * ending in "-ed" or "-ing", except ones that describe a person
+ * ending in "-ed", or a listed verb with "-ing", except ones that describe a person
  * ("Experienced"). British spellings ("optimise") count, and in "Co-founded"
  * the verb is after the hyphen.
  */
@@ -60,8 +61,37 @@ export function verbOf(word: string): Verb | null {
   const listed = known(lower) ?? known(american)
   if (listed) return listed
   if (lower.length >= 5 && lower.endsWith("ed")) return { base: lower, tense: "past", thirdPerson: false }
-  if (lower.length >= 5 && lower.endsWith("ing")) return { base: lower, tense: "ing", thirdPerson: false }
+  if (lower.length >= 5 && lower.endsWith("ing")) {
+    const stem = american.slice(0, -3)
+    const candidates = [stem, `${stem}e`, stem.replace(/([^aeiou])\1$/, "$1")]
+    const base = candidates.find((candidate) => PAST_OF.has(candidate))
+    if (base) return { base, past: PAST_OF.get(base), tense: "ing", thirdPerson: false }
+  }
   return null
+}
+
+/** A likely opening action, allowing a short introductory adverb. Null means uncertain, not ungrammatical. */
+export function verbAtStart(text: string): { word: string; verb: Verb } | null {
+  let start = opening(text)
+  let word = firstWord(start)
+  if (BULLET_INTRO_ADVERBS.includes(word.toLowerCase())) {
+    start = opening(start.slice(word.length))
+    word = firstWord(start)
+  }
+  const verb = verbOf(word)
+  if (!verb) return null
+  // "Research findings informed policy" and "Support tickets fell": the
+  // first word names the subject of a clause, rather than an action by its writer.
+  const following = start.slice(word.length).trim().split(/\s+/).slice(0, 3)
+  if (
+    (verb.tense === "present" || verb.tense === "ing") &&
+    following.length > 1 &&
+    following
+      .slice(1)
+      .some((part) => verbOf(firstWord(part))?.tense === "past" || /^(?:was|were|is|are|fell|rose)$/.test(part.toLowerCase()))
+  )
+    return null
+  return { word, verb }
 }
 
 const capital = (word: string) => word[0].toUpperCase() + word.slice(1)

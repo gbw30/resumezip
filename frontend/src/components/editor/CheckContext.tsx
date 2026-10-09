@@ -2,15 +2,16 @@
 
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
-import { useResumeContext, type Resume } from "@/context/ResumeContext"
-import type { Finding, GrammarLint, GrammarReading, PdfReading } from "@/lib/check/engine"
+import type { Resume } from "@/lib/resume"
+import type { Finding, GrammarLint, GrammarReading, PdfReading, Report } from "@/lib/check/engine"
 import { hasEnoughToCheck } from "@/lib/check/labels"
-import { placeExists, samePlaceSource, type Place } from "@/lib/check/places"
+import type { Place } from "@/lib/check/places"
 import { pdfLayoutOf, type PdfSectionLayout } from "@/lib/check/extraPdf"
 import { viewOf } from "@/lib/check/resume"
 import { grammarTexts } from "@/lib/check/spelling"
+import { printedOf } from "@/lib/typst/compile"
 import type { ActiveSection } from "./SectionNav"
-import { useResumeCheck } from "./useResumeCheck"
+import { usePausedResume, useResumeCheck } from "./useResumeCheck"
 
 /** What the left bar shows: the sections to write in, or what the checker found. */
 export type Mode = "write" | "check"
@@ -44,25 +45,13 @@ export interface Target {
   request: number
 }
 
-type CheckValue = ReturnType<typeof useResumeCheck> & {
+/** What the checker found, and where it stands. It changes as the resume is checked again, once typing pauses. */
+interface CheckValue {
+  report: Report
+  /** The resume as last checked, which `report` is of. */
+  checked: Resume
   /** What the left bar shows. */
   mode: Mode
-  /** Switches the left bar, and remembers it in this browser. */
-  chooseMode: (mode: Mode) => void
-  /**
-   * The finding being fixed, which the forms show on its field. Null once
-   * it's fixed or dismissed, and in Write mode, where it would only be noise.
-   */
-  target: Target | null
-  /** Opens a finding's section, and asks its form to point at the field. */
-  open: (finding: Finding) => void
-  /** Whether a request hasn't been taken yet. */
-  pending: (request: number) => boolean
-  /**
-   * True the first time a form takes a request, so the form that opens the
-   * field does it once, and not again when it's shown later.
-   */
-  claim: (request: number) => boolean
   /**
    * Where the PDF rules stand: "reading" the current preview, "read",
    * "unreadable", or "unbuilt" when the preview itself couldn't be made.
@@ -75,15 +64,36 @@ type CheckValue = ReturnType<typeof useResumeCheck> & {
   grammar: "checking" | "ready" | "failed"
 }
 
+/** What changes the checker's state. Each keeps the same identity for as long as the resume is open. */
+type CheckActions = ReturnType<typeof useResumeCheck>["actions"] & {
+  /** Switches the left bar, and remembers it in this browser. */
+  chooseMode: (mode: Mode) => void
+  /** Opens a finding's section, and asks its form to point at the field. */
+  open: (finding: Finding) => void
+  /** Whether a request hasn't been taken yet. */
+  pending: (request: number) => boolean
+  /**
+   * True the first time a form takes a request, so the form that opens the
+   * field does it once, and not again when it's shown later.
+   */
+  claim: (request: number) => boolean
+}
+
 /** The preview on screen: its PDF, and what it prints (`printedOf` as JSON). */
 export interface Preview {
   url: string
   printed: string
-  /** Original editor addresses for this preview, including omitted bullet offsets. */
+  /** The resume it was made from, with what's left out of it: where each printed line is in the editor. */
   checkerResume?: Resume
 }
 
+// Three contexts, so each part of the editor re-renders only with what it
+// shows: the left bar with each new report, the forms only with the finding
+// being fixed, and what just acts on the checker, never.
 const CheckContext = createContext<CheckValue | null>(null)
+const CheckActionsContext = createContext<CheckActions | null>(null)
+// Null while no finding is being fixed, so undefined is outside a CheckProvider.
+const CheckTargetContext = createContext<Target | null | undefined>(undefined)
 
 /** The form section a place is in; none for the PDF's pages. */
 export function sectionOf(place: Place): ActiveSection | null {
@@ -118,32 +128,39 @@ const READINGS_KEPT = 4
 // Each is checked once; one that's typed back, as with undo, isn't again.
 const GRAMMAR_TEXTS_KEPT = 2000
 
+// How long changes pause before the resume is checked again, in milliseconds.
+// Checking takes milliseconds on a laptop and tens of them on a phone: too
+// long for every key, so what's found trails typing by a pause.
+const CHECK_DELAY_MS = 300
+
 interface CheckProviderProps {
   /** Shows a section in the form, as choosing it in the section list does. */
   onSelect: (section: ActiveSection) => void
   preview: Preview | null
-  /** What the resume prints now; a preview of anything else is out of date. */
-  printed: string
   /** What the resume printed when its preview last failed to build. */
   unbuilt: string | null
-  /** The resume being opened, as saved: one with nothing to check yet opens in Write. */
-  opened: Resume
   children: React.ReactNode
 }
 
 /**
- * Checks the open resume for the editor: the left bar lists what's found, and
- * the forms point at the finding the person chose to fix. Once Check has been
- * opened, each new preview is read for the PDF rules, while the page is idle;
- * they wait while the preview is behind what's been typed. Text that's new
- * since it was last checked goes to the grammar checker then too.
+ * Checks the open resume for the editor, once typing pauses: the left bar
+ * lists what's found, and the forms point at the finding the person chose to
+ * fix. Once Check has been opened, each new preview is read for the PDF
+ * rules, while the page is idle; they wait while the preview is behind the
+ * resume being checked. Text that's new since it was last checked goes to the
+ * grammar checker then too.
  */
-export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, children }: CheckProviderProps) {
-  const { formData } = useResumeContext()
-  const latestResume = useRef(formData)
-  latestResume.current = formData
-  const layoutJSON = useMemo(() => preview?.checkerResume ? JSON.stringify(pdfLayoutOf(viewOf(preview.checkerResume))) : undefined, [preview?.checkerResume])
-  const layout = useMemo<PdfSectionLayout[] | undefined>(() => layoutJSON === undefined ? undefined : JSON.parse(layoutJSON), [layoutJSON])
+export function CheckProvider({ onSelect, preview, unbuilt, children }: CheckProviderProps) {
+  const resume = usePausedResume(CHECK_DELAY_MS)
+  // What the resume being checked prints; a preview of anything else is out of date.
+  const printed = useMemo(() => JSON.stringify(printedOf(resume)), [resume])
+  // The resume the preview was made from, to find each section's text in the
+  // PDF by. A change that doesn't print, as to a left-out bullet, can still
+  // move that text in the editor, so while the resume being checked prints the
+  // same as the preview, it's that one.
+  const pdfResume = preview && preview.printed === printed ? resume : preview?.checkerResume
+  const layoutJSON = useMemo(() => (pdfResume ? JSON.stringify(pdfLayoutOf(viewOf(pdfResume))) : undefined), [pdfResume])
+  const layout = useMemo<PdfSectionLayout[] | undefined>(() => (layoutJSON === undefined ? undefined : JSON.parse(layoutJSON)), [layoutJSON])
   const previewUrl = preview?.url
   const previewPrinted = preview?.printed
   // Private omitted-line edits can keep the PDF identical while moving an
@@ -151,7 +168,7 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, chi
   const readingKey = previewPrinted ? `${previewPrinted}\n${layoutJSON}` : ""
   // A resume with nothing to check yet opens in Write, so its sections aren't
   // hidden behind a request to fill them in.
-  const [mode, setMode] = useState<Mode>(() => (hasEnoughToCheck(viewOf(opened)) ? savedMode() : "write"))
+  const [mode, setMode] = useState<Mode>(() => (hasEnoughToCheck(viewOf(resume)) ? savedMode() : "write"))
   const chooseMode = useCallback((next: Mode) => {
     setMode(next)
     saveMode(next)
@@ -202,12 +219,8 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, chi
   const grammarFound = useRef(new Map<string, readonly GrammarLint[]>())
   const grammarChecking = useRef(new Set<string>())
   const current = read?.printed === printed && read.key === readingKey ? read : null
-  const latestPages = useRef(0)
-  latestPages.current = current?.pdf?.pages.length ?? 0
   const pdf: CheckValue["pdf"] = current ? (current.pdf ? "read" : "unreadable") : unbuilt === printed ? "unbuilt" : "reading"
-  const check = useResumeCheck(current?.pdf ?? undefined, grammarRead)
-  const latestReport = useRef(check.report)
-  latestReport.current = check.report
+  const check = useResumeCheck(resume, current?.pdf ?? undefined, grammarRead)
   // The text the grammar checker reads, from the resume as last checked, so
   // working it out never holds up typing.
   const texts = useMemo(() => (watching ? grammarTexts(check.report.view).map(({ text }) => text) : []), [watching, check.report.view])
@@ -255,14 +268,10 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, chi
   const grammar: CheckValue["grammar"] = !unchecked ? "ready" : grammarFailed ? "failed" : "checking"
   const [chosen, setChosen] = useState<Target | null>(null)
   const claimed = useRef(0)
-  const activeTarget = useRef<Target | null>(null)
   const select = useRef(onSelect)
   select.current = onSelect
 
   const open = useCallback((finding: Finding) => {
-    const now = viewOf(latestResume.current)
-    if (!latestReport.current.findings.includes(finding) && !latestReport.current.dismissed.includes(finding)) return
-    if (!placeExists(now, finding.place, latestPages.current) || !samePlaceSource(latestReport.current.view, now, finding.place)) return
     const section = sectionOf(finding.place)
     if (section) select.current(section)
     setChosen((current) => ({ finding, request: (current?.request ?? 0) + 1 }))
@@ -271,8 +280,6 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, chi
   const pending = useCallback((request: number) => request > claimed.current, [])
   const claim = useCallback((request: number) => {
     if (request <= claimed.current) return false
-    const target = activeTarget.current
-    if (!target || target.request !== request || !samePlaceSource(latestReport.current.view, viewOf(latestResume.current), target.finding.place)) return false
     claimed.current = request
     return true
   }, [])
@@ -281,26 +288,45 @@ export function CheckProvider({ onSelect, preview, printed, unbuilt, opened, chi
   // changes while it's being fixed: one rule can find more than one thing at
   // a place, as two typos in a bullet.
   const live = chosen
-    ? (check.report.findings.find((finding) => finding.key === chosen.finding.key) ?? check.report.findings.find((finding) => sameIssue(finding, chosen.finding)))
+    ? (check.report.findings.find((finding) => finding.key === chosen.finding.key) ??
+      check.report.findings.find((finding) => sameIssue(finding, chosen.finding)))
     : undefined
   const target = useMemo(
-    () => {
-      if (!chosen || !live || mode !== "check") return null
-      const now = viewOf(formData)
-      return placeExists(now, live.place, current?.pdf?.pages.length) && samePlaceSource(check.report.view, now, live.place) ? { finding: live, request: chosen.request } : null
-    },
-    [chosen, live, mode, formData, current?.pdf?.pages.length, check.report.view],
+    () => (chosen && live && mode === "check" ? { finding: live, request: chosen.request } : null),
+    [chosen, live, mode],
   )
-  activeTarget.current = target
-  const value = useMemo(
-    () => ({ ...check, mode, chooseMode, target, open, pending, claim, pdf, grammar }),
-    [check, mode, chooseMode, target, open, pending, claim, pdf, grammar],
+  const { report, checked } = check
+  const value = useMemo(() => ({ report, checked, mode, pdf, grammar }), [report, checked, mode, pdf, grammar])
+  const actions = useMemo(() => ({ ...check.actions, chooseMode, open, pending, claim }), [check.actions, chooseMode, open, pending, claim])
+  return (
+    <CheckActionsContext.Provider value={actions}>
+      <CheckContext.Provider value={value}>
+        <CheckTargetContext.Provider value={target}>{children}</CheckTargetContext.Provider>
+      </CheckContext.Provider>
+    </CheckActionsContext.Provider>
   )
-  return <CheckContext.Provider value={value}>{children}</CheckContext.Provider>
 }
 
+/** What the checker found, and where it stands. A component using this re-renders each time the resume is checked. */
 export function useCheck(): CheckValue {
   const check = useContext(CheckContext)
   if (!check) throw new Error("useCheck must be used inside CheckProvider")
   return check
+}
+
+/** What changes the checker's state. A component using just this doesn't re-render when the resume is checked again. */
+export function useCheckActions(): CheckActions {
+  const actions = useContext(CheckActionsContext)
+  if (!actions) throw new Error("useCheckActions must be used inside CheckProvider")
+  return actions
+}
+
+/**
+ * The finding being fixed, which the forms show on its field. Null once it's
+ * fixed or dismissed, and in Write mode, where it would only be noise.
+ */
+export function useCheckTarget(): Target | null {
+  const target = useContext(CheckTargetContext)
+  if (target === undefined) throw new Error("useCheckTarget must be used inside CheckProvider")
+  return target
 }

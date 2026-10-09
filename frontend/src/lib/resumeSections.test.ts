@@ -5,15 +5,17 @@ import { printedResume, hasLeftOut } from "./leftOut"
 import { AttachmentError, fromAttachment, MAX_ENTRIES, toAttachment, TooLongError } from "./resumeFile"
 import { changedPaths, keyOf, readKeptAside, readResume, readSaved } from "./resumeStorage"
 import { createResumeStore } from "./resumeStore"
-import { extraHasBody, readExtraSections, resolveSections } from "./resumeSections"
+import type { Resume } from "./resume"
+import { extraHasBody, readExtraSections, resolveSections, type Certification, type ExtraSection, type ExtraSections } from "./resumeSections"
+import { asSaved } from "./testResume"
 
 const a = "11111111-1111-4111-8111-111111111111"
 const b = "22222222-2222-4222-8222-222222222222"
 const c = "33333333-3333-4333-8333-333333333333"
-const summary = { kind: "summary", heading: "Summary", text: "Hello" }
-const text = { kind: "text", heading: "Other", text: "First paragraph.\n\n○ Literal prose." }
-const cert = { id: c, name: "Engineer", issuer: "Institute", issued: "2020", expires: "", credentialId: "123", link: "https://example.com" }
-const resume = { id: "r", resumeTitle: "Example", profileSection: { fullName: "Ada" }, extraSections: { summary, [a]: text, [b]: { kind: "list", heading: "Other", bullets: "• Public\n○ SECRET\n• Last" }, certifications: { kind: "certifications", heading: "Certifications", entries: [cert] } }, sectionOrder: ["Work", `extra:${b}`, "extra:summary", `extra:${a}`, "extra:certifications"] }
+const summary = { kind: "summary", heading: "Summary", text: "Hello" } as const satisfies ExtraSection
+const text = { kind: "text", heading: "Other", text: "First paragraph.\n\n○ Literal prose." } as const satisfies ExtraSection
+const cert: Certification = { id: c, name: "Engineer", issuer: "Institute", issued: "2020", expires: "", credentialId: "123", link: "https://example.com" }
+const resume: Resume = { id: "r", resumeTitle: "Example", profileSection: { fullName: "Ada" }, extraSections: { summary, [a]: text, [b]: { kind: "list", heading: "Other", bullets: "• Public\n○ SECRET\n• Last" }, certifications: { kind: "certifications", heading: "Certifications", entries: [cert] } }, sectionOrder: ["Work", `extra:${b}`, "extra:summary", `extra:${a}`, "extra:certifications"] }
 const envelope = (content: unknown, version = 2) => JSON.stringify({ format: "resumezip", version, resume: content })
 const tabs = (content: Record<string, unknown> = resume) => {
   const storage = memoryStorage({ [keyOf("r")]: JSON.stringify(content) })
@@ -22,6 +24,13 @@ const tabs = (content: Record<string, unknown> = resume) => {
   return { storage, first, second, saved: () => readResume(storage.getItem(keyOf("r"))!).resume! }
 }
 afterEach(() => vi.useRealTimers())
+
+// A section by its key, as the kind the test expects it to be.
+function extra<Kind extends ExtraSection["kind"]>(resume: { extraSections?: ExtraSections } | null | undefined, key: string, kind: Kind) {
+  const section = resume?.extraSections?.[key]
+  if (section?.kind !== kind) throw new Error(`expected a ${kind} section at ${key}`)
+  return section as ExtraSection & { kind: Kind }
+}
 
 describe("section identity and validation", () => {
   test("resolves a view without mutating saved order or creating optional sections", () => {
@@ -61,7 +70,7 @@ describe("atomic section actions and cross-tab merging", () => {
     const id = first.addCredential("r")!
     first.editCredential("r", id, { name: "Registered", issued: "next year" })
     first.includeCredential("r", id, false)
-    expect(first.getState().resumes.r.extraSections.certifications.entries[0]).toMatchObject({ id, name: "Registered", issued: "next year", leftOut: true })
+    expect(extra(first.getState().resumes.r, "certifications", "certifications").entries[0]).toMatchObject({ id, name: "Registered", issued: "next year", leftOut: true })
     first.deleteCredential("r", id)
     first.deleteSection("r", "summary")
     expect(first.getState().resumes.r.extraSections).not.toHaveProperty("summary")
@@ -73,7 +82,7 @@ describe("atomic section actions and cross-tab merging", () => {
     const before = first.getState().resumes.r.extraSections
     first.editSection("r", a, { heading: "Renamed" })
     const after = first.getState().resumes.r.extraSections
-    expect(after.summary).toBe(before.summary)
+    expect(after?.summary).toBe(before?.summary)
     expect(changedPaths("extraSections", before, after)).toEqual([`extraSections.${a}`])
     first.flush()
   })
@@ -81,11 +90,11 @@ describe("atomic section actions and cross-tab merging", () => {
     const { first, second, saved } = tabs()
     first.editSection("r", a, { text: "A" }); second.editSection("r", b, { bullets: "• B" })
     first.flush(); second.flush()
-    expect(saved().extraSections[a].text).toBe("A")
-    expect(saved().extraSections[b].bullets).toBe("• B")
+    expect(extra(saved(), a, "text").text).toBe("A")
+    expect(extra(saved(), b, "list").bullets).toBe("• B")
     first.editSection("r", a, { text: "First" }); second.editSection("r", a, { text: "Second" })
     first.flush(); second.flush()
-    expect(saved().extraSections[a].text).toBe("Second")
+    expect(extra(saved(), a, "text").text).toBe("Second")
   })
   test("concurrent additions survive last-save ordering", () => {
     const { first, second, saved } = tabs({ id: "r" })
@@ -103,7 +112,7 @@ describe("atomic section actions and cross-tab merging", () => {
     const other = tabs()
     other.second.editSection("r", a, { text: "pending" })
     other.first.deleteSection("r", a); other.first.flush(); other.second.flush()
-    expect(other.saved().extraSections[a].text).toBe("pending")
+    expect(extra(other.saved(), a, "text").text).toBe("pending")
   })
   test("every replacement clears extensions absent from the new file", () => {
     const { first } = tabs()
@@ -111,34 +120,36 @@ describe("atomic section actions and cross-tab merging", () => {
     expect(first.getState().resumes.r.extraSections).toEqual({})
     first.replace("r", resume)
     first.replace("r", fromAttachment(envelope({ extraSections: { summary } }))!)
-    expect(Object.keys(first.getState().resumes.r.extraSections)).toEqual(["summary"])
+    expect(Object.keys(first.getState().resumes.r?.extraSections ?? {})).toEqual(["summary"])
   })
 })
 
 describe("public v1/v2 save files and local recovery", () => {
   test("keeps public identities/order including empty instances and private text stays local", () => {
-    const attachment = toAttachment({ ...resume, resumeTag: "SECRET", checker: { token: "SECRET" } })
+    // With a field the editor doesn't save, which mustn't reach the file either.
+    const attachment = toAttachment(asSaved({ ...resume, resumeTag: "SECRET", checker: { token: "SECRET" } }))
     expect(JSON.parse(attachment).version).toBe(2)
     expect(attachment).not.toContain("SECRET")
     expect(attachment).not.toContain("leftOut")
-    expect(fromAttachment(attachment)?.extraSections[a]).toEqual(text)
-    expect(fromAttachment(attachment)?.extraSections.certifications.entries[0].id).toBe(c)
+    expect(fromAttachment(attachment)?.extraSections?.[a]).toEqual(text)
+    expect(extra(fromAttachment(attachment), "certifications", "certifications").entries[0].id).toBe(c)
     const empty = toAttachment({ extraSections: { summary: { ...summary, text: "" } } })
     expect(JSON.parse(empty).version).toBe(2)
-    expect(fromAttachment(empty)?.extraSections.summary.text).toBe("")
+    expect(extra(fromAttachment(empty), "summary", "summary").text).toBe("")
   })
   test("whole omissions and credential omissions are removed before version selection", () => {
-    const input = { extraSections: { summary: { ...summary, leftOut: true }, certifications: { kind: "certifications", heading: "Certifications", entries: [{ ...cert, name: "SECRET", leftOut: true }] } } }
+    const certifications: ExtraSection = { kind: "certifications", heading: "Certifications", entries: [{ ...cert, name: "SECRET", leftOut: true }] }
+    const input: Resume = { extraSections: { summary: { ...summary, leftOut: true }, certifications } }
     expect(hasLeftOut(input)).toBe(true)
     expect(toAttachment(input)).not.toContain("SECRET")
     expect(JSON.parse(toAttachment(input)).version).toBe(2)
-    input.extraSections.certifications = { ...input.extraSections.certifications, leftOut: true } as typeof input.extraSections.certifications
+    input.extraSections = { ...input.extraSections, certifications: { ...certifications, leftOut: true } }
     expect(JSON.parse(toAttachment(input)).version).toBe(1)
     expect(printedResume(input).extraSections).toEqual({})
   })
   test("duplicate valid refs canonicalize, dangling refs and future/damaged attachments error", () => {
     const content = fromAttachment(envelope({ extraSections: { summary }, sectionOrder: ["extra:summary", "extra:summary", "Work"] }))!
-    expect(content.sectionOrder.slice(0, 2)).toEqual(["extra:summary", "Work"])
+    expect(content.sectionOrder?.slice(0, 2)).toEqual(["extra:summary", "Work"])
     for (const file of [envelope({}, 3), envelope({ extraSections: { summary: { ...summary, text: 4 } } }), envelope({ extraSections: {}, sectionOrder: [`extra:${a}`] }), '{"format":"resumezip","version":2,']) expect(() => fromAttachment(file)).toThrow(AttachmentError)
   })
   test("structural limit includes instances and credentials", () => {
@@ -149,7 +160,7 @@ describe("public v1/v2 save files and local recovery", () => {
     const raw = JSON.stringify({ ...resume, extraSections: { [a]: text, summary: { kind: "summary", text: 4 } }, future: "kept" })
     const storage = memoryStorage({ [keyOf("r")]: raw })
     const saved = readSaved(storage, "r")
-    expect(saved.resume?.future).toBe("kept")
+    expect(saved.resume).toHaveProperty("future", "kept")
     expect(saved.resume?.extraSections).toEqual({ [a]: text })
     expect(readKeptAside(storage)).toEqual([raw])
     const blocked = memoryStorage({ [keyOf("r")]: raw })

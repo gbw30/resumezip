@@ -103,7 +103,12 @@ test("a long resume's PDF opens again with nothing cut off", async ({ page, brow
     { key: "resume:long-cv", value: JSON.stringify(resume) },
   )
   await page.goto("/create/new/long-cv")
-  await expect(page.getByRole("region", { name: "Live preview" }).getByText(/Ada Lovelace/i).first()).toBeVisible()
+  await expect(
+    page
+      .getByRole("region", { name: "Live preview" })
+      .getByText(/Ada Lovelace/i)
+      .first(),
+  ).toBeVisible()
 
   const downloading = page.waitForEvent("download")
   await page.getByRole("button", { name: "Download PDF" }).click()
@@ -117,7 +122,12 @@ test("a long resume's PDF opens again with nothing cut off", async ({ page, brow
   await other.goto("/create/dashboard")
   await other.locator('input[type="file"]').setInputFiles(pdf)
   await expect(other).toHaveURL(/\/create\/new\/long-cv$/)
-  await expect(other.getByRole("region", { name: "Live preview" }).getByText(/Ada Lovelace/i).first()).toBeVisible()
+  await expect(
+    other
+      .getByRole("region", { name: "Live preview" })
+      .getByText(/Ada Lovelace/i)
+      .first(),
+  ).toBeVisible()
   const restored = await other.evaluate(() => JSON.parse(localStorage.getItem("resume:long-cv") ?? "{}"))
   expect(restored.publicationsSection.map((entry: { publicationTitle: string }) => entry.publicationTitle)).toEqual(titles)
   expect(restored.workExperienceSection[0].workDescription).toBe(description)

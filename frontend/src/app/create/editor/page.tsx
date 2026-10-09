@@ -1,10 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useParams } from "next/navigation"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { usePathname } from "next/navigation"
 import { ArrowLeft, Check, Download, Eye, Loader2, PencilLine } from "lucide-react"
-import { useResumeContext } from "@/context/ResumeContext"
+import { OpenResumeProvider, useOpenResume, useResumeActions, useResumeField, useResumeState } from "@/context/ResumeContext"
 import { CheckProvider } from "@/components/editor/CheckContext"
 import LeftBar from "@/components/editor/LeftBar"
 import PdfPreview from "@/components/editor/PdfPreview"
@@ -18,10 +18,13 @@ import { useKeepFormPlace } from "@/components/editor/useKeepFormPlace"
 import DownloadFailed, { nextFailure, type Failure } from "@/components/site/DownloadFailed"
 import NotSaved from "@/components/site/NotSaved"
 import { SECTIONS, type SectionName } from "@/components/editor/sections"
-import { extraKey, resolveSections } from "@/lib/resumeSections"
+import type { Resume } from "@/lib/resume"
+import { extraKey, resolveSections, type ExtraKind, type SectionRef } from "@/lib/resumeSections"
+import { resumeOf } from "@/lib/resumeStore"
 import { uniqueTitle } from "@/lib/resumeTitles"
 import { compilePreview, downloadResume, loadCompiler, printedOf, Superseded } from "@/lib/typst/compile"
 import { templateIdOf } from "@/lib/typst/resumeData"
+import type { TemplateId } from "@/lib/templates"
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
@@ -36,17 +39,56 @@ const PDF_KEPT_MS = 10_000
 const SAVED_MS = 1500
 const DOWNLOADED_MS = 2000
 
+const EDITOR_ADDRESS = "/create/new/"
+
+/**
+ * The resume id in an editor address: all of the path after /create/new/, as
+ * an id can have a "/" in it, without the browser's escapes (a space is %20).
+ */
+function idFromAddress(pathname: string): string {
+  const escaped = pathname.startsWith(EDITOR_ADDRESS) ? pathname.slice(EDITOR_ADDRESS.length) : ""
+  try {
+    return decodeURIComponent(escaped)
+  } catch {
+    // A "%" that doesn't start an escape is part of the id.
+    return escaped
+  }
+}
+
 export default function EditorPage() {
-  const { id } = useParams<{ id: string }>()
-  const { setCurrentResumeId, formData, updateFormData, loaded, resumes, saveStatus, savedAt, addSection, deleteSection, reorderSections } = useResumeContext()
-  const latestResume = useRef(formData)
-  latestResume.current = formData
+  // next.config.js serves this one prebuilt page at every resume's address,
+  // /create/new/<id>, so the id comes from the address.
+  const id = idFromAddress(usePathname())
+  // Going back or forward from one resume straight to another stays on this
+  // page; keyed by resume, the editor starts afresh rather than keeping the
+  // last one's open section, preview and messages.
+  return (
+    <OpenResumeProvider id={id}>
+      <Editor key={id} id={id} />
+    </OpenResumeProvider>
+  )
+}
+
+// The editor reads the resume a field at a time (useResumeField), and the
+// preview follows it in the store, so typing re-renders only the form being
+// typed in, not the editor around it.
+function Editor({ id }: { id: string }) {
+  const { getState, subscribe, addSection, deleteSection, reorderSections } = useResumeActions()
+  const { read, update } = useOpenResume()
+  const loaded = useResumeState((state) => state.loaded)
+  // Whether this browser has the resume, once storage has loaded.
+  const found = useResumeState((state) => state.loaded && resumeOf(state, id) !== undefined)
+  const selectedTemplate = useResumeField("selectedTemplate")
+  const savedOrder = useResumeField("sectionOrder")
+  const headings = useResumeField("headings")
+  const extraSections = useResumeField("extraSections")
   const [active, setActive] = useState<ActiveSection>("Profile")
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   // What the preview on screen prints, for the checker to know when it's
   // current, and what the resume printed when a preview last failed to build.
   const [pdfPrinted, setPdfPrinted] = useState("")
-  const [pdfResume, setPdfResume] = useState(formData)
+  // The resume the preview on screen was made from, for the checker to read it by.
+  const [pdfResume, setPdfResume] = useState<Resume | undefined>(undefined)
   const [unbuilt, setUnbuilt] = useState<string | null>(null)
   const [compileError, setCompileError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
@@ -54,9 +96,6 @@ export default function EditorPage() {
   const [downloadedAt, setDownloadedAt] = useState(0)
   const downloaded = downloadedAt > 0
   const [failure, setFailure] = useState<Failure | null>(null)
-  // A save since the page opened, for a moment.
-  const [justSaved, setJustSaved] = useState(false)
-  const openedSavedAt = useRef(savedAt)
   // Small screens show the form or the preview, not both.
   const [view, setView] = useState<"edit" | "preview">("edit")
   const [typing, setTyping] = useState(false)
@@ -66,85 +105,88 @@ export default function EditorPage() {
   const headerRef = useRef<HTMLElement>(null)
   const mainRef = useRef<HTMLElement>(null)
 
-  useEffect(() => {
-    if (id) setCurrentResumeId(id)
-  }, [id, setCurrentResumeId])
-
-  // Whether this browser has the resume, once storage has loaded.
-  const found = loaded && Boolean(resumes[id])
-
   // Resizing across the wide-screen width keeps the form where it was scrolled to.
   useKeepFormPlace(mainRef, found)
 
   // The PDF compiler starts loading as soon as the resume is found, with its
   // template's fonts, before the first preview asks for it. A resume that
   // isn't here doesn't need it.
-  const template = templateIdOf(formData.selectedTemplate)
+  const template = templateIdOf(selectedTemplate)
   useEffect(() => {
     if (found) loadCompiler(template)
   }, [found, template])
 
   // The saved order, plus any sections missing from older resumes.
-  const sections = useMemo(() => resolveSections(formData), [formData])
+  const sections = useMemo(() => resolveSections({ sectionOrder: savedOrder, extraSections }), [savedOrder, extraSections])
   const selected = active === "Profile" || sections.includes(active) ? active : "Profile"
 
-  // Resumes live in this browser, so the tab title is set here rather than in metadata.
-  const tabTitle = formData.resumeTitle?.trim() || "Untitled resume"
-  useEffect(() => {
-    if (formData.id) document.title = `${tabTitle} · resumezip`
-  }, [formData.id, tabTitle])
-
-  // What the preview shows. Changes that don't print, such as renaming the
-  // resume, leave it as it was, so they don't recompile.
-  const printed = useMemo(() => JSON.stringify(printedOf({ ...formData, sectionOrder: sections })), [formData, sections])
-  const preview = useMemo(() => (pdfUrl ? { url: pdfUrl, printed: pdfPrinted, checkerResume: printed === pdfPrinted ? formData : pdfResume } : null), [pdfUrl, pdfPrinted, printed, formData, pdfResume])
+  const preview = useMemo(
+    () => (pdfUrl ? { url: pdfUrl, printed: pdfPrinted, checkerResume: pdfResume } : null),
+    [pdfUrl, pdfPrinted, pdfResume],
+  )
   // The preview on screen is in another template than the one picked, until the new one is built.
   const shownTemplate = useMemo(() => (pdfPrinted ? JSON.parse(pdfPrinted).template : null), [pdfPrinted])
   const switchingTemplate = shownTemplate !== null && shownTemplate !== template
 
   // Re-render the preview in the browser shortly after what it shows changes.
+  // It follows the resume in the store rather than through renders, so only a
+  // new preview re-renders the editor, not each key typed.
   useEffect(() => {
-    if (!formData.id) return
-    // Aborted once this preview is no longer wanted: withdrawn if it's still
-    // waiting to compile, and its result thrown away if it isn't.
-    const wanted = new AbortController()
-    const snapshot = latestResume.current
-    const wait = Math.min(MAX_WAIT_MS, Math.max(MIN_WAIT_MS, compileMs.current))
-    const timer = setTimeout(async () => {
-      const startedAt = performance.now()
-      try {
-        const url = await compilePreview(JSON.parse(printed), wanted.signal)
-        compileMs.current = performance.now() - startedAt
-        if (wanted.signal.aborted) {
-          URL.revokeObjectURL(url)
-          return
+    const build = (printed: string, from: Resume) => {
+      // Aborted once this preview is no longer wanted: withdrawn if it's still
+      // waiting to compile, and its result thrown away if it isn't.
+      const wanted = new AbortController()
+      const wait = Math.min(MAX_WAIT_MS, Math.max(MIN_WAIT_MS, compileMs.current))
+      const timer = setTimeout(async () => {
+        const startedAt = performance.now()
+        try {
+          const url = await compilePreview(JSON.parse(printed), wanted.signal)
+          compileMs.current = performance.now() - startedAt
+          if (wanted.signal.aborted) {
+            URL.revokeObjectURL(url)
+            return
+          }
+          setPdfUrl(url)
+          setPdfPrinted(printed)
+          setPdfResume(from)
+          setCompileError(null)
+          // What failed before can build now, as after a hiccup.
+          setUnbuilt(null)
+        } catch (error) {
+          if (!wanted.signal.aborted && !(error instanceof Superseded)) {
+            setCompileError(error instanceof Error ? error.message : String(error))
+            setUnbuilt(printed)
+          }
         }
-        setPdfUrl(url)
-        setPdfPrinted(printed)
-        setPdfResume(snapshot)
-        setCompileError(null)
-        // What failed before can build now, as after a hiccup.
-        setUnbuilt(null)
-      } catch (error) {
-        if (!wanted.signal.aborted && !(error instanceof Superseded)) {
-          setCompileError(error instanceof Error ? error.message : String(error))
-          setUnbuilt(printed)
-        }
+      }, wait)
+      return () => {
+        wanted.abort()
+        clearTimeout(timer)
       }
-    }, wait)
-    return () => {
-      wanted.abort()
-      clearTimeout(timer)
     }
-  }, [formData.id, printed])
 
-  // Each time a change is saved, "Saved in this browser" stands out for a moment.
-  useEffect(() => {
-    if (!savedAt || savedAt === openedSavedAt.current) return
-    setJustSaved(true)
-    const timer = setTimeout(() => setJustSaved(false), SAVED_MS)
-    return () => clearTimeout(timer)
-  }, [savedAt])
+    let resume: Resume | undefined
+    let printed: string | undefined
+    let cancel: (() => void) | undefined
+    const follow = () => {
+      const next = resumeOf(getState(), id)
+      if (!next || next === resume) return
+      resume = next
+      // What the preview shows. Changes that don't print, such as renaming
+      // the resume, leave it as it was, so they don't recompile.
+      const shows = JSON.stringify(printedOf(next))
+      if (shows === printed) return
+      printed = shows
+      cancel?.()
+      cancel = build(shows, next)
+    }
+    follow()
+    const unsubscribe = subscribe(follow)
+    return () => {
+      unsubscribe()
+      cancel?.()
+    }
+  }, [id, getState, subscribe])
 
   // After a download, the button says so for a moment, counted from the latest one.
   useEffect(() => {
@@ -185,7 +227,7 @@ export default function EditorPage() {
 
   // A new section starts at its top: in the form's pane on wide screens, on the page on small ones
   // (scrolled just far enough that the section tabs stay pinned above it).
-  const select = (section: ActiveSection) => {
+  const select = useCallback((section: ActiveSection) => {
     setActive(section)
     if (window.matchMedia(WIDE_SCREEN).matches) {
       if (mainRef.current) mainRef.current.scrollTop = 0
@@ -193,7 +235,34 @@ export default function EditorPage() {
     }
     const top = headerRef.current?.offsetHeight ?? 0
     if (window.scrollY > top) window.scrollTo({ top })
-  }
+  }, [])
+
+  const reorder = useCallback((order: SectionRef[]) => reorderSections(id, order), [reorderSections, id])
+  const add = useCallback(
+    (kind: ExtraKind) => {
+      const ref = addSection(id, kind)
+      if (!ref) return
+      select(ref)
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-section-ref="${ref}"]`)?.focus({ preventScroll: true }))
+    },
+    [addSection, id, select],
+  )
+  const chooseTemplate = useCallback((template: TemplateId) => update("selectedTemplate", template), [update])
+  // The same element while what it shows is, so the left bar (memo) doesn't re-render with a new preview.
+  const nav = useMemo(
+    () => (
+      <SectionNav
+        sections={sections}
+        headings={headings}
+        extras={extraSections}
+        active={selected}
+        onSelect={select}
+        onReorder={reorder}
+        onAdd={add}
+      />
+    ),
+    [sections, headings, extraSections, selected, select, reorder, add],
+  )
 
   // Coming back to the form returns to where you were in it.
   const show = (next: "edit" | "preview") => {
@@ -203,20 +272,15 @@ export default function EditorPage() {
     requestAnimationFrame(() => window.scrollTo({ top: next === "edit" ? editScroll.current : 0 }))
   }
 
-  // Once a rename is done, number the name if another resume already has it.
-  const commitTitle = () => {
-    const others = Object.entries(resumes as Record<string, any>).filter(([key]) => key !== id)
-    const title = uniqueTitle(formData.resumeTitle ?? "", others.map(([, resume]) => resume?.resumeTitle))
-    if (title !== formData.resumeTitle) updateFormData("resumeTitle", title)
-  }
-
   const download = async () => {
+    const resume = read()
+    if (!resume) return
     // Each try takes back the last one's "Downloaded", so it never shows
     // beside a failure, and a second download in a row is said aloud again.
     setDownloadedAt(0)
     setDownloading(true)
     try {
-      await downloadResume({ ...formData, sectionOrder: sections })
+      await downloadResume({ ...resume, sectionOrder: resolveSections(resume) })
       setFailure(null)
       setDownloadedAt(Date.now())
     } catch (error) {
@@ -236,7 +300,7 @@ export default function EditorPage() {
   }
 
   // Resumes only exist in the browser that created them.
-  if (!resumes[id]) {
+  if (!found) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-paper px-5 text-center">
         <span className="label-mono text-ink-2">Not in this browser</span>
@@ -267,35 +331,12 @@ export default function EditorPage() {
               Your resumes
             </Link>
             <span className="h-5 w-px shrink-0 bg-rule" aria-hidden="true" />
-            <input
-              aria-label="Resume name"
-              value={formData.resumeTitle ?? ""}
-              placeholder="Untitled resume"
-              size={Math.max(14, (formData.resumeTitle ?? "").length + 1)}
-              onChange={(event) => updateFormData("resumeTitle", event.target.value)}
-              onBlur={commitTitle}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur()
-              }}
-              className="min-w-0 max-w-[58vw] border-0 border-b border-transparent bg-transparent py-0.5 font-serif lg:max-w-[40vw] text-[19px] text-ink outline-none transition-colors placeholder:text-ink-2 hover:border-rule-strong focus:border-accent focus-visible:outline-none"
-            />
+            <ResumeName />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             {/* Here rather than after the name, so it stays put while the name is typed. */}
-            {saveStatus === "saved" && (
-              <span
-                className={`label-mono mr-2 hidden shrink-0 items-center gap-1.5 transition-colors duration-300 xl:inline-flex ${
-                  justSaved ? "text-ink" : "text-ink-2"
-                }`}
-              >
-                <Check
-                  className={`h-3 w-3 transition-opacity duration-300 ${justSaved ? "opacity-100" : "opacity-0"}`}
-                  aria-hidden="true"
-                />
-                Saved in this browser
-              </span>
-            )}
-            <TemplatePicker value={formData.selectedTemplate} onChange={(template) => updateFormData("selectedTemplate", template)} />
+            <SavedNote />
+            <TemplatePicker value={selectedTemplate} onChange={chooseTemplate} />
             <button
               type="button"
               onClick={download}
@@ -340,46 +381,45 @@ export default function EditorPage() {
 
       <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
         {/* The left bar and the forms share what the checker found. */}
-        {/* The resume from the address: on the first render the open resume can still be the one before. */}
-        <CheckProvider onSelect={select} preview={preview} printed={printed} unbuilt={unbuilt} opened={resumes[id]}>
-          <LeftBar hidden={view === "preview"}>
-            <SectionNav
-              sections={sections}
-              headings={formData.headings}
-              active={selected}
-              resume={formData}
-              onSelect={select}
-              onReorder={(order) => reorderSections(id, order)}
-              onAdd={(kind) => {
-                const ref = addSection(id, kind)
-                if (!ref) return
-                select(ref)
-                requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-section-ref="${ref}"]`)?.focus({ preventScroll: true }))
-              }}
-            />
-          </LeftBar>
+        <CheckProvider onSelect={select} preview={preview} unbuilt={unbuilt}>
+          <LeftBar hidden={view === "preview"}>{nav}</LeftBar>
 
           <main
             ref={mainRef}
-            className={`min-w-0 flex-1 px-5 pb-28 pt-9 sm:px-10 xl:block xl:overflow-y-auto xl:pb-16 ${
-              view === "preview" ? "hidden" : ""
-            }`}
+            className={`min-w-0 flex-1 px-5 pb-28 pt-9 sm:px-10 xl:block xl:overflow-y-auto xl:pb-16 ${view === "preview" ? "hidden" : ""}`}
           >
-            {/* A container, so the fields fit the form's own width rather than the window's. */}
-            <div className="@container mx-auto max-w-[640px]">
-              {selected === "Profile" ? (
-                <ProfileForm position={position(1)} />
-              ) : extraKey(selected) !== null ? (
-                <ExtraSectionForm key={selected} sectionId={extraKey(selected)!} position={position(sections.indexOf(selected) + 2)} onDelete={() => {
-                  const index = sections.indexOf(selected)
-                  const next: ActiveSection = sections[index - 1] ?? sections[index + 1] ?? "Profile"
-                  deleteSection(id, extraKey(selected)!)
-                  select(next)
-                  requestAnimationFrame(() => (document.querySelector<HTMLElement>(`[data-section-ref="${next}"]`) ?? mainRef.current?.querySelector<HTMLElement>("h1"))?.focus())
-                }} />
-              ) : (
-                <SectionForm key={selected} section={SECTIONS[selected as SectionName]} position={position(sections.indexOf(selected) + 2)} />
-              )}
+            {/* The fields fit the form's own width rather than the window's. Each grid of
+                them is in a container (ProfileForm, SectionForm), not the whole form, so
+                an entry being dragged isn't in one: SectionForm says why. */}
+            <div className="mx-auto max-w-[640px]">
+              {/* Each section fades in as it's chosen: a new key mounts it anew, and
+                  `starting:` (CSS @starting-style) is where its transition starts from. */}
+              <div
+                key={selected}
+                className="transition-[opacity,translate] duration-200 ease-out motion-reduce:transition-none starting:translate-y-1 starting:opacity-0"
+              >
+                {selected === "Profile" ? (
+                  <ProfileForm position={position(1)} />
+                ) : extraKey(selected) !== null ? (
+                  <ExtraSectionForm
+                    sectionId={extraKey(selected)!}
+                    position={position(sections.indexOf(selected) + 2)}
+                    onDelete={() => {
+                      const index = sections.indexOf(selected)
+                      const next: ActiveSection = sections[index - 1] ?? sections[index + 1] ?? "Profile"
+                      deleteSection(id, extraKey(selected)!)
+                      select(next)
+                      requestAnimationFrame(() =>
+                        (
+                          document.querySelector<HTMLElement>(`[data-section-ref="${next}"]`) ?? mainRef.current?.querySelector<HTMLElement>("h1")
+                        )?.focus(),
+                      )
+                    }}
+                  />
+                ) : (
+                  <SectionForm section={SECTIONS[selected as SectionName]} position={position(sections.indexOf(selected) + 2)} />
+                )}
+              </div>
             </div>
           </main>
 
@@ -421,5 +461,74 @@ export default function EditorPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * The resume's name, in the header and the tab's title. A component of its
+ * own, so typing a name doesn't re-render the editor.
+ */
+function ResumeName() {
+  const { getState } = useResumeActions()
+  const { id, update } = useOpenResume()
+  const title = useResumeField("resumeTitle")
+
+  // Resumes live in this browser, so the tab title is set here rather than in metadata.
+  const tabTitle = title?.trim() || "Untitled resume"
+  useEffect(() => {
+    document.title = `${tabTitle} · resumezip`
+  }, [tabTitle])
+
+  // Once a rename is done, number the name if another resume already has it.
+  const commit = () => {
+    const others = Object.entries(getState().resumes).filter(([key]) => key !== id)
+    const unique = uniqueTitle(
+      title ?? "",
+      others.map(([, resume]) => resume?.resumeTitle),
+    )
+    if (unique !== title) update("resumeTitle", unique)
+  }
+
+  return (
+    <input
+      aria-label="Resume name"
+      value={title ?? ""}
+      placeholder="Untitled resume"
+      size={Math.max(14, (title ?? "").length + 1)}
+      onChange={(event) => update("resumeTitle", event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur()
+      }}
+      className="min-w-0 max-w-[58vw] border-0 border-b border-transparent bg-transparent py-0.5 font-serif lg:max-w-[40vw] text-[19px] text-ink outline-none transition-colors placeholder:text-ink-2 hover:border-rule-strong focus:border-accent focus-visible:outline-none"
+    />
+  )
+}
+
+/** "Saved in this browser", which stands out for a moment each time a change is saved. Nothing while saving fails. */
+function SavedNote() {
+  const saveStatus = useResumeState((state) => state.saveStatus)
+  const savedAt = useResumeState((state) => state.savedAt)
+  // A save since the page opened, for a moment.
+  const [justSaved, setJustSaved] = useState(false)
+  const openedSavedAt = useRef(savedAt)
+
+  useEffect(() => {
+    if (!savedAt || savedAt === openedSavedAt.current) return
+    setJustSaved(true)
+    const timer = setTimeout(() => setJustSaved(false), SAVED_MS)
+    return () => clearTimeout(timer)
+  }, [savedAt])
+
+  if (saveStatus !== "saved") return null
+  return (
+    <span
+      className={`label-mono mr-2 hidden shrink-0 items-center gap-1.5 transition-colors duration-300 xl:inline-flex ${
+        justSaved ? "text-ink" : "text-ink-2"
+      }`}
+    >
+      <Check className={`h-3 w-3 transition-opacity duration-300 ${justSaved ? "opacity-100" : "opacity-0"}`} aria-hidden="true" />
+      Saved in this browser
+    </span>
   )
 }

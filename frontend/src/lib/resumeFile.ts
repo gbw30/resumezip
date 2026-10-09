@@ -5,6 +5,7 @@
 
 import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS } from "@/components/editor/sections"
 import { printedResume } from "@/lib/leftOut"
+import type { Entry, Headings, Profile, Resume, ResumeContent } from "@/lib/resume"
 import { templateById } from "@/lib/templates"
 import { extraKey, readExtraSections, resolveSections } from "./resumeSections"
 
@@ -32,16 +33,13 @@ export class TooLongError extends Error {}
 /** A recognized save file must never silently fall back to guessed PDF text. */
 export class AttachmentError extends Error {}
 
-/** A resume in the editor's format, without the name and tag it has in this browser. */
-export type ResumeContent = Record<string, any>
-
 /**
  * The attachment for a resume: what's printed on it and how it's laid out.
  * Not the resume's name or tag, or what the person left out of it, since
  * anyone who gets the PDF can read it. Opening the PDF again brings back
  * what was printed; what was left out stays only in this browser.
  */
-export function toAttachment(resume: Record<string, any>): string {
+export function toAttachment(resume: Resume): string {
   const clean = cleanResume(printedResume(resume))
   const version = Object.keys(clean.extraSections ?? {}).length ? VERSION : 1
   if (version === 1) delete clean.extraSections
@@ -125,17 +123,16 @@ export function cleanResume(input: unknown): ResumeContent {
       SECTION_NAMES.map((name) => SECTIONS[name].headingKey)
         .filter((key) => string(headings[key]).trim() !== "")
         .map((key) => [key, string(headings[key])]),
-    ),
-    profileSection: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, string(profile[field.key])])),
+    ) as Headings,
+    profileSection: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, string(profile[field.key])])) as Profile,
   }
 
   for (const name of SECTION_NAMES) {
     const { dataKey, fields, choice } = SECTIONS[name]
-    if (choice && choice.options.some((option) => option.value === resume[choice.key])) {
-      clean[choice.key] = resume[choice.key]
-    }
+    const chosen = choice && resume[choice.key]
+    if (choice && choice.options.some((option) => option.value === chosen)) clean[choice.key] = chosen as string
     const entries = Array.isArray(resume[dataKey]) ? (resume[dataKey] as unknown[]) : []
-    clean[dataKey] = entries.map((entry, index) => ({
+    clean[dataKey] = entries.map((entry, index): Entry => ({
       id: index + 1,
       ...Object.fromEntries(
         fields.map((field) => [

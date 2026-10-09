@@ -12,7 +12,8 @@ import { paperIdOf } from "./link"
 import { publicationOf } from "./publication"
 
 // Records as Crossref and doi.org sent them (fixtures/, trimmed to the fields that matter).
-const fromCrossref = (body: { message: unknown }, owner = "") => publicationOf(body.message, { doi: (body.message as { DOI: string }).DOI }, owner)
+const fromCrossref = (body: { message: unknown }, owner = "") =>
+  publicationOf(body.message, { doi: (body.message as { DOI: string }).DOI }, owner)
 const fromArxiv = (body: unknown, pasted: string) => publicationOf(body, paperIdOf(pasted)!, "")
 
 describe("a paper's record as the editor's fields", () => {
@@ -99,7 +100,9 @@ describe("authors", () => {
   })
 
   test("past six authors, the list runs to the resume owner's name, then et al.", () => {
-    expect(fromCrossref(numpy, "Ralf Gommers").publicationAuthors).toBe("C. R. Harris, K. J. Millman, S. J. van der Walt, R. Gommers, et al.")
+    expect(fromCrossref(numpy, "Ralf Gommers").publicationAuthors).toBe(
+      "C. R. Harris, K. J. Millman, S. J. van der Walt, R. Gommers, et al.",
+    )
     expect(fromCrossref(numpy, "Charles Harris").publicationAuthors).toBe("C. R. Harris et al.")
     // Not among them: the first author.
     expect(fromCrossref(biorxiv, "Jake Ryan").publicationAuthors).toBe("D. E. Gordon et al.")

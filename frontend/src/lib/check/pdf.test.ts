@@ -4,7 +4,11 @@ import { viewOf } from "./resume"
 import { line, reading } from "./testPdf"
 
 const resumeWith = (bullets: string[]) =>
-  viewOf({ workExperienceSection: [{ id: 1, workRole: "Engineer", companyName: "Google", workDescription: bullets.map((bullet) => `• ${bullet}`).join("\n") }] })
+  viewOf({
+    workExperienceSection: [
+      { id: 1, workRole: "Engineer", companyName: "Google", workDescription: bullets.map((bullet) => `• ${bullet}`).join("\n") },
+    ],
+  })
 
 describe("comparing text from the PDF with what was typed", () => {
   test("keeps letters and digits only, without accents or case", () => {
@@ -24,7 +28,10 @@ describe("finding the lines a bullet is printed on", () => {
       line("opment of a new parser"),
     ])
     expect(printedBullets(resume, pdf).map(({ place, printed }) => [place, printed.lines.map(({ text }) => text)])).toEqual([
-      [{ kind: "entry", section: "Work", entry: 0, field: "workDescription", line: 0 }, ["Built a search index that", "cut query time by 40%"]],
+      [
+        { kind: "entry", section: "Work", entry: 0, field: "workDescription", line: 0 },
+        ["Built a search index that", "cut query time by 40%"],
+      ],
       [{ kind: "entry", section: "Work", entry: 0, field: "workDescription", line: 1 }, ["Led the devel-", "opment of a new parser"]],
     ])
   })

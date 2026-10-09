@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Plus } from "lucide-react"
-import { useResumeContext } from "@/context/ResumeContext"
-import { CERTIFICATION_FIELDS, extraHeading, extrasOf, type Certification, type ExtraSection } from "@/lib/resumeSections"
-import { useCheck } from "./CheckContext"
+import { useOpenResume, useResumeActions, useResumeField } from "@/context/ResumeContext"
+import { CERTIFICATION_FIELDS, extraHeading, type Certification, type ExtraSection } from "@/lib/resumeSections"
+import { useCheckActions, useCheckTarget } from "./CheckContext"
 import { nextAnnouncement } from "./arrange"
 import { BulletsField, Field, FlagNote, MoveButtons, SectionHeading, selectLine } from "./fields"
 import { reducedMotion } from "./layout"
@@ -13,16 +13,18 @@ const LABELS: Record<keyof Omit<Certification, "id" | "leftOut">, string> = { na
 
 /** Optional content uses stable section/credential identities, independently of its displayed title. */
 export default function ExtraSectionForm({ sectionId, position, onDelete }: { sectionId: string; position: string; onDelete: () => void }) {
-  const { formData, editSection, includeSection, addCredential, editCredential, includeCredential, deleteCredential, moveCredential } = useResumeContext()
-  const id = formData.id as string
-  const section: ExtraSection | undefined = extrasOf(formData)[sectionId]
+  const { editSection, includeSection, addCredential, editCredential, includeCredential, deleteCredential, moveCredential } = useResumeActions()
+  const { id } = useOpenResume()
+  const extraSections = useResumeField("extraSections")
+  const section: ExtraSection | undefined = extraSections?.[sectionId]
   const root = useRef<HTMLDivElement>(null)
   const cancel = useRef<HTMLButtonElement>(null)
   const addButton = useRef<HTMLButtonElement>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(() => section?.kind === "certifications" ? section.entries[0]?.id ?? null : null)
   const [announcement, setAnnouncement] = useState("")
-  const { target, pending, claim } = useCheck()
+  const target = useCheckTarget()
+  const { pending, claim } = useCheckActions()
   const place = target?.finding.place
   const here = place && "sectionId" in place && place.sectionId === sectionId ? place : null
   const flagAt = (field: string, entryId?: string) => here && ((here.kind === "extra-text" && here.field === field) || (here.kind === "credential" && here.entryId === entryId && here.field === field)) ? target!.finding : null

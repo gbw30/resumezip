@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState, type RefObject } from "react"
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { ArrowLeftRight, Check, CircleAlert, Copy, Download } from "lucide-react"
-import { SECTIONS, type SectionName } from "@/components/editor/sections"
+import { SECTIONS, type FieldKey, type FieldKeyOf, type SectionName } from "@/components/editor/sections"
 import type { Line, PageSize } from "@/lib/import/lines"
 import type { OpenedFile } from "@/lib/import/open"
 import { entryKey, extraGroupKey, MUCH_UNPLACED, unplacedKey, toResumeContent, unplacedShare, type FoundEntry, type ImportChoices, type ParsedResume } from "@/lib/import/parse"
-import type { ResumeContent } from "@/lib/resumeFile"
+import type { ResumeContent } from "@/lib/resume"
 import Modal from "./Modal"
 
 type ParsedFile = Extract<OpenedFile, { kind: "parsed" }>
@@ -22,10 +22,16 @@ const range = (start?: string, end?: string) => [start, end].filter(Boolean).joi
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`
 
 // How each kind of entry is summed up, and which two fields "Swap" exchanges.
-const SHOWN: Record<
-  SectionName,
-  { primary: string; secondary: string[]; dates: (fields: Record<string, string>) => string; bullets?: string; swap?: [string, string]; swapLabel?: string }
-> = {
+const SHOWN: {
+  [Section in SectionName]: {
+    primary: FieldKeyOf<Section>
+    secondary: FieldKeyOf<Section>[]
+    dates: (fields: FoundEntry["fields"]) => string
+    bullets?: FieldKeyOf<Section>
+    swap?: [FieldKeyOf<Section>, FieldKeyOf<Section>]
+    swapLabel?: string
+  }
+} = {
   Education: {
     primary: "schoolName",
     secondary: ["degree", "gpa", "schoolLocation"],
@@ -57,13 +63,17 @@ const SHOWN: Record<
     swap: ["volunteerRole", "volunteerOrg"],
     swapLabel: "Swap role and organization",
   },
-  Projects: { primary: "projectName", secondary: ["techStack"], dates: (f) => f.projectDate, bullets: "projectDescription" },
-  Publications: { primary: "publicationTitle", secondary: ["publicationAuthors", "publicationVenue", "publicationDetails"], dates: (f) => f.publicationDate },
+  Projects: { primary: "projectName", secondary: ["techStack"], dates: (f) => f.projectDate ?? "", bullets: "projectDescription" },
+  Publications: {
+    primary: "publicationTitle",
+    secondary: ["publicationAuthors", "publicationVenue", "publicationDetails"],
+    dates: (f) => f.publicationDate ?? "",
+  },
   Skills: { primary: "skillName", secondary: ["skillDetails"], dates: () => "" },
-  Awards: { primary: "awardName", secondary: ["awardOrg"], dates: (f) => f.awardDate },
+  Awards: { primary: "awardName", secondary: ["awardOrg"], dates: (f) => f.awardDate ?? "" },
 }
 
-const swapFields = (entry: FoundEntry, [a, b]: [string, string]): FoundEntry => ({
+const swapFields = (entry: FoundEntry, [a, b]: [FieldKey, FieldKey]): FoundEntry => ({
   ...entry,
   fields: { ...entry.fields, [a]: entry.fields[b], [b]: entry.fields[a] },
 })
@@ -88,11 +98,20 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
   const [highlight, setHighlight] = useState<number[]>([])
   const [copied, setCopied] = useState(false)
   const [keepAs, setKeepAs] = useState<NonNullable<ImportChoices["keepAs"]>>({})
+  // Whether it's asking before closing, which loses what was unticked and swapped.
+  const [closing, setClosing] = useState(false)
   const unplacedRef = useRef<HTMLElement>(null)
 
   const parsed = withSwaps(file.parsed, swapped)
   const { profile } = parsed
-  const contact = [profile.location, profile.email, profile.phoneNumber, profile.linkedin, profile.profileGithub, profile.personalWebsite].filter(Boolean)
+  const contact = [
+    profile.location,
+    profile.email,
+    profile.phoneNumber,
+    profile.linkedin,
+    profile.profileGithub,
+    profile.personalWebsite,
+  ].filter(Boolean)
   const leftovers = parsed.unplaced.reduce((sum, group) => sum + group.text.length, 0)
   const foundNothing = !profile.fullName && parsed.sections.length === 0 && !parsed.extraGroups?.length
   const selectedGroups = (kind: "summary" | "certifications") => (parsed.extraGroups ?? []).filter((group) => group.kind === kind && !skipped.has(extraGroupKey(group.id)))
@@ -105,6 +124,18 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
   // front instead of left at the bottom, where it's easy to miss.
   const share = unplacedShare(parsed)
   const muchUnplaced = !foundNothing && share >= MUCH_UNPLACED
+  const entryKeys = parsed.sections.flatMap((section) => section.entries.map((_, index) => entryKey(section.name, index)))
+  // Groups and text kept as sections are something to start from too.
+  const extrasKept = (parsed.extraGroups ?? []).some((group) => !skipped.has(extraGroupKey(group.id))) || Object.keys(keepAs).length > 0
+  // With every entry unticked, only the profile would be left to start from.
+  const nothingTicked = entryKeys.length > 0 && entryKeys.every((key) => skipped.has(key)) && !extrasKept
+
+  // Escape reaches every open dialog, so while the question is up, it's the question's to answer.
+  const close = () => {
+    if (closing) return
+    if (skipped.size > 0 || swapped.size > 0 || Object.keys(keepAs).length > 0) setClosing(true)
+    else onCancel()
+  }
 
   const toggle = (set: Set<string>, key: string) => {
     const next = new Set(set)
@@ -144,8 +175,8 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
-  return (
-    <Modal title="Here's what we found" onClose={onCancel} wide>
+  const review = (
+    <Modal title="Here's what we found" onClose={close} wide>
       <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         {/* Focusable, so the file can be scrolled from the keyboard. */}
         <section
@@ -178,8 +209,8 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                 <div className="min-w-0 text-sm leading-relaxed">
                   <p className="font-medium text-ink">We couldn&apos;t place {share >= 0.5 ? "most" : "a lot"} of this file.</p>
                   <p className="mt-1 text-ink-2">
-                    Its layout may be one we don&apos;t read well yet. Nothing&apos;s lost: it&apos;s all under Couldn&apos;t place, to copy into
-                    the editor.
+                    Its layout may be one we don&apos;t read well yet. Nothing&apos;s lost: it&apos;s all under Couldn&apos;t place, to copy
+                    into the editor.
                   </p>
                   <button type="button" onClick={showUnplaced} className="mt-2 font-medium text-accent underline-offset-2 hover:underline">
                     Show what we couldn&apos;t place
@@ -236,9 +267,14 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                       const key = entryKey(section.name, index)
                       const off = skipped.has(key)
                       const primary = entry.fields[shown.primary]
-                      const secondary = shown.secondary.map((field) => entry.fields[field]).filter(Boolean).join(" · ")
+                      const secondary = shown.secondary
+                        .map((field) => entry.fields[field])
+                        .filter(Boolean)
+                        .join(" · ")
                       const dates = shown.dates(entry.fields)
-                      const bullets = shown.bullets ? entry.fields[shown.bullets].split("\n").filter((line) => line.trim()).length : 0
+                      const bullets = shown.bullets
+                        ? (entry.fields[shown.bullets] ?? "").split("\n").filter((line) => line.trim()).length
+                        : 0
                       return (
                         <li key={key} className="flex items-start gap-3 border-b border-rule py-3" {...point(entry.lines)}>
                           <input
@@ -332,21 +368,53 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
           </div>
 
           {/* Not a <footer>: inside a dialog, that would be a second footer for the whole page. */}
-          <div className="flex items-center justify-end gap-2 border-t border-rule px-6 py-4 sm:px-8">
-            <button type="button" onClick={onCancel} className="h-10 px-4 text-sm text-ink-2 hover:text-ink">
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => onCreate(toResumeContent(parsed, skipped, { keepAs }))}
-              className="h-10 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black"
-            >
-              Create resume
-            </button>
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3 border-t border-rule px-6 py-4 sm:px-8">
+            <p role="status" className="mr-auto text-sm text-ink-2">
+              {nothingTicked && "Tick something to create a resume."}
+            </p>
+            <div className="flex gap-2">
+              <button type="button" onClick={close} className="h-10 px-4 text-sm text-ink-2 hover:text-ink">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => onCreate(toResumeContent(parsed, skipped, { keepAs }))}
+                disabled={nothingTicked}
+                className="h-10 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Create resume
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </Modal>
+  )
+
+  return (
+    <>
+      {review}
+      {/* Beside the review rather than inside it, so nothing its panel does can clip it. */}
+      {closing && (
+        <Modal title="Discard your changes?" onClose={() => setClosing(false)}>
+          <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+            Closing loses what you unticked and swapped, and no resume is created from this file.
+          </p>
+          <div className="mt-7 flex justify-end gap-2">
+            <button type="button" onClick={() => setClosing(false)} className="h-10 px-4 text-sm text-ink-2 hover:text-ink">
+              Keep reviewing
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="h-10 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black"
+            >
+              Discard
+            </button>
+          </div>
+        </Modal>
+      )}
+    </>
   )
 }
 
@@ -374,14 +442,27 @@ function PdfPages({ doc, pages, lines, highlight }: { doc: PDFDocumentProxy; pag
           doc={doc}
           number={i + 1}
           size={size}
-          boxes={highlight.map((index) => lines[index]).filter((line) => line?.page === i + 1 && line.box).map((line) => line.box!)}
+          boxes={highlight
+            .map((index) => lines[index])
+            .filter((line) => line?.page === i + 1 && line.box)
+            .map((line) => line.box!)}
         />
       ))}
     </div>
   )
 }
 
-function PdfPage({ doc, number, size, boxes }: { doc: PDFDocumentProxy; number: number; size: PageSize; boxes: [number, number, number, number][] }) {
+function PdfPage({
+  doc,
+  number,
+  size,
+  boxes,
+}: {
+  doc: PDFDocumentProxy
+  number: number
+  size: PageSize
+  boxes: [number, number, number, number][]
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {

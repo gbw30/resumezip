@@ -38,9 +38,9 @@ export default function DownloadFailed({ failure, title, retrying, onRetry, clas
   return (
     <div role="alert" className={`flex flex-wrap items-baseline gap-x-6 gap-y-2 ${className}`}>
       <span className="label-mono shrink-0 text-[#b42318]">Download failed</span>
-      <p className="min-w-0 flex-[1_1_280px] text-sm leading-relaxed text-ink">
-        {failure.count > 1 ? "Still couldn't" : "Couldn't"} make{" "}
-        {title ? <>the PDF of &ldquo;{title}&rdquo;</> : "your PDF"}. {WHAT_TO_DO[failure.reason]}
+      <p className="min-w-0 flex-[1_1_280px] break-words text-sm leading-relaxed text-ink">
+        {failure.count > 1 ? "Still couldn't" : "Couldn't"} make {title ? <>the PDF of &ldquo;{title}&rdquo;</> : "your PDF"}.{" "}
+        {WHAT_TO_DO[failure.reason]}
       </p>
       <button
         type="button"

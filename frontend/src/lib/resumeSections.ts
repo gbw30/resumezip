@@ -1,4 +1,5 @@
 import { SECTION_NAMES, SECTIONS, type SectionName } from "@/components/editor/sections"
+import type { Resume } from "@/lib/resume"
 
 export interface Certification {
   id: string
@@ -79,12 +80,13 @@ function readExtraSection(key: string, value: unknown): ExtraSection | null {
   return { ...base, kind: "certifications", entries }
 }
 
-export function extrasOf(resume: Record<string, any>): ExtraSections {
+// Saved data, so both are read as unknown and checked here.
+export function extrasOf(resume: { extraSections?: unknown }): ExtraSections {
   return resume.extraSections === undefined ? {} : readExtraSections(resume.extraSections).sections
 }
 
 /** A view only: opening a resume never repairs order, creates content or generates identities. */
-export function resolveSections(resume: Record<string, any>): SectionRef[] {
+export function resolveSections(resume: { sectionOrder?: unknown; extraSections?: unknown }): SectionRef[] {
   const extras = extrasOf(resume)
   const valid = (value: unknown): value is SectionRef => typeof value === "string" && (SECTION_NAMES.includes(value as SectionName) || (extraKey(value) !== null && Object.hasOwn(extras, extraKey(value)!)))
   const order: SectionRef[] = []
@@ -96,11 +98,12 @@ export function resolveSections(resume: Record<string, any>): SectionRef[] {
   return order
 }
 
-export function sectionTitle(resume: Record<string, any>, ref: SectionRef): string {
+export function sectionTitle(resume: Resume, ref: SectionRef): string {
   const key = extraKey(ref)
   if (key !== null) { const section = extrasOf(resume)[key]; return section ? extraHeading(section) : "New section" }
   const section = SECTIONS[ref as SectionName]
-  return typeof resume.headings?.[section.headingKey] === "string" && resume.headings[section.headingKey].trim() ? resume.headings[section.headingKey] : section.title
+  const heading = resume.headings?.[section.headingKey]
+  return typeof heading === "string" && heading.trim() ? heading : section.title
 }
 
 export function extraHasBody(section: ExtraSection): boolean {

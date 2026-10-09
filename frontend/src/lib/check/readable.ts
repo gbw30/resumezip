@@ -2,7 +2,7 @@
 // the way hiring software reads a resume and compared with what was typed,
 // and characters that may not come through.
 
-import { SECTIONS, type SectionName } from "@/components/editor/sections"
+import { SECTIONS, type FieldKey, type FieldKeyOf, type ProfileKey, type SectionName } from "@/components/editor/sections"
 import { BULLET_CHARS } from "@/lib/import/lines"
 import type { PdfReading, Problem, Rule } from "./engine"
 import type { Place } from "./places"
@@ -30,7 +30,7 @@ function uncertainBuiltinSections(resume: ResumeView, pdf: PdfReading): Set<Sect
 }
 
 // The profile fields a recruiter needs to reach the person.
-const CONTACT: { field: string; label: string }[] = [
+const CONTACT: { field: ProfileKey; label: string }[] = [
   { field: "fullName", label: "name" },
   { field: "email", label: "email" },
   { field: "phoneNumber", label: "phone number" },
@@ -106,7 +106,7 @@ const headings: Rule = {
 
 // What says what an entry is and when: the fields hiring software reads to
 // know the job, school, role, project, skills, paper or award.
-const KEY_FIELDS: Record<SectionName, string[]> = {
+const KEY_FIELDS: { [Section in SectionName]: FieldKeyOf<Section>[] } = {
   Work: ["workRole", "companyName", "workStartDate", "workEndDate"],
   Education: ["schoolName", "degree", "schoolStartDate", "schoolEndDate"],
   Skills: ["skillName", "skillDetails"],
@@ -117,7 +117,8 @@ const KEY_FIELDS: Record<SectionName, string[]> = {
   Awards: ["awardName", "awardDate"],
 }
 
-const labelOf = (section: SectionName, field: string) => SECTIONS[section].fields.find((def) => def.key === field)?.label.toLowerCase() ?? field
+const labelOf = (section: SectionName, field: FieldKey) =>
+  SECTIONS[section].fields.find((def) => def.key === field)?.label.toLowerCase() ?? field
 
 // A year, or a month and a year, as in "2024" or "Jan 2024".
 const HAS_DATE = /\b(?:19|20)\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+'?\d/i
@@ -125,7 +126,7 @@ const HAS_DATE = /\b(?:19|20)\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oc
 const SPLITS = /[,|•·;]|\s[-–—]\s/
 
 /** Why a value may not be read with its entry, from what's in it, and what to do. */
-function entryAdvice(section: SectionName, field: string, value: string): Pick<Problem, "message" | "suggestion"> {
+function entryAdvice(section: SectionName, field: FieldKey, value: string): Pick<Problem, "message" | "suggestion"> {
   const label = labelOf(section, field)
   const unread = (suggestion: string) => ({ message: `Hiring software doesn't read the ${label} with this entry`, suggestion })
   if (field.endsWith("Date")) {
@@ -183,7 +184,10 @@ const entriesRead: Rule = {
           if (words.length === 0) continue
           checked++
           if (words.every((word) => read.has(word))) continue
-          problems.push({ place: { kind: "entry", section, entry: entry.index, field: key }, ...entryAdvice(section, key, entry.values[key]) })
+          problems.push({
+            place: { kind: "entry", section, entry: entry.index, field: key },
+            ...entryAdvice(section, key, entry.values[key]),
+          })
         }
       })
     }
@@ -214,7 +218,11 @@ const MIN_MATCH = 8
  * be one field printed beside another ("B.S. in Economics    Ann Arbor, MI").
  * Either way, a field in the section it was found under comes first.
  */
-function fieldOf(texts: { place: Place; text: string; section: SectionName | null }[], line: string, under: SectionName | null): Place | undefined {
+function fieldOf(
+  texts: { place: Place; text: string; section: SectionName | null }[],
+  line: string,
+  under: SectionName | null,
+): Place | undefined {
   const inSection = (section: SectionName | null) => (section !== null && section === under ? 1 : 0)
   const whole = texts.filter(({ text }) => text.includes(line))
   if (whole.length > 0) return whole.reduce((best, next) => (inSection(next.section) > inSection(best.section) ? next : best)).place
@@ -302,7 +310,9 @@ const typedBullets: Rule = {
       checked: bullets.length,
       problems: bullets.flatMap(({ bullet, place }) => {
         const found = TYPED_BULLET.exec(bullet.raw)?.[0]
-        return found ? [{ place, message: `Starts with “${found}”, so it shows two bullets`, suggestion: "Delete it: the template adds the bullet." }] : []
+        return found
+          ? [{ place, message: `Starts with “${found}”, so it shows two bullets`, suggestion: "Delete it: the template adds the bullet." }]
+          : []
       }),
     }
   },

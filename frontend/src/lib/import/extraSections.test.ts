@@ -3,6 +3,14 @@ import { extraGroupKey, parseResume, toResumeContent, unplacedKey } from "./pars
 import { readFile } from "./read"
 import { wordFile } from "./testFiles"
 import type { Line } from "./lines"
+import type { ExtraSection, ExtraSections } from "@/lib/resumeSections"
+
+// An imported section by its key, as the kind the test expects it to be.
+function extra<Kind extends ExtraSection["kind"]>(content: { extraSections?: ExtraSections }, key: string, kind: Kind) {
+  const section = content.extraSections?.[key]
+  if (section?.kind !== kind) throw new Error(`expected a ${kind} section at ${key}`)
+  return section as ExtraSection & { kind: Kind }
+}
 
 const line = (text: string, heading = false, bullet = false): Line => ({
   text, heading, bullet, parts: [{ text, x: 72, runs: [{ start: 0, end: text.length, bold: heading, italic: false }] }],
@@ -28,11 +36,11 @@ describe("flexible section import review", () => {
   test("selected summary groups consolidate in source order using the first selected heading and position", () => {
     const parsed = parse("Mara Lin", ["Summary", true], "First paragraph.", ["Work", true], "Engineer | Acme Inc", ["Professional Summary", true], "Second paragraph.")
     const all = toResumeContent(parsed)
-    expect(all.extraSections.summary).toEqual({ kind: "summary", heading: "Summary", text: "First paragraph.\n\nSecond paragraph." })
+    expect(extra(all, "summary", "summary")).toEqual({ kind: "summary", heading: "Summary", text: "First paragraph.\n\nSecond paragraph." })
     expect(all.sectionOrder.slice(0, 2)).toEqual(["extra:summary", "Work"])
     const second = toResumeContent(parsed, new Set([extraGroupKey(parsed.extraGroups![0].id)]))
-    expect(second.extraSections.summary.heading).toBe("Professional Summary")
-    expect(second.extraSections.summary.text).toBe("Second paragraph.")
+    expect(extra(second, "summary", "summary").heading).toBe("Professional Summary")
+    expect(extra(second, "summary", "summary").text).toBe("Second paragraph.")
     expect(second.sectionOrder.slice(0, 2)).toEqual(["Work", "extra:summary"])
   })
 
@@ -43,12 +51,12 @@ describe("flexible section import review", () => {
     expect(parsed.lines.map((row) => row.text)).not.toContain("1")
     expect(parsed.lines.map((row) => row.text)).not.toContain("2")
     expect(parsed.extraGroups?.map((group) => group.sourceLines)).toEqual([[1, 2], [4, 5]])
-    expect(toResumeContent(parsed).extraSections.summary.text).toBe("First paragraph.\n\nSecond paragraph.")
+    expect(extra(toResumeContent(parsed), "summary", "summary").text).toBe("First paragraph.\n\nSecond paragraph.")
   })
 
   test("summary prose keeps a literal circle and bullet summaries remain reviewable", () => {
     const prose = parse("Mara Lin", ["Summary", true], "○ This is literal prose.")
-    expect(toResumeContent(prose).extraSections.summary.text).toBe("○ This is literal prose.")
+    expect(extra(toResumeContent(prose), "summary", "summary").text).toBe("○ This is literal prose.")
     const bullets = parse("Mara Lin", ["Summary", true], ["Strong collaborator", false, true])
     expect(bullets.extraGroups).toEqual([])
     expect(bullets.unplaced[0].text).toEqual(["Strong collaborator"])
@@ -59,11 +67,11 @@ describe("flexible section import review", () => {
     expect(parsed.extraGroups).toHaveLength(2)
     expect(parsed.unplaced[0].text).toEqual(["uncertain detail"])
     const content = toResumeContent(parsed)
-    expect(content.extraSections.certifications.entries).toHaveLength(3)
-    expect(content.extraSections.certifications.entries[0]).toMatchObject({
+    expect(extra(content, "certifications", "certifications").entries).toHaveLength(3)
+    expect(extra(content, "certifications", "certifications").entries[0]).toMatchObject({
       name: "Cloud Engineer", issuer: "Example Co", issued: "May 2024", expires: "2027", credentialId: "ABC-123", link: "https://example.com/verify",
     })
-    expect(new Set(content.extraSections.certifications.entries.map((entry: { id: string }) => entry.id)).size).toBe(3)
+    expect(new Set(extra(content, "certifications", "certifications").entries.map((entry: { id: string }) => entry.id)).size).toBe(3)
   })
 
   test("mixed Awards and Certifications await a deliberate choice without being split or duplicated", () => {
@@ -74,7 +82,7 @@ describe("flexible section import review", () => {
     expect(toResumeContent(parsed).extraSections).toBeUndefined()
     const id = unplacedKey(parsed.unplaced[0], 0)
     const content = toResumeContent(parsed, new Set(), { keepAs: { [id]: "text" } })
-    expect(Object.values(content.extraSections)).toEqual([{ kind: "text", heading: "Awards & Certifications", text: "Community Award, Example Org\nCloud Certificate, Example Co" }])
+    expect(Object.values(content.extraSections ?? {})).toEqual([{ kind: "text", heading: "Awards & Certifications", text: "Community Award, Example Org\nCloud Certificate, Example Co" }])
     expect(content.awardsSection).toEqual([])
   })
 
@@ -97,12 +105,12 @@ describe("flexible section import review", () => {
     expect(toResumeContent(parsed).extraSections).toBeUndefined()
     const keepAs = Object.fromEntries(parsed.unplaced.map((group, index) => [unplacedKey(group, index), index === 0 ? "text" : "list"])) as Record<string, "text" | "list">
     const content = toResumeContent(parsed, new Set(), { keepAs })
-    expect(Object.keys(content.extraSections)).toHaveLength(2)
-    expect(Object.values(content.extraSections)).toEqual([
+    expect(Object.keys(content.extraSections ?? {})).toHaveLength(2)
+    expect(Object.values(content.extraSections ?? {})).toEqual([
       { kind: "text", heading: "Presentations", text: "First talk" },
       { kind: "list", heading: "Presentations", bullets: "• Second talk" },
     ])
-    expect(content.sectionOrder.slice(0, 2)).toEqual(Object.keys(content.extraSections).map((key) => `extra:${key}`))
+    expect(content.sectionOrder.slice(0, 2)).toEqual(Object.keys(content.extraSections ?? {}).map((key) => `extra:${key}`))
   })
 
   test("Word parsing preserves recognized groups and uncertain leftover words for review", async () => {

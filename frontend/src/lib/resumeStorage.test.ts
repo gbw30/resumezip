@@ -163,7 +163,7 @@ describe("a resume saved under its own key", () => {
   test("keeps another tab's changes to other fields when this tab saves", () => {
     const before = { ...ada, updatedAt: "2026-10-06T10:00:00.000Z" }
     const theirs = { ...before, profileSection: { fullName: "Ada King" }, updatedAt: "2026-10-06T10:00:05.000Z" }
-    const ours = { ...before, workExperienceSection: [{ companyName: "Analytical Engines" }], updatedAt: "2026-10-06T10:00:03.000Z" }
+    const ours = { ...before, workExperienceSection: [{ id: 1, companyName: "Analytical Engines" }], updatedAt: "2026-10-06T10:00:03.000Z" }
     const storage = memoryStorage({ [`${RESUME_PREFIX}a`]: text(theirs) })
 
     const saved = saveResume(storage, "a", ours, new Set(["workExperienceSection", "updatedAt"]), text(before))
@@ -306,7 +306,12 @@ describe("loading resumes saved under keys of their own", () => {
     const setItem = vi.spyOn(storage, "setItem")
     const loaded = loadSaved(storage)
     expect(loaded.resumes).toEqual({ a: ada, g: grace })
-    expect(loaded.texts).toEqual(new Map([["a", text(ada)], ["g", text(grace)]]))
+    expect(loaded.texts).toEqual(
+      new Map([
+        ["a", text(ada)],
+        ["g", text(grace)],
+      ]),
+    )
     expect(loaded.status).toBe("saved")
     expect(setItem).not.toHaveBeenCalled()
   })

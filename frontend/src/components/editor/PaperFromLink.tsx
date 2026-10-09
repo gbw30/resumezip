@@ -6,6 +6,7 @@ import { Link2 } from "lucide-react"
 import { paperIdOf } from "@/lib/papers/link"
 import { lookUp } from "@/lib/papers/lookup"
 import { publicationOf, type PublicationFields } from "@/lib/papers/publication"
+import type { Entry } from "@/lib/resume"
 
 type Reason = "no-doi" | "not-found" | "unreachable"
 
@@ -31,7 +32,7 @@ function byHand(line: string): Partial<PublicationFields> {
 
 interface PaperFromLinkProps {
   /** The section's entries as they are now, to skip papers already in it. */
-  entries: () => Record<string, unknown>[]
+  entries: () => Entry[]
   /** The resume owner's name as it is now, kept in long author lists. */
   owner: () => string
   /** Adds papers as new entries. `show` brings the first into view. */
@@ -104,7 +105,7 @@ export default function PaperFromLink({ entries, owner, onAdd, children }: Paper
     setStatus("")
 
     // The DOIs in the list, read each time: entries can change while papers are looked up.
-    const listed = () => new Set(entries().map((entry) => paperIdOf(String(entry.publicationLink ?? ""))?.doi.toLowerCase()))
+    const listed = () => new Set(entries().map((entry) => paperIdOf(entry.publicationLink ?? "")?.doi.toLowerCase()))
     const found: { doi: string; fields: PublicationFields }[] = []
     const failed: Problem[] = []
     const left: string[] = []
@@ -236,7 +237,10 @@ export default function PaperFromLink({ entries, owner, onAdd, children }: Paper
           {problems.length > 0 && (
             <ul className="flex flex-col gap-3">
               {problems.map((problem, index) => (
-                <li key={`${index}:${problem.line}`} className="flex flex-col gap-1 border-l-2 border-[#b42318] pl-3 text-[13px] leading-normal">
+                <li
+                  key={`${index}:${problem.line}`}
+                  className="flex flex-col gap-1 border-l-2 border-[#b42318] pl-3 text-[13px] leading-normal"
+                >
                   <span className="break-all font-mono text-ink">{problem.line}</span>
                   <span className="text-ink-2">{MESSAGES[problem.reason]}</span>
                   <button
@@ -255,7 +259,13 @@ export default function PaperFromLink({ entries, owner, onAdd, children }: Paper
             {/* One button that turns into Stop, so it keeps the keyboard's focus. */}
             <button
               type="button"
-              onClick={progress ? () => stopper.current?.abort() : () => void run()}
+              onClick={(event) => {
+                // Safari does not focus buttons on pointer clicks. Keep focus
+                // on this action as it changes between Add papers and Stop.
+                event.currentTarget.focus({ preventScroll: true })
+                if (progress) stopper.current?.abort()
+                else void run()
+              }}
               disabled={!progress && !text.trim()}
               className="h-10 rounded-[4px] bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
             >

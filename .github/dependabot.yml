@@ -26,6 +26,12 @@ updates:
       # On its own, since updating it can mean setting pdfjs-dist to match.
       react-pdf:
         patterns: ["react-pdf"]
+      # On its own: a new Prettier can format code differently, and CI's Format
+      # step fails until `npm run format` runs on the branch (commit that by
+      # itself and list it in .git-blame-ignore-revs). Grouped with the rest, it
+      # would hold back every other update.
+      prettier:
+        patterns: ["prettier"]
       # Everything else that doesn't change a major version, in one pull request.
       minor-and-patch:
         update-types: [minor, patch]

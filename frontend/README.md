@@ -13,18 +13,24 @@ npm install
 npm run dev     # http://localhost:3000
 npm test        # renders every template and reads it back (see below)
 npm run lint
+npm run format  # Prettier; CI checks it
 npm run build
 npm run test:browser   # after a build; see below
 ```
 
 ## How it fits together
 
-- `src/context/ResumeContext.tsx` shares the resumes with the app.
+- `src/context/ResumeContext.tsx` shares the resumes with the dashboard and
+  the editor (`src/app/create/layout.tsx`); other pages' "Start writing"
+  links only look for their keys (`src/lib/resumeKeys.ts`).
   `src/lib/resumeStore.ts` holds them and saves each one to localStorage under
   a key of its own, shortly after typing stops; `src/lib/resumeStorage.ts`
   does the reading and writing. There are no accounts, so that's the only copy.
-- `src/app/create/dashboard` lists the resumes; `src/app/create/new/[id]` is
-  the editor, with a live preview.
+- `src/app/create/dashboard` lists the resumes; `src/app/create/editor` is
+  the editor, with a live preview. It's one static page that `next.config.js`
+  serves at every resume's address, `/create/new/<id>`. The editor reads the
+  open resume a field at a time (`useResumeField`), so a key typed re-renders
+  only the form it's typed in; `useResumeContext` re-renders with every change.
 - `src/lib/resumeSections.ts` owns optional Summary, Certifications, custom
   text and bullet-list sections. Built-in sections keep their existing fields;
   extras have stable map identities and share the saved section order through
@@ -59,9 +65,10 @@ page for errors and serious accessibility problems. The first time, install the
 browsers with `npx playwright install chromium webkit`. They run on port 3100,
 so a dev server on 3000 can keep running.
 
-On every pull request, GitHub Actions type-checks, lints, runs the tests and
-builds the site (`.github/workflows/ci.yml`). The browser tests run in their
-own job next to it, and `main` only accepts a pull request once both pass. It
+On every pull request, GitHub Actions type-checks, lints, checks the
+formatting, runs the tests and builds the site (`.github/workflows/ci.yml`). The browser tests run next to it,
+Chrome and WebKit each in a job of their own at the same time, and `main` only
+accepts a pull request once the checks and both browsers pass. It
 also audits the packages that ship, as a report that doesn't block merging. Dependabot opens update pull requests weekly.
 
 The workflows name each action by its full commit SHA, with the version in a

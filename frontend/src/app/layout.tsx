@@ -2,16 +2,13 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono, Newsreader, Outfit } from "next/font/google"
 import "./globals.css"
-import { FormProvider } from "@/context/ResumeContext"
 
 // Self-hosted at build time, so visitors never load fonts from Google.
-const newsreader = Newsreader({
-  subsets: ["latin", "latin-ext"],
-  axes: ["opsz"],
-  style: ["normal", "italic"],
-  variable: "--font-newsreader",
-})
-const geist = Geist({ subsets: ["latin", "latin-ext"], variable: "--font-geist" })
+// `subsets` only picks the files every page preloads: the CSS still has a face
+// for each of the font's alphabets, which the browser downloads when a page
+// shows a letter from it, as the "Ł" in a resume's name.
+const newsreader = Newsreader({ subsets: ["latin"], axes: ["opsz"], variable: "--font-newsreader" })
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
 // The "resumezip" wordmark.
 const outfit = Outfit({ subsets: ["latin"], weight: "500", variable: "--font-outfit" })
@@ -56,9 +53,7 @@ export default function RootLayout({
         <link rel="icon" href="/logo.svg" type="image/svg+xml" />
         <link rel="alternate icon" href="/favicon.ico" type="image/x-icon" />
       </head>
-      <body className="bg-paper font-sans text-ink antialiased">
-        <FormProvider>{children}</FormProvider>
-      </body>
+      <body className="bg-paper font-sans text-ink antialiased">{children}</body>
     </html>
   )
 }

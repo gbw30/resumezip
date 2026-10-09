@@ -80,7 +80,7 @@ const TABS: { id: TabId; label: string; items: { title: string; body: string }[]
       },
       {
         title: "Can I get feedback on my resume?",
-        body: "Not yet, but it’s on the way.",
+        body: "Yes. In the editor, switch from Write to Check. It lists what to fix, like weak bullets, missing dates and typos, and takes you to each one. It runs in your browser too.",
       },
     ],
   },
@@ -114,11 +114,7 @@ export default function TermsAndPrivacy() {
           The short version: your resume stays in your browser, and we never see it.
         </PageIntro>
 
-        <div
-          role="tablist"
-          aria-label="Terms, privacy and FAQ"
-          className="mt-14 flex flex-wrap gap-x-6 border-b border-rule md:gap-x-8"
-        >
+        <div role="tablist" aria-label="Terms, privacy and FAQ" className="mt-14 flex flex-wrap gap-x-6 border-b border-rule md:gap-x-8">
           {TABS.map((tab, index) => {
             const selected = tab.id === activeTab
             return (
@@ -146,14 +142,7 @@ export default function TermsAndPrivacy() {
         </div>
 
         {TABS.map((tab) => (
-          <div
-            key={tab.id}
-            id={tab.id}
-            role="tabpanel"
-            aria-labelledby={`${tab.id}-tab`}
-            hidden={tab.id !== activeTab}
-            tabIndex={0}
-          >
+          <div key={tab.id} id={tab.id} role="tabpanel" aria-labelledby={`${tab.id}-tab`} hidden={tab.id !== activeTab} tabIndex={0}>
             <h2 className="sr-only">{tab.label}</h2>
             <ol className="divide-y divide-rule">
               {tab.items.map((item, index) => (
@@ -172,9 +161,7 @@ export default function TermsAndPrivacy() {
         <section className="mt-16 grid gap-6 border-t border-ink pt-6 md:grid-cols-3 md:gap-12">
           <h2 className="font-serif text-[28px] leading-[1.15] tracking-[-0.02em] md:text-[32px]">Questions?</h2>
           <div className="md:col-span-2">
-            <p className="max-w-2xl text-[17px] leading-relaxed text-ink-2">
-              Ask us anything about these terms or your privacy.
-            </p>
+            <p className="max-w-2xl text-[17px] leading-relaxed text-ink-2">Ask us anything about these terms or your privacy.</p>
             <Link
               href="/contact"
               className="mt-6 inline-flex h-11 items-center rounded-[4px] bg-ink px-5 text-sm font-medium text-white transition-colors hover:bg-black"

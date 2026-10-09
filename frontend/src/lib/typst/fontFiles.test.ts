@@ -10,7 +10,9 @@ import { toTemplateData } from "./resumeData"
 const TYPST = path.resolve("src/lib/typst")
 const FONTS = path.join(TYPST, "fonts")
 const WASM = path.resolve("node_modules/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm")
-const filesOnDisk = readdirSync(FONTS).filter((file) => /\.(otf|ttf)$/.test(file)).sort()
+const filesOnDisk = readdirSync(FONTS)
+  .filter((file) => /\.(otf|ttf)$/.test(file))
+  .sort()
 const bytesOf = (file: string) => new Uint8Array(readFileSync(path.join(FONTS, file)))
 
 // Characters from many scripts, and symbols, that the templates' fonts don't all have.
@@ -22,7 +24,16 @@ describe("coverage", () => {
   const coverage = [1, 2, 7, 5]
 
   test("reads runs of characters, alternately without and with the font", () => {
-    expect([0, 1, 2, 3, 9, 10, 14, 15].map((codePoint) => covers(coverage, codePoint))).toEqual([false, true, true, false, false, true, true, false])
+    expect([0, 1, 2, 3, 9, 10, 14, 15].map((codePoint) => covers(coverage, codePoint))).toEqual([
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+    ])
   })
 
   test("a resume in plain English needs only its template's family", () => {
@@ -31,7 +42,9 @@ describe("coverage", () => {
 
   test("a character the family lacks brings every font that has it", () => {
     const greek = "Ελένη"
-    const missing = [...greek].find((char) => !filesOf("Lato").every((file) => FONT_INFO[file].info.some((face) => covers(face.coverage, char.codePointAt(0)!))))
+    const missing = [...greek].find(
+      (char) => !filesOf("Lato").every((file) => FONT_INFO[file].info.some((face) => covers(face.coverage, char.codePointAt(0)!))),
+    )
     expect(missing).toBeDefined()
     const extra = fontsFor("Lato", greek).filter((file) => !filesOf("Lato").includes(file))
     expect(extra.length).toBeGreaterThan(0)
@@ -95,7 +108,11 @@ describe("printing with only the fonts a resume needs", () => {
 
   async function print(template: string, data: unknown): Promise<string> {
     compiler.mapShadow("/resume.json", new TextEncoder().encode(JSON.stringify(data)))
-    const { result, diagnostics } = await compiler.compile({ mainFilePath: `/${template}.typ`, format: CompileFormatEnum.pdf, diagnostics: "unix" })
+    const { result, diagnostics } = await compiler.compile({
+      mainFilePath: `/${template}.typ`,
+      format: CompileFormatEnum.pdf,
+      diagnostics: "unix",
+    })
     if (!result) throw new Error(diagnostics?.join("\n"))
     // When it was made, and the ID Typst makes from that, are all that
     // differ between two PDFs of the same resume.
@@ -114,12 +131,14 @@ describe("printing with only the fonts a resume needs", () => {
     profileSection: { fullName: "Đặng Thị Ngọc Ánh", location: MIXED, email: "anh@example.com" },
     workExperienceSection: [
       {
-        company: "Œuvre Łódź",
-        role: "Kỹ sư phần mềm",
-        location: "Hà Nội",
-        startDate: "Jan 2024",
-        endDate: "Present",
-        description: MIXED.split(" · ").map((part) => `• ${part}`).join("\n"),
+        companyName: "Œuvre Łódź",
+        workRole: "Kỹ sư phần mềm",
+        workLocation: "Hà Nội",
+        workStartDate: "Jan 2024",
+        workEndDate: "Present",
+        workDescription: MIXED.split(" · ")
+          .map((part) => `• ${part}`)
+          .join("\n"),
       },
     ],
   })
@@ -130,6 +149,8 @@ describe("printing with only the fonts a resume needs", () => {
 
   test.each(cases)("$name prints the same, reading only the fonts expected", async ({ resume, sample }) => {
     const data = toTemplateData(resume)
+    // The mixed-script job has to reach the template, or only the profile is printed.
+    if (!sample) expect(data.work).toHaveLength(1)
     const template = TEMPLATES.find((each) => each.id === resume.selectedTemplate)!
     await useFonts("all")
     const before = await print(template.id, data)

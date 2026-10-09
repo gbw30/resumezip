@@ -1,21 +1,24 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd"
+import { memo, useEffect, useRef, useState } from "react"
+import { flushSync } from "react-dom"
+import type { DraggableProvided, DropResult } from "@hello-pangea/dnd"
 import { GripVertical } from "lucide-react"
+import type { Headings } from "@/lib/resume"
+import { extraHeading, extraKey, type ExtraKind, type ExtraSections, type SectionRef } from "@/lib/resumeSections"
+import { nextAnnouncement } from "./arrange"
+import { loadDragAndDrop, type DragAndDrop } from "./dragAndDrop"
+import { MoveButtons } from "./fields"
 import { WIDE_SCREEN } from "./layout"
 import { SECTIONS, type SectionName } from "./sections"
-import { extraHeading, extraKey, extrasOf, type ExtraKind, type SectionRef } from "@/lib/resumeSections"
-import { MoveButtons } from "./fields"
-import { nextAnnouncement } from "./arrange"
 
 export type ActiveSection = "Profile" | SectionRef
 
 interface SectionNavProps {
   sections: SectionRef[]
   /** The person's own section titles, by each section's `headingKey`. */
-  headings?: Record<string, string>
-  resume?: Record<string, any>
+  headings?: Headings | null
+  extras?: ExtraSections | null
   active: ActiveSection
   onSelect: (section: ActiveSection) => void
   onReorder: (sections: SectionRef[]) => void
@@ -28,11 +31,35 @@ const pad = (n: number) => String(n).padStart(2, "0")
  * The numbered sections: a list in the left bar on wide screens, a row of tabs on narrower ones.
  * Profile stays first; the rest can be dragged into any order.
  */
-export default function SectionNav({ sections, headings, resume, active, onSelect, onReorder, onAdd }: SectionNavProps) {
+function SectionNav({ sections, headings, extras, active, onSelect, onReorder, onAdd }: SectionNavProps) {
   const navRef = useRef<HTMLElement>(null)
   const [wide, setWide] = useState(() => typeof window !== "undefined" && window.matchMedia(WIDE_SCREEN).matches)
+  const [dnd, setDnd] = useState<DragAndDrop | null>(null)
   const [announcement, setAnnouncement] = useState("")
   const [adding, setAdding] = useState(false)
+
+  // The drag and drop isn't in the page's first download, as it's only needed
+  // once a section is dragged. It loads as soon as the editor opens; until
+  // then, or for good if it fails to download, sections can be chosen but not
+  // dragged.
+  useEffect(() => {
+    let live = true
+    loadDragAndDrop().then(
+      (module) => {
+        if (!live) return
+        // The draggable list's buttons are new elements, so a button with the
+        // focus would lose it to the page.
+        const buttons = () => [...(navRef.current?.querySelectorAll("button") ?? [])]
+        const focused = buttons().findIndex((button) => button === document.activeElement)
+        flushSync(() => setDnd(module))
+        if (focused !== -1) buttons()[focused]?.focus()
+      },
+      () => {},
+    )
+    return () => {
+      live = false
+    }
+  }, [])
 
   useEffect(() => {
     const query = window.matchMedia(WIDE_SCREEN)
@@ -64,21 +91,69 @@ export default function SectionNav({ sections, headings, resume, active, onSelec
   }
 
   // A section's title as the person named it, or the editor's.
-  const extras = extrasOf(resume ?? {})
-  const titles = new Map(sections.map((ref) => {
-    const key = extraKey(ref)
-    const builtIn = key === null ? SECTIONS[ref as SectionName] : null
-    return [ref, key !== null ? extras[key] ? extraHeading(extras[key]) : "New section" : (resume?.headings ?? headings)?.[builtIn!.headingKey] || builtIn!.title] as const
-  }))
+  const titles = new Map(
+    sections.map((ref) => {
+      const key = extraKey(ref)
+      if (key !== null) return [ref, extras?.[key] ? extraHeading(extras[key]) : "New section"] as const
+      const section = SECTIONS[ref as SectionName]
+      return [ref, headings?.[section.headingKey] || section.title] as const
+    }),
+  )
   const counts = new Map<string, number>()
   for (const title of titles.values()) counts.set(title, (counts.get(title) ?? 0) + 1)
   const titleOf = (name: SectionRef) => titles.get(name)!
-  const labelOf = (name: SectionRef, index: number) => (counts.get(titleOf(name)) ?? 0) > 1 ? `${titleOf(name)}, section ${index + 2}` : titleOf(name)
+  // Two sections can have the same title, so a screen reader also hears where each is.
+  const labelOf = (name: SectionRef, index: number) => ((counts.get(titleOf(name)) ?? 0) > 1 ? `${titleOf(name)}, section ${index + 2}` : titleOf(name))
 
   const item = (isActive: boolean) =>
     `flex shrink-0 items-center gap-3 whitespace-nowrap rounded-[4px] px-2 py-[9px] text-left text-sm transition-colors xl:w-full xl:shrink ${
       isActive ? "bg-sheet font-medium text-ink ring-1 ring-rule" : "text-ink-2 hover:text-ink"
     }`
+
+  // A section, the same with or without dragging, so the list doesn't move as dragging loads.
+  const renderSection = (name: SectionRef, index: number, drag?: DraggableProvided, dragging = false) => {
+    const isActive = active === name
+    return (
+      <div
+        key={name}
+        ref={drag?.innerRef}
+        {...drag?.draggableProps}
+        className={`flex shrink-0 items-center rounded-[4px] ${dragging ? "bg-sheet shadow-sm ring-1 ring-rule" : ""}`}
+      >
+        <span
+          {...drag?.dragHandleProps}
+          aria-label={drag && `Reorder ${labelOf(name, index)}`}
+          className="flex h-9 w-6 shrink-0 items-center justify-center text-ink-2 hover:text-ink"
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </span>
+        <button
+          type="button"
+          onClick={() => onSelect(name)}
+          className={`${item(isActive)} -ml-1`}
+          aria-current={isActive || undefined}
+          aria-label={`${pad(index + 2)} ${labelOf(name, index)}`}
+          data-section-ref={name}
+        >
+          <span className={`font-mono text-[11px] ${isActive ? "text-accent" : ""}`}>{pad(index + 2)}</span>
+          {titleOf(name)}
+        </button>
+        {isActive && (
+          <MoveButtons
+            name={`${labelOf(name, index)} section`}
+            first={index === 0}
+            last={index === sections.length - 1}
+            onMove={(by) => {
+              const next = [...sections]
+              ;[next[index], next[index + by]] = [next[index + by], next[index]]
+              onReorder(next)
+              setAnnouncement((last) => nextAnnouncement(last, `Moved ${titleOf(name)} to ${index + by + 1} of ${sections.length}`))
+            }}
+          />
+        )}
+      </div>
+    )
+  }
 
   return (
     <nav
@@ -88,68 +163,78 @@ export default function SectionNav({ sections, headings, resume, active, onSelec
     >
       <span className="label-mono hidden px-2 pb-3 text-ink-2 xl:block">Sections</span>
 
-      <button type="button" data-section-ref="Profile" onClick={() => onSelect("Profile")} className={item(active === "Profile")} aria-current={active === "Profile" || undefined}>
+      <button
+        type="button"
+        data-section-ref="Profile"
+        onClick={() => onSelect("Profile")}
+        className={item(active === "Profile")}
+        aria-current={active === "Profile" || undefined}
+      >
         <span className="hidden w-3.5 xl:block" aria-hidden="true" />
         <span className={`font-mono text-[11px] ${active === "Profile" ? "text-accent" : ""}`}>01</span>
         Profile
       </button>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <Droppable droppableId="sections" direction={wide ? "vertical" : "horizontal"}>
-          {(drop) => (
-            <div ref={drop.innerRef} {...drop.droppableProps} className="flex gap-1 xl:flex-col">
-              {sections.map((name, index) => {
-                const isActive = active === name
-                return (
-                  <Draggable key={name} draggableId={name} index={index}>
-                    {(drag, snapshot) => (
-                      <div
-                        ref={drag.innerRef}
-                        {...drag.draggableProps}
-                        className={`flex shrink-0 items-center rounded-[4px] ${snapshot.isDragging ? "bg-sheet shadow-sm ring-1 ring-rule" : ""}`}
-                      >
-                        <span
-                          {...drag.dragHandleProps}
-                          aria-label={`Reorder ${labelOf(name, index)}`}
-                          className="flex h-9 w-6 shrink-0 items-center justify-center text-ink-2 hover:text-ink"
-                        >
-                          <GripVertical className="h-3.5 w-3.5" />
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => onSelect(name)}
-                          className={`${item(isActive)} -ml-1`}
-                          aria-current={isActive || undefined}
-                          aria-label={`${pad(index + 2)} ${labelOf(name, index)}`}
-                          data-section-ref={name}
-                        >
-                          <span className={`font-mono text-[11px] ${isActive ? "text-accent" : ""}`}>{pad(index + 2)}</span>
-                          {titleOf(name)}
-                        </button>
-                        {isActive && <MoveButtons name={`${labelOf(name, index)} section`} first={index === 0} last={index === sections.length - 1} onMove={(by) => {
-                          const next = [...sections]
-                          ;[next[index], next[index + by]] = [next[index + by], next[index]]
-                          onReorder(next)
-                          setAnnouncement((last) => nextAnnouncement(last, `Moved ${titleOf(name)} to ${index + by + 1} of ${sections.length}`))
-                        }} />}
-                      </div>
-                    )}
-                  </Draggable>
-                )
-              })}
-              {drop.placeholder}
+      {dnd ? (
+        <dnd.DragDropContext onDragEnd={onDragEnd}>
+          <dnd.Droppable droppableId="sections" direction={wide ? "vertical" : "horizontal"}>
+            {(drop) => (
+              <div ref={drop.innerRef} {...drop.droppableProps} className="flex gap-1 xl:flex-col">
+                {sections.map((name, index) => (
+                  <dnd.Draggable key={name} draggableId={name} index={index}>
+                    {(drag, snapshot) => renderSection(name, index, drag, snapshot.isDragging)}
+                  </dnd.Draggable>
+                ))}
+                {drop.placeholder}
+              </div>
+            )}
+          </dnd.Droppable>
+        </dnd.DragDropContext>
+      ) : (
+        <div className="flex gap-1 xl:flex-col">{sections.map((name, index) => renderSection(name, index))}</div>
+      )}
+
+      {onAdd && (
+        <div className="shrink-0 xl:mt-3">
+          <button
+            type="button"
+            aria-expanded={adding}
+            onClick={() => setAdding(!adding)}
+            className="rounded-[4px] px-2 py-2 text-sm text-ink underline underline-offset-4"
+          >
+            Add section
+          </button>
+          {adding && (
+            <div role="group" aria-label="Add section" className="flex flex-col gap-1 rounded-[4px] border border-rule bg-sheet p-2">
+              {(
+                [
+                  ["summary", "Summary"],
+                  ["certifications", "Certifications"],
+                  ["text", "Text"],
+                  ["list", "Bullet list"],
+                ] as const
+              ).map(([kind, title]) => (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-label={`Add ${title} section`}
+                  disabled={(kind === "summary" || kind === "certifications") && !!extras && Object.hasOwn(extras, kind)}
+                  onClick={() => {
+                    onAdd(kind)
+                    setAdding(false)
+                  }}
+                  className="rounded-[4px] px-2 py-2 text-left text-sm hover:bg-paper disabled:opacity-40"
+                >
+                  {title}
+                </button>
+              ))}
             </div>
           )}
-        </Droppable>
-      </DragDropContext>
-
-      {onAdd && <div className="shrink-0 xl:mt-3">
-        <button type="button" aria-expanded={adding} onClick={() => setAdding(!adding)} className="rounded-[4px] px-2 py-2 text-sm text-ink underline underline-offset-4">Add section</button>
-        {adding && <div role="group" aria-label="Add section" className="flex flex-col gap-1 rounded-[4px] border border-rule bg-sheet p-2">
-          {([['summary', 'Summary'], ['certifications', 'Certifications'], ['text', 'Text'], ['list', 'Bullet list']] as const).map(([kind, title]) => <button key={kind} type="button" aria-label={`Add ${title} section`} disabled={(kind === "summary" || kind === "certifications") && Object.hasOwn(extras, kind)} onClick={() => { onAdd(kind); setAdding(false) }} className="rounded-[4px] px-2 py-2 text-left text-sm hover:bg-paper disabled:opacity-40">{title}</button>)}
-        </div>}
-      </div>}
-      <p role="status" className="sr-only">{announcement}</p>
+        </div>
+      )}
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
 
       <p className="mt-3 hidden border-t border-rule px-2 pt-5 text-[13px] leading-normal text-ink-2 xl:block">
         Drag a section to change its place on the page.
@@ -157,3 +242,6 @@ export default function SectionNav({ sections, headings, resume, active, onSelec
     </nav>
   )
 }
+
+// Dragging is costly to render, so it re-renders only when its props change.
+export default memo(SectionNav)

@@ -2,7 +2,7 @@
 // where a text's words start, and the usual way among several of writing
 // something.
 
-import type { SectionName } from "@/components/editor/sections"
+import type { FieldKey, SectionName } from "@/components/editor/sections"
 import type { Place } from "./places"
 import type { Bullet, Entry, ResumeView } from "./resume"
 import { extraKey } from "@/lib/resumeSections"
@@ -29,9 +29,9 @@ export function bulletsIn(resume: ResumeView, sections?: readonly SectionName[])
 }
 
 /** Bullets with layout, independent of whether the section describes a job or a custom topic. */
-export function layoutBulletsIn(resume: ResumeView): { bullet: Bullet; place: Place }[] {
+export function layoutBulletsIn(resume: ResumeView): { bullet: Bullet<FieldKey | "bullets">; place: Place }[] {
   const builtin = bulletsIn(resume)
-  return resume.allOrder.flatMap<{ bullet: Bullet; place: Place }>((ref) => {
+  return resume.allOrder.flatMap<{ bullet: Bullet<FieldKey | "bullets">; place: Place }>((ref) => {
     const id = extraKey(ref)
     if (id === null) return builtin.filter(({ entry }) => entry.section === ref)
     return (resume.extras[id]?.bullets ?? []).map((bullet) => ({ bullet, place: { kind: "extra-text", sectionId: id, field: "bullets", line: bullet.line } as const }))

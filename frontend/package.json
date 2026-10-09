@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "format": "prettier --write .",
     "test": "vitest run",
     "test:browser": "playwright test"
   },
@@ -17,6 +18,7 @@
     "@hello-pangea/dnd": "^18.0.1",
     "@myriaddreamin/typst-ts-web-compiler": "^0.7.0",
     "@myriaddreamin/typst.ts": "^0.7.0",
+    "@noble/hashes": "^2.4.0",
     "harper.js": "2.10.0",
     "lucide-react": "^0.577.0",
     "mammoth": "^1.13.0",
@@ -36,6 +38,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.27",
+    "prettier": "3.9.9",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^5.0.3"

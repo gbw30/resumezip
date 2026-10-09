@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest"
+import type { Resume } from "@/lib/resume"
 import { runChecks } from "./engine"
 import { RULES } from "./rules"
 
@@ -12,7 +13,9 @@ const job = (workStartDate: string, workEndDate: string, companyName = "Google")
 
 const jake = {
   profileSection: { fullName: "Jake Ryan" },
-  educationSection: [{ id: 1, schoolName: "University of Texas at Austin", degree: "B.S.", schoolStartDate: "Aug 2020", schoolEndDate: "May 2024" }],
+  educationSection: [
+    { id: 1, schoolName: "University of Texas at Austin", degree: "B.S.", schoolStartDate: "Aug 2020", schoolEndDate: "May 2024" },
+  ],
   workExperienceSection: [job("Jan 2025", "Present"), job("Jun 2024", "Dec 2024", "Meta")],
   projectsSection: [{ id: 1, projectName: "Gitlytics", projectDate: "Sep – Dec 2024" }],
 }
@@ -22,7 +25,7 @@ const withWork = (...work: ReturnType<typeof job>[]) => ({ ...jake, workExperien
 const onlyWork = (...work: ReturnType<typeof job>[]) => ({ profileSection: jake.profileSection, workExperienceSection: work })
 
 /** What one rule says about a resume. */
-function check(id: string, resume: Record<string, any>) {
+function check(id: string, resume: Resume) {
   const rule = RULES.find((rule) => rule.id === id)!
   const report = runChecks(resume, { rules: [rule] })
   return { status: report.results[0].status, messages: report.findings.map((finding) => finding.message), findings: report.findings }
@@ -89,7 +92,10 @@ describe("D2 end before start", () => {
 
 describe("D3 unreadable dates", () => {
   test("points at each date it can't read", () => {
-    const resume = { ...withWork(job("Jnu 2024", "Present"), job("Jun 2023", "Agu 2023")), projectsSection: [{ id: 1, projectName: "X", projectDate: "Summer" }] }
+    const resume = {
+      ...withWork(job("Jnu 2024", "Present"), job("Jun 2023", "Agu 2023")),
+      projectsSection: [{ id: 1, projectName: "X", projectDate: "Summer" }],
+    }
     expect(check("D3", resume).findings.map((finding) => finding.place)).toEqual([
       placeOf("Work", 0, "workStartDate"),
       placeOf("Work", 1, "workEndDate"),
@@ -163,7 +169,11 @@ describe("D4 dates written different ways", () => {
       ],
     }
     expect(check("D4", projects).findings).toEqual([
-      expect.objectContaining({ place: placeOf("Projects", 2, "projectDate"), message: "Has a month, unlike the rest of this section", suggestion: "Write just the year: “2022”." }),
+      expect.objectContaining({
+        place: placeOf("Projects", 2, "projectDate"),
+        message: "Has a month, unlike the rest of this section",
+        suggestion: "Write just the year: “2022”.",
+      }),
     ])
   })
 
@@ -193,7 +203,10 @@ describe("D5 “Present” written different ways", () => {
   })
 
   test("reads it in a range in one field too", () => {
-    const resume = { ...withWork(job("Jan 2025", "Present")), projectsSection: [{ id: 1, projectName: "Gitlytics", projectDate: "2024 – Now" }] }
+    const resume = {
+      ...withWork(job("Jan 2025", "Present")),
+      projectsSection: [{ id: 1, projectName: "Gitlytics", projectDate: "2024 – Now" }],
+    }
     expect(check("D5", resume).messages).toEqual(["“Now” here, “Present” elsewhere"])
   })
 })
@@ -229,7 +242,13 @@ describe("D6 newest first", () => {
   })
 
   test("leaves projects and awards in the order the person chose", () => {
-    const resume = { ...jake, projectsSection: [{ id: 1, projectName: "A", projectDate: "2021" }, { id: 2, projectName: "B", projectDate: "2024" }] }
+    const resume = {
+      ...jake,
+      projectsSection: [
+        { id: 1, projectName: "A", projectDate: "2021" },
+        { id: 2, projectName: "B", projectDate: "2024" },
+      ],
+    }
     expect(check("D6", resume).status).toBe("passed")
   })
 })
@@ -237,7 +256,11 @@ describe("D6 newest first", () => {
 describe("D7 apostrophe years", () => {
   test("flags a year with an apostrophe, with the whole year to use", () => {
     expect(check("D7", withWork(job("Jan '21", "Present"), job("Jun 2020", "Dec ’20"))).findings).toEqual([
-      expect.objectContaining({ place: placeOf("Work", 0, "workStartDate"), message: "Year written as “'21”", suggestion: "Write the whole year: “2021”." }),
+      expect.objectContaining({
+        place: placeOf("Work", 0, "workStartDate"),
+        message: "Year written as “'21”",
+        suggestion: "Write the whole year: “2021”.",
+      }),
       expect.objectContaining({ place: placeOf("Work", 1, "workEndDate"), message: "Year written as “’20”" }),
     ])
     expect(check("D7", withWork(job("Jun '99", "Aug '99"))).findings[0].suggestion).toBe("Write the whole year: “1999”.")

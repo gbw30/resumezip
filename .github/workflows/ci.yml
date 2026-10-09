@@ -1,7 +1,7 @@
 # Checks every pull request and every push to main. Main requires "Check"
-# and "Browser tests", which uses the built site in real browsers, before a
-# merge. "Audit" only reports, so a new advisory in a dependency can't block
-# unrelated work.
+# and "Browser tests", which passes once the built site has passed its tests
+# in each real browser, before a merge. "Audit" only reports, so a new
+# advisory in a dependency can't block unrelated work.
 #
 # No path filters: a required check has to run on every pull request, or
 # pull requests that skip it could never be merged.
@@ -50,6 +50,8 @@ jobs:
         run: npx tsc --noEmit
       - name: Lint
         run: npm run lint
+      - name: Format
+        run: npx prettier --check .
       - name: Test
         run: npm test
       - name: Test issue labels
@@ -58,14 +60,23 @@ jobs:
       - name: Build
         run: npm run build
 
+  # Each browser has a job of its own and they run at the same time, so the
+  # tests take as long as the slower browser rather than both together.
   browser:
-    name: Browser tests
+    name: Browser tests (${{ matrix.browser }})
     # Pinned, not ubuntu-latest: Playwright installs system libraries for the
     # exact Ubuntu release, and ubuntu-latest moves to Ubuntu 26 on
     # October 19, 2026. Move this when Playwright supports it.
     runs-on: ubuntu-24.04
-    # Room for every try at installing the browsers, below, and the tests.
+    # Room for every try at installing the browser, below, and the tests.
     timeout-minutes: 25
+    strategy:
+      # A failure in one browser doesn't stop the other, so a run shows both.
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    env:
+      BROWSER: ${{ matrix.browser }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -76,46 +87,65 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      # The browsers are kept between runs, and downloaded again only when
+      # The browser is kept between runs, and downloaded again only when
       # Playwright's version changes.
       - name: Find Playwright's version
         id: playwright
         run: echo "version=$(node -p 'require("./node_modules/@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
-      - name: Keep the browsers
+      - name: Keep the browser
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-ubuntu-24.04-${{ steps.playwright.outputs.version }}
-      # The browsers, unless they were kept, and the system libraries they
-      # need, from Ubuntu's package servers. A server can go quiet partway
-      # (on October 7, 2026, apt waited on one for 20 minutes, and the job
-      # timed out), so apt gives up on a connection after 20 seconds without
-      # data, tries it twice more, then moves on, and waits for another apt
-      # to finish rather than failing. A failed install is tried again, up to
-      # 3 times. A slow download that's still going isn't cut off: stopping
-      # one from outside leaves apt running, holding its lock.
-      - name: Install browsers
+          key: playwright-${{ matrix.browser }}-ubuntu-24.04-${{ steps.playwright.outputs.version }}
+      # The browser, unless it was kept, and the system libraries it needs,
+      # from Ubuntu's package servers. A server can go quiet partway (on
+      # October 7, 2026, apt waited on one for 20 minutes, and the job timed
+      # out), so apt gives up on a connection after 20 seconds without data,
+      # tries it twice more, then moves on, and waits for another apt to
+      # finish rather than failing. A failed install is tried again, up to 3
+      # times. A slow download that's still going isn't cut off: stopping one
+      # from outside leaves apt running, holding its lock.
+      - name: Install the browser
         run: |
           printf 'Acquire::http::Timeout "20";\nAcquire::https::Timeout "20";\nAcquire::Retries "2";\nDPkg::Lock::Timeout "120";\n' | sudo tee /etc/apt/apt.conf.d/99timeouts > /dev/null
           for try in 1 2 3; do
-            npx playwright install --with-deps chromium webkit && exit 0
-            echo "::warning::Installing the browsers failed, try $try of 3"
+            npx playwright install --with-deps "$BROWSER" && exit 0
+            echo "::warning::Installing the browser failed, try $try of 3"
           done
           exit 1
       - name: Build
         run: npm run build
       - name: Browser tests
-        run: npm run test:browser
+        run: npm run test:browser -- --project="$BROWSER"
       # Screenshots and a replayable trace of whatever failed.
       - name: Keep the report
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: browser-test-report
+          name: browser-test-report-${{ matrix.browser }}
           path: |
             frontend/playwright-report
             frontend/test-results
           retention-days: 14
+
+  # The check main requires: it passes only when the tests passed in both
+  # browsers. It runs whatever happened to them, since a required check that
+  # was skipped counts as passed.
+  browser-tests:
+    name: Browser tests
+    needs: browser
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check both browsers passed
+        # Nothing is checked out, so there's no frontend folder to run in.
+        working-directory: .
+        env:
+          RESULT: ${{ needs.browser.result }}
+        run: |
+          echo "The browser tests in Chromium and WebKit: $RESULT"
+          test "$RESULT" = success
 
   audit:
     name: Audit

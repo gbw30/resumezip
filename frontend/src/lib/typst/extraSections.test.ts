@@ -4,6 +4,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist"
 import { render } from "@/lib/import/testRender"
 import { readPdf, linesFromPages } from "@/lib/import/lines"
 import { TEMPLATES } from "@/lib/templates"
+import { asSaved } from "@/lib/testResume"
 import { toTemplateData } from "./resumeData"
 
 const first = "b8911364-19cb-4f20-82c1-421bdbe40f7d"
@@ -14,7 +15,8 @@ const certificate = {
   id: "94b00cfa-aa1c-4773-ab68-82e34d818cc4", name: "Certified Example Specialist", issuer: "Example Institute",
   issued: "Jan 2024", expires: "Jan 2028", credentialId: "EXAMPLE-12345", link: "https://credentials.example.org/verify/EXAMPLE-12345",
 }
-const mixed = {
+// With a section order that repeats and misses sections, as the editor never saves one.
+const mixed = asSaved({
   profileSection: { fullName: "Ada Example" },
   workExperienceSection: [{ id: 1, companyName: "Legacy Company", workRole: "Engineer", workDescription: "• Legacy printed detail" }],
   extraSections: {
@@ -26,7 +28,7 @@ const mixed = {
     [hidden]: { kind: "text", heading: "OMITTED HEADING SENTINEL", text: "OMITTED SECTION SENTINEL", leftOut: true },
   },
   sectionOrder: ["extra:summary", "Work", `extra:${first}`, "extra:certifications", `extra:${second}`, `extra:${first}`, "extra:missing"],
-}
+})
 
 describe("optional section template data", () => {
   test("keeps built-in identity separate from repeated custom headings and literal prose", () => {

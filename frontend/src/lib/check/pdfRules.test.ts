@@ -43,7 +43,10 @@ describe.each(samples.map((sample) => [sample.selectedTemplate as string, sample
     const long = `${others[0].text} ${others[0].text} ${others[0].text}`
     const section = Object.entries(sample).find(([, value]) => Array.isArray(value) && value[entry.index]?.[field] !== undefined)![0]
     const entries = [...sample[section]]
-    entries[entry.index] = { ...entries[entry.index], [field]: [cut, long, ...others.slice(1).map((bullet) => bullet.text)].map((text) => `• ${text}`).join("\n") }
+    entries[entry.index] = {
+      ...entries[entry.index],
+      [field]: [cut, long, ...others.slice(1).map((bullet) => bullet.text)].map((text) => `• ${text}`).join("\n"),
+    }
     const resume = { ...sample, [section]: entries }
 
     const report = check(resume, await readingOf(resume), ["L3", "L4"])
@@ -55,32 +58,42 @@ describe.each(samples.map((sample) => [sample.selectedTemplate as string, sample
   })
 })
 
-test.each(["jake", "resumeworded"])("the %s template's contact details and entries read back with any phone number, and names with ß", async (template) => {
-  // resumeworded prints names and companies in capitals: "Strauß" as "STRAUSS".
-  const sample = samples.find((resume) => resume.selectedTemplate === template)
-  for (const phoneNumber of ["07911 123456", "06 12 34 56 78", "0412 345 678"]) {
-    const [job, ...jobs] = sample.workExperienceSection
-    const resume = {
-      ...sample,
-      profileSection: { ...sample.profileSection, fullName: "Max Strauß", phoneNumber },
-      workExperienceSection: [{ ...job, companyName: "Großmann GmbH" }, ...jobs],
+test.each(["jake", "resumeworded"])(
+  "the %s template's contact details and entries read back with any phone number, and names with ß",
+  async (template) => {
+    // resumeworded prints names and companies in capitals: "Strauß" as "STRAUSS".
+    const sample = samples.find((resume) => resume.selectedTemplate === template)
+    for (const phoneNumber of ["07911 123456", "06 12 34 56 78", "0412 345 678"]) {
+      const [job, ...jobs] = sample.workExperienceSection
+      const resume = {
+        ...sample,
+        profileSection: { ...sample.profileSection, fullName: "Max Strauß", phoneNumber },
+        workExperienceSection: [{ ...job, companyName: "Großmann GmbH" }, ...jobs],
+      }
+      expect(check(resume, await readingOf(resume), ["R1", "R3"]).findings, phoneNumber).toEqual([])
     }
-    expect(check(resume, await readingOf(resume), ["R1", "R3"]).findings, phoneNumber).toEqual([])
-  }
-})
+  },
+)
 
 test("a renamed heading the reader doesn't know is a fix", async () => {
   const sample = samples.find((resume) => resume.selectedTemplate === "jake")
   const resume = { ...sample, headings: { ...sample.headings, work: "My Journey" } }
   const report = check(resume, await readingOf(resume), ["R2"])
   expect(report.findings).toEqual([
-    expect.objectContaining({ level: "fix", place: { kind: "heading", section: "Work" }, message: "Hiring software may not know “My Journey” as a heading" }),
+    expect.objectContaining({
+      level: "fix",
+      place: { kind: "heading", section: "Work" },
+      message: "Hiring software may not know “My Journey” as a heading",
+    }),
   ])
 })
 
 test("a resume that runs onto a second page is flagged, unless it's academic", async () => {
   const sample = samples.find((resume) => resume.selectedTemplate === "jake")
-  const resume = { ...sample, workExperienceSection: [...sample.workExperienceSection, ...sample.workExperienceSection, ...sample.workExperienceSection] }
+  const resume = {
+    ...sample,
+    workExperienceSection: [...sample.workExperienceSection, ...sample.workExperienceSection, ...sample.workExperienceSection],
+  }
   const pdf = await readingOf(resume)
   expect(pdf.pages.length).toBeGreaterThan(1)
   expect(check(resume, pdf, ["L1"]).findings.map(({ message }) => message)).toEqual([`${pdf.pages.length} pages`])

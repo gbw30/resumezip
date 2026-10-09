@@ -12,16 +12,22 @@ class FakeWorker {
   /** What it sends, 10 ms apart, when asked to load the compiler ahead of a PDF. */
   static loading: WorkerMessage[] = []
   onmessage: ((event: { data: WorkerMessage }) => void) | null = null
-  onerror: ((event: { message: string }) => void) | null = null
+  onerror: ((event: ReturnType<typeof workerError>) => void) | null = null
   terminated = false
   /** The requests to start loading the compiler. */
   loadRequests: Extract<WorkerRequest, { load: true }>[] = []
+  /** How many times it was asked to download the compiler ahead, without building it. */
+  prefetches = 0
 
   constructor() {
     FakeWorker.made.push(this)
   }
 
   postMessage(request: WorkerRequest) {
+    if ("prefetch" in request) {
+      this.prefetches++
+      return
+    }
     if ("load" in request) {
       this.loadRequests.push(request)
       FakeWorker.loading.forEach((message, index) => setTimeout(() => this.send(message), (index + 1) * 10))
@@ -41,6 +47,17 @@ class FakeWorker {
   }
 }
 
+// An error from a worker, as the page gets it, saying whether the page handled it.
+function workerError(message: string) {
+  return {
+    message,
+    handled: false,
+    preventDefault() {
+      this.handled = true
+    },
+  }
+}
+
 const PDF = new Uint8Array([37, 80, 68, 70])
 const makesPdf = ({ id }: CompileRequest) => ({ id, pdf: PDF })
 const silent = () => undefined
@@ -50,13 +67,19 @@ let compileResume: typeof import("./compile").compileResume
 let compilePreview: typeof import("./compile").compilePreview
 let printedOf: typeof import("./compile").printedOf
 let loadAhead: typeof import("./compile").loadCompiler
+let prefetch: typeof import("./compile").prefetchCompiler
 let compilerStatus: typeof import("./compile").compilerStatus
 let onCompilerStatus: typeof import("./compile").onCompilerStatus
 let savingData: typeof import("./compile").savingData
 
+/** The elements the page added to its head. */
+let addedToHead: object[] = []
+
 beforeEach(async () => {
   vi.useFakeTimers()
   vi.stubGlobal("Worker", FakeWorker)
+  addedToHead = []
+  vi.stubGlobal("document", { createElement: () => ({}), head: { append: (element: object) => addedToHead.push(element) } })
   FakeWorker.made = []
   FakeWorker.received = []
   FakeWorker.answer = makesPdf
@@ -64,7 +87,16 @@ beforeEach(async () => {
   FakeWorker.loading = []
   // A fresh module each time, so no worker carries over.
   vi.resetModules()
-  ;({ compileResume, compilePreview, printedOf, loadCompiler: loadAhead, compilerStatus, onCompilerStatus, savingData } = await import("./compile"))
+  ;({
+    compileResume,
+    compilePreview,
+    printedOf,
+    loadCompiler: loadAhead,
+    prefetchCompiler: prefetch,
+    compilerStatus,
+    onCompilerStatus,
+    savingData,
+  } = await import("./compile"))
 })
 
 afterEach(() => {
@@ -218,7 +250,7 @@ test("a compiler that breaks fails everything in flight, and the next request st
 test("a broken worker fails everything in flight, and the next request starts a fresh worker", async () => {
   FakeWorker.answer = silent
   const both = [track(compileResume(resume)), track(compileResume(resume))]
-  FakeWorker.made[0].onerror?.({ message: "out of memory" })
+  FakeWorker.made[0].onerror?.(workerError("out of memory"))
   await vi.advanceTimersByTimeAsync(0)
   expect(both.map((result) => result.error?.message)).toEqual(["out of memory", "out of memory"])
 
@@ -229,6 +261,15 @@ test("a broken worker fails everything in flight, and the next request starts a 
   expect(FakeWorker.made).toHaveLength(2)
 })
 
+test("a worker that can't start is replaced, and its error isn't also left to the page as an uncaught one", () => {
+  loadAhead()
+  // As WebKit reports a worker whose scripts were cut short as the page was left.
+  const error = workerError("Load failed")
+  FakeWorker.made[0].onerror?.(error)
+  expect(error.handled).toBe(true)
+  expect(FakeWorker.made[0].terminated).toBe(true)
+})
+
 test("an error from a worker that was already replaced leaves the new one alone", async () => {
   FakeWorker.answer = silent
   track(compileResume(resume))
@@ -236,7 +277,7 @@ test("an error from a worker that was already replaced leaves the new one alone"
 
   FakeWorker.answer = makesPdf
   const next = track(compileResume(resume))
-  FakeWorker.made[0].onerror?.({ message: "late error" })
+  FakeWorker.made[0].onerror?.(workerError("late error"))
   await vi.advanceTimersByTimeAsync(10)
   expect(next.value).toEqual(PDF)
   expect(FakeWorker.made[1].terminated).toBe(false)
@@ -350,6 +391,31 @@ test("the compiler can start loading before the first PDF, which then uses the s
   await vi.advanceTimersByTimeAsync(10)
   expect(result.value).toEqual(PDF)
   expect(FakeWorker.made).toHaveLength(1)
+})
+
+test("the compiler can download ahead without being built, in the worker that later builds it", () => {
+  prefetch()
+  loadAhead("jake")
+  expect(FakeWorker.made).toHaveLength(1)
+  expect(FakeWorker.made[0].prefetches).toBe(1)
+  expect(FakeWorker.made[0].loadRequests).toEqual([{ load: true, template: "jake" }])
+})
+
+test("downloading ahead does nothing once the compiler has started", () => {
+  loadAhead()
+  prefetch()
+  track(compileResume(resume))
+  prefetch()
+  expect(FakeWorker.made).toHaveLength(1)
+  expect(FakeWorker.made[0].prefetches).toBe(0)
+})
+
+test("the connection for the compiler's download opens as its worker starts, anonymous like the download", () => {
+  loadAhead()
+  loadAhead("jake")
+  track(compileResume(resume))
+  expect(FakeWorker.made).toHaveLength(1)
+  expect(addedToHead).toEqual([{ rel: "preconnect", href: "https://cdn.jsdelivr.net", crossOrigin: "anonymous" }])
 })
 
 test("the page hears how much of the compiler has downloaded, and when it's ready", () => {

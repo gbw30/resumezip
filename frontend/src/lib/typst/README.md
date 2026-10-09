@@ -17,10 +17,19 @@ server to build a PDF.
   the limit applies to one step at a time. Previews compile one at a time:
   while one runs, only the newest waits, and downloads never wait behind them. Failures say why
   (`PdfFailure`), so the page can say what to do. `loadCompiler` starts the
-  download before the first PDF: "Start writing" and the editor call it at
-  once, and the dashboard after a second, unless the visitor is saving data.
+  download before the first PDF: "Start writing" links call it as a mouse
+  rests on one or presses it (template pictures only on a press), a moment
+  before the click; the editor calls it at once; and the dashboard after a
+  second. On a computer, the home page calls `prefetchCompiler` a second
+  after it has loaded, which only downloads the compiler, so it's in hand
+  when someone starts writing (`src/components/home/PrefetchCompiler.tsx`);
+  phones and tablets may be on metered data, so they skip it. Visitors
+  saving data only get it once they open a resume. A new worker also opens
+  the connection to jsDelivr while its own script loads.
   `compilerStatus` says how much of the compiler has arrived, which the
   preview's stand-in page shows (`src/components/editor/PrintingPage.tsx`).
+  Once it all has, the preview fetches pdf.js's worker, which is otherwise
+  only downloaded after the first PDF is made.
 - `typst.worker.ts` loads the WebAssembly compiler and the templates once, and
   compiles each request. Before compiling, it downloads the fonts that resume
   needs (see [Fonts](#fonts)), alongside the compiler the first time. Downloads also attach a copy of the resume to the PDF

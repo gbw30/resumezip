@@ -1,13 +1,16 @@
 import AxeBuilder from "@axe-core/playwright"
-import type { Page } from "@playwright/test"
+import { expect, type Locator, type Page } from "@playwright/test"
 
 // Safari logs these when a page is left while something is still loading in
-// the background, and the visitor never sees them: the PDF compiler or its
-// fonts, which the dashboard and editor start early, and the pages behind a
-// page's links, which Next.js fetches ahead. They're only left out while the
-// page is being left, so a load that fails on a page that stays open counts.
+// the background, and the visitor never sees them: the PDF compiler, its
+// fonts and pdf.js's worker, which the home page, dashboard and editor start
+// early, the scripts the compiler's worker loads as it starts, and the pages
+// behind a page's links, which Next.js fetches ahead. They're only left out
+// while the page is being left, so a load that fails on a page that stays
+// open counts.
 const CUT_SHORT = [
-  /^Fetch API cannot load \S+\.(wasm|otf|ttf) due to access control checks\.$/,
+  /^Fetch API cannot load \S+\.(wasm|otf|ttf|mjs) due to access control checks\.$/,
+  /^Cannot load \S+\.js due to access control checks\.$/,
   /^Failed to fetch RSC payload for \S+\. Falling back to browser navigation\. TypeError: Load failed$/,
 ]
 // Safari can report a load cut short just before the request for the next page.
@@ -52,11 +55,48 @@ export function pageErrors(page: Page): string[] {
   return errors
 }
 
+/** Waits for the CSS transitions under way to end, as a dialog fading in. */
+export async function transitionsDone(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        // Transitions only: CSS animations, as a spinner's, can go on for ever.
+        .filter((animation) => "transitionProperty" in animation)
+        .map((animation) => animation.finished.catch(() => undefined)),
+    ),
+  )
+}
+
+/**
+ * Waits until no transition is under way on an element, on what contains it
+ * or on what's in it, as a dialog growing into place, so a box read next is
+ * its final one. Each look comes two frames on: a transition can start with
+ * the next frame, and its transitionrun event comes with the one after.
+ */
+export async function settled(locator: Locator): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        locator.evaluate(async (element) => {
+          await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
+          return document.getAnimations().filter((animation) => {
+            const target = (animation.effect as KeyframeEffect | null)?.target
+            return "transitionProperty" in animation && !!target && (target.contains(element) || element.contains(target))
+          }).length
+        }),
+      { message: "nothing on, in or around it is transitioning" },
+    )
+    .toBe(0)
+}
+
 /**
  * The page's serious and critical problems under WCAG 2.1 A and AA, as
  * readable lines, leaving out the parts matching `exclude`.
  */
 export async function seriousAccessibilityProblems(page: Page, exclude: string[] = []): Promise<string[]> {
+  // Something fading in would be read part-way, with colors too faint for its contrast.
+  await transitionsDone(page)
   let axe = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
   for (const selector of exclude) axe = axe.exclude(selector)
   const { violations } = await axe.analyze()

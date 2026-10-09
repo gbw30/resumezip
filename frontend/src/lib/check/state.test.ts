@@ -5,6 +5,7 @@ import { memoryStorage } from "@/lib/memoryStorage"
 import { toAttachment } from "@/lib/resumeFile"
 import { createResumeStore } from "@/lib/resumeStore"
 import { changedPaths, mergeResume } from "@/lib/resumeStorage"
+import { asSaved } from "@/lib/testResume"
 import { runChecks, type Finding, type Rule } from "./engine"
 import { MAX_DISMISSED, MAX_WORD_LENGTH, MAX_WORDS } from "./settings"
 import { addWord, changeCheck, CHECK_FIELD, dismiss, readCheckState, removeWord, restore } from "./state"
@@ -24,9 +25,25 @@ const suggestion = (key: string, rule = "B1"): Finding => ({
 })
 
 describe("what the checker saves on a resume", () => {
+  test("language preferences survive storage and merge independently of words", () => {
+    const storage = memoryStorage()
+    const tab = createResumeStore()
+    tab.load(storage)
+    const id = tab.create("Ada", "professional")
+    tab.edit(id, CHECK_FIELD, { grammarLanguage: "other", words: ["spintronics"] })
+    tab.flush()
+    const reloaded = createResumeStore()
+    reloaded.load(storage)
+    expect(readCheckState(reloaded.getState().resumes[id])).toMatchObject({ grammarLanguage: "other", words: ["spintronics"] })
+    const ours = { ...sample, [CHECK_FIELD]: changeCheck(sample, (state) => ({ ...state, grammarLanguage: "other" })) }
+    const theirs = { ...sample, [CHECK_FIELD]: changeCheck(sample, (state) => addWord(state, "Typst")) }
+    const changed = new Set(changedPaths(CHECK_FIELD, sample[CHECK_FIELD], ours[CHECK_FIELD]))
+    expect(mergeResume(theirs, ours, changed)[CHECK_FIELD]).toEqual({ grammarLanguage: "other", words: ["Typst"] })
+    expect(readCheckState(asSaved({ check: { grammarLanguage: 42 } }))).not.toHaveProperty("grammarLanguage")
+  })
   test("is nothing dismissed and no words when there's none, or it's in another shape", () => {
     for (const check of [undefined, null, "B1", ["B1|x|y"], { dismissed: "B1|x|y", words: { Kubernetes: true } }]) {
-      expect(readCheckState({ [CHECK_FIELD]: check })).toEqual({ dismissed: [], words: [] })
+      expect(readCheckState(asSaved({ [CHECK_FIELD]: check }))).toEqual({ dismissed: [], words: [] })
     }
   })
 
@@ -110,7 +127,15 @@ describe("dismissing and restoring", () => {
 
   test("keeps the dismissals of a rule that has only looked at part of the resume", () => {
     // G7 has only seen some of the text, as while the grammar checker catches up after an edit.
-    const partway: Rule = { id: "G7", category: "spelling", level: "look", title: "G7", why: "G7", reads: "form", check: () => ({ checked: 1, problems: [], partial: true }) }
+    const partway: Rule = {
+      id: "G7",
+      category: "spelling",
+      level: "look",
+      title: "G7",
+      why: "G7",
+      reads: "form",
+      check: () => ({ checked: 1, problems: [], partial: true }),
+    }
     const report = runChecks(sample, { rules: [partway] })
     const state = { dismissed: ["G7|bullet|could of"], words: [] }
     expect(dismiss(state, suggestion("G6|a|b", "G6"), report).dismissed).toEqual(["G7|bullet|could of", "G6|a|b"])

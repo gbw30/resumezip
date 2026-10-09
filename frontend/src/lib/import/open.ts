@@ -5,7 +5,8 @@
 // cancelled or when it runs out of time, and shuts down whatever it started.
 
 import type { PDFDocumentProxy } from "pdfjs-dist"
-import { ATTACHMENT_NAME, AttachmentError, fromAttachment, MAX_ENTRIES, MAX_LENGTH, TooLongError, type ResumeContent } from "@/lib/resumeFile"
+import type { ResumeContent } from "@/lib/resume"
+import { ATTACHMENT_NAME, AttachmentError, fromAttachment, MAX_ENTRIES, MAX_LENGTH, TooLongError } from "@/lib/resumeFile"
 import { MAX_BYTES, MAX_PAGES, TIME_LIMIT_MS, TooMuchTextError } from "./limits"
 import { readPdf, type Line, type PageSize, type PdfPage } from "./lines"
 import type { ParsedResume } from "./parse"
@@ -111,7 +112,10 @@ function found(result: ReadResult, noText: string): ParsedResume {
 
 /** The resume a resumezip PDF carries, or null for a PDF from anywhere else. */
 async function attachedResume(doc: PDFDocumentProxy, signal: AbortSignal): Promise<ResumeContent | null> {
-  const attachments = (await until(doc.getAttachments().catch(() => null), signal)) as Record<string, { content: Uint8Array }> | null
+  const attachments = (await until(
+    doc.getAttachments().catch(() => null),
+    signal,
+  )) as Record<string, { content: Uint8Array }> | null
   const attached = attachments?.[ATTACHMENT_NAME]
   try {
     return attached ? fromAttachment(new TextDecoder().decode(attached.content)) : null
@@ -160,7 +164,14 @@ async function openPdf(data: ArrayBuffer, title: string, fileName: string, signa
     const result = await readInWorker({ kind: "pdf", pages }, signal)
     const parsed = found(result, "This PDF has no text we can read. It's probably a scan or a picture of a resume.")
     shown = true
-    return { kind: "parsed", parsed, lines: parsed.lines, title, fileName, pdf: { doc, pages: pages.map(({ width, height }) => ({ width, height })) } }
+    return {
+      kind: "parsed",
+      parsed,
+      lines: parsed.lines,
+      title,
+      fileName,
+      pdf: { doc, pages: pages.map(({ width, height }) => ({ width, height })) },
+    }
   } finally {
     signal.removeEventListener("abort", close)
     // The review shows the PDF, and closes it when it's done.
@@ -180,7 +191,11 @@ async function openWordFile(data: ArrayBuffer, title: string, fileName: string, 
 export async function openResumeFile(file: File, { signal }: { signal?: AbortSignal } = {}): Promise<OpenedFile> {
   const kind = kindOf(file)
   if (!kind) {
-    throw new OpenFileError(/\.doc$/i.test(file.name) ? "That's an older Word file. Save it as .docx or PDF, then open it here." : "Open a PDF or a Word (.docx) file.")
+    throw new OpenFileError(
+      /\.doc$/i.test(file.name)
+        ? "That's an older Word file. Save it as .docx or PDF, then open it here."
+        : "Open a PDF or a Word (.docx) file.",
+    )
   }
   if (file.size > MAX_BYTES) throw new OpenFileError("That file is too big to be a resume.")
   const title = file.name.replace(/\.(pdf|docx)$/i, "").trim() || "Imported resume"
@@ -196,7 +211,9 @@ export async function openResumeFile(file: File, { signal }: { signal?: AbortSig
   )
   try {
     const data = await until(file.arrayBuffer(), reading.signal)
-    return kind === "docx" ? await openWordFile(data, title, file.name, reading.signal) : await openPdf(data, title, file.name, reading.signal)
+    return kind === "docx"
+      ? await openWordFile(data, title, file.name, reading.signal)
+      : await openPdf(data, title, file.name, reading.signal)
   } finally {
     clearTimeout(timer)
     signal?.removeEventListener("abort", cancel)

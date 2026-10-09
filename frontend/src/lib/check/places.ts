@@ -2,20 +2,20 @@
 // title, a whole section, an entry (one of its fields, or one bullet), or the
 // PDF's pages. Also how a finding is told apart from others, for dismissing it.
 
-import { PROFILE_FIELDS, SECTIONS, type SectionName } from "@/components/editor/sections"
+import { PROFILE_FIELDS, SECTIONS, type FieldKey, type FieldKeyOf, type ProfileKey, type SectionName } from "@/components/editor/sections"
 import { entryAt, type ResumeView } from "./resume"
 import { CERTIFICATION_FIELDS, type Certification } from "@/lib/resumeSections"
 
 export type Place =
   // A profile field, like "email".
-  | { kind: "profile"; field: string }
+  | { kind: "profile"; field: ProfileKey }
   // A section's title, which the person can rename.
   | { kind: "heading"; section: SectionName }
   // A whole section, as when it's missing or empty.
   | { kind: "section"; section: SectionName }
   // An entry (its place in the list, from 0), one of its fields, or one line of
   // a bullet field (a bullet's `line`).
-  | { kind: "entry"; section: SectionName; entry: number; field?: string; line?: number }
+  | { kind: "entry"; section: SectionName; entry: number; field?: FieldKey; line?: number }
   | { kind: "extra-heading"; sectionId: string }
   | { kind: "extra-text"; sectionId: string; field: "text" | "bullets"; line?: number }
   | { kind: "credential"; sectionId: "certifications"; entryId: string; field?: (typeof CERTIFICATION_FIELDS)[number] }
@@ -26,7 +26,24 @@ export type Place =
 export const fieldOf = (place: Place) => (place.kind === "profile" || place.kind === "entry" || place.kind === "extra-text" || place.kind === "credential" ? place.field : undefined)
 
 /** Fields that hold a link or an email address rather than words. */
-export const LINK_FIELDS: ReadonlySet<string> = new Set(["email", "linkedin", "profileGithub", "personalWebsite", "projectGithub", "additionalLink", "publicationLink", "link"])
+export const LINK_FIELDS: ReadonlySet<ReturnType<typeof fieldOf>> = new Set<ReturnType<typeof fieldOf>>([
+  "email",
+  "linkedin",
+  "profileGithub",
+  "personalWebsite",
+  "projectGithub",
+  "additionalLink",
+  "publicationLink",
+  "link",
+])
+
+/** Where an entry was, in the sections that have one: jobs, schools and roles. */
+export const LOCATION_FIELDS: { [Section in SectionName]?: FieldKeyOf<Section> } = {
+  Education: "schoolLocation",
+  Work: "workLocation",
+  Volunteership: "volunteerLocation",
+  Leadership: "leadershipLocation",
+}
 
 export function credentialAt(view: ResumeView, entryId: string): Certification | undefined {
   const section = view.extras.certifications?.section
@@ -153,6 +170,10 @@ function fingerprint(text: string): string {
   }
   return (hash >>> 0).toString(36)
 }
+
+/** Identifies a place exactly, bullet line included: equal ids mean the same place. */
+export const placeId = (place: Place) =>
+  place.kind === "entry" && place.line !== undefined ? `${pathOf(place)}.${place.line}` : pathOf(place)
 
 /** What tells a finding apart: its rule, the field it's in, and the text it flagged. */
 export const findingKey = (rule: string, place: Place, text: string) => `${rule}|${pathOf(place)}|${fingerprint(text)}`

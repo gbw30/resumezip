@@ -1,5 +1,5 @@
-import { expect, test, type Page } from "@playwright/test"
-import { pageErrors, seriousAccessibilityProblems } from "./helpers"
+import { expect, test, type Locator, type Page } from "@playwright/test"
+import { pageErrors, seriousAccessibilityProblems, settled } from "./helpers"
 
 // The editor's left bar switches between the sections (Write) and what the
 // checker found (Check), and remembers which for the visit.
@@ -8,6 +8,80 @@ async function newResume(page: Page) {
   await page.goto("/")
   await page.getByRole("link", { name: "Start writing" }).first().click()
   await expect(page).toHaveURL(/\/create\/new\//)
+}
+
+// While held, the compiler's worker isn't sent resumes to compile, so the
+// preview and the checks on the PDF wait, and the score with them.
+async function holdablePreviews(page: Page) {
+  await page.addInitScript(() => {
+    const held: (() => void)[] = []
+    let holding = false
+    ;(window as any).holdPreviews = (hold: boolean) => {
+      holding = hold
+      if (!hold) for (const send of held.splice(0)) send()
+    }
+    const RealWorker = window.Worker
+    window.Worker = class extends RealWorker {
+      postMessage(message: any, options?: any) {
+        // A resume to compile has an id and a template; the grammar checker's texts have no template.
+        if (holding && message?.id !== undefined && message?.template !== undefined) held.push(() => super.postMessage(message, options))
+        else super.postMessage(message, options)
+      }
+    }
+  })
+}
+
+const holdPreviews = (page: Page, hold: boolean) => page.evaluate((hold) => (window as any).holdPreviews(hold), hold)
+
+/** A new resume with a name and an entry, so there's something to check, and its preview on screen. */
+async function resumeToCheck(page: Page) {
+  await newResume(page)
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Company").fill("Analytical Engines")
+  await expect(page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()).toBeVisible()
+}
+
+/** How many CSS animations, as a spinner's, are running in an element. Transitions don't count. */
+const animationsIn = (locator: Locator) =>
+  locator.evaluate(
+    (element) =>
+      document.getAnimations().filter((animation) => {
+        const target = (animation.effect as KeyframeEffect | null)?.target
+        return "animationName" in animation && animation.playState === "running" && !!target && element.contains(target)
+      }).length,
+  )
+
+/**
+ * Notes how much of each arc added to the score ring is drawn the moment it's
+ * added, in percent, until the returned function is called.
+ */
+async function watchArcs(score: Locator): Promise<() => Promise<number[]>> {
+  const watching = await score.evaluateHandle((element) => {
+    const drawn: number[] = []
+    const observer = new MutationObserver((records) => {
+      for (const node of records.flatMap((record) => [...record.addedNodes])) {
+        if (!(node instanceof SVGCircleElement)) continue
+        // Read before it's painted: a transition that's just started is still where it starts from.
+        const style = getComputedStyle(node)
+        drawn.push(Math.round(100 * (1 - parseFloat(style.strokeDashoffset) / parseFloat(style.strokeDasharray))))
+      }
+    })
+    observer.observe(element, { childList: true, subtree: true })
+    return { drawn, stop: () => observer.disconnect() }
+  })
+  return async () => {
+    const drawn = await watching.evaluate(({ drawn, stop }) => {
+      stop()
+      return drawn
+    })
+    await watching.dispose()
+    return drawn
+  }
 }
 
 test("the left bar switches between writing and checking, and remembers which", async ({ page }) => {
@@ -54,7 +128,10 @@ test("the left bar switches between writing and checking, and remembers which", 
   // which Safari logs as an error, and in Check for the score, so the
   // checker's reader isn't either.
   const preview = page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()
-  const score = page.getByRole("tabpanel", { name: /^Check/ }).getByRole("region", { name: "Resume score" }).locator("[aria-live=polite]")
+  const score = page
+    .getByRole("tabpanel", { name: /^Check/ })
+    .getByRole("region", { name: "Resume score" })
+    .locator("[aria-live=polite]")
   const checked = () => expect(score).toContainText(/^\d+\s*\/ 100\s*out of 100$/)
   await expect(preview).toBeVisible()
   await checked()
@@ -80,7 +157,7 @@ test("the left bar switches between writing and checking, and remembers which", 
   // a freshly loaded dashboard too, but a new resume, with nothing to check
   // yet, opens on Write.
   await page.goto("/create/dashboard")
-  await page.getByRole("link", { name: "Open", exact: true }).click()
+  await page.getByRole("table").getByRole("link").first().click()
   await expect(check).toHaveAttribute("aria-selected", "true")
   await expect(preview).toBeVisible()
   await checked()
@@ -110,7 +187,10 @@ test("the checker asks for a name and an entry first, then scores the resume and
   // The form stays beside the checker, so the name can be typed straight in.
   await page.getByLabel("Full name").fill("Ada Lovelace")
   await write.click()
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
   await check.click()
@@ -128,7 +208,13 @@ test("the checker asks for a name and an entry first, then scores the resume and
   await contact.focus()
   await page.keyboard.press("Enter")
   await expect(contact).toHaveAttribute("aria-expanded", "false")
+  // What's folding away can't be reached with Tab, even while it slides shut:
+  // checked at once, as it loses the focus anyway once it's shut.
+  await page.keyboard.press("Tab")
+  const folding = panel.getByRole("button", { name: /Add your email address/, includeHidden: true })
+  expect(await folding.evaluate((button) => button === document.activeElement)).toBe(false)
   await expect(email).toBeHidden()
+  await contact.focus()
   await page.keyboard.press("Space")
   await expect(contact).toHaveAttribute("aria-expanded", "true")
   // Once everything's checked: not the checks it passed, in Contact or anywhere,
@@ -139,9 +225,11 @@ test("the checker asks for a name and an entry first, then scores the resume and
   await expect(panel.getByRole("button", { name: /^Readable by hiring software/ })).toHaveCount(0)
   await expect(panel.getByText("Real text that can be selected and copied")).toHaveCount(0)
 
-  // A line says what the score measures, and that a must-fix holds it down.
+  // A word says how the score reads, a line what it measures, and another
+  // that the must-fixes hold it down.
+  await expect(score).toContainText("Needs work")
   await expect(score).toContainText("How well this resume follows the checks below.")
-  await expect(score).toContainText("Fix what's under “To fix” to score above 89.")
+  await expect(score).toContainText("Capped at 89 until you fix 4 items.")
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
 
   expect(errors).toEqual([])
@@ -153,10 +241,16 @@ test("the score goes up as a problem is fixed", async ({ page }) => {
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
   await page.getByLabel("Full name").fill("Ada Lovelace")
   await page.getByLabel("Email").fill("ada@example")
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
-  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+  await page
+    .getByRole("tablist", { name: "Write or check" })
+    .getByRole("tab", { name: /^Check/ })
+    .click()
 
   // The contact category is open, as it has something to fix, and lists it.
   const contact = panel.getByRole("button", { name: /^Contact & personal details, 1 to fix/ })
@@ -175,7 +269,85 @@ test("the score goes up as a problem is fixed", async ({ page }) => {
   expect(errors).toEqual([])
 })
 
-test("choosing a finding opens its field, where it shows while Check is open, fixing it clears it, and a suggestion can be dismissed", async ({ page }) => {
+test("the resume is checked again once typing pauses, not at every key, and a dismissal shows at once", async ({ page }) => {
+  const errors = pageErrors(page)
+  await page.clock.install()
+  await resumeToCheck(page)
+  const check = page.getByRole("tab", { name: /^Check/ })
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+  await check.click()
+  await expect(panel.getByRole("status")).toBeHidden()
+  const missing = panel.getByRole("button", { name: /Add your email address/ })
+  await missing.click()
+  const email = page.getByLabel("Email")
+  await expect(email).toBeFocused()
+  const count = Number((await check.getAttribute("aria-label"))?.match(/^Check, (\d+) to look at$/)?.[1])
+  expect(count).toBeGreaterThan(2)
+
+  // With the page's clock stopped, typing never pauses. What the person
+  // tells the checker still shows at once.
+  await page.clock.pauseAt(Date.now() + 1_000)
+  const advice = panel.getByRole("button", { name: /Profile → LinkedIn Consider adding a LinkedIn profile/ })
+  await panel.getByRole("button", { name: "Dismiss: Consider adding a LinkedIn profile" }).click()
+  await expect(advice).toBeHidden()
+  await expect(check).toHaveAccessibleName(`Check, ${count - 1} to look at`)
+
+  // What's typed isn't checked yet: a fixed wait, to show nothing changes.
+  await email.pressSequentially("ada@example.com")
+  await page.waitForTimeout(1_000)
+  await expect(missing).toBeVisible()
+  await expect(check).toHaveAccessibleName(`Check, ${count - 1} to look at`)
+
+  // Once typing pauses, it is.
+  await page.clock.resume()
+  await expect(missing).toBeHidden()
+  await expect(panel.getByRole("status")).toBeHidden()
+  await expect(check).toHaveAccessibleName(`Check, ${count - 2} to look at`)
+
+  expect(errors).toEqual([])
+})
+
+test("the score ring moves while the score is worked out: an arc runs round it, it fills up to the score, and it pulses while checked again", async ({
+  page,
+}) => {
+  const errors = pageErrors(page)
+  await holdablePreviews(page)
+  await resumeToCheck(page)
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+  const score = panel.getByRole("region", { name: "Resume score" })
+
+  // A change the preview hasn't caught up with keeps the checks on the PDF
+  // waiting, and the score with them. Meanwhile an arc runs round the ring.
+  await holdPreviews(page, true)
+  await page.getByLabel("Role").fill("Analyst")
+  await page.getByRole("tab", { name: /^Check/ }).click()
+  await expect(score).toContainText("Checking")
+  await expect.poll(() => animationsIn(score)).toBeGreaterThan(0)
+
+  // Once the score is in, the ring fills up to it from empty, then stops moving.
+  const arcs = await watchArcs(score)
+  await holdPreviews(page, false)
+  await expect(score.getByText(/^\d+$/)).toBeVisible()
+  expect(await arcs()).toEqual([0])
+  await expect(panel.getByRole("status")).toBeHidden()
+  await expect.poll(() => animationsIn(score)).toBe(0)
+
+  // Checked again after a change, the ring keeps the score and pulses until it's done.
+  await holdPreviews(page, true)
+  await page.getByLabel("Role").fill("Lead analyst")
+  await expect(panel.getByRole("status")).toContainText("Checking the PDF…")
+  await expect(score.getByText(/^\d+$/)).toBeVisible()
+  await expect.poll(() => animationsIn(score)).toBeGreaterThan(0)
+  await holdPreviews(page, false)
+  await expect(panel.getByRole("status")).toBeHidden()
+  await expect.poll(() => animationsIn(score)).toBe(0)
+
+  expect(errors).toEqual([])
+})
+
+test("choosing a finding opens its field, where it shows while Check is open, fixing it clears it, and a suggestion can be dismissed", async ({
+  page,
+}) => {
   const errors = pageErrors(page)
   await newResume(page)
   const modes = page.getByRole("tablist", { name: "Write or check" })
@@ -186,7 +358,10 @@ test("choosing a finding opens its field, where it shows while Check is open, fi
   await expect(check).toHaveAccessibleName("Check")
   await page.getByLabel("Full name").fill("Ada Lovelace")
   await page.getByLabel("Email").fill("ada@example")
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
   await expect(check).toHaveAccessibleName(/^Check, \d+ to look at$/)
@@ -198,7 +373,7 @@ test("choosing a finding opens its field, where it shows while Check is open, fi
   const field = page.getByLabel("Email")
   await expect(field).toBeFocused()
   await expect(field).toHaveAttribute("aria-invalid", "true")
-  const why = page.getByText("Recruiters reply by email, so it has to work.")
+  const why = page.getByText("Recruiters reply by email, and application forms ask for it, so it has to work.")
   await expect(why).toBeVisible()
 
   // Back in Write mode the field is left plain, until Check is open again.
@@ -212,16 +387,65 @@ test("choosing a finding opens its field, where it shows while Check is open, fi
   await expect(email).toBeHidden()
   await expect(field).not.toHaveAttribute("aria-invalid")
 
-  // A suggestion can be dismissed, and brought back.
+  // Missing work identity is a fix; optional LinkedIn advice can be dismissed.
   const role = panel.getByRole("button", { name: /^Experience → .* No role$/ })
   await expect(role).toBeVisible()
-  await panel.getByRole("button", { name: "Dismiss: No role" }).click()
-  await expect(role).toBeHidden()
+  await expect(panel.getByRole("button", { name: "Dismiss: No role" })).toHaveCount(0)
+  const advice = panel.getByRole("button", { name: /Profile → LinkedIn Consider adding a LinkedIn profile/ })
+  await expect(advice).toBeVisible()
+  await panel.getByRole("button", { name: "Dismiss: Consider adding a LinkedIn profile" }).click()
+  await expect(advice).toBeHidden()
   await panel.getByText("Dismissed · 1").click()
-  await panel.getByRole("button", { name: "Bring back: No role" }).click()
-  await expect(role).toBeVisible()
+  await panel.getByRole("button", { name: "Bring back: Consider adding a LinkedIn profile" }).click()
+  await expect(advice).toBeVisible()
 
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
+  expect(errors).toEqual([])
+})
+
+/** How wide each line a paragraph wraps onto is. */
+const lineWidths = (paragraph: Locator) =>
+  paragraph.evaluate((element) => {
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    const lines = new Map<number, number>()
+    for (const rect of range.getClientRects()) lines.set(Math.round(rect.top), (lines.get(Math.round(rect.top)) ?? 0) + rect.width)
+    return [...lines.values()]
+  })
+
+test("the note under a field doesn't leave a word or two on a line of their own, and sets its sentences apart", async ({ page }) => {
+  const errors = pageErrors(page)
+  // At this width the email's reason runs a word past one line.
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await newResume(page)
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await page.getByLabel("Email").fill("ada@example")
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Company").fill("Analytical Engines")
+  await page
+    .getByRole("tablist", { name: "Write or check" })
+    .getByRole("tab", { name: /^Check/ })
+    .click()
+  await page
+    .getByRole("tabpanel", { name: /^Check/ })
+    .getByRole("button", { name: /Not a whole email address/ })
+    .click()
+
+  const why = page.getByText("Recruiters reply by email, and application forms ask for it, so it has to work.")
+  const suggestion = page.getByText("Check the email spelling and domain, like jake@gmail.com.")
+  await expect(why).toBeVisible()
+  // Measured once the section has faded in, as it grows into place.
+  await settled(why)
+  const widths = await lineWidths(why)
+  expect(widths).toHaveLength(2)
+  expect(Math.min(...widths)).toBeGreaterThan(Math.max(...widths) / 2)
+  const [whyBox, suggestionBox] = [await why.boundingBox(), await suggestion.boundingBox()]
+  expect(suggestionBox!.y - (whyBox!.y + whyBox!.height)).toBeGreaterThanOrEqual(8)
+
   expect(errors).toEqual([])
 })
 
@@ -232,7 +456,10 @@ test("with Check open, the PDF is read too: a bullet that runs three lines is fl
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
 
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
   const bullets = page.getByLabel(/^What you did/)
@@ -267,14 +494,54 @@ test("when the preview can't be built, the checker says its PDF checks are left 
   })
   await newResume(page)
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
 
-  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+  await page
+    .getByRole("tablist", { name: "Write or check" })
+    .getByRole("tab", { name: /^Check/ })
+    .click()
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
   await expect(panel.getByRole("status")).toContainText("The preview couldn't be built, so the checks on the PDF are left out.")
   expect(errors).toEqual([])
+})
+
+test.describe("with less motion", () => {
+  test.use({ reducedMotion: "reduce" })
+
+  test("the score ring stays still: nothing runs round it, it shows the score at once, and it doesn't pulse", async ({ page }) => {
+    const errors = pageErrors(page)
+    await holdablePreviews(page)
+    await resumeToCheck(page)
+    const panel = page.getByRole("tabpanel", { name: /^Check/ })
+    const score = panel.getByRole("region", { name: "Resume score" })
+
+    await holdPreviews(page, true)
+    await page.getByLabel("Role").fill("Analyst")
+    await page.getByRole("tab", { name: /^Check/ }).click()
+    await expect(score).toContainText("Checking")
+    expect(await animationsIn(score)).toBe(0)
+
+    const arcs = await watchArcs(score)
+    await holdPreviews(page, false)
+    await expect(score.getByText(/^\d+$/)).toBeVisible()
+    const [drawn] = await arcs()
+    expect(drawn).toBeGreaterThan(0)
+    await expect(panel.getByRole("status")).toBeHidden()
+
+    await holdPreviews(page, true)
+    await page.getByLabel("Role").fill("Lead analyst")
+    await expect(panel.getByRole("status")).toContainText("Checking the PDF…")
+    expect(await animationsIn(score)).toBe(0)
+    await holdPreviews(page, false)
+    await expect(panel.getByRole("status")).toBeHidden()
+
+    expect(errors).toEqual([])
+  })
 })
 
 test.describe("on a phone", () => {

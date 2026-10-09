@@ -82,8 +82,28 @@ async function openSection(page: Page, section: string, resume: { id: string } &
   )
   await page.goto(`/create/new/${resume.id}`)
   await previewShown(page)
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: new RegExp(`^\\d+ ${section}$`) }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: new RegExp(`^\\d+ ${section}$`) })
+    .click()
 }
+
+test("a click on an entry's heading opens it, and on the open entry's heading closes it", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+  const done = page.getByRole("button", { name: "Done editing entry 1" })
+  await expect(done).toBeVisible()
+
+  await page.getByText("Entry 1", { exact: true }).click()
+  await expect(done).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Edit entry 1" })).toBeVisible()
+
+  // Closed, it shows its summary, which opens it again.
+  await page.getByText("Engineer, Google").click()
+  await expect(done).toBeVisible()
+
+  expect(errors).toEqual([])
+})
 
 test("entries move up and down from the keyboard, and stay moved", async ({ page }) => {
   const errors = pageErrors(page)
@@ -104,11 +124,9 @@ test("entries move up and down from the keyboard, and stay moved", async ({ page
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
 
   // It's saved, so it's still moved after a reload.
-  await expect.poll(async () => (await saved(page)).workExperienceSection.map((entry: { companyName: string }) => entry.companyName)).toEqual([
-    "Initech",
-    "Hooli",
-    "Google",
-  ])
+  await expect
+    .poll(async () => (await saved(page)).workExperienceSection.map((entry: { companyName: string }) => entry.companyName))
+    .toEqual(["Initech", "Hooli", "Google"])
   await page.reload()
   await previewShown(page)
   await expect.poll(() => printedOrder(page, ["Google", "Initech", "Hooli"])).toEqual(["Initech", "Hooli", "Google"])
@@ -116,7 +134,78 @@ test("entries move up and down from the keyboard, and stay moved", async ({ page
   expect(errors).toEqual([])
 })
 
-test("an entry left out isn't printed, or in the PDF's copy of the resume, and comes back when it's put back", async ({ page, browser }, testInfo) => {
+/**
+ * Clicks a move button, and says where it's drawn from the top of the
+ * section's title, which scrolls with it: before, as the slide that follows
+ * starts (paused there), and once it's done; and its entry's background then.
+ */
+async function slideOf(page: Page, button: Locator) {
+  const title = await page.getByRole("heading", { name: "Experience" }).elementHandle()
+  return button.evaluate(async (element: HTMLElement, title) => {
+    const top = () => element.getBoundingClientRect().top - title!.getBoundingClientRect().top
+    const before = top()
+    // As from the keyboard, so the button has the focus.
+    element.focus()
+    element.click()
+    // The app's own animations on what the button is in, not CSS transitions.
+    const started = () =>
+      document.getAnimations().filter((animation) => {
+        const target = (animation.effect as KeyframeEffect | null)?.target
+        return !("transitionProperty" in animation) && !!target?.contains(element)
+      })
+    let animations: Animation[] = []
+    for (let frame = 0; frame < 10 && animations.length === 0; frame++) {
+      await new Promise((done) => requestAnimationFrame(done))
+      animations = started()
+    }
+    const entry = animations.map((animation) => (animation.effect as KeyframeEffect).target!).find(Boolean)
+    const background = () => (entry ? getComputedStyle(entry).backgroundColor : "")
+    for (const animation of animations) {
+      animation.pause()
+      animation.currentTime = 0
+    }
+    const start = { top: top(), background: background() }
+    for (const animation of animations) animation.finish()
+    return { before, start, end: { top: top(), background: background() } }
+  }, title)
+}
+
+test("a moved entry slides to its new place lit up, keeping the focus", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+
+  // Entry 2 moves up past entry 1, which is open, so it goes a long way.
+  const { before, start, end } = await slideOf(page, page.getByRole("button", { name: "Move entry 2 up" }))
+  expect(start.top).toBeCloseTo(before, 0)
+  expect(start.background).toBe("rgb(255, 255, 255)")
+  expect(before - end.top).toBeGreaterThan(300)
+  expect(end.background).toBe("rgba(0, 0, 0, 0)")
+  await expect(page.getByRole("button", { name: "Move entry 1 up" })).toBeFocused()
+
+  expect(errors).toEqual([])
+})
+
+test.describe("with less motion", () => {
+  test.use({ reducedMotion: "reduce" })
+
+  test("a moved entry doesn't slide, but still lights up", async ({ page }) => {
+    const errors = pageErrors(page)
+    await openSection(page, "Experience")
+
+    const { before, start, end } = await slideOf(page, page.getByRole("button", { name: "Move entry 2 up" }))
+    expect(before - start.top).toBeGreaterThan(300)
+    expect(start.top).toBe(end.top)
+    expect(start.background).toBe("rgb(255, 255, 255)")
+    await expect(page.getByRole("button", { name: "Move entry 1 up" })).toBeFocused()
+
+    expect(errors).toEqual([])
+  })
+})
+
+test("an entry left out isn't printed, or in the PDF's copy of the resume, and comes back when it's put back", async ({
+  page,
+  browser,
+}, testInfo) => {
   const errors = pageErrors(page)
   await openSection(page, "Experience")
 
@@ -156,7 +245,10 @@ test("an entry left out isn't printed, or in the PDF's copy of the resume, and c
   // Here it's kept, left out, and put back with a tick.
   await page.goto(`/create/new/${RESUME.id}`)
   await previewShown(page)
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   const include = page.getByRole("checkbox", { name: "Include entry 2 in the PDF" })
   await expect(include).not.toBeChecked()
   await include.check()
@@ -196,9 +288,9 @@ test("bullets are moved and left out from the Arrange list, or moved with Alt an
   await box.evaluate((textarea: HTMLTextAreaElement) => textarea.setSelectionRange(0, 0))
   await page.keyboard.press("Alt+ArrowDown")
   await expect(box).toHaveValue("• Built the search index\n• Cut serving costs by 30%\n○ Mentored four interns")
-  await expect.poll(async () => (await saved(page)).workExperienceSection[0].workDescription).toBe(
-    "• Built the search index\n• Cut serving costs by 30%\n○ Mentored four interns",
-  )
+  await expect
+    .poll(async () => (await saved(page)).workExperienceSection[0].workDescription)
+    .toBe("• Built the search index\n• Cut serving costs by 30%\n○ Mentored four interns")
 
   // Enter in a left-out bullet: the words moved to the new line stay left out.
   const split = "• Built the search index\n• Cut serving costs by 30%\n○ Mentored four".length
@@ -226,6 +318,98 @@ test("a section with every entry left out isn't printed, title and all", async (
   expect(errors).toEqual([])
 })
 
+test("a section is dragged to a new place from the keyboard, and printed and saved there", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+  await expect.poll(() => printedOrder(page, ["Google", "Python"])).toEqual(["Google", "Python"])
+
+  const sections = page.getByRole("navigation", { name: "Sections" })
+  await sections.getByRole("button", { name: "Reorder Experience" }).focus()
+  await page.keyboard.press("Space")
+  await page.keyboard.press("ArrowDown")
+  await page.keyboard.press("Space")
+  await expect(sections.getByRole("button", { name: "02 Skills" })).toBeVisible()
+  await expect(sections.getByRole("button", { name: "03 Experience" })).toBeVisible()
+  await expect.poll(() => printedOrder(page, ["Google", "Python"])).toEqual(["Python", "Google"])
+  await expect.poll(async () => (await saved(page)).sectionOrder.slice(0, 2)).toEqual(["Skills", "Work"])
+
+  expect(errors).toEqual([])
+})
+
+const companies = async (page: Page) => (await saved(page)).workExperienceSection.map((entry: { companyName: string }) => entry.companyName)
+
+/** Waits for what `control` is in to light up: the app's own animation on it, paused at its start, puts it on white. */
+const lightsUp = (control: Locator) =>
+  expect
+    .poll(() =>
+      control.evaluate((element) => {
+        const animation = document.getAnimations().find((animation) => {
+          const target = (animation.effect as KeyframeEffect | null)?.target
+          return !("transitionProperty" in animation) && !!target?.contains(element)
+        })
+        if (!animation) return ""
+        animation.pause()
+        animation.currentTime = 0
+        const background = getComputedStyle((animation.effect as KeyframeEffect).target!).backgroundColor
+        animation.finish()
+        return background
+      }),
+    )
+    .toBe("rgb(255, 255, 255)")
+
+test("an entry is dragged to a new place from the keyboard, and printed and saved there", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+
+  await page.getByRole("button", { name: "Reorder entry 3" }).focus()
+  await page.keyboard.press("Space")
+  await page.keyboard.press("ArrowUp")
+  await page.keyboard.press("ArrowUp")
+  await page.keyboard.press("Space")
+  // It keeps the focus in its new place, and lights up there.
+  const moved = page.getByRole("button", { name: "Reorder entry 1" })
+  await expect(moved).toBeFocused()
+  await lightsUp(moved)
+  await expect.poll(() => printedOrder(page, ["Google", "Initech", "Hooli"])).toEqual(["Hooli", "Google", "Initech"])
+  await expect.poll(() => companies(page)).toEqual(["Hooli", "Google", "Initech"])
+
+  expect(errors).toEqual([])
+})
+
+test("an open entry is dragged with the mouse, under the pointer all the way, and dropped still open", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+
+  // The first entry is open, and the tallest: it's dragged down past the two closed ones.
+  const dragged = page.getByRole("button", { name: "Reorder entry 1" })
+  const from = (await dragged.boundingBox())!
+  const second = (await page.getByRole("button", { name: "Reorder entry 2" }).boundingBox())!
+  const third = (await page.getByRole("button", { name: "Reorder entry 3" }).boundingBox())!
+  const x = from.x + from.width / 2
+  const start = from.y + from.height / 2
+  const to = start + 2 * (third.y - second.y) + 20
+  await page.mouse.move(x, start)
+  await page.mouse.down()
+  // Past the few pixels a click can move, so it's a drag.
+  await page.mouse.move(x, start + 10, { steps: 5 })
+  await page.mouse.move(x, to, { steps: 20 })
+  // It trails the pointer by those few pixels, and no more.
+  await expect
+    .poll(async () => {
+      const box = (await dragged.boundingBox())!
+      return Math.hypot(box.x + box.width / 2 - x, box.y + box.height / 2 - to)
+    })
+    .toBeLessThan(12)
+  await page.mouse.up()
+
+  await lightsUp(page.getByRole("button", { name: "Reorder entry 3" }))
+  await expect.poll(() => companies(page)).toEqual(["Initech", "Hooli", "Google"])
+  // It's still open, in its new place.
+  await expect(page.getByRole("button", { name: "Done editing entry 3" })).toBeVisible()
+
+  expect(errors).toEqual([])
+})
+
 test("a bullet keeps the focus as it moves, even past one with the same words", async ({ page }) => {
   const errors = pageErrors(page)
   await openSection(page, "Experience")
@@ -241,9 +425,9 @@ test("a bullet keeps the focus as it moves, even past one with the same words", 
   await expect(rows.nth(1).getByRole("checkbox")).toBeChecked()
   await page.keyboard.press("Enter")
   await expect(rows.nth(2).getByRole("button", { name: "Move bullet 3 down" })).toBeFocused()
-  await expect.poll(async () => (await saved(page)).workExperienceSection[0].workDescription).toBe(
-    "○ Led the team\n• Wrote the docs\n• Led the team",
-  )
+  await expect
+    .poll(async () => (await saved(page)).workExperienceSection[0].workDescription)
+    .toBe("○ Led the team\n• Wrote the docs\n• Led the team")
 
   expect(errors).toEqual([])
 })
@@ -256,11 +440,19 @@ test("the checker skips what's left out, and opens the right entry after it", as
     id: "tailored-check",
     workExperienceSection: [
       { id: 1, workRole: "Intern", companyName: "Initech", workDescription: "• Responsible for the reports", leftOut: true },
-      { id: 2, workRole: "Engineer", companyName: "Google", workDescription: "• Responsible for the search index\n• Cut serving costs by 30%" },
+      {
+        id: 2,
+        workRole: "Engineer",
+        companyName: "Google",
+        workDescription: "• Responsible for the search index\n• Cut serving costs by 30%",
+      },
     ],
   })
 
-  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+  await page
+    .getByRole("tablist", { name: "Write or check" })
+    .getByRole("tab", { name: /^Check/ })
+    .click()
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
   await expect(panel.getByRole("button", { name: weak("Google") })).toBeVisible()
   await expect(panel.getByRole("button", { name: /Initech/ })).toHaveCount(0)
@@ -270,7 +462,8 @@ test("the checker skips what's left out, and opens the right entry after it", as
   await expect(page.getByRole("button", { name: "Done editing entry 2" })).toBeVisible()
   const field = page.locator('[data-field="workDescription"]').nth(1)
   const box = field.getByLabel(BULLETS)
-  const selected = () => box.evaluate((textarea: HTMLTextAreaElement) => textarea.value.slice(textarea.selectionStart, textarea.selectionEnd))
+  const selected = () =>
+    box.evaluate((textarea: HTMLTextAreaElement) => textarea.value.slice(textarea.selectionStart, textarea.selectionEnd))
   await expect(box).toBeFocused()
   expect(await selected()).toBe("Responsible for the search index")
 
@@ -310,7 +503,9 @@ test("the text box shows every bullet after arranging, and a deleted entry's mod
   await page.getByRole("button", { name: "Delete", exact: true }).click()
   await expect(page.getByRole("button", { name: "Edit entry 3" })).toHaveCount(0)
   await page.getByRole("button", { name: "Edit entry 1" }).click()
-  await expect(page.locator('[data-field="workDescription"]').first().getByRole("textbox", { name: BULLETS })).toHaveValue("• Filed the reports")
+  await expect(page.locator('[data-field="workDescription"]').first().getByRole("textbox", { name: BULLETS })).toHaveValue(
+    "• Filed the reports",
+  )
 
   expect(errors).toEqual([])
 })

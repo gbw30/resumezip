@@ -128,8 +128,17 @@ test("papers pasted as links are added as new entries, sending only their DOIs",
     publicationDetails: "vol. 585, no. 7825, pp. 357–362",
     publicationLink: "10.1038/s41586-020-2649-2",
   })
-  expect(arxiv).toMatchObject({ publicationVenue: "arXiv preprint", publicationDate: "Feb 2022", publicationLink: "10.48550/arXiv.2202.01037" })
-  await expect(page.getByRole("region", { name: "Live preview" }).getByText(/Array programming with NumPy/).first()).toBeVisible()
+  expect(arxiv).toMatchObject({
+    publicationVenue: "arXiv preprint",
+    publicationDate: "Feb 2022",
+    publicationLink: "10.48550/arXiv.2202.01037",
+  })
+  await expect(
+    page
+      .getByRole("region", { name: "Live preview" })
+      .getByText(/Array programming with NumPy/)
+      .first(),
+  ).toBeVisible()
 
   // Only the DOIs went out: the IEEE link has none, and the repeat wasn't looked up.
   expect(lookups.asked.map((lookup) => decodeURI(lookup.url))).toEqual([
@@ -148,10 +157,9 @@ test("papers pasted as links are added as new entries, sending only their DOIs",
   await page.getByRole("button", { name: "Add by hand" }).click()
   await expect(box).toBeHidden()
   await expect(page.getByLabel("Title").last()).toBeFocused()
-  await expect.poll(() => saved(page).then((entries) => entries.slice(3).map((entry) => entry.publicationLink))).toEqual([
-    "https://ieeexplore.ieee.org/document/9157091",
-    "10.1145/9999999.0000001",
-  ])
+  await expect
+    .poll(() => saved(page).then((entries) => entries.slice(3).map((entry) => entry.publicationLink)))
+    .toEqual(["https://ieeexplore.ieee.org/document/9157091", "10.1145/9999999.0000001"])
 
   // The browser logs the lookups that found nothing.
   expect(errors.filter((error) => !error.includes("404"))).toEqual([])
@@ -189,11 +197,9 @@ test("stopping keeps what wasn't looked up, and closing the box adds nothing", a
   lookups.hold()
   await page.getByRole("button", { name: "Add from DOI or link" }).click()
   await box.fill(lines)
-  // This asserts keyboard focus retention. Safari pointer clicks deliberately
-  // don't focus buttons, so activate from the keyboard in both engines.
-  await page.getByRole("button", { name: "Add papers" }).focus()
-  await page.getByRole("button", { name: "Add papers" }).press("Enter")
-  await page.getByRole("button", { name: "Stop" }).press("Enter")
+  await page.getByRole("button", { name: "Add papers" }).click()
+  await expect(page.getByRole("button", { name: "Stop" })).toBeFocused()
+  await page.getByRole("button", { name: "Stop" }).click()
   await expect(page.getByRole("status").filter({ hasText: "Stopped" })).toHaveText("Stopped.")
   await expect(box).toHaveValue(lines)
   await expect(page.getByRole("button", { name: "Add papers" })).toBeFocused()

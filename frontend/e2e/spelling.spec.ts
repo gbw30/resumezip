@@ -5,7 +5,7 @@ import { pageErrors } from "./helpers"
 // opened, runs in the browser, and "Add word" clears a word everywhere on the
 // resume.
 
-test("a typo is found once Check is open, and Add word clears it everywhere, without the text leaving the browser", async ({ page }) => {
+test("unknown words are suggestions, and Add word clears them without the text leaving the browser", async ({ page }) => {
   const errors = pageErrors(page)
   const sent: string[] = []
   page.on("request", (request) => sent.push(`${request.url()} ${request.postData() ?? ""}`))
@@ -14,14 +14,20 @@ test("a typo is found once Check is open, and Add word clears it everywhere, wit
   await page.getByRole("link", { name: "Start writing" }).first().click()
   await expect(page).toHaveURL(/\/create\/new\//)
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^\d+ Experience$/ }).click()
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
   await page.getByRole("button", { name: "Add experience" }).click()
   await page.getByLabel("Company").fill("Analytical Engines")
   await page.getByLabel(/^What you did/).fill("Wrote the Zorbly notes on the Qwexy engine\nTaught Zorbly methods to the the society")
 
-  await page.getByRole("tablist", { name: "Write or check" }).getByRole("tab", { name: /^Check/ }).click()
+  await page
+    .getByRole("tablist", { name: "Write or check" })
+    .getByRole("tab", { name: /^Check/ })
+    .click()
   const panel = page.getByRole("tabpanel", { name: /^Check/ })
-  const typos = panel.getByRole("button", { name: /“Zorbly” may be misspelled/ })
+  const typos = panel.getByRole("button", { name: /^Experience → .*The English dictionary doesn't know “Zorbly”/ })
   await expect(typos).toHaveCount(2)
   await expect(panel.getByRole("button", { name: /“the” twice in a row/ })).toBeVisible()
   await expect(panel.getByText("Checking spelling and grammar…")).toBeHidden()
@@ -29,9 +35,10 @@ test("a typo is found once Check is open, and Add word clears it everywhere, wit
   // Choosing one opens its bullet, and the note there is about that word,
   // though the bullet has another typo.
   const bullets = page.getByLabel(/^What you did/)
-  await panel.getByRole("button", { name: /“Qwexy” may be misspelled/ }).click()
+  await panel.getByRole("button", { name: /^Experience → .*The English dictionary doesn't know “Qwexy”/ }).click()
   await expect(bullets).toBeFocused()
-  await expect(bullets).toHaveAccessibleDescription(/“Qwexy” may be misspelled/)
+  await expect(bullets).toHaveAccessibleDescription(/The English dictionary doesn't know “Qwexy”/)
+  await expect(panel.getByRole("button", { name: /Dismiss: The English dictionary doesn't know “Qwexy”/ })).toBeVisible()
 
   // Add word clears a word in both bullets.
   await panel.getByRole("button", { name: "Add word “Zorbly”" }).first().click()
@@ -41,4 +48,30 @@ test("a typo is found once Check is open, and Add word clears it everywhere, wit
   // Nothing typed was sent anywhere: the grammar checker is downloaded, not called.
   expect(sent.filter((request) => request.includes("Zorbly"))).toEqual([])
   expect(errors).toEqual([])
+})
+
+test("choosing another language skips English grammar and survives reload", async ({ page }) => {
+  await page.goto("/")
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await page.getByLabel("Full name").fill("Camille Martin")
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("button", { name: /^\d+ Experience$/ })
+    .click()
+  await page.getByRole("button", { name: "Add experience" }).click()
+  await page.getByLabel("Company").fill("Atelier")
+  await page.getByLabel(/^What you did/).fill("Une équipe pour améliorer les services")
+  await page.getByRole("tab", { name: /^Check/ }).click()
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+  const language = panel.getByLabel("Spelling and grammar language")
+  await language.selectOption("other")
+  await expect(panel.getByText("Spelling and grammar are not evaluated for this language.")).toBeVisible()
+  await expect(panel.getByRole("button", { name: /^Spelling & grammar,/ })).toHaveCount(0)
+  await expect(page.getByRole("region", { name: "Live preview" }).locator(".react-pdf__Page__canvas").first()).toBeVisible()
+  await page.reload()
+  await expect(language).toHaveValue("other")
+  await expect(panel.getByText("Spelling and grammar are not evaluated for this language.")).toBeVisible()
+  await language.selectOption("english")
+  await expect(panel.getByText("Spelling and grammar are not evaluated for this language.")).toHaveCount(0)
+  await expect(panel.getByRole("button", { name: /^Spelling & grammar,/ })).toBeVisible()
 })

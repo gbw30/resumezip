@@ -12,6 +12,10 @@ declare global {
     persistRequests?: number
     /** How many times the page checked whether the person let it keep its data, counted by a test. */
     permissionChecks?: number
+    /** Where the page was each time it read saved resumes, noted by a test. */
+    reads?: string[]
+    /** Set on the open page by a test. A link that loads a new page loses it; one the app opens in the page keeps it. */
+    marked?: boolean
   }
 }
 
@@ -59,7 +63,12 @@ test("when the browser won't let the site save anything, it still works and says
 
   // Editing and downloading still work, so a PDF can keep a copy: the warning has a button for it.
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  await expect(page.getByRole("region", { name: "Live preview" }).getByText(/Ada Lovelace/i).first()).toBeVisible()
+  await expect(
+    page
+      .getByRole("region", { name: "Live preview" })
+      .getByText(/Ada Lovelace/i)
+      .first(),
+  ).toBeVisible()
   const downloading = page.waitForEvent("download")
   await notSaved(page).getByRole("button", { name: "Download PDF" }).click()
   expect((await downloading).suggestedFilename()).toMatch(/\.pdf$/)
@@ -68,10 +77,42 @@ test("when the browser won't let the site save anything, it still works and says
   // has a link in it. That's a problem of its own, not this test's.
   expect(await seriousAccessibilityProblems(page, ['[aria-label="Live preview"]'])).toEqual([])
 
-  // The dashboard says so too, and has the resume until the page is closed.
+  // The dashboard says so too, and has the resume until the page is closed,
+  // through a visit to another page.
   await page.getByRole("link", { name: "Your resumes" }).click()
   await expect(notSaved(page)).toContainText("isn't letting resumezip save anything")
   await expect(page.getByText(/^1 resume\W+not saved$/i)).toBeVisible()
+  await page.getByRole("banner").getByRole("link", { name: "resumezip" }).click()
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page).toHaveURL(/\/create\/dashboard$/)
+  await expect(page.getByText(/^1 resume\W+not saved$/i)).toBeVisible()
+
+  expect(errors).toEqual([])
+})
+
+test("the home page doesn't read saved resumes, and Start writing goes to them", async ({ page }) => {
+  const errors = pageErrors(page)
+  const ada = { id: "ada", resumeTitle: "Ada's resume", resumeTag: "personal", updatedAt: "2026-10-06T12:00:00.000Z" }
+  // A resume saved on an earlier visit, and where the page is each time it reads saved resumes.
+  await page.addInitScript((resume) => {
+    const key = `resume:${resume.id}`
+    if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(resume))
+    window.reads = []
+    const getItem = Storage.prototype.getItem
+    Storage.prototype.getItem = function (key: string) {
+      if (/^(resume:|allResumes)/.test(key)) window.reads?.push(location.pathname)
+      return getItem.call(this, key)
+    }
+  }, ada)
+  await page.goto("/")
+  await page.evaluate(() => (window.marked = true))
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page).toHaveURL(/\/create\/dashboard$/)
+  await expect(page.getByRole("link", { name: ada.resumeTitle }).first()).toBeVisible()
+
+  // The dashboard opened in the same page, so these are all the reads since the home page loaded.
+  expect(await page.evaluate(() => window.marked)).toBe(true)
+  expect(await page.evaluate(() => [...new Set(window.reads)])).toEqual(["/create/dashboard"])
 
   expect(errors).toEqual([])
 })
@@ -143,6 +184,13 @@ test("saved data that can't be read is kept instead of being saved over", async 
     sessionStorage.setItem("seeded", "yes")
     localStorage.setItem("allResumes", text)
   }, unreadable)
+  // As a visitor saving data, so the dashboard doesn't start downloading the
+  // PDF compiler a second after it opens: the reload below would cut that
+  // short, which Safari logs as an error, and nothing on the page shows when
+  // it's done.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "connection", { value: { saveData: true, effectiveType: "4g" } })
+  })
   await page.goto("/create/dashboard")
   const kept = keptAside(page)
 
@@ -152,8 +200,9 @@ test("saved data that can't be read is kept instead of being saved over", async 
   expect(await seriousAccessibilityProblems(page)).toEqual([])
 
   // It's still there after a reload, and downloads exactly as it was saved.
-  // The reload waits until the dashboard has finished loading the editor's
-  // code in the background, which Safari logs as an error when it's cut off.
+  // The reload waits until the dashboard has fetched the pages its links go
+  // to, as Next.js does ahead of a click, which Safari also logs as an error
+  // when it's cut off.
   await page.waitForLoadState("networkidle")
   await page.reload()
   await expect(note).toBeVisible()
@@ -281,6 +330,25 @@ test("two tabs editing different resumes at once keep both edits", async ({ page
   expect(otherErrors).toEqual([])
 })
 
+test("an open dialog keeps focus where it is when another tab saves", async ({ page, context }) => {
+  const errors = pageErrors(page)
+  await page.goto("/create/dashboard")
+  await page.getByRole("button", { name: "New resume" }).click()
+  const dialog = page.getByRole("dialog", { name: "New resume" })
+  await expect(dialog.getByLabel("Name", { exact: true })).toBeFocused()
+  const create = dialog.getByRole("button", { name: "Create" })
+  await create.focus()
+
+  // Another tab saves a resume, so the dashboard behind the dialog shows it.
+  const other = await context.newPage()
+  await startWriting(other)
+  await other.getByLabel("Full name").fill("Grace Hopper")
+  await expect(page.getByText(/^1 resume\W+stored in this browser$/i)).toBeVisible()
+
+  await expect(create).toBeFocused()
+  expect(errors).toEqual([])
+})
+
 test("the browser is asked to keep saved resumes once there is one, and only once a page", async ({ page }) => {
   const errors = pageErrors(page)
   // Counts the requests instead of asking the real browser, and the
@@ -314,7 +382,12 @@ test("the browser is asked to keep saved resumes once there is one, and only onc
   await startWriting(page)
   await expect.poll(requests).toBe(1)
   await page.getByLabel("Full name").fill("Ada Lovelace")
-  await expect(page.getByRole("region", { name: "Live preview" }).getByText(/Ada Lovelace/i).first()).toBeVisible()
+  await expect(
+    page
+      .getByRole("region", { name: "Live preview" })
+      .getByText(/Ada Lovelace/i)
+      .first(),
+  ).toBeVisible()
   expect(await requests()).toBe(1)
   // After a no, it waits a week before asking again.
   await expect.poll(() => page.evaluate(() => localStorage.getItem("storage-persist-asked"))).not.toBeNull()

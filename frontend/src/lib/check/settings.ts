@@ -2,19 +2,25 @@
 // lists and thresholds here too, so tuning the checker means changing this
 // file only. See README.md.
 
+import type { FieldKey, ProfileKey } from "@/components/editor/sections"
+
 /**
  * The rubric's categories, in the order they're shown, what each is worth in
  * the resume score (100 in all, see score.ts), and what each checks, in a line.
  */
 export const CATEGORIES = [
-  { id: "contact", name: "Contact & personal details", points: 15, about: "Name, email, phone and location are there, and nothing private" },
+  { id: "contact", name: "Contact & personal details", points: 10, about: "Name, email, phone and location are there, and nothing private" },
   { id: "readable", name: "Readable by hiring software", points: 15, about: "Hiring software finds your details, sections and entries" },
   { id: "sections", name: "Sections & entries", points: 10, about: "The sections a resume needs, each entry filled in" },
   { id: "dates", name: "Dates", points: 10, about: "Clear dates on every entry, written one way, newest first" },
-  { id: "bullets", name: "Bullets", points: 20, about: "Strong verbs, numbers for results, and no repeats" },
+  { id: "bullets", name: "Bullets", points: 30, about: "Clear contributions, useful scope or results, and no repeats" },
   { id: "length", name: "Length & layout", points: 10, about: "The right length, well filled, with bullets that wrap well" },
   { id: "spelling", name: "Spelling & grammar", points: 15, about: "No typos or mixed-up words, and tech names spelled right" },
-  { id: "polish", name: "Polish", points: 5, about: "Punctuation, capitals and spacing used one way throughout" },
+  // Every polish rule is advice that doesn't change the score, so Polish has
+  // no points of its own; they went to Bullets, with 5 of Contact's, whose
+  // serious problems are must-fixes that cap the score anyway. Give Polish
+  // some back before making a polish rule count, or its bar divides by zero.
+  { id: "polish", name: "Polish", points: 0, about: "Punctuation, capitals and spacing used one way throughout" },
 ] as const
 
 export type CategoryId = (typeof CATEGORIES)[number]["id"]
@@ -41,6 +47,17 @@ export const LEAST_PENALTY = 0.5
 /** The most a resume can score while a must-fix problem is left. */
 export const MUST_FIX_MAX = 89
 
+/**
+ * The word shown beside a score: each band's lowest score, highest first.
+ * "Strong" starts above MUST_FIX_MAX, so a resume with a must-fix left is
+ * never called strong.
+ */
+export const SCORE_BANDS = [
+  { least: 90, name: "Strong" },
+  { least: 70, name: "Good" },
+  { least: 0, name: "Needs work" },
+] as const
+
 /** How many dismissed findings, and how many added words, a resume keeps. The oldest go first. */
 export const MAX_DISMISSED = 500
 export const MAX_WORDS = 500
@@ -50,8 +67,10 @@ export const MAX_WORD_LENGTH = 60
 
 // Contact & personal details (C1–C10).
 
-/** A phone number has at least this many digits; a leading "+" country code is fine. */
-export const MIN_PHONE_DIGITS = 10
+/** Plausibility bounds, not validation against every country's numbering plan. */
+export const MIN_PHONE_DIGITS = 6
+export const MAX_PHONE_DIGITS = 15
+export const MAX_PHONE_EXTENSION_DIGITS = 10
 
 /**
  * The end of a LinkedIn link LinkedIn made up, rather than one the person
@@ -73,6 +92,16 @@ export const STREET_WORDS = [
 const START = String.raw`(?:^|[,;|·•(]\s*)`
 const END = String.raw`\s*(?:$|[,;|·•)])`
 
+// A label and its value, as on a form ("Gender: M", "DOB - 1st Jan 90"): the
+// label says what the detail is, so the value can be written any way. A
+// hyphen only separates with spaces around it, so "Sex-ed outreach" isn't one.
+const labeled = (label: string) => String.raw`(?:my\s+)?(?:${label})(?:\s*[:=]|\s+[-–]\s)\s*[^\s,;|·•)][^,;|·•)]*`
+
+const MONTH = String.raw`(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?`
+const DAY = String.raw`\d{1,2}(?:st|nd|rd|th)?`
+// "04/12/2003", "March 3rd, 2003", "12 Jan 03", "May 2003".
+const BIRTH_DATE = String.raw`(?:(?:\d{1,4}[./ -]){0,2}\d{1,4}|${MONTH}\s+(?:${DAY},?\s+\d{2,4}|${DAY}|\d{4})|${DAY}\s+(?:of\s+)?${MONTH},?\s+\d{2,4})`
+
 /**
  * Personal details to leave off, and how they're usually written. Nationality,
  * citizenship and clearance are never flagged: roles that need a security
@@ -81,17 +110,29 @@ const END = String.raw`\s*(?:$|[,;|·•)])`
 export const PERSONAL_DETAILS = [
   {
     name: "date of birth",
-    pattern: /\b(date of birth|birth ?date|D\.?O\.?B\b)|\bborn\s+((on|in)\s+)?(\d|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d)/i,
+    pattern: new RegExp(
+      String.raw`${START}(?:${labeled(String.raw`date of birth|birth ?date|D\.?O\.?B\.?|born`)}|(?:(?:my\s+)?(?:date of birth|birth ?date|D\.?O\.?B\.?)\s*[-–]?\s*|(?:I was\s+)?born\s+(?:(?:on|in)\s+)?)${BIRTH_DATE}\.?)${END}`,
+      "i",
+    ),
   },
   {
     name: "age",
     pattern: new RegExp(
-      String.raw`\bage\s*:\s*\d|\b\d{2}\s*(years|yrs)\.?\s*old\b|\byears of age\b|${START}age\s+\d{2}\b|\b\d{2}[- ](year|yr)[- ]old${END}`,
+      String.raw`${START}(?:(?:my\s+)?age\s*[:=-]?\s*\d{1,3}|(?:(?:I am|I'm)\s+)?\d{1,3}[ -](?:years?|yrs?)\.?[ -](?:old|of age))\.?${END}`,
       "i",
     ),
   },
-  { name: "gender", pattern: new RegExp(String.raw`\b(gender|sex)\s*:|${START}(male|female)${END}`, "i") },
-  { name: "marital status", pattern: new RegExp(String.raw`\bmarital status\b|\b(married|divorced|widowed)\b|${START}single${END}`, "i") },
+  {
+    name: "gender",
+    pattern: new RegExp(String.raw`${START}(?:${labeled("gender|sex")}|(?:male|female|non[- ]?binary|man|woman)\.?)${END}`, "i"),
+  },
+  {
+    name: "marital status",
+    pattern: new RegExp(
+      String.raw`${START}(?:${labeled("marital status")}|(?:(?:I am|I'm)\s+)?(?:married|divorced|widowed|single)\.?)${END}`,
+      "i",
+    ),
+  },
 ] as const
 
 /**
@@ -102,7 +143,7 @@ export const PERSONAL_DETAILS = [
  */
 export const SSN = /\b\d{3}[- ]\d{2}[- ]\d{4}\b|\b(ssn|social security(\s+(number|no\.?))?)\s*[:#]?\s*\d{9}\b/i
 
-// Sections & entries (S1–S9).
+// Sections & entries (S1–S10).
 
 /** A skills line with this many items or more reads as a list to skim past. */
 export const MAX_SKILLS_PER_LINE = 15
@@ -141,8 +182,8 @@ export const DATE_PREFIXES = ["Expected", "Anticipated", "Exp.", "Est.", "Estima
 
 /** Starts that describe a duty instead of what was done. */
 export const WEAK_STARTS = [
-  "Responsible for", "Helped", "Help", "Helping", "Assisted", "Assist", "Assisting", "Worked on", "Work on", "Working on",
-  "Participated in", "Tasked with", "Involved in", "In charge of", "Duties included",
+  "Responsible for", "Worked on", "Work on", "Working on",
+  "Tasked with", "Involved in", "In charge of", "Duties included",
 ]
 
 /**
@@ -152,6 +193,7 @@ export const WEAK_STARTS = [
  * present form and for suggesting other verbs.
  */
 export const ACTION_VERBS = `
+  help helped, assist assisted, participate participated,
   accelerate accelerated, achieve achieved, acquire acquired, adapt adapted, add added, address addressed, adopt adopted,
   administer administered, advise advised, advocate advocated, align aligned, allocate allocated, analyze analyzed,
   answer answered, apply applied, architect architected, arrange arranged, assemble assembled, assess assessed,
@@ -249,12 +291,6 @@ export const NUMBER_WORDS = [
   "hundred", "hundreds", "thousand", "thousands", "million", "millions", "billion", "billions", "doubled", "tripled", "halved",
 ]
 
-/** About this share of bullets should have a number; fewer gets partial credit. */
-export const BULLETS_WITH_NUMBERS = 0.5
-
-/** Fewer bullets than this, and the share with a number says little. */
-export const MIN_BULLETS_FOR_NUMBERS = 3
-
 /** A job with more bullets than this buries the best of them. */
 export const MAX_BULLETS = 6
 
@@ -332,11 +368,14 @@ export const NUMBER_LABELS = [
   "series", "chapter",
 ]
 
-/** Shorthand and slang, and the word to write instead. */
+/**
+ * Shorthand and slang, and the word to write instead. Not "&": "design &
+ * build" reads fine, and it saves room on a line.
+ */
 export const SHORTHAND: [string, string][] = [
   ["w/o", "without"], ["w/", "with"], ["b/c", "because"], ["mgmt", "management"], ["mgr", "manager"],
   ["approx.", "about"], ["approx", "about"], ["govt", "government"], ["thru", "through"], ["esp.", "especially"],
-  ["yrs", "years"], ["yr", "year"], ["hrs", "hours"], ["hr", "hour"], ["&", "and"],
+  ["yrs", "years"], ["yr", "year"], ["hrs", "hours"], ["hr", "hour"],
 ]
 
 // Readable by hiring software (R1–R6).
@@ -356,8 +395,11 @@ export const FINE_SYMBOLS = ["©", "®", "™"]
 /** This many lines or fewer on the last page is a spill-over. */
 export const SPILL_LINES = 5
 
-/** A bullet whose last line has this many words or fewer leaves a gap. */
-export const SHORT_LAST_LINE = 4
+/**
+ * A bullet whose last line has this many words or fewer leaves a gap. Four
+ * words fill enough of a line to leave be.
+ */
+export const SHORT_LAST_LINE = 3
 
 /** A bullet that runs this many lines or more is hard to skim. */
 export const LONG_BULLET_LINES = 3
@@ -374,8 +416,8 @@ export const MIN_PAGE_FULL = 0.75
  * resume, and they aren't checked for spelling themselves, but for the
  * skills (SKILL_FIELDS).
  */
-export const NAME_FIELDS = [
-  "fullName", "location", "companyName", "workLocation", "schoolName", "schoolLocation", "involvement", "skillName",
+export const NAME_FIELDS: readonly (ProfileKey | FieldKey)[] = [
+  "fullName", "location", "companyName", "workLocation", "schoolName", "schoolLocation", "skillName",
   "skillDetails", "projectName", "techStack", "publicationAuthors", "publicationVenue", "volunteerOrg",
   "volunteerLocation", "leadershipOrg", "leadershipLocation", "awardOrg",
 ]
@@ -385,7 +427,7 @@ export const NAME_FIELDS = [
  * ("Redux", "Kanban"), and words it does ("Communication"). G1 checks them
  * for slips in typing those words (MIN_SKILL_SLIP), and in tech names.
  */
-export const SKILL_FIELDS = ["skillName", "skillDetails", "techStack"]
+export const SKILL_FIELDS: readonly FieldKey[] = ["skillName", "skillDetails", "techStack"]
 
 /**
  * Tech names as their makers write them (G6), checked in any field. Names
@@ -406,10 +448,11 @@ export const TECH_NAMES = [
 
 /**
  * Tech and work words that aren't in the dictionary but are spelled right
- * (G1). Names with capitals inside ("DuckDB", "eBPF"), words with digits and
- * words in capitals are never taken for typos anyway.
+ * (G1). Names with capitals inside ("DuckDB", "eBPF") and words with digits
+ * are usually names too. Clear known errors still count in all capitals.
  */
 export const TECH_WORDS = [
+  "magento",
   "async", "autograd", "autograder", "autoscaling", "backend", "backends", "backtest", "backtester", "backtesting",
   "changelog", "chatbot", "chatbots", "codebase", "codebases", "config", "configs", "cron", "dashboarding", "dataset",
   "datasets", "debugger", "dedupe", "devops", "e-commerce", "ecommerce", "edtech", "embeddings", "failover",
@@ -471,7 +514,7 @@ export const LOOSE_FOR_LOSE = /\b(?:not|never|will|would|could|can|might|don't|d
 export const LEAD_OBJECTS = [
   "the", "a", "an", "my", "our", "their", "his", "her", "its", "this", "that", "these", "those", "two", "three",
   "four", "five", "six", "seven", "eight", "nine", "ten", "twelve", "twenty", "dozens", "several", "multiple", "many",
-  "all", "both", "each", "every", "over", "daily", "weekly", "biweekly", "monthly", "quarterly", "annual", "yearly",
+  "all", "both", "each", "every", "daily", "weekly", "biweekly", "monthly", "quarterly", "annual", "yearly",
   "new", "key", "cross-functional", "company-wide", "global", "remote", "senior", "junior",
 ]
 
@@ -479,9 +522,42 @@ export const LEAD_OBJECTS = [
 export const MIN_TECH_SLIP = 6
 
 /**
- * In the skills, a word the grammar checker doesn't know is a typo when it's
- * this long or longer, and a slip in typing a word it offers ("Comunication").
- * Shorter names are too often a word with a letter changed: "Magento" and
- * "Magenta", "Redux" and "Redox".
+ * Minimum length for recovering a known misspelling written in all capitals
+ * ("RECIEVED"), so short unfamiliar acronyms stay exempt.
  */
-export const MIN_SKILL_SLIP = 8
+export const MIN_SKILL_SLIP = 6
+
+export const BULLET_INTRO_ADVERBS = ["successfully", "independently", "jointly", "collaboratively", "consistently", "proactively"]
+export const BULLET_SCOPE_NOUNS = [
+  "users", "customers", "clients", "patients", "students", "engineers", "employees", "volunteers", "teams", "partners",
+  "locations", "sites", "branches", "countries", "departments", "records", "requests", "transactions", "orders", "applications",
+  "attendees", "participants", "people", "members", "reports", "tools", "tasks", "tests", "services", "servers", "devices",
+  "files", "documents", "events", "projects",
+]
+export const BULLET_GENERIC_WORDS = [
+  "a", "an", "the", "and", "or", "for", "of", "on", "in", "to", "with", "by", "at", "from", "our", "their", "my", "some",
+  "various", "several", "multiple", "many", "different", "new", "useful", "important", "daily", "weekly", "monthly", "other",
+  "related", "assigned", "work", "task", "tasks", "thing", "things", "stuff", "tool", "tools", "report", "reports", "process",
+  "processes", "project", "projects", "system", "systems", "service", "services", "activity", "activities", "duty", "duties",
+  "team", "teams", "area", "areas", "business",
+  "internal", "engineering", "using", "established", "methods", "implement", "requested", "features", "complete",
+]
+export const WORD_ACRONYMS = ["NASA", "NATO", "NAFTA", "NOAA", "UNESCO", "UNICEF", "ASCII", "SCUBA", "RADAR", "LASER", "AIDS", "OPEC"]
+/** Repeated names stay names when written in capitals too. */
+export const REPEATED_NAMES = ["bora bora", "walla walla", "pago pago", "baden baden", "duran duran"]
+/** Clear spelling slips used by G1; dictionary similarity alone is only advice. */
+export const COMMON_MISSPELLINGS: Readonly<Record<string, string>> = {
+  recieved: "received", recieve: "receive", recieves: "receives", recieving: "receiving",
+  acheived: "achieved", acheive: "achieve", acheiving: "achieving",
+  controled: "controlled", identifys: "identifies", simplifys: "simplifies", verifys: "verifies",
+  langauges: "languages", comunication: "communication", teamwrok: "teamwork", marketting: "marketing",
+  adaptibility: "adaptability", programing: "programming", finace: "finance", writng: "writing", excell: "excel",
+  childrn: "children", prototypd: "prototyped", occuring: "occurring", begining: "beginning",
+  transfered: "transferred", comitted: "committed", managment: "management", experiance: "experience",
+  developement: "development", enviroment: "environment", seperated: "separated", seperately: "separately",
+  maintainance: "maintenance", succesful: "successful", sucessful: "successful", responsibilites: "responsibilities",
+}
+export const VARIABLE_ACRONYMS = ["SQL", "FAQ"]
+export const AMBIGUOUS_TECH_NAMES = ["Java", "Python"]
+export const LOOSE_VERB_OBJECTS = ["arrow", "arrows", "bolt", "bolts", "hounds", "dogs", "bonds", "ties", "grip", "restraints", "prisoners"]
+export const LOST_OBJECTS = ["data", "work", "file", "files", "access", "time", "money", "customer", "customers", "revenue", "business", "sale", "sales", "job", "jobs", "record", "records", "progress"]

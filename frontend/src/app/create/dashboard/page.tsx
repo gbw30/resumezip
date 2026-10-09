@@ -16,6 +16,7 @@ import SiteFooter from "@/components/site/SiteFooter"
 import SiteHeader from "@/components/site/SiteHeader"
 import type { OpenedFile } from "@/lib/import/open"
 import { hasLeftOut } from "@/lib/leftOut"
+import type { ResumeWithId } from "@/lib/resume"
 import { loadCompiler, savingData } from "@/lib/typst/compile"
 import { templateIdOf } from "@/lib/typst/resumeData"
 
@@ -27,14 +28,15 @@ const ACCEPTED_FILES = ".pdf,.docx,application/pdf,application/vnd.openxmlformat
 type Opening =
   | { step: "reading"; fileName: string }
   | { step: "error"; message: string }
-  | { step: "conflict"; file: Extract<OpenedFile, { kind: "resumezip" }>; existing: Record<string, any> }
+  | { step: "conflict"; file: Extract<OpenedFile, { kind: "resumezip" }>; existing: ResumeWithId }
   | { step: "review"; file: Extract<OpenedFile, { kind: "parsed" }> }
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { resumes, loaded, saveStatus, deleteResume, createNewResume, importResume, replaceResume } = useResumeContext()
+  const { resumes, loaded, saveStatus, deleteResume, createNewResume, importResume, replaceResume, duplicateResume, renameResume } =
+    useResumeContext()
   const [creating, setCreating] = useState(false)
-  const [resumeToDelete, setResumeToDelete] = useState<Record<string, any> | null>(null)
+  const [resumeToDelete, setResumeToDelete] = useState<ResumeWithId | null>(null)
   const [opening, setOpening] = useState<Opening | null>(null)
   const [dragging, setDragging] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -52,9 +54,10 @@ export default function DashboardPage() {
 
   const sorted = useMemo(
     () =>
-      Object.values(resumes as Record<string, any>).sort(
-        (a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime(),
-      ),
+      // Each with the id it's saved under, which is what opens it.
+      Object.entries(resumes)
+        .map(([id, resume]): ResumeWithId => ({ ...resume, id }))
+        .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()),
     [resumes],
   )
 
@@ -96,7 +99,8 @@ export default function DashboardPage() {
         return
       }
       // A resumezip PDF: it restores exactly, unless this browser already has that resume.
-      const existing = opened.resume.id ? resumes[opened.resume.id] : undefined
+      const id = opened.resume.id
+      const existing = id && Object.hasOwn(resumes, id) ? { ...resumes[id], id } : undefined
       if (!existing) edit(importResume(opened.resume, opened.title))
       else if (existing.updatedAt === opened.resume.updatedAt) edit(existing.id)
       else setOpening({ step: "conflict", file: opened, existing })
@@ -198,7 +202,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-paper">
-      <SiteHeader />
+      <SiteHeader onStartWriting={() => setCreating(true)} />
 
       <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-12 px-5 pb-24 pt-16 md:px-10 md:pt-20">
         <PageIntro
@@ -221,7 +225,14 @@ export default function DashboardPage() {
         <NotSaved className="max-w-[720px]" />
         <UnreadableData />
 
-        {loaded && count > 0 && <ResumeTable resumes={sorted} onDelete={setResumeToDelete} />}
+        {loaded && count > 0 && (
+          <ResumeTable
+            resumes={sorted}
+            onDuplicate={(resume) => duplicateResume(resume.id)}
+            onRename={(resume, title) => renameResume(resume.id, title)}
+            onDelete={setResumeToDelete}
+          />
+        )}
 
         {loaded && count === 0 && (
           <div className="flex flex-col items-start gap-5 border-t border-ink pt-8">
@@ -239,8 +250,7 @@ export default function DashboardPage() {
         <div className="flex max-w-[720px] flex-wrap items-baseline gap-x-8 gap-y-3">
           <span className="label-mono text-accent">Stored locally</span>
           <p className="min-w-0 flex-[1_1_320px] text-sm leading-relaxed text-ink-2">
-            Resumes live in this browser only. Every PDF you download carries its resume, so you can open it here again on
-            any computer.
+            Resumes live in this browser only. Every PDF you download carries its resume, so you can open it here again on any computer.
           </p>
         </div>
       </main>

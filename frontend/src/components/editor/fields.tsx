@@ -4,11 +4,12 @@ import type React from "react"
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react"
 import type { Finding } from "@/lib/check/engine"
-import { LEVELS } from "@/lib/check/settings"
+import { LEVELS, type Level } from "@/lib/check/settings"
 import { plainText } from "@/lib/typst/resumeData"
 import {
   bulletLines,
   cursorWithBullets,
+  lineStartOf,
   moveBullet,
   moveLine,
   newBullet,
@@ -16,6 +17,7 @@ import {
   pastedList,
   setLeftOutLine,
   toggleMark,
+  typedList,
   withBullets,
   type Edited,
 } from "./arrange"
@@ -41,20 +43,29 @@ interface FieldProps {
 }
 
 /**
+ * A small pill for a finding's level: red for a must-fix, the one thing that
+ * holds the score down, so it stands out; grey for a suggestion.
+ */
+export const levelPill = (level: Level) =>
+  `inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[11px] font-medium leading-none ${
+    level === "fix" ? "bg-alert text-white" : "bg-ink/[0.06] text-ink"
+  }`
+
+/**
  * What the checker found where the person is fixing it, and why it matters.
  * It says how sure the checker is in words, so the field's color isn't the
- * only sign.
+ * only sign. Its lines are balanced, as a sentence a little too long for the
+ * box would otherwise leave a word or two on a line of its own.
  */
 export function FlagNote({ id, finding }: { id?: string; finding: Finding }) {
   return (
     <div
       id={id}
-      className={`flex flex-col gap-0.5 border-l-2 pl-3 text-[13px] leading-normal ${
-        finding.level === "fix" ? "border-[#b42318]" : "border-accent"
-      }`}
+      className="flex flex-col gap-2 rounded-[4px] border border-rule bg-sheet px-3 py-2.5 text-[13px] leading-normal text-balance"
     >
-      <p className="text-ink">
-        <span className="font-medium">{LEVELS[finding.level].name}:</span> {finding.message}
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink">
+        <span className={levelPill(finding.level)}>{LEVELS[finding.level].name}</span>
+        {finding.message}
       </p>
       <p className="text-ink-2">{finding.why}</p>
       {finding.suggestion && <p className="text-ink-2">{finding.suggestion}</p>}
@@ -81,11 +92,7 @@ export function Field({ label, value, placeholder, type = "text", className = ""
           aria-describedby={flag ? noteId : undefined}
           aria-invalid={flag?.level === "fix" || undefined}
           className={`w-full min-w-0 border-0 bg-transparent py-2 text-base text-ink outline-none transition-colors placeholder:text-ink-2/50 focus-visible:outline-none ${
-            !flag
-              ? "border-b border-rule-strong focus:border-accent"
-              : flag.level === "fix"
-                ? "border-b-2 border-[#b42318]"
-                : "border-b-2 border-accent"
+            !flag ? "border-b border-rule-strong focus:border-accent" : "border-b-2 border-accent"
           }`}
         />
       </label>
@@ -157,6 +164,15 @@ const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff
 // True while typeInto types, so what it types goes in as it is.
 let typing = false
 
+// What was last copied or cut from a bullets box. Pasted back, its "○" bullets
+// stay left out; a "○" pasted from anywhere else is a sub-bullet, and printed.
+let copied: string | undefined
+
+const rememberCopied = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const { selectionStart, selectionEnd, value } = event.currentTarget
+  copied = value.slice(selectionStart, selectionEnd)
+}
+
 /**
  * Changes a text box's text to `next` as typing would, replacing only the part
  * that changed, so the browser can undo it with the person's own typing.
@@ -168,7 +184,8 @@ function typeInto(textarea: HTMLTextAreaElement, next: string): boolean {
   let from = 0
   while (from < current.length && from < next.length && current[from] === next[from]) from++
   let same = 0
-  while (same < current.length - from && same < next.length - from && current[current.length - 1 - same] === next[next.length - 1 - same]) same++
+  while (same < current.length - from && same < next.length - from && current[current.length - 1 - same] === next[next.length - 1 - same])
+    same++
   // Never half an emoji: a character made of two code units is replaced whole.
   if (from > 0 && (isLowSurrogate(current.charCodeAt(from)) || isLowSurrogate(next.charCodeAt(from)))) from--
   if (same > 0 && isLowSurrogate(current.charCodeAt(current.length - same))) same--
@@ -269,7 +286,8 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
   // Words typed or pasted on a line with no bullet get one in the same edit, so
   // Ctrl+Z takes back both at once. (Left to React, the bullet would be added
   // after the edit, which clears the browser's undo history.) A pasted list's
-  // own markers become its bullets, so it doesn't get two.
+  // own markers become its bullets, so it doesn't get two, and a "- " typed
+  // after a bullet goes.
   useEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
@@ -279,13 +297,16 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
       const given = (event.data ?? event.dataTransfer?.getData("text/plain"))?.replace(/\r\n?/g, "\n")
       if (!given) return
       const { selectionStart: start, selectionEnd: end, value } = textarea
-      const words = event.inputType === "insertFromPaste" ? pastedList(given, value.slice(value.lastIndexOf("\n", start - 1) + 1, start)) : given
-      const typed = value.slice(0, start) + words + value.slice(end)
+      const from = lineStartOf(value, start)
+      const before = value.slice(from, start)
+      // The line up to the cursor once it's typed or pasted in.
+      const head = event.inputType === "insertFromPaste" ? pastedList(given, before, given === copied) : typedList(before, given)
+      const typed = value.slice(0, from) + head + value.slice(end)
       const next = withBullets(typed)
       // Nothing to change: the browser puts it in as it is.
-      if (next === typed && words === given) return
+      if (next === typed && head === before + given) return
       event.preventDefault()
-      const cursor = cursorWithBullets(typed, start + words.length)
+      const cursor = cursorWithBullets(typed, from + head.length)
       edit(textarea, { text: next, start: cursor, end: cursor })
     }
     textarea.addEventListener("beforeinput", onBeforeInput)
@@ -362,12 +383,10 @@ export function BulletsField({ label, value, placeholder, className = "", onChan
           rows={4}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
+          onCopy={rememberCopied}
+          onCut={rememberCopied}
           className={`w-full resize-none overflow-hidden rounded-[4px] border bg-sheet px-3.5 py-3 text-[15px] leading-[1.7] text-ink outline-none transition-colors placeholder:text-ink-2/50 focus-visible:outline-none ${
-            !flag
-              ? "border-rule focus:border-accent"
-              : flag.level === "fix"
-                ? "border-[#b42318] ring-1 ring-[#b42318]"
-                : "border-accent ring-1 ring-accent"
+            !flag ? "border-rule focus:border-accent" : "border-accent ring-1 ring-accent"
           }`}
         />
       )}

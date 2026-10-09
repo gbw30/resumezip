@@ -2,6 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 import HeroVideo from "@/components/home/HeroVideo"
 import HowItWorks from "@/components/home/HowItWorks"
+import PrefetchCompiler from "@/components/home/PrefetchCompiler"
 import SiteFooter from "@/components/site/SiteFooter"
 import SiteHeader from "@/components/site/SiteHeader"
 import { StartWritingLink } from "@/components/site/StartWriting"
@@ -64,10 +65,9 @@ export default function Home() {
         <div className="relative mx-auto flex w-full max-w-[1440px] flex-1 flex-wrap items-end justify-between gap-8 px-5 pb-6 pt-12 md:px-10 md:pb-10">
           <div className="flex w-full max-w-[420px] flex-col gap-7 bg-white px-7 pb-5 pt-7 text-[#171717]">
             <p className="text-xl leading-[1.35] tracking-[-0.015em]">
-              resumezip is a free, open-source resume builder that runs in your browser. Pick a template, write, and
-              download the PDF.
+              resumezip is a free, open-source resume builder that runs in your browser. Pick a template, write, and download the PDF.
             </p>
-            <StartWritingLink className="group flex items-center justify-between gap-4 border-t border-[#171717] pt-4">
+            <StartWritingLink className="group flex items-center justify-between gap-4 border-t border-[#171717] pt-4" preloadOnHover>
               <span className="label-caps decoration-2 underline-offset-4 group-hover:underline">Start writing</span>
               <span className="inline-flex h-7 w-7 items-center justify-center bg-accent text-white transition duration-200 group-hover:bg-[#2550d4] motion-safe:group-hover:translate-x-0.5 motion-safe:group-hover:-translate-y-0.5">
                 <ArrowUpRight />
@@ -97,7 +97,10 @@ export default function Home() {
             <p className="max-w-[520px] text-xl leading-[1.35] tracking-[-0.015em]">
               No account, no uploads. To switch devices, open your PDF or Word file on the new one.
             </p>
-            <StartWritingLink className="label-caps inline-flex h-11 items-center gap-3 self-start border border-white px-[18px] transition-colors hover:bg-white hover:text-accent">
+            <StartWritingLink
+              className="label-caps inline-flex h-11 items-center gap-3 self-start border border-white px-[18px] transition-colors hover:bg-white hover:text-accent"
+              preloadOnHover
+            >
               Start writing <ArrowUpRight />
             </StartWritingLink>
           </div>
@@ -160,15 +163,14 @@ export default function Home() {
               }`}
             >
               <dt className="font-serif text-[32px] leading-none tracking-[-0.03em] md:text-[44px]">{item.question}</dt>
-              <dd className="max-w-[420px] text-base leading-[1.35] tracking-[-0.015em] text-[#5c5c5c] md:text-xl">
-                {item.answer}
-              </dd>
+              <dd className="max-w-[420px] text-base leading-[1.35] tracking-[-0.015em] text-[#5c5c5c] md:text-xl">{item.answer}</dd>
             </div>
           ))}
         </dl>
       </section>
 
       <SiteFooter />
+      <PrefetchCompiler />
     </div>
   )
 }
