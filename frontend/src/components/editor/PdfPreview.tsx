@@ -1,7 +1,7 @@
 "use client"
 
 import type { PDFWorker } from "pdfjs-dist"
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent } from "react"
+import { memo, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent } from "react"
 // react-pdf's styles are in the page's first download, though its code isn't
 // (see below). Next loads a later chunk's CSS as a React stylesheet resource,
 // and React suspends renders until it's in: what was typed into the form
@@ -97,7 +97,7 @@ interface HeldAnchor {
   box: DOMRect
 }
 
-export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPreviewProps) {
+function PdfPreview({ pdfUrl, error, updating = false }: PdfPreviewProps) {
   const [drawings, setDrawings] = useState<Drawing[]>([])
   const [zoom, setZoom] = useState(1)
   // Catches up with the zoom once it settles. Until then, the pages on screen
@@ -386,6 +386,9 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
     </div>
   )
 }
+
+// Re-renders with a new PDF, and not with the rest of the editor.
+export default memo(PdfPreview)
 
 // Copying from the preview gives plain text, as pdf.js's own viewer does. The
 // selected text is the invisible copy over the canvas, so the browser's usual

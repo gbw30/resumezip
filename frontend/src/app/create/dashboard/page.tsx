@@ -33,7 +33,8 @@ type Opening =
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { resumes, loaded, saveStatus, deleteResume, createNewResume, importResume, replaceResume } = useResumeContext()
+  const { resumes, loaded, saveStatus, deleteResume, createNewResume, importResume, replaceResume, duplicateResume, renameResume } =
+    useResumeContext()
   const [creating, setCreating] = useState(false)
   const [resumeToDelete, setResumeToDelete] = useState<ResumeWithId | null>(null)
   const [opening, setOpening] = useState<Opening | null>(null)
@@ -224,7 +225,14 @@ export default function DashboardPage() {
         <NotSaved className="max-w-[720px]" />
         <UnreadableData />
 
-        {loaded && count > 0 && <ResumeTable resumes={sorted} onDelete={setResumeToDelete} />}
+        {loaded && count > 0 && (
+          <ResumeTable
+            resumes={sorted}
+            onDuplicate={(resume) => duplicateResume(resume.id)}
+            onRename={(resume, title) => renameResume(resume.id, title)}
+            onDelete={setResumeToDelete}
+          />
+        )}
 
         {loaded && count === 0 && (
           <div className="flex flex-col items-start gap-5 border-t border-ink pt-8">

@@ -157,7 +157,7 @@ test("the left bar switches between writing and checking, and remembers which", 
   // a freshly loaded dashboard too, but a new resume, with nothing to check
   // yet, opens on Write.
   await page.goto("/create/dashboard")
-  await page.getByRole("link", { name: "Open", exact: true }).click()
+  await page.getByRole("table").getByRole("link").first().click()
   await expect(check).toHaveAttribute("aria-selected", "true")
   await expect(preview).toBeVisible()
   await checked()
@@ -265,6 +265,44 @@ test("the score goes up as a problem is fixed", async ({ page }) => {
   await page.getByLabel("Email").fill("ada@example.com")
   await expect.poll(async () => Number(await number.textContent())).toBeGreaterThan(before)
   await expect(panel.getByRole("button", { name: /^Contact & personal details/ })).not.toHaveAccessibleName(/to fix/)
+
+  expect(errors).toEqual([])
+})
+
+test("the resume is checked again once typing pauses, not at every key, and a dismissal shows at once", async ({ page }) => {
+  const errors = pageErrors(page)
+  await page.clock.install()
+  await resumeToCheck(page)
+  const check = page.getByRole("tab", { name: /^Check/ })
+  const panel = page.getByRole("tabpanel", { name: /^Check/ })
+  await check.click()
+  await expect(panel.getByRole("status")).toBeHidden()
+  const missing = panel.getByRole("button", { name: /Add your email address/ })
+  await missing.click()
+  const email = page.getByLabel("Email")
+  await expect(email).toBeFocused()
+  const count = Number((await check.getAttribute("aria-label"))?.match(/^Check, (\d+) to look at$/)?.[1])
+  expect(count).toBeGreaterThan(2)
+
+  // With the page's clock stopped, typing never pauses. What the person
+  // tells the checker still shows at once.
+  await page.clock.pauseAt(Date.now() + 1_000)
+  const advice = panel.getByRole("button", { name: /Profile → LinkedIn Consider adding a LinkedIn profile/ })
+  await panel.getByRole("button", { name: "Dismiss: Consider adding a LinkedIn profile" }).click()
+  await expect(advice).toBeHidden()
+  await expect(check).toHaveAccessibleName(`Check, ${count - 1} to look at`)
+
+  // What's typed isn't checked yet: a fixed wait, to show nothing changes.
+  await email.pressSequentially("ada@example.com")
+  await page.waitForTimeout(1_000)
+  await expect(missing).toBeVisible()
+  await expect(check).toHaveAccessibleName(`Check, ${count - 1} to look at`)
+
+  // Once typing pauses, it is.
+  await page.clock.resume()
+  await expect(missing).toBeHidden()
+  await expect(panel.getByRole("status")).toBeHidden()
+  await expect(check).toHaveAccessibleName(`Check, ${count - 2} to look at`)
 
   expect(errors).toEqual([])
 })

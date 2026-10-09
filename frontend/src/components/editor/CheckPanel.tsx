@@ -16,7 +16,6 @@ import {
   SpellCheck,
   type LucideIcon,
 } from "lucide-react"
-import { useResumeContext } from "@/context/ResumeContext"
 import type { Finding, Report, Rule } from "@/lib/check/engine"
 import { describePlace, hasEnoughToCheck } from "@/lib/check/labels"
 import type { ResumeView } from "@/lib/check/resume"
@@ -35,7 +34,7 @@ import {
 } from "@/lib/check/score"
 import { CATEGORIES, MUST_FIX_MAX, type CategoryId } from "@/lib/check/settings"
 import { hasLeftOut } from "@/lib/leftOut"
-import { useCheck } from "./CheckContext"
+import { useCheck, useCheckActions } from "./CheckContext"
 import { levelPill } from "./fields"
 
 // A typo can't be dismissed, but its word can be added so it isn't flagged
@@ -70,8 +69,8 @@ type Category = (typeof CATEGORIES)[number]
  * opens its field in the form.
  */
 export default function CheckPanel() {
-  const { report, restore, pdf, grammar, setGrammarLanguage } = useCheck()
-  const { formData } = useResumeContext()
+  const { report, checked, pdf, grammar } = useCheck()
+  const { restore, setGrammarLanguage } = useCheckActions()
   // The resume as last checked, so places are named as the findings saw them.
   const view = report.view
 
@@ -89,7 +88,7 @@ export default function CheckPanel() {
         <ScoreHeader total={null} />
         <p className="px-2 text-sm leading-relaxed text-ink-2">
           {/* The checker reads only what's printed, so entries that are all left out don't count. */}
-          {view.profile.fullName && hasLeftOut(formData)
+          {view.profile.fullName && hasLeftOut(checked)
             ? "Include an entry in the PDF to check this resume."
             : "Add your name and one entry to check this resume."}
         </p>
@@ -481,7 +480,7 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
  * suggestion can be dismissed. A must-fix has a red line down its left side.
  */
 function FindingItem({ finding, view }: { finding: Finding; view: ResumeView }) {
-  const { open, dismiss, addWord } = useCheck()
+  const { open, dismiss, addWord } = useCheckActions()
   return (
     // Pointing at the finding shades the whole row, its actions too.
     <li

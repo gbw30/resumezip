@@ -55,6 +55,10 @@ export const INITIAL_STATE: ResumeState = { resumes: {}, loaded: false, saveStat
 /** How long typing pauses before the changes are saved, in milliseconds. */
 export const SAVE_DELAY = 400
 
+/** The resume saved under `id`, if there's one. Ids come from addresses and files, so one like "constructor" is only an id. */
+export const resumeOf = (state: ResumeState, id: string): Resume | undefined =>
+  Object.hasOwn(state.resumes, id) ? state.resumes[id] : undefined
+
 const blankResume = (template: string): Resume => ({
   profileSection: {},
   headings: {},
@@ -149,6 +153,33 @@ export function createResumeStore(delay = SAVE_DELAY) {
       updatedAt: content.updatedAt ?? new Date().toISOString(),
     })
     return id
+  }
+
+  /**
+   * Adds a copy of a resume, everything in it under a new id, named
+   * "<name> copy", and returns its id.
+   */
+  function duplicate(id: string): string | undefined {
+    if (!has(id)) return undefined
+    const original = state.resumes[id]
+    const copy = crypto.randomUUID()
+    add(copy, `${original.resumeTitle?.trim() || "Untitled resume"} copy`, {
+      ...structuredClone(original),
+      id: copy,
+      updatedAt: new Date().toISOString(),
+    })
+    return copy
+  }
+
+  /** Renames a resume, as the editor's title does: a blank name is "Untitled resume", and a taken one is numbered. */
+  function rename(id: string, title: string) {
+    if (!has(id)) return
+    const others = Object.entries(state.resumes).filter(([key]) => key !== id)
+    const resumeTitle = uniqueTitle(
+      title,
+      others.map(([, resume]) => resume?.resumeTitle),
+    )
+    if (resumeTitle !== state.resumes[id].resumeTitle) edit(id, "resumeTitle", resumeTitle)
   }
 
   // A new resume is saved straight away. A repeated name gets a number, e.g. "Untitled resume 2".
@@ -349,6 +380,8 @@ export function createResumeStore(delay = SAVE_DELAY) {
     edit,
     create,
     importResume,
+    duplicate,
+    rename,
     replace,
     remove,
     flush,

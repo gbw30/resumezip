@@ -1,18 +1,18 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react"
 import type { DraggableProvided, DropResult } from "@hello-pangea/dnd"
 import { GripVertical, Plus } from "lucide-react"
-import { useResumeContext } from "@/context/ResumeContext"
+import { useOpenResume, useResumeField } from "@/context/ResumeContext"
 import { isLeftOut } from "@/lib/leftOut"
 import type { Entry } from "@/lib/resume"
-import { useCheck } from "./CheckContext"
+import { useCheckActions, useCheckTarget } from "./CheckContext"
 import { nextAnnouncement } from "./arrange"
 import { loadDragAndDrop, loadedDragAndDrop } from "./dragAndDrop"
 import { BulletsField, Field, FlagNote, MoveButtons, SectionHeading, selectLine } from "./fields"
 import { reducedMotion, reveal, scrollerOf } from "./layout"
 import PaperFromLink from "./PaperFromLink"
-import { FIELD_SPAN, type ChoiceDef, type FieldKey, type SectionDef } from "./sections"
+import { FIELD_SPAN, type ChoiceDef, type ChoiceKey, type FieldKey, type SectionDef } from "./sections"
 
 interface SectionFormProps {
   section: SectionDef
@@ -92,14 +92,13 @@ function slide(entries: Map<number, HTMLElement>, list: HTMLElement | null, move
 }
 
 /** The form for one list section (education, experience, ...): its title and entries. */
-export default function SectionForm({ section, position }: SectionFormProps) {
-  const { formData, updateFormData } = useResumeContext()
-  const saved = formData[section.dataKey]
+function SectionForm({ section, position }: SectionFormProps) {
+  const { read, update: updateResume } = useOpenResume()
+  const saved = useResumeField(section.dataKey)
+  const headings = useResumeField("headings")
   const entries = Array.isArray(saved) ? saved : []
   const latest = useRef(entries)
   latest.current = entries
-  const owner = useRef("")
-  owner.current = formData.profileSection?.fullName ?? ""
 
   // One entry is open at a time; the rest collapse to a one-line summary.
   const [openId, setOpenId] = useState<number | null>(entries[0]?.id ?? null)
@@ -149,7 +148,8 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   }, [dnd])
 
   // What the checker points at in this section, while the person fixes it.
-  const { target, pending, claim } = useCheck()
+  const target = useCheckTarget()
+  const { pending, claim } = useCheckActions()
   const place = target?.finding.place
   const here = place && place.kind !== "profile" && place.kind !== "page" && place.section === section.name ? place : null
   const flagAt = (index: number, field?: string) =>
@@ -215,7 +215,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
     })
   }, [saved])
 
-  const save = (next: Entry[]) => updateFormData(section.dataKey, next)
+  const save = (next: Entry[]) => updateResume(section.dataKey, next)
 
   /**
    * Puts the cursor in an entry's first field, except on touch screens where it
@@ -364,7 +364,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
       }),
     )
 
-  const title = formData.headings?.[section.headingKey] || section.title
+  const title = headings?.[section.headingKey] || section.title
   // "Add experience", or "Add to Work History" once the person has renamed the section.
   const addLabel = title === section.title ? section.addLabel : `Add to ${title}`
   const quiet = "py-2 text-sm text-ink-2 transition-colors hover:text-ink"
@@ -573,18 +573,12 @@ export default function SectionForm({ section, position }: SectionFormProps) {
         <SectionHeading
           position={position}
           title={title}
-          onRename={(name) => updateFormData("headings", { ...formData.headings, [section.headingKey]: name })}
+          onRename={(name) => updateResume("headings", { ...headings, [section.headingKey]: name })}
           flag={here?.kind === "heading" || here?.kind === "section" ? target!.finding : null}
         />
       </div>
 
-      {section.choice && (
-        <SectionChoice
-          choice={section.choice}
-          value={formData[section.choice.key]}
-          onChange={(value) => updateFormData(section.choice!.key, value)}
-        />
-      )}
+      {section.choice && <SectionChoice choice={section.choice} />}
 
       {entries.length === 0 && <p className="border-t border-ink pt-5 text-[15px] text-ink-2">Nothing here yet.</p>}
 
@@ -627,7 +621,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
       </p>
 
       {section.fromPaperLink ? (
-        <PaperFromLink entries={() => latest.current} owner={() => owner.current} onAdd={addEntries}>
+        <PaperFromLink entries={() => latest.current} owner={() => read()?.profileSection?.fullName ?? ""} onAdd={addEntries}>
           {addButtonElement}
         </PaperFromLink>
       ) : (
@@ -637,8 +631,13 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   )
 }
 
+// Re-renders with its own fields and the finding being fixed, not with a new preview.
+export default memo(SectionForm)
+
 /** A choice that applies to the whole section, like how project links are printed. */
-function SectionChoice({ choice, value, onChange }: { choice: ChoiceDef; value: unknown; onChange: (value: string) => void }) {
+function SectionChoice({ choice }: { choice: ChoiceDef<ChoiceKey> }) {
+  const { update } = useOpenResume()
+  const value = useResumeField(choice.key)
   const selected = choice.options.find((option) => option.value === value) ?? choice.options[0]
   return (
     <div className="-mt-3 flex flex-col gap-3">
@@ -659,7 +658,7 @@ function SectionChoice({ choice, value, onChange }: { choice: ChoiceDef; value: 
                 name={choice.key}
                 value={option.value}
                 checked={option === selected}
-                onChange={() => onChange(option.value)}
+                onChange={() => update(choice.key, option.value)}
                 className="sr-only"
               />
               {option.label}
