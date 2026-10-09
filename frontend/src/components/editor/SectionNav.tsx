@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd"
+import { flushSync } from "react-dom"
+import type { DraggableProvided, DropResult } from "@hello-pangea/dnd"
 import { GripVertical } from "lucide-react"
 import type { Headings } from "@/lib/resume"
 import { WIDE_SCREEN } from "./layout"
@@ -18,6 +19,8 @@ interface SectionNavProps {
   onReorder: (sections: SectionName[]) => void
 }
 
+type DragAndDrop = typeof import("@hello-pangea/dnd")
+
 const pad = (n: number) => String(n).padStart(2, "0")
 
 /**
@@ -27,6 +30,30 @@ const pad = (n: number) => String(n).padStart(2, "0")
 export default function SectionNav({ sections, headings, active, onSelect, onReorder }: SectionNavProps) {
   const navRef = useRef<HTMLElement>(null)
   const [wide, setWide] = useState(() => typeof window !== "undefined" && window.matchMedia(WIDE_SCREEN).matches)
+  const [dnd, setDnd] = useState<DragAndDrop | null>(null)
+
+  // The drag and drop isn't in the page's first download, as it's only needed
+  // once a section is dragged. It loads as soon as the editor opens; until
+  // then, or for good if it fails to download, sections can be chosen but not
+  // dragged.
+  useEffect(() => {
+    let live = true
+    import("@hello-pangea/dnd").then(
+      (module) => {
+        if (!live) return
+        // The draggable list's buttons are new elements, so a button with the
+        // focus would lose it to the page.
+        const buttons = () => [...(navRef.current?.querySelectorAll("button") ?? [])]
+        const focused = buttons().findIndex((button) => button === document.activeElement)
+        flushSync(() => setDnd(module))
+        if (focused !== -1) buttons()[focused]?.focus()
+      },
+      () => {},
+    )
+    return () => {
+      live = false
+    }
+  }, [])
 
   useEffect(() => {
     const query = window.matchMedia(WIDE_SCREEN)
@@ -64,6 +91,31 @@ export default function SectionNav({ sections, headings, active, onSelect, onReo
       isActive ? "bg-sheet font-medium text-ink ring-1 ring-rule" : "text-ink-2 hover:text-ink"
     }`
 
+  // A section, the same with or without dragging, so the list doesn't move as dragging loads.
+  const renderSection = (name: SectionName, index: number, drag?: DraggableProvided, dragging = false) => {
+    const isActive = active === name
+    return (
+      <div
+        key={name}
+        ref={drag?.innerRef}
+        {...drag?.draggableProps}
+        className={`flex shrink-0 items-center rounded-[4px] ${dragging ? "bg-sheet shadow-sm ring-1 ring-rule" : ""}`}
+      >
+        <span
+          {...drag?.dragHandleProps}
+          aria-label={drag && `Reorder ${titleOf(name)}`}
+          className="flex h-9 w-6 shrink-0 items-center justify-center text-ink-2 hover:text-ink"
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </span>
+        <button type="button" onClick={() => onSelect(name)} className={`${item(isActive)} -ml-1`} aria-current={isActive || undefined}>
+          <span className={`font-mono text-[11px] ${isActive ? "text-accent" : ""}`}>{pad(index + 2)}</span>
+          {titleOf(name)}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <nav
       ref={navRef}
@@ -83,46 +135,24 @@ export default function SectionNav({ sections, headings, active, onSelect, onReo
         Profile
       </button>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <Droppable droppableId="sections" direction={wide ? "vertical" : "horizontal"}>
-          {(drop) => (
-            <div ref={drop.innerRef} {...drop.droppableProps} className="flex gap-1 xl:flex-col">
-              {sections.map((name, index) => {
-                const isActive = active === name
-                return (
-                  <Draggable key={name} draggableId={name} index={index}>
-                    {(drag, snapshot) => (
-                      <div
-                        ref={drag.innerRef}
-                        {...drag.draggableProps}
-                        className={`flex shrink-0 items-center rounded-[4px] ${snapshot.isDragging ? "bg-sheet shadow-sm ring-1 ring-rule" : ""}`}
-                      >
-                        <span
-                          {...drag.dragHandleProps}
-                          aria-label={`Reorder ${titleOf(name)}`}
-                          className="flex h-9 w-6 shrink-0 items-center justify-center text-ink-2 hover:text-ink"
-                        >
-                          <GripVertical className="h-3.5 w-3.5" />
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => onSelect(name)}
-                          className={`${item(isActive)} -ml-1`}
-                          aria-current={isActive || undefined}
-                        >
-                          <span className={`font-mono text-[11px] ${isActive ? "text-accent" : ""}`}>{pad(index + 2)}</span>
-                          {titleOf(name)}
-                        </button>
-                      </div>
-                    )}
-                  </Draggable>
-                )
-              })}
-              {drop.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
+      {dnd ? (
+        <dnd.DragDropContext onDragEnd={onDragEnd}>
+          <dnd.Droppable droppableId="sections" direction={wide ? "vertical" : "horizontal"}>
+            {(drop) => (
+              <div ref={drop.innerRef} {...drop.droppableProps} className="flex gap-1 xl:flex-col">
+                {sections.map((name, index) => (
+                  <dnd.Draggable key={name} draggableId={name} index={index}>
+                    {(drag, snapshot) => renderSection(name, index, drag, snapshot.isDragging)}
+                  </dnd.Draggable>
+                ))}
+                {drop.placeholder}
+              </div>
+            )}
+          </dnd.Droppable>
+        </dnd.DragDropContext>
+      ) : (
+        <div className="flex gap-1 xl:flex-col">{sections.map((name, index) => renderSection(name, index))}</div>
+      )}
 
       <p className="mt-3 hidden border-t border-rule px-2 pt-5 text-[13px] leading-normal text-ink-2 xl:block">
         Drag a section to change its place on the page.
