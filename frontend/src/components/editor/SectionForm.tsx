@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Plus } from "lucide-react"
 import { useResumeContext } from "@/context/ResumeContext"
 import { isLeftOut } from "@/lib/leftOut"
@@ -21,6 +21,16 @@ interface SectionFormProps {
 // How long an entry takes to slide open, closed or away (matches duration-300).
 const SLIDE_MS = 300
 
+// How long a moved entry takes to slide to its new place, then how long it
+// stays lit up after, to show which one moved.
+const MOVE_MS = 200
+const LIT_MS = 900
+// The id of those animations, to tell them from the CSS transitions on the same elements.
+const MOVING = "moving"
+
+/** Lit up, an entry sits on a sheet a little wider than its words. It covers the entry it slides past. */
+const litUp = (color: string): Keyframe => ({ backgroundColor: color, boxShadow: `-12px 0 ${color}, 12px 0 ${color}` })
+
 // Where a field is typed in: not the Include boxes in an entry's heading, or
 // in a bullets field being arranged.
 const TYPED = ':is(input:not([type="checkbox"]), textarea)'
@@ -32,6 +42,48 @@ function pointAt(target: HTMLElement | null | undefined, line?: number, view: HT
   target.focus({ preventScroll: true })
   if (line !== undefined && target instanceof HTMLTextAreaElement) selectLine(target, line)
   view?.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" })
+}
+
+/** Where each entry is drawn, mid-slide or not, from the top of their list. */
+function placesOf(entries: Map<number, HTMLElement>, list: HTMLElement | null): Map<number, number> {
+  const top = list?.getBoundingClientRect().top ?? 0
+  return new Map([...entries].map(([id, element]) => [id, element.getBoundingClientRect().top - top]))
+}
+
+/** Stops the entries' slides and lights, so the next move can start them afresh. */
+function stopMoving(entries: Map<number, HTMLElement>) {
+  for (const element of entries.values()) {
+    for (const animation of element.getAnimations()) if (animation.id === MOVING) animation.cancel()
+  }
+}
+
+/**
+ * Slides each entry from where it was drawn (`from`) to its place now, and
+ * lights up the one that moved. With less motion, it only lights up.
+ */
+function slide(entries: Map<number, HTMLElement>, list: HTMLElement | null, moved: number, from: Map<number, number>) {
+  const to = placesOf(entries, list)
+  const still = reducedMotion()
+  // The sheet's color as a color, so the keyframes don't rely on var() in script animations.
+  const lit = litUp(getComputedStyle(document.documentElement).getPropertyValue("--color-sheet").trim())
+  const unlit = litUp("transparent")
+  for (const [id, element] of entries) {
+    const start = from.get(id)
+    const by = start === undefined || still ? 0 : start - (to.get(id) ?? start)
+    const sliding = Math.abs(by) >= 1
+    if (id === moved) {
+      const keyframes = sliding
+        ? [
+            { ...lit, transform: `translateY(${by}px)`, zIndex: 1, easing: "ease-out" },
+            { ...lit, transform: "none", zIndex: 1, offset: MOVE_MS / (MOVE_MS + LIT_MS), easing: "ease-in" },
+            { ...unlit, transform: "none" },
+          ]
+        : [{ ...lit, easing: "ease-in" }, unlit]
+      element.animate(keyframes, { id: MOVING, duration: (sliding ? MOVE_MS : 0) + LIT_MS })
+    } else if (sliding) {
+      element.animate([{ transform: `translateY(${by}px)` }, { transform: "none" }], { id: MOVING, duration: MOVE_MS, easing: "ease-out" })
+    }
+  }
 }
 
 /** The form for one list section (education, experience, ...): its title and entries. */
@@ -51,6 +103,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const [removingId, setRemovingId] = useState<number | null>(null)
   const elements = useRef(new Map<number, HTMLElement>())
+  const list = useRef<HTMLDivElement>(null)
   const addButton = useRef<HTMLButtonElement>(null)
   const cancelButton = useRef<HTMLButtonElement>(null)
   const heading = useRef<HTMLDivElement>(null)
@@ -58,6 +111,8 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   opened.current = openId
   // Said to screen readers when an entry moves.
   const [announcement, setAnnouncement] = useState("")
+  // A move that hasn't slid yet: which entry moved, and where each entry was drawn before it.
+  const moving = useRef<{ id: number; from: Map<number, number>; scroller: HTMLElement; frame?: number } | null>(null)
 
   // What the checker points at in this section, while the person fixes it.
   const { target, pending, claim } = useCheck()
@@ -112,6 +167,19 @@ export default function SectionForm({ section, position }: SectionFormProps) {
     const frame = requestAnimationFrame(() => setShownId(openId))
     return () => cancelAnimationFrame(frame)
   }, [openId])
+
+  // The entries slide a frame after a move, not as it's put on the page:
+  // MoveButtons brings the moved entry's button into view first, and it has
+  // to measure where the entry ends up, not where the slide draws it.
+  useLayoutEffect(() => {
+    const waiting = moving.current
+    if (!waiting || waiting.frame !== undefined) return
+    waiting.frame = requestAnimationFrame(() => {
+      moving.current = null
+      waiting.scroller.style.overflowAnchor = ""
+      slide(elements.current, list.current, waiting.id, waiting.from)
+    })
+  }, [saved])
 
   const save = (next: Entry[]) => updateFormData(section.dataKey, next)
 
@@ -211,12 +279,23 @@ export default function SectionForm({ section, position }: SectionFormProps) {
   /**
    * Moves an entry up or down one place. Its id stays the same, so it stays
    * open if it was, and React keeps the focus on the button that moved it.
+   * It slides to its new place, and the entry it passes slides the other way.
    */
   const move = (id: number, by: -1 | 1) => {
     const current = latest.current
     const from = current.findIndex((entry) => entry.id === id)
     const to = from + by
     if (from < 0 || to < 0 || to >= current.length) return
+    const element = elements.current.get(id)
+    if (element) {
+      // From where they're drawn now, or before an earlier move that hasn't slid yet.
+      moving.current ??= { id, from: placesOf(elements.current, list.current), scroller: scrollerOf(element) }
+      moving.current.id = id
+      // Scroll anchoring would shift the page as the entries trade places, and
+      // the slide would start with a jump. It's back on once the slide starts.
+      moving.current.scroller.style.overflowAnchor = "none"
+      stopMoving(elements.current)
+    }
     const next = [...current]
     next.splice(to, 0, ...next.splice(from, 1))
     save(next)
@@ -273,7 +352,7 @@ export default function SectionForm({ section, position }: SectionFormProps) {
       {entries.length === 0 && <p className="border-t border-ink pt-5 text-[15px] text-ink-2">Nothing here yet.</p>}
 
       {entries.length > 0 && (
-        <div className="flex flex-col">
+        <div ref={list} className="flex flex-col">
           {entries.map((entry, index) => {
             const isOpen = entry.id === openId
             const confirming = entry.id === confirmingId

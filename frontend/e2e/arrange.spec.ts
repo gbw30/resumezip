@@ -134,6 +134,74 @@ test("entries move up and down from the keyboard, and stay moved", async ({ page
   expect(errors).toEqual([])
 })
 
+/**
+ * Clicks a move button, and says where it's drawn from the top of the
+ * section's title, which scrolls with it: before, as the slide that follows
+ * starts (paused there), and once it's done; and its entry's background then.
+ */
+async function slideOf(page: Page, button: Locator) {
+  const title = await page.getByRole("heading", { name: "Experience" }).elementHandle()
+  return button.evaluate(async (element: HTMLElement, title) => {
+    const top = () => element.getBoundingClientRect().top - title!.getBoundingClientRect().top
+    const before = top()
+    // As from the keyboard, so the button has the focus.
+    element.focus()
+    element.click()
+    // The app's own animations on what the button is in, not CSS transitions.
+    const started = () =>
+      document.getAnimations().filter((animation) => {
+        const target = (animation.effect as KeyframeEffect | null)?.target
+        return !("transitionProperty" in animation) && !!target?.contains(element)
+      })
+    let animations: Animation[] = []
+    for (let frame = 0; frame < 10 && animations.length === 0; frame++) {
+      await new Promise((done) => requestAnimationFrame(done))
+      animations = started()
+    }
+    const entry = animations.map((animation) => (animation.effect as KeyframeEffect).target!).find(Boolean)
+    const background = () => (entry ? getComputedStyle(entry).backgroundColor : "")
+    for (const animation of animations) {
+      animation.pause()
+      animation.currentTime = 0
+    }
+    const start = { top: top(), background: background() }
+    for (const animation of animations) animation.finish()
+    return { before, start, end: { top: top(), background: background() } }
+  }, title)
+}
+
+test("a moved entry slides to its new place lit up, keeping the focus", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+
+  // Entry 2 moves up past entry 1, which is open, so it goes a long way.
+  const { before, start, end } = await slideOf(page, page.getByRole("button", { name: "Move entry 2 up" }))
+  expect(start.top).toBeCloseTo(before, 0)
+  expect(start.background).toBe("rgb(255, 255, 255)")
+  expect(before - end.top).toBeGreaterThan(300)
+  expect(end.background).toBe("rgba(0, 0, 0, 0)")
+  await expect(page.getByRole("button", { name: "Move entry 1 up" })).toBeFocused()
+
+  expect(errors).toEqual([])
+})
+
+test.describe("with less motion", () => {
+  test.use({ reducedMotion: "reduce" })
+
+  test("a moved entry doesn't slide, but still lights up", async ({ page }) => {
+    const errors = pageErrors(page)
+    await openSection(page, "Experience")
+
+    const { before, start, end } = await slideOf(page, page.getByRole("button", { name: "Move entry 2 up" }))
+    expect(before - start.top).toBeGreaterThan(300)
+    expect(start.top).toBe(end.top)
+    expect(start.background).toBe("rgb(255, 255, 255)")
+    await expect(page.getByRole("button", { name: "Move entry 1 up" })).toBeFocused()
+
+    expect(errors).toEqual([])
+  })
+})
+
 test("an entry left out isn't printed, or in the PDF's copy of the resume, and comes back when it's put back", async ({
   page,
   browser,
