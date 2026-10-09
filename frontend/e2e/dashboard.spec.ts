@@ -11,7 +11,7 @@ const resume = (id: string, resumeTitle: string) => ({
 })
 
 /** Opens the dashboard with these resumes saved in the browser, as an earlier visit would have. */
-async function dashboardWith(page: Page, resumes: ReturnType<typeof resume>[]) {
+async function dashboardWith(page: Page, resumes: (ReturnType<typeof resume> & { headings?: object })[]) {
   await page.addInitScript((resumes) => {
     for (const resume of resumes) {
       const key = `resume:${resume.id}`
@@ -133,3 +133,48 @@ test("closing a dialog puts focus back on what opened it, however it's closed", 
   await expect(newResume).toBeFocused()
   expect(errors).toEqual([])
 })
+
+for (const [layout, width] of [
+  ["phone", 390],
+  ["wide screen", 1280],
+] as const) {
+  test(`on a ${layout}, a resume can be duplicated and renamed from the list`, async ({ page }) => {
+    const errors = pageErrors(page)
+    await page.setViewportSize({ width, height: 900 })
+    await dashboardWith(page, [{ ...resume("a", "Ada"), headings: { skillsSection: "Toolbox" } }, resume("b", "Grace")])
+    // The cards or the table, whichever shows at this width.
+    const list = width < 768 ? page.getByRole("list").filter({ has: page.getByRole("link", { name: "Ada" }) }) : page.getByRole("table")
+    const row = (name: string) => list.locator("li, tr").filter({ has: page.getByRole("link", { name, exact: true }) })
+
+    // A copy has everything, under its own id, and gets focus.
+    await row("Ada").getByRole("button", { name: "Duplicate" }).click()
+    const copy = list.getByRole("link", { name: "Ada copy", exact: true })
+    await expect(copy).toBeFocused()
+    const id = (await copy.getAttribute("href"))!.split("/").pop()!
+    expect(id).not.toBe("a")
+    const saved = await page.evaluate((id) => JSON.parse(localStorage.getItem(`resume:${id}`)!), id)
+    expect(saved).toMatchObject({ resumeTitle: "Ada copy", selectedTemplate: "jake", headings: { skillsSection: "Toolbox" } })
+
+    // Escape keeps the old name.
+    await row("Ada copy").getByRole("button", { name: "Rename" }).click()
+    const box = list.getByRole("textbox", { name: "Resume name" })
+    await expect(box).toBeFocused()
+    await box.fill("Something else")
+    await box.press("Escape")
+    await expect(copy).toBeVisible()
+    await expect(row("Ada copy").getByRole("button", { name: "Rename" })).toBeFocused()
+
+    // Enter saves it, numbered when another resume has it.
+    await row("Ada copy").getByRole("button", { name: "Rename" }).click()
+    await box.fill("Grace")
+    await box.press("Enter")
+    await expect(list.getByRole("link", { name: "Grace 2", exact: true })).toBeVisible()
+
+    // A blank name is "Untitled resume".
+    await row("Grace 2").getByRole("button", { name: "Rename" }).click()
+    await box.fill("  ")
+    await box.press("Enter")
+    await expect(list.getByRole("link", { name: "Untitled resume", exact: true })).toBeVisible()
+    expect(errors).toEqual([])
+  })
+}
