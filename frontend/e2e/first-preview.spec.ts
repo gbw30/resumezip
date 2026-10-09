@@ -3,8 +3,9 @@ import { pageErrors } from "./helpers"
 
 // The first preview waits for the PDF compiler to download. A stand-in page
 // shows meanwhile (components/editor/PrintingPage.tsx), and the dashboard
-// starts the download before the editor opens (lib/typst/compile.ts), as
-// does reaching for "Start writing" (components/site/StartWriting.tsx).
+// starts the download before the editor opens (lib/typst/compile.ts), as do
+// the home page on a computer (components/home/PrefetchCompiler.tsx) and
+// reaching for "Start writing" (components/site/StartWriting.tsx).
 
 const resume = {
   id: "first-preview",
@@ -110,23 +111,86 @@ test("the dashboard starts the compiler, and the editor uses the same one", asyn
   expect(errors).toEqual([])
 })
 
-test("the compiler starts downloading as a mouse rests on Start writing, not while the home page is read", async ({ page }) => {
+test("on a computer, the home page downloads the compiler once it has settled, and the editor builds it from that", async ({
+  page,
+  browserName,
+}) => {
   const errors = pageErrors(page)
   const workers = compilerWorkers(page)
+  const downloads: string[] = []
+  page.on("request", (request) => {
+    if (request.url().endsWith(".wasm")) downloads.push(request.url())
+  })
   await page.goto("/")
-  // Looking over the templates' pictures doesn't start it.
+  await expect.poll(() => workers.length).toBe(1)
+  // The download itself is checked in Chromium, where the page sees its workers' requests.
+  if (browserName === "chromium") await expect.poll(() => downloads.length).toBe(1)
+  const downloadedAhead = downloads.length
+
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page.getByRole("region", { name: "Live preview" }).locator("canvas")).toBeVisible()
+  expect(workers).toHaveLength(1)
+  // The editor doesn't download the compiler again.
+  expect(downloads).toHaveLength(downloadedAhead)
+  expect(errors).toEqual([])
+})
+
+test("if the home page's download of the compiler fails, the editor uses the app's own copy without trying jsDelivr again", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "The page sees its workers' requests in Chromium")
+  const errors = pageErrors(page)
+  const fromJsDelivr: string[] = []
+  await page.route(/^https:\/\/cdn\.jsdelivr\.net\/.*\.wasm$/, (route) => {
+    fromJsDelivr.push(route.request().url())
+    return route.abort()
+  })
+  await page.goto("/")
+  await expect.poll(() => fromJsDelivr.length).toBe(1)
+
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page.getByRole("region", { name: "Live preview" }).locator("canvas")).toBeVisible()
+  expect(fromJsDelivr).toHaveLength(1)
+  expect(errors).toEqual([])
+})
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
+
+  test("reading the home page doesn't download the compiler", async ({ page, browserName }) => {
+    test.skip(browserName !== "chromium", "Checked in Chromium, whose touch emulation gives the page a phone's coarse pointer")
+    const workers = compilerWorkers(page)
+    await page.goto("/")
+    await expect(page.getByRole("link", { name: "Start writing" }).first()).toBeVisible()
+    await page.waitForTimeout(2_000)
+    expect(workers).toEqual([])
+  })
+})
+
+test("a mouse resting on Start writing starts the editor's downloads before the click, and looking over the templates' pictures doesn't", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "The page sees its workers' requests in Chromium")
+  const errors = pageErrors(page)
+  // The fonts of the template to print, which only come once someone starts
+  // writing: the home page's own download is of the compiler alone.
+  const fonts: string[] = []
+  page.on("request", (request) => {
+    if (/\.(otf|ttf)$/.test(request.url())) fonts.push(request.url())
+  })
+  await page.goto("/")
   const pictures = page.getByRole("region", { name: "Templates" }).getByRole("link", { name: / template/ })
   for (const picture of await pictures.all()) await picture.hover()
-  await page.waitForTimeout(1_000)
-  expect(workers).toEqual([])
+  await page.waitForTimeout(1_500)
+  expect(fonts).toEqual([])
 
   const startWriting = page.getByRole("link", { name: "Start writing" }).first()
   await startWriting.hover()
-  await expect.poll(() => workers.length).toBe(1)
+  await expect.poll(() => fonts.length).toBeGreaterThan(0)
   await startWriting.click()
   await expect(page.getByRole("region", { name: "Live preview" }).locator("canvas")).toBeVisible()
-  // The editor uses the compiler that started.
-  expect(workers).toHaveLength(1)
   expect(errors).toEqual([])
 })
 

@@ -13,7 +13,7 @@ import modernjack from "./templates/modernjack.typ"
 import referme from "./templates/referme.typ"
 import resumeworded from "./templates/resumeworded.typ"
 import type { CompileRequest, CompileResponse, WorkerMessage, WorkerRequest } from "./compile"
-import { COMPILER_CDN_URL, COMPILER_INTEGRITY, COMPILER_SIZE, compileChecked } from "./compilerSource"
+import { COMPILER_CDN_URL, COMPILER_INTEGRITY, COMPILER_SIZE, compileChecked, downloadChecked } from "./compilerSource"
 import { FONT_URLS, fontsFor, lazyFonts } from "./fontFiles"
 
 const SOURCES: Record<string, string> = {
@@ -77,16 +77,38 @@ async function fetchReporting(url: string, onData: (bytes: number) => void = () 
   return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers })
 }
 
+// The compiler's file, downloaded and checked ahead of time without being
+// built (see prefetchCompiler in compile.ts), or null if that failed. Kept
+// in memory rather than left to the browser's cache, which can be too small
+// for it (as in private windows), so building it later never downloads it
+// twice, even when that starts while this is still downloading.
+let prefetched: Promise<Uint8Array<ArrayBuffer> | null> | null = null
+
+function prefetch() {
+  prefetched ??= downloadChecked(COMPILER_CDN_URL, COMPILER_INTEGRITY, CDN_IDLE_MS, compilerArrived).catch(() => null)
+}
+
 // The compiler from jsDelivr, or the app's own copy if that fails (offline,
-// blocked, stalled, or not the expected file).
+// blocked, stalled, or not the expected file). A download ahead is the try
+// at jsDelivr: one that stalled just before a resume needed the compiler
+// isn't followed by a second wait for jsDelivr, long enough together for the
+// page to give up (see compile.ts).
 async function compilerModule(): Promise<WebAssembly.Module | Response> {
-  compilerBytes = 0
-  try {
-    return await compileChecked(COMPILER_CDN_URL, COMPILER_INTEGRITY, CDN_IDLE_MS, compilerArrived)
-  } catch {
-    // Fall through to the bundled copy, which starts from nothing.
+  if (prefetched) {
+    const bytes = await prefetched
+    // Once built, the file isn't needed.
+    prefetched = null
+    if (bytes) return WebAssembly.compile(bytes)
+  } else {
     compilerBytes = 0
+    try {
+      return await compileChecked(COMPILER_CDN_URL, COMPILER_INTEGRITY, CDN_IDLE_MS, compilerArrived)
+    } catch {
+      // Fall through to the bundled copy.
+    }
   }
+  // The bundled copy's download starts from nothing.
+  compilerBytes = 0
   return fetchReporting(
     new URL("@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm", import.meta.url).href,
     compilerArrived,
@@ -170,9 +192,12 @@ function getCompiler(): Promise<TypstCompiler> {
 }
 
 addEventListener("message", ({ data: request }: MessageEvent<WorkerRequest>) => {
+  // Downloading the compiler before anyone has asked for a PDF. Building it,
+  // and the fonts, wait until someone starts writing.
+  if ("prefetch" in request) prefetch()
   // Loading ahead of the first PDF, with the fonts its template needs. If
   // either fails, that PDF tries again.
-  if ("load" in request) {
+  else if ("load" in request) {
     getCompiler().catch(() => {})
     fetchFontsOf(request.template).catch(() => {})
   } else void compile(request)

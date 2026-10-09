@@ -56,11 +56,11 @@ export const failureOf = (error: unknown): PdfFailure => (error instanceof PdfEr
 export type CompileResponse = { id: number; pdf: Uint8Array } | { id: number; error: string; failure: PdfFailure }
 
 /**
- * What the page sends the worker: a resume to compile, or word to start
+ * What the page sends the worker: a resume to compile; word to start
  * loading the compiler, and the fonts of the template likely to come first,
- * before one comes.
+ * before one comes; or word to only download the compiler, for a later load.
  */
-export type WorkerRequest = CompileRequest | { load: true; template?: TemplateId }
+export type WorkerRequest = CompileRequest | { load: true; template?: TemplateId } | { prefetch: true }
 
 /**
  * What the worker sends: an answer; word that it's getting on, with the share
@@ -191,6 +191,21 @@ function preconnect(url: string) {
 export function loadCompiler(template?: TemplateId) {
   try {
     getWorker().postMessage({ load: true, template } satisfies WorkerRequest)
+  } catch {
+    // Left for the first PDF to report.
+  }
+}
+
+/**
+ * Downloads the compiler, without building it or its fonts, for a visitor
+ * likely to write who hasn't started yet. loadCompiler, or the first PDF,
+ * then builds it from that download, even one still under way. Does nothing
+ * once anything has started the compiler. Like loadCompiler, it never throws.
+ */
+export function prefetchCompiler() {
+  if (worker) return
+  try {
+    getWorker().postMessage({ prefetch: true } satisfies WorkerRequest)
   } catch {
     // Left for the first PDF to report.
   }

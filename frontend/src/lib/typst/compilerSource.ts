@@ -56,14 +56,23 @@ export async function compileChecked(
  * Downloads a file whole, as compileChecked does: it fails if the file
  * doesn't match `integrity`, or if nothing arrives for `idleMs`, so a slow
  * connection that keeps sending finishes. For WebAssembly that something
- * else compiles, as the grammar checker's.
+ * else compiles, as the grammar checker's, or that's compiled later.
+ * `onData` is called with the number of bytes each time some arrives.
  */
-export async function downloadChecked(url: string, integrity: string, idleMs: number): Promise<Uint8Array<ArrayBuffer>> {
+export async function downloadChecked(
+  url: string,
+  integrity: string,
+  idleMs: number,
+  onData?: (bytes: number) => void,
+): Promise<Uint8Array<ArrayBuffer>> {
   const stall = stallTimer(url, idleMs)
   try {
     const response = await fetch(url, { credentials: "omit", signal: stall.signal })
     if (!response.ok || !response.body) throw new Error(`${url} answered ${response.status}`)
-    const { hash, bytes } = await sha384(response.body, stall.reset)
+    const { hash, bytes } = await sha384(response.body, (arrived) => {
+      stall.reset()
+      onData?.(arrived)
+    })
     if (hash !== integrity) throw new Error(`${url} isn't the expected file`)
     return bytes
   } catch (error) {

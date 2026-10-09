@@ -2,6 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 import HeroVideo from "@/components/home/HeroVideo"
 import HowItWorks from "@/components/home/HowItWorks"
+import PrefetchCompiler from "@/components/home/PrefetchCompiler"
 import SiteFooter from "@/components/site/SiteFooter"
 import SiteHeader from "@/components/site/SiteHeader"
 import { StartWritingLink } from "@/components/site/StartWriting"
@@ -169,6 +170,7 @@ export default function Home() {
       </section>
 
       <SiteFooter />
+      <PrefetchCompiler />
     </div>
   )
 }

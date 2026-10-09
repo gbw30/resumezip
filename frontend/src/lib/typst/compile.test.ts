@@ -16,12 +16,18 @@ class FakeWorker {
   terminated = false
   /** The requests to start loading the compiler. */
   loadRequests: Extract<WorkerRequest, { load: true }>[] = []
+  /** How many times it was asked to download the compiler ahead, without building it. */
+  prefetches = 0
 
   constructor() {
     FakeWorker.made.push(this)
   }
 
   postMessage(request: WorkerRequest) {
+    if ("prefetch" in request) {
+      this.prefetches++
+      return
+    }
     if ("load" in request) {
       this.loadRequests.push(request)
       FakeWorker.loading.forEach((message, index) => setTimeout(() => this.send(message), (index + 1) * 10))
@@ -61,6 +67,7 @@ let compileResume: typeof import("./compile").compileResume
 let compilePreview: typeof import("./compile").compilePreview
 let printedOf: typeof import("./compile").printedOf
 let loadAhead: typeof import("./compile").loadCompiler
+let prefetch: typeof import("./compile").prefetchCompiler
 let compilerStatus: typeof import("./compile").compilerStatus
 let onCompilerStatus: typeof import("./compile").onCompilerStatus
 let savingData: typeof import("./compile").savingData
@@ -85,6 +92,7 @@ beforeEach(async () => {
     compilePreview,
     printedOf,
     loadCompiler: loadAhead,
+    prefetchCompiler: prefetch,
     compilerStatus,
     onCompilerStatus,
     savingData,
@@ -383,6 +391,23 @@ test("the compiler can start loading before the first PDF, which then uses the s
   await vi.advanceTimersByTimeAsync(10)
   expect(result.value).toEqual(PDF)
   expect(FakeWorker.made).toHaveLength(1)
+})
+
+test("the compiler can download ahead without being built, in the worker that later builds it", () => {
+  prefetch()
+  loadAhead("jake")
+  expect(FakeWorker.made).toHaveLength(1)
+  expect(FakeWorker.made[0].prefetches).toBe(1)
+  expect(FakeWorker.made[0].loadRequests).toEqual([{ load: true, template: "jake" }])
+})
+
+test("downloading ahead does nothing once the compiler has started", () => {
+  loadAhead()
+  prefetch()
+  track(compileResume(resume))
+  prefetch()
+  expect(FakeWorker.made).toHaveLength(1)
+  expect(FakeWorker.made[0].prefetches).toBe(0)
 })
 
 test("the connection for the compiler's download opens as its worker starts, anonymous like the download", () => {
