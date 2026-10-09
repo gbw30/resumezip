@@ -58,7 +58,8 @@ function reportProgress(now = false) {
 
 const compilerArrived = (bytes: number) => {
   compilerBytes += bytes
-  reportProgress()
+  // The end is told at once, as the page starts its next download then (see PdfPreview.tsx).
+  reportProgress(compilerBytes >= COMPILER_SIZE)
 }
 
 // fetch, calling `onData` with the number of bytes as the body arrives.

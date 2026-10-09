@@ -146,6 +146,29 @@ test("pressing a template's picture starts the compiler before the click", async
   expect(errors).toEqual([])
 })
 
+test("pdf.js's worker downloads while the first preview is still being made", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "The page sees its workers' requests in Chromium")
+  const errors = pageErrors(page)
+  await saveResume(page)
+  // The fonts are held back, so the first PDF can't be made yet.
+  let releaseFonts = () => {}
+  const fontsHeld = new Promise<void>((resolve) => (releaseFonts = resolve))
+  await page.route(/\.(otf|ttf)$/, async (route) => {
+    await fontsHeld
+    await route.continue()
+  })
+  const requested: string[] = []
+  page.on("request", (request) => requested.push(request.url()))
+  await page.goto(`/create/new/${resume.id}`)
+
+  const preview = page.getByRole("region", { name: "Live preview" })
+  await expect.poll(() => requested.some((url) => url.includes("pdf.worker"))).toBe(true)
+  await expect(preview.getByRole("status", { name: "Loading preview" })).toBeVisible()
+  releaseFonts()
+  await expect(preview.locator("canvas")).toBeVisible()
+  expect(errors).toEqual([])
+})
+
 test("visitors saving data don't download the compiler ahead, on the home page or the dashboard", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "connection", { value: { saveData: true, effectiveType: "4g" } })

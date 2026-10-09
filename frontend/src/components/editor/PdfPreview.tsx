@@ -1,15 +1,33 @@
 "use client"
 
-import { useEffect, useRef, useState, type ClipboardEvent } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent } from "react"
 import { Document, Page, pdfjs } from "react-pdf"
 import "react-pdf/dist/esm/Page/AnnotationLayer.css"
 import "react-pdf/dist/esm/Page/TextLayer.css"
+import { compilerStatus, onCompilerStatus } from "@/lib/typst/compile"
 import PrintingPage from "./PrintingPage"
 
 // The worker is bundled with the app, like the one lib/import/open.ts uses.
 // pdfjs-dist is pinned to react-pdf's version so both share one copy and the
 // worker matches the library.
-pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
+const WORKER_URL = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
+pdfjs.GlobalWorkerOptions.workerSrc = WORKER_URL
+
+// pdf.js only starts its worker for the first PDF it shows, so the first
+// preview would wait for the worker to download once Typst's PDF is ready.
+// Instead it's fetched into the browser's cache as soon as the compiler has
+// downloaded: Typst still has to build and compile, and the connection is
+// free meanwhile. If that fails, pdf.js downloads it as it would have.
+let workerFetched = false
+function fetchWorker() {
+  if (workerFetched) return
+  workerFetched = true
+  fetch(WORKER_URL)
+    .then((response) => response.arrayBuffer())
+    .catch(() => {})
+}
+
+const compilerDownloaded = () => compilerStatus().downloaded === 1
 
 // A PDF being shown or loaded in the background. A new PDF stays hidden until
 // all its pages have rendered, so live previews swap in without flashing.
@@ -44,6 +62,11 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
   const [loadError, setLoadError] = useState(false)
   const [availableWidth, setAvailableWidth] = useState(MAX_PAGE_WIDTH)
   const scrollerRef = useRef<HTMLDivElement>(null)
+
+  const downloaded = useSyncExternalStore(onCompilerStatus, compilerDownloaded, () => false)
+  useEffect(() => {
+    if (downloaded) fetchWorker()
+  }, [downloaded])
 
   // Keep the PDF on screen while the new one loads; drop older pending ones.
   useEffect(() => {

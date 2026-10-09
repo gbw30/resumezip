@@ -20,6 +20,8 @@ server to build a PDF.
   worker also opens the connection to jsDelivr while its own script loads.
   `compilerStatus` says how much of the compiler has arrived, which the
   preview's stand-in page shows (`src/components/editor/PrintingPage.tsx`).
+  Once it all has, the preview fetches pdf.js's worker, which is otherwise
+  only downloaded after the first PDF is made.
 - `typst.worker.ts` loads the WebAssembly compiler and the templates once, and
   compiles each request. Before compiling, it downloads the fonts that resume
   needs (see [Fonts](#fonts)), alongside the compiler the first time. Downloads also attach a copy of the resume to the PDF
