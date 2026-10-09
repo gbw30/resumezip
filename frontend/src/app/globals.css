@@ -172,7 +172,7 @@
   }
 }
 
-/* Section reordering (@hello-pangea/dnd) */
+/* Dragging sections and entries (@hello-pangea/dnd) */
 [data-rfd-drag-handle-context-id] {
   cursor: grab;
 }

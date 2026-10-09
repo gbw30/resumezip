@@ -32,7 +32,7 @@ export default function ProfileForm({ position }: { position: string }) {
   }, [target, pending, claim])
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="@container flex flex-col gap-8">
       <SectionHeading position={position} title="Profile" />
       <section ref={form} className="grid grid-cols-2 gap-x-7 gap-y-6 border-t border-ink pt-6 @lg:grid-cols-4">
         {PROFILE_FIELDS.map((field) => (

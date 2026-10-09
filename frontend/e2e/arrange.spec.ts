@@ -336,6 +336,80 @@ test("a section is dragged to a new place from the keyboard, and printed and sav
   expect(errors).toEqual([])
 })
 
+const companies = async (page: Page) => (await saved(page)).workExperienceSection.map((entry: { companyName: string }) => entry.companyName)
+
+/** Waits for what `control` is in to light up: the app's own animation on it, paused at its start, puts it on white. */
+const lightsUp = (control: Locator) =>
+  expect
+    .poll(() =>
+      control.evaluate((element) => {
+        const animation = document.getAnimations().find((animation) => {
+          const target = (animation.effect as KeyframeEffect | null)?.target
+          return !("transitionProperty" in animation) && !!target?.contains(element)
+        })
+        if (!animation) return ""
+        animation.pause()
+        animation.currentTime = 0
+        const background = getComputedStyle((animation.effect as KeyframeEffect).target!).backgroundColor
+        animation.finish()
+        return background
+      }),
+    )
+    .toBe("rgb(255, 255, 255)")
+
+test("an entry is dragged to a new place from the keyboard, and printed and saved there", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+
+  await page.getByRole("button", { name: "Reorder entry 3" }).focus()
+  await page.keyboard.press("Space")
+  await page.keyboard.press("ArrowUp")
+  await page.keyboard.press("ArrowUp")
+  await page.keyboard.press("Space")
+  // It keeps the focus in its new place, and lights up there.
+  const moved = page.getByRole("button", { name: "Reorder entry 1" })
+  await expect(moved).toBeFocused()
+  await lightsUp(moved)
+  await expect.poll(() => printedOrder(page, ["Google", "Initech", "Hooli"])).toEqual(["Hooli", "Google", "Initech"])
+  await expect.poll(() => companies(page)).toEqual(["Hooli", "Google", "Initech"])
+
+  expect(errors).toEqual([])
+})
+
+test("an open entry is dragged with the mouse, under the pointer all the way, and dropped still open", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+
+  // The first entry is open, and the tallest: it's dragged down past the two closed ones.
+  const dragged = page.getByRole("button", { name: "Reorder entry 1" })
+  const from = (await dragged.boundingBox())!
+  const second = (await page.getByRole("button", { name: "Reorder entry 2" }).boundingBox())!
+  const third = (await page.getByRole("button", { name: "Reorder entry 3" }).boundingBox())!
+  const x = from.x + from.width / 2
+  const start = from.y + from.height / 2
+  const to = start + 2 * (third.y - second.y) + 20
+  await page.mouse.move(x, start)
+  await page.mouse.down()
+  // Past the few pixels a click can move, so it's a drag.
+  await page.mouse.move(x, start + 10, { steps: 5 })
+  await page.mouse.move(x, to, { steps: 20 })
+  // It trails the pointer by those few pixels, and no more.
+  await expect
+    .poll(async () => {
+      const box = (await dragged.boundingBox())!
+      return Math.hypot(box.x + box.width / 2 - x, box.y + box.height / 2 - to)
+    })
+    .toBeLessThan(12)
+  await page.mouse.up()
+
+  await lightsUp(page.getByRole("button", { name: "Reorder entry 3" }))
+  await expect.poll(() => companies(page)).toEqual(["Initech", "Hooli", "Google"])
+  // It's still open, in its new place.
+  await expect(page.getByRole("button", { name: "Done editing entry 3" })).toBeVisible()
+
+  expect(errors).toEqual([])
+})
+
 test("a bullet keeps the focus as it moves, even past one with the same words", async ({ page }) => {
   const errors = pageErrors(page)
   await openSection(page, "Experience")
