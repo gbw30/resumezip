@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 import { pageErrors } from "./helpers"
 
 declare global {
@@ -93,6 +93,84 @@ test("renaming doesn't rebuild the preview, and fast typing ends on the latest t
   // Typing quickly ends on what was typed last.
   await page.getByLabel("Email").pressSequentially("ada@example.com", { delay: 20 })
   await expect(preview.getByText("ada@example.com").first()).toBeVisible()
+
+  expect(errors).toEqual([])
+})
+
+/** Starts a resume with a name and email, and waits for the email in the preview. */
+async function startResume(page: Page) {
+  await page.goto("/")
+  await page.getByRole("link", { name: "Start writing" }).first().click()
+  await expect(page).toHaveURL(/\/create\/new\//)
+  await page.getByLabel("Full name").fill("Ada Lovelace")
+  await page.getByLabel("Email").fill("ada@example.com")
+  const preview = page.getByRole("region", { name: "Live preview" })
+  // Narrower than 1280px, the preview is behind the Edit / Preview switch.
+  const toPreview = page.getByRole("group", { name: "View" }).getByRole("button", { name: "Preview" })
+  if (await toPreview.isVisible()) await toPreview.click()
+  const email = preview.locator(".textLayer span[role=presentation]", { hasText: "ada@example.com" })
+  await expect(email).toBeVisible()
+  return { preview, email }
+}
+
+/** The middle of an element on screen, or null while it isn't there, as while the text layer is redrawn. */
+async function middleOf(locator: Locator) {
+  const box = await locator.boundingBox({ timeout: 1_000 }).catch(() => null)
+  return box && { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+}
+
+const apart = (a: { x: number; y: number } | null, b: { x: number; y: number }) => (a ? Math.hypot(a.x - b.x, a.y - b.y) : Infinity)
+
+// Beside the form the panel scrolls up and down; on its own, the page does.
+for (const { width, layout } of [
+  { width: 1280, layout: "beside the form" },
+  { width: 1024, layout: "on its own" },
+]) {
+  test(`zooming with Ctrl + scroll keeps what's under the cursor there, with the preview ${layout}`, async ({ page }) => {
+    const errors = pageErrors(page)
+    await page.setViewportSize({ width, height: 720 })
+    const { preview, email } = await startResume(page)
+
+    const cursor = (await middleOf(email))!
+    await page.mouse.move(cursor.x, cursor.y)
+    await page.keyboard.down("Control")
+    for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -100)
+    await page.keyboard.up("Control")
+    await expect(preview.getByRole("button", { name: "150%" })).toBeVisible()
+    await expect.poll(async () => apart(await middleOf(email), cursor), { message: "the email is still under the cursor" }).toBeLessThan(3)
+
+    // And back out again.
+    await page.keyboard.down("Control")
+    for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 100)
+    await page.keyboard.up("Control")
+    await expect(preview.getByRole("button", { name: "120%" })).toBeVisible()
+    await expect.poll(async () => apart(await middleOf(email), cursor), { message: "the email is still under the cursor" }).toBeLessThan(3)
+
+    expect(errors).toEqual([])
+  })
+}
+
+test("the zoom buttons keep what's in the middle of the preview there", async ({ page }) => {
+  const errors = pageErrors(page)
+  // Beside the form, where no pinned bar covers the panel.
+  await page.setViewportSize({ width: 1280, height: 720 })
+  const { preview, email } = await startResume(page)
+
+  // The middle of what shows of the panel the pages scroll in.
+  const middle = await email.evaluate((span) => {
+    const panel = span.closest<HTMLElement>("[tabindex='0']")!
+    const box = panel.getBoundingClientRect()
+    return { x: box.left + panel.clientWidth / 2, y: box.top + Math.min(panel.clientHeight, innerHeight - box.top) / 2 }
+  })
+  const before = (await middleOf(email))!
+  await preview.getByRole("button", { name: "Zoom in" }).click()
+  await expect(preview.getByRole("button", { name: "110%" })).toBeVisible()
+
+  // Everything spreads out from the middle, which stays where it is.
+  const expected = { x: middle.x + (before.x - middle.x) * 1.1, y: middle.y + (before.y - middle.y) * 1.1 }
+  await expect
+    .poll(async () => apart(await middleOf(email), expected), { message: "the email is where zooming around the middle puts it" })
+    .toBeLessThan(3)
 
   expect(errors).toEqual([])
 })
