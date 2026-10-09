@@ -4,7 +4,6 @@
 // plain JSON strings, which Typst never evaluates as markup, so no escaping
 // is needed.
 
-import { SECTION_NAMES, type SectionName } from "@/components/editor/sections"
 import { printedResume } from "@/lib/leftOut"
 import type { Entry, Resume } from "@/lib/resume"
 import { extraHeading, extraHasBody, extrasOf, resolveSections } from "@/lib/resumeSections"
@@ -191,17 +190,6 @@ function entries<T extends Record<string, string | unknown[]>>(value: unknown, m
 
 export function templateIdOf(value: unknown): TemplateId {
   return templateById(value).id
-}
-
-/**
- * The saved order, plus any sections missing from older resumes, at the end,
- * as the editor shows them. Unknown names and repeats are dropped.
- */
-export function sectionOrder(value: unknown): SectionName[] {
-  const saved = (Array.isArray(value) ? value : []).filter(
-    (name, index, all): name is SectionName => SECTION_NAMES.includes(name) && all.indexOf(name) === index,
-  )
-  return [...saved, ...SECTION_NAMES.filter((name) => !saved.includes(name))]
 }
 
 export function toTemplateData(saved: Resume): TemplateData {

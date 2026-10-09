@@ -1,5 +1,4 @@
 import { SECTION_NAMES, SECTIONS, type DataKey, type SectionName } from "@/components/editor/sections"
-import type { Resume } from "@/lib/resume"
 
 interface ExtraBase {
   heading: string
@@ -95,17 +94,6 @@ export function resolveSections(resume: SavedSections, filled: readonly SectionN
   for (const name of SECTION_NAMES) if (!SECTIONS[name].optional || filled.includes(name)) add(name)
   for (const key of Object.keys(extras)) add(extraRef(key))
   return order
-}
-
-export function sectionTitle(resume: Resume, ref: SectionRef): string {
-  const key = extraKey(ref)
-  if (key !== null) {
-    const section = extrasOf(resume)[key]
-    return section ? extraHeading(section) : "New section"
-  }
-  const section = SECTIONS[ref as SectionName]
-  const heading = resume.headings?.[section.headingKey]
-  return typeof heading === "string" && heading.trim() ? heading : section.title
 }
 
 export function extraHasBody(section: ExtraSection): boolean {

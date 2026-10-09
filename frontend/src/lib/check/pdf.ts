@@ -40,7 +40,7 @@ export function printedBullets(resume: ResumeView, pdf: PdfReading): (PlacedBull
   const excluded = new Set(pdf.extras?.excludedLines ?? [])
   const lines = pdf.lines.flatMap((line, index) => (excluded.has(index) ? [] : [{ line, text: comparable(line.text) }]))
   let from = 0
-  const builtin = bulletsIn(resume).flatMap((placed) => {
+  return bulletsIn(resume).flatMap((placed) => {
     const want = comparable(placed.bullet.text)
     if (!want) return []
     for (let i = from; i < lines.length; i++) {
@@ -57,7 +57,6 @@ export function printedBullets(resume: ResumeView, pdf: PdfReading): (PlacedBull
     }
     return []
   })
-  return builtin
 }
 
 /** Custom lists participate in physical layout checks, without role-specific bullet advice. */

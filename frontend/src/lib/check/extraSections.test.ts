@@ -5,7 +5,7 @@ import { asSaved } from "@/lib/testResume"
 import { readForChecks } from "@/lib/import/read"
 import { viewOf, textsOf } from "./resume"
 import { hasEnoughToCheck, describePlace } from "./labels"
-import { findingKey, placeExists, samePlaceSource, textAt, type Place } from "./places"
+import { findingKey, placeExists, textAt, type Place } from "./places"
 import { grammarTexts } from "./spelling"
 import { matchExtraPdf, pdfLayoutOf } from "./extraPdf"
 import { line, reading } from "./testPdf"
@@ -66,26 +66,6 @@ describe("extra checker views and stable editor addresses", () => {
     expect(texts.some(({ place }) => place.kind === "extra-text" && place.field === "bullets")).toBe(true)
     const report = runChecks(resume, { rules: RULES.filter(({ id }) => /^(B|P)[0-9]/.test(id)) })
     expect(report.findings.filter(({ place }) => "sectionId" in place)).toEqual([])
-  })
-
-  test("rejects a deferred target when an insertion leaves its old line valid but changes its source", () => {
-    const before = viewOf(resume)
-    const place: Place = { kind: "extra-text", sectionId: first, field: "bullets", line: 2 }
-    const shifted = viewOf({
-      ...resume,
-      extraSections: { ...resume.extraSections, [first]: { ...interests, bullets: "○ New hidden line\n" + interests.bullets } },
-    })
-    expect(placeExists(shifted, { ...place, line: 3 })).toBe(true)
-    expect(samePlaceSource(before, shifted, place)).toBe(false)
-    const reordered = viewOf({ ...resume, sectionOrder: [`extra:${third}`, `extra:${first}`] })
-    expect(samePlaceSource(before, reordered, place)).toBe(true)
-    // Finding text can be only 'classic'; the whole source guards changes.
-    const textPlace: Place = { kind: "extra-text", sectionId: third, field: "text" }
-    const edited = viewOf({
-      ...resume,
-      extraSections: { ...resume.extraSections, [third]: { ...about, text: "Literal **prose** with different context." } },
-    })
-    expect(samePlaceSource(before, edited, textPlace)).toBe(false)
   })
 })
 

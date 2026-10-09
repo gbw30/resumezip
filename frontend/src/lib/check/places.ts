@@ -115,31 +115,6 @@ export function textAt(view: ResumeView, place: Place): string {
   }
 }
 
-/**
- * A deferred finding may still name a valid line after an edit has moved its
- * text elsewhere. Compare the full captured source, not the finding's text
- * (which may be only a misspelled word). Bullet contexts include original
- * offsets so repeated identical bullets cannot silently change their target.
- */
-export function samePlaceSource(before: ResumeView, now: ResumeView, place: Place): boolean {
-  if (place.kind === "page") return true
-  if (!placeExists(before, place) || !placeExists(now, place)) return false
-  if (place.kind === "extra-heading") return JSON.stringify(before.extras[place.sectionId]) === JSON.stringify(now.extras[place.sectionId])
-  if (place.kind === "extra-text" && place.field === "bullets")
-    return JSON.stringify(before.extras[place.sectionId].bullets) === JSON.stringify(now.extras[place.sectionId].bullets)
-  if (place.kind === "entry" && place.line !== undefined) {
-    const bullets = (view: ResumeView) =>
-      entryAt(view, place.section, place.entry)?.bullets.filter((bullet) => bullet.field === place.field)
-    return JSON.stringify(bullets(before)) === JSON.stringify(bullets(now))
-  }
-  if (place.kind === "section" || place.kind === "heading")
-    return (
-      JSON.stringify(before.sections[place.section]) === JSON.stringify(now.sections[place.section]) &&
-      textAt(before, place) === textAt(now, place)
-    )
-  return textAt(before, place) === textAt(now, place)
-}
-
 // Which field a place is in. A bullet's line is left out: bullets move as
 // others are added above them, and their text tells them apart anyway. A
 // page's number stays in, as pages can have the same text, or none.
