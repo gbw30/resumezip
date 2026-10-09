@@ -4,6 +4,7 @@
 
 import type { Resume } from "@/lib/resume"
 import { toAttachment } from "@/lib/resumeFile"
+import { COMPILER_CDN_URL } from "./compilerSource"
 import { templateIdOf, toTemplateData, type TemplateData, type TemplateId } from "./resumeData"
 
 /** What a resume prints: its template and the data the template reads. Renaming a resume doesn't change it. */
@@ -158,7 +159,21 @@ function getWorker(): Worker {
     if (worker === created) restart(new PdfError(event.message || "The Typst worker failed", "crash"))
   }
   worker = created
+  preconnect(COMPILER_CDN_URL)
   return created
+}
+
+// A new worker starts by downloading the compiler from jsDelivr. Connecting
+// there takes a few round trips (DNS, TCP, TLS), which happen while the
+// worker's own script loads instead of after it. The worker's requests share
+// the page's connections; this one is anonymous, like the download. Chrome
+// skips the hint in private windows, which browser tests run in.
+function preconnect(url: string) {
+  const link = document.createElement("link")
+  link.rel = "preconnect"
+  link.href = new URL(url).origin
+  link.crossOrigin = "anonymous"
+  document.head.append(link)
 }
 
 /**

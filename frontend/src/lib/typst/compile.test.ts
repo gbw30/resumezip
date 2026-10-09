@@ -54,9 +54,14 @@ let compilerStatus: typeof import("./compile").compilerStatus
 let onCompilerStatus: typeof import("./compile").onCompilerStatus
 let savingData: typeof import("./compile").savingData
 
+/** The elements the page added to its head. */
+let addedToHead: object[] = []
+
 beforeEach(async () => {
   vi.useFakeTimers()
   vi.stubGlobal("Worker", FakeWorker)
+  addedToHead = []
+  vi.stubGlobal("document", { createElement: () => ({}), head: { append: (element: object) => addedToHead.push(element) } })
   FakeWorker.made = []
   FakeWorker.received = []
   FakeWorker.answer = makesPdf
@@ -358,6 +363,14 @@ test("the compiler can start loading before the first PDF, which then uses the s
   await vi.advanceTimersByTimeAsync(10)
   expect(result.value).toEqual(PDF)
   expect(FakeWorker.made).toHaveLength(1)
+})
+
+test("the connection for the compiler's download opens as its worker starts, anonymous like the download", () => {
+  loadAhead()
+  loadAhead("jake")
+  track(compileResume(resume))
+  expect(FakeWorker.made).toHaveLength(1)
+  expect(addedToHead).toEqual([{ rel: "preconnect", href: "https://cdn.jsdelivr.net", crossOrigin: "anonymous" }])
 })
 
 test("the page hears how much of the compiler has downloaded, and when it's ready", () => {
