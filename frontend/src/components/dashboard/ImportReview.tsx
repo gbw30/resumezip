@@ -123,6 +123,17 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
     profile.personalWebsite,
   ].filter(Boolean)
   const leftovers = parsed.unplaced.reduce((sum, group) => sum + group.text.length, 0)
+  // The lines of what's unticked above, which copying and downloading keep too.
+  const unticked =
+    (parsed.extraGroups ?? []).filter((group) => skipped.has(extraGroupKey(group.id))).reduce((sum, group) => sum + group.text.length, 0) +
+    parsed.sections.reduce(
+      (sum, section) =>
+        sum +
+        section.entries
+          .filter((_, index) => skipped.has(entryKey(section.name, index)))
+          .reduce((lines, entry) => lines + entry.lines.length, 0),
+      0,
+    )
   const foundNothing = !profile.fullName && parsed.sections.length === 0 && !parsed.extraGroups?.length
   const selectedGroups = (kind: "summary") =>
     (parsed.extraGroups ?? []).filter((group) => group.kind === kind && !skipped.has(extraGroupKey(group.id)))
@@ -336,7 +347,7 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
               <section ref={unplacedRef} tabIndex={-1} aria-labelledby="couldnt-place" className="mt-8 scroll-mt-4 outline-none">
                 <div className="flex items-baseline justify-between gap-4 border-b border-ink pb-2">
                   <h3 id="couldnt-place" className="label-mono text-ink-2">
-                    Couldn&apos;t place · {plural(leftovers, "line")}
+                    {leftovers > 0 ? <>Couldn&apos;t place · {plural(leftovers, "line")}</> : <>Unticked · {plural(unticked, "line")}</>}
                   </h3>
                   <div className="flex gap-3">
                     <button
@@ -358,7 +369,9 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                   </div>
                 </div>
                 <p className="mt-2 text-sm text-ink-2">
-                  Choose whether to keep each group. Copy or download also saves text from anything you unticked above.
+                  {leftovers > 0
+                    ? "Choose whether to keep each group. Copy or download also saves text from anything you unticked above."
+                    : "Copy or download saves the text of what you unticked above."}
                 </p>
                 {parsed.unplaced.map((group, index) => (
                   <div key={unplacedKey(group, index)} className="mt-4" {...point(group.lines)}>
