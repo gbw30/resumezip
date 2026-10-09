@@ -77,12 +77,14 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
     announce(`Made a copy of ${nameOf(resume)}`)
   }
 
-  // Enter or leaving the box saves the name; Escape keeps the old one.
-  const finishRenaming = (resume: ResumeWithId, save: boolean) => {
+  // Enter or leaving the box saves the name; Escape keeps the old one. After
+  // Enter or Escape, focus goes back to the pencil; leaving the box leaves it
+  // wherever it went.
+  const finishRenaming = (resume: ResumeWithId, save: boolean, refocus: boolean) => {
     if (renaming?.id !== resume.id) return
     if (save) onRename(resume, renaming.draft)
     setRenaming(null)
-    requestAnimationFrame(() => focusShown(`[data-rename="${resume.id}"]`))
+    if (refocus) requestAnimationFrame(() => focusShown(`[data-rename="${resume.id}"]`))
   }
 
   const download = async (resume: ResumeWithId) => {
@@ -142,10 +144,10 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
         autoFocus
         onFocus={(event) => event.currentTarget.select()}
         onChange={(event) => setRenaming({ id: resume.id, draft: event.target.value })}
-        onBlur={() => finishRenaming(resume, true)}
+        onBlur={() => finishRenaming(resume, true, false)}
         onKeyDown={(event) => {
-          if (event.key === "Enter") finishRenaming(resume, true)
-          else if (event.key === "Escape") finishRenaming(resume, false)
+          if (event.key === "Enter") finishRenaming(resume, true, true)
+          else if (event.key === "Escape") finishRenaming(resume, false, true)
         }}
         className="w-full min-w-0 border-0 border-b border-accent bg-transparent py-0.5 font-serif text-[21px] leading-tight text-ink outline-none placeholder:text-ink-2 focus-visible:outline-none"
       />
@@ -158,7 +160,7 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
           label="Rename"
           data-rename={resume.id}
           onClick={() => setRenaming({ id: resume.id, draft: resume.resumeTitle ?? "" })}
-          className="-my-2 transition-opacity md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100"
+          className="-my-2 transition-opacity motion-reduce:transition-none md:opacity-0 md:focus-visible:opacity-100 md:group-hover/row:opacity-100"
         >
           <PencilIcon />
         </RowAction>
@@ -211,7 +213,7 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
         {resumes.map((resume) => (
           <li
             key={resume.id}
-            className={`group/row flex gap-4 border-b border-rule pb-3 pt-5 transition-colors duration-700 ${resume.id === copied ? "bg-accent/5" : ""}`}
+            className={`group/row flex gap-4 border-b border-rule pb-3 pt-5 transition-colors duration-700 motion-reduce:transition-none ${resume.id === copied ? "bg-accent/5" : ""}`}
           >
             {thumbnail(resume)}
             <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -247,7 +249,10 @@ export default function ResumeTable({ resumes, onDuplicate, onRename, onDelete }
           </thead>
           <tbody>
             {resumes.map((resume) => (
-              <tr key={resume.id} className={`group/row transition-colors duration-700 ${resume.id === copied ? "bg-accent/5" : ""}`}>
+              <tr
+                key={resume.id}
+                className={`group/row transition-colors duration-700 motion-reduce:transition-none ${resume.id === copied ? "bg-accent/5" : ""}`}
+              >
                 {/* A name breaks anywhere it has to, so however long it is, it can't
                     widen the table and push the other columns off the screen. Past
                     two lines it's cut short, and shown in full on hover. */}

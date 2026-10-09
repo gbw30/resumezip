@@ -27,14 +27,14 @@ export function RowAction({ label, onClick, children, danger, disabled, busy, ti
       onClick={onClick}
       disabled={disabled}
       {...data}
-      className={`row-action group/action relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 transition-[color,background-color] duration-200 hover:bg-ink/[0.06] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:cursor-wait ${
+      className={`row-action group/action relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 transition-[color,background-color] duration-200 hover:bg-ink/[0.06] motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:cursor-wait ${
         danger ? "hover:text-alert" : "hover:text-ink"
       } ${className}`}
     >
       {children}
       <span
         aria-hidden="true"
-        className={`pointer-events-none absolute bottom-full z-10 mb-1 translate-y-1 whitespace-nowrap rounded-[3px] bg-ink px-2 py-1 font-mono text-[11px] leading-none text-paper opacity-0 transition duration-150 group-hover/action:translate-y-0 group-hover/action:opacity-100 group-hover/action:delay-300 group-focus-visible/action:translate-y-0 group-focus-visible/action:opacity-100 ${
+        className={`pointer-events-none absolute bottom-full z-10 mb-1 translate-y-1 whitespace-nowrap rounded-[3px] bg-ink px-2 py-1 font-mono text-[11px] leading-none text-paper opacity-0 transition duration-150 motion-reduce:transition-none group-hover/action:translate-y-0 group-hover/action:opacity-100 group-hover/action:delay-300 group-focus-visible/action:translate-y-0 group-focus-visible/action:opacity-100 ${
           tipAtEnd ? "right-0" : "left-1/2 -translate-x-1/2"
         }`}
       >
