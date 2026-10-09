@@ -571,4 +571,17 @@ describe("replacing a resume with a file", () => {
     expect(one.getState().resumes.a.resumeTitle).toBe("Ada, edited in two")
     expect(one.getState().replaced).toBeNull()
   })
+
+  test("undoing doesn't bring back a resume another tab deleted since, even before this tab hears of it", () => {
+    const storage = memoryStorage(saved(ada))
+    const one = openTab(storage)
+    const two = openTab(storage)
+    one.replace("a", older)
+    two.receive(keyOf("a"))
+    two.remove("a")
+
+    one.undoReplace("a")
+    expect(storage.getItem(keyOf("a"))).toBeNull()
+    expect(one.getState().resumes).not.toHaveProperty("a")
+  })
 })
