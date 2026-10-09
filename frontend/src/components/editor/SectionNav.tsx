@@ -6,9 +6,7 @@ import type { DraggableProvided, DropResult } from "@hello-pangea/dnd"
 import { GripVertical } from "lucide-react"
 import type { Headings } from "@/lib/resume"
 import { extraHeading, extraKey, type ExtraKind, type ExtraSections, type SectionRef } from "@/lib/resumeSections"
-import { nextAnnouncement } from "./arrange"
 import { loadDragAndDrop, type DragAndDrop } from "./dragAndDrop"
-import { MoveButtons } from "./fields"
 import { WIDE_SCREEN } from "./layout"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "./sections"
 
@@ -35,7 +33,6 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
   const navRef = useRef<HTMLElement>(null)
   const [wide, setWide] = useState(() => typeof window !== "undefined" && window.matchMedia(WIDE_SCREEN).matches)
   const [dnd, setDnd] = useState<DragAndDrop | null>(null)
-  const [announcement, setAnnouncement] = useState("")
   const [adding, setAdding] = useState(false)
 
   // The drag and drop isn't in the page's first download, as it's only needed
@@ -87,7 +84,6 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
     const [moved] = next.splice(source.index, 1)
     next.splice(destination.index, 0, moved)
     onReorder(next)
-    setAnnouncement((last) => nextAnnouncement(last, `Moved ${titleOf(moved)} to ${destination.index + 1} of ${sections.length}`))
   }
 
   // A section's title as the person named it, or the editor's.
@@ -143,19 +139,6 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
           <span className={`font-mono text-[11px] ${isActive ? "text-accent" : ""}`}>{pad(index + 2)}</span>
           {titleOf(name)}
         </button>
-        {isActive && (
-          <MoveButtons
-            name={`${labelOf(name, index)} section`}
-            first={index === 0}
-            last={index === sections.length - 1}
-            onMove={(by) => {
-              const next = [...sections]
-              ;[next[index], next[index + by]] = [next[index + by], next[index]]
-              onReorder(next)
-              setAnnouncement((last) => nextAnnouncement(last, `Moved ${titleOf(name)} to ${index + by + 1} of ${sections.length}`))
-            }}
-          />
-        )}
       </div>
     )
   }
@@ -229,9 +212,6 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
           )}
         </div>
       )}
-      <p role="status" className="sr-only">
-        {announcement}
-      </p>
 
       <p className="mt-3 hidden border-t border-rule px-2 pt-5 text-[13px] leading-normal text-ink-2 xl:block">
         Drag a section to change its place on the page.
