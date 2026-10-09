@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { memo, useEffect, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 import type { DraggableProvided, DropResult } from "@hello-pangea/dnd"
 import { GripVertical } from "lucide-react"
@@ -27,7 +27,7 @@ const pad = (n: number) => String(n).padStart(2, "0")
  * The numbered sections: a list in the left bar on wide screens, a row of tabs on narrower ones.
  * Profile stays first; the rest can be dragged into any order.
  */
-export default function SectionNav({ sections, headings, active, onSelect, onReorder }: SectionNavProps) {
+function SectionNav({ sections, headings, active, onSelect, onReorder }: SectionNavProps) {
   const navRef = useRef<HTMLElement>(null)
   const [wide, setWide] = useState(() => typeof window !== "undefined" && window.matchMedia(WIDE_SCREEN).matches)
   const [dnd, setDnd] = useState<DragAndDrop | null>(null)
@@ -160,3 +160,6 @@ export default function SectionNav({ sections, headings, active, onSelect, onReo
     </nav>
   )
 }
+
+// Dragging is costly to render, so it re-renders only when its props change.
+export default memo(SectionNav)
