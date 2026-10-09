@@ -359,8 +359,10 @@ function Editor({ id }: { id: string }) {
             ref={mainRef}
             className={`min-w-0 flex-1 px-5 pb-28 pt-9 sm:px-10 xl:block xl:overflow-y-auto xl:pb-16 ${view === "preview" ? "hidden" : ""}`}
           >
-            {/* A container, so the fields fit the form's own width rather than the window's. */}
-            <div className="@container mx-auto max-w-[640px]">
+            {/* The fields fit the form's own width rather than the window's. Each grid of
+                them is in a container (ProfileForm, SectionForm), not the whole form, so
+                an entry being dragged isn't in one: SectionForm says why. */}
+            <div className="mx-auto max-w-[640px]">
               {/* Each section fades in as it's chosen: a new key mounts it anew, and
                   `starting:` (CSS @starting-style) is where its transition starts from. */}
               <div

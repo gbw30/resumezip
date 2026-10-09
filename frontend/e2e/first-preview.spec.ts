@@ -17,12 +17,12 @@ const resume = {
 }
 
 /** Saves a resume in the browser before the page loads, as an earlier visit would have. */
-const saveResume = (page: Page) =>
+const saveResume = (page: Page, saved: { id: string } & Record<string, unknown> = resume) =>
   page.addInitScript(
     ({ key, value }) => {
       if (localStorage.getItem(key) === null) localStorage.setItem(key, value)
     },
-    { key: `resume:${resume.id}`, value: JSON.stringify(resume) },
+    { key: `resume:${saved.id}`, value: JSON.stringify(saved) },
   )
 
 /** The compiler workers the page starts, noted as they start. (The preview's pdf.js has a worker too.) */
@@ -284,6 +284,44 @@ test("the form can be used before the code that draws the preview and drags sect
   await expect(sections.getByRole("button", { name: "Reorder Experience" })).toBeVisible()
   await expect(experience).toBeFocused()
   await expect(preview.getByText(/Grace Hopper/i).first()).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test("an entry being typed in when the drag and drop arrives keeps the cursor, and can be dragged once it's left", async ({ page }) => {
+  const errors = pageErrors(page)
+  await saveResume(page, { ...resume, workExperienceSection: [{ id: 1, workRole: "Engineer", companyName: "Google" }] })
+  // Only the drag and drop is held back, until it's released.
+  let release = () => {}
+  const released = new Promise<void>((resolve) => (release = resolve))
+  let held = false
+  await page.route(/\/_next\/static\/chunks\//, async (route) => {
+    const response = await route.fetch()
+    if ((await response.text()).includes(DRAG_AND_DROP)) {
+      held = true
+      await released
+    }
+    await route.fulfill({ response })
+  })
+  await page.goto(`/create/new/${resume.id}`)
+  await expect.poll(() => held).toBe(true)
+  const sections = page.getByRole("navigation", { name: "Sections" })
+  await sections.getByRole("button", { name: /^\d+ Experience$/ }).click()
+
+  // It arrives while the cursor is in the open entry, which stays as it is, cursor and all.
+  const role = page.getByLabel("Role", { exact: true })
+  await role.click()
+  await page.keyboard.press("End")
+  await page.keyboard.type(" II")
+  release()
+  await expect(sections.getByRole("button", { name: "Reorder Experience" })).toBeVisible()
+  await page.keyboard.type("I")
+  await expect(role).toBeFocused()
+  await expect(role).toHaveValue("Engineer III")
+  await expect(page.getByRole("button", { name: "Reorder entry 1" })).toHaveCount(0)
+
+  // Once the cursor has left the entries, they can be dragged.
+  await page.getByRole("heading", { name: "Experience" }).click()
+  await expect(page.getByRole("button", { name: "Reorder entry 1" })).toBeVisible()
   expect(errors).toEqual([])
 })
 

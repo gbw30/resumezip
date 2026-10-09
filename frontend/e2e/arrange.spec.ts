@@ -88,6 +88,23 @@ async function openSection(page: Page, section: string, resume: { id: string } &
     .click()
 }
 
+test("a click on an entry's heading opens it, and on the open entry's heading closes it", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+  const done = page.getByRole("button", { name: "Done editing entry 1" })
+  await expect(done).toBeVisible()
+
+  await page.getByText("Entry 1", { exact: true }).click()
+  await expect(done).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Edit entry 1" })).toBeVisible()
+
+  // Closed, it shows its summary, which opens it again.
+  await page.getByText("Engineer, Google").click()
+  await expect(done).toBeVisible()
+
+  expect(errors).toEqual([])
+})
+
 test("entries move up and down from the keyboard, and stay moved", async ({ page }) => {
   const errors = pageErrors(page)
   await openSection(page, "Experience")
@@ -115,6 +132,74 @@ test("entries move up and down from the keyboard, and stay moved", async ({ page
   await expect.poll(() => printedOrder(page, ["Google", "Initech", "Hooli"])).toEqual(["Initech", "Hooli", "Google"])
 
   expect(errors).toEqual([])
+})
+
+/**
+ * Clicks a move button, and says where it's drawn from the top of the
+ * section's title, which scrolls with it: before, as the slide that follows
+ * starts (paused there), and once it's done; and its entry's background then.
+ */
+async function slideOf(page: Page, button: Locator) {
+  const title = await page.getByRole("heading", { name: "Experience" }).elementHandle()
+  return button.evaluate(async (element: HTMLElement, title) => {
+    const top = () => element.getBoundingClientRect().top - title!.getBoundingClientRect().top
+    const before = top()
+    // As from the keyboard, so the button has the focus.
+    element.focus()
+    element.click()
+    // The app's own animations on what the button is in, not CSS transitions.
+    const started = () =>
+      document.getAnimations().filter((animation) => {
+        const target = (animation.effect as KeyframeEffect | null)?.target
+        return !("transitionProperty" in animation) && !!target?.contains(element)
+      })
+    let animations: Animation[] = []
+    for (let frame = 0; frame < 10 && animations.length === 0; frame++) {
+      await new Promise((done) => requestAnimationFrame(done))
+      animations = started()
+    }
+    const entry = animations.map((animation) => (animation.effect as KeyframeEffect).target!).find(Boolean)
+    const background = () => (entry ? getComputedStyle(entry).backgroundColor : "")
+    for (const animation of animations) {
+      animation.pause()
+      animation.currentTime = 0
+    }
+    const start = { top: top(), background: background() }
+    for (const animation of animations) animation.finish()
+    return { before, start, end: { top: top(), background: background() } }
+  }, title)
+}
+
+test("a moved entry slides to its new place lit up, keeping the focus", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+
+  // Entry 2 moves up past entry 1, which is open, so it goes a long way.
+  const { before, start, end } = await slideOf(page, page.getByRole("button", { name: "Move entry 2 up" }))
+  expect(start.top).toBeCloseTo(before, 0)
+  expect(start.background).toBe("rgb(255, 255, 255)")
+  expect(before - end.top).toBeGreaterThan(300)
+  expect(end.background).toBe("rgba(0, 0, 0, 0)")
+  await expect(page.getByRole("button", { name: "Move entry 1 up" })).toBeFocused()
+
+  expect(errors).toEqual([])
+})
+
+test.describe("with less motion", () => {
+  test.use({ reducedMotion: "reduce" })
+
+  test("a moved entry doesn't slide, but still lights up", async ({ page }) => {
+    const errors = pageErrors(page)
+    await openSection(page, "Experience")
+
+    const { before, start, end } = await slideOf(page, page.getByRole("button", { name: "Move entry 2 up" }))
+    expect(before - start.top).toBeGreaterThan(300)
+    expect(start.top).toBe(end.top)
+    expect(start.background).toBe("rgb(255, 255, 255)")
+    await expect(page.getByRole("button", { name: "Move entry 1 up" })).toBeFocused()
+
+    expect(errors).toEqual([])
+  })
 })
 
 test("an entry left out isn't printed, or in the PDF's copy of the resume, and comes back when it's put back", async ({
@@ -247,6 +332,80 @@ test("a section is dragged to a new place from the keyboard, and printed and sav
   await expect(sections.getByRole("button", { name: "03 Experience" })).toBeVisible()
   await expect.poll(() => printedOrder(page, ["Google", "Python"])).toEqual(["Python", "Google"])
   await expect.poll(async () => (await saved(page)).sectionOrder.slice(0, 2)).toEqual(["Skills", "Work"])
+
+  expect(errors).toEqual([])
+})
+
+const companies = async (page: Page) => (await saved(page)).workExperienceSection.map((entry: { companyName: string }) => entry.companyName)
+
+/** Waits for what `control` is in to light up: the app's own animation on it, paused at its start, puts it on white. */
+const lightsUp = (control: Locator) =>
+  expect
+    .poll(() =>
+      control.evaluate((element) => {
+        const animation = document.getAnimations().find((animation) => {
+          const target = (animation.effect as KeyframeEffect | null)?.target
+          return !("transitionProperty" in animation) && !!target?.contains(element)
+        })
+        if (!animation) return ""
+        animation.pause()
+        animation.currentTime = 0
+        const background = getComputedStyle((animation.effect as KeyframeEffect).target!).backgroundColor
+        animation.finish()
+        return background
+      }),
+    )
+    .toBe("rgb(255, 255, 255)")
+
+test("an entry is dragged to a new place from the keyboard, and printed and saved there", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+
+  await page.getByRole("button", { name: "Reorder entry 3" }).focus()
+  await page.keyboard.press("Space")
+  await page.keyboard.press("ArrowUp")
+  await page.keyboard.press("ArrowUp")
+  await page.keyboard.press("Space")
+  // It keeps the focus in its new place, and lights up there.
+  const moved = page.getByRole("button", { name: "Reorder entry 1" })
+  await expect(moved).toBeFocused()
+  await lightsUp(moved)
+  await expect.poll(() => printedOrder(page, ["Google", "Initech", "Hooli"])).toEqual(["Hooli", "Google", "Initech"])
+  await expect.poll(() => companies(page)).toEqual(["Hooli", "Google", "Initech"])
+
+  expect(errors).toEqual([])
+})
+
+test("an open entry is dragged with the mouse, under the pointer all the way, and dropped still open", async ({ page }) => {
+  const errors = pageErrors(page)
+  await openSection(page, "Experience")
+
+  // The first entry is open, and the tallest: it's dragged down past the two closed ones.
+  const dragged = page.getByRole("button", { name: "Reorder entry 1" })
+  const from = (await dragged.boundingBox())!
+  const second = (await page.getByRole("button", { name: "Reorder entry 2" }).boundingBox())!
+  const third = (await page.getByRole("button", { name: "Reorder entry 3" }).boundingBox())!
+  const x = from.x + from.width / 2
+  const start = from.y + from.height / 2
+  const to = start + 2 * (third.y - second.y) + 20
+  await page.mouse.move(x, start)
+  await page.mouse.down()
+  // Past the few pixels a click can move, so it's a drag.
+  await page.mouse.move(x, start + 10, { steps: 5 })
+  await page.mouse.move(x, to, { steps: 20 })
+  // It trails the pointer by those few pixels, and no more.
+  await expect
+    .poll(async () => {
+      const box = (await dragged.boundingBox())!
+      return Math.hypot(box.x + box.width / 2 - x, box.y + box.height / 2 - to)
+    })
+    .toBeLessThan(12)
+  await page.mouse.up()
+
+  await lightsUp(page.getByRole("button", { name: "Reorder entry 3" }))
+  await expect.poll(() => companies(page)).toEqual(["Initech", "Hooli", "Google"])
+  // It's still open, in its new place.
+  await expect(page.getByRole("button", { name: "Done editing entry 3" })).toBeVisible()
 
   expect(errors).toEqual([])
 })

@@ -5,6 +5,7 @@ import { flushSync } from "react-dom"
 import type { DraggableProvided, DropResult } from "@hello-pangea/dnd"
 import { GripVertical } from "lucide-react"
 import type { Headings } from "@/lib/resume"
+import { loadDragAndDrop, type DragAndDrop } from "./dragAndDrop"
 import { WIDE_SCREEN } from "./layout"
 import { SECTIONS, type SectionName } from "./sections"
 
@@ -18,8 +19,6 @@ interface SectionNavProps {
   onSelect: (section: ActiveSection) => void
   onReorder: (sections: SectionName[]) => void
 }
-
-type DragAndDrop = typeof import("@hello-pangea/dnd")
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
@@ -38,7 +37,7 @@ function SectionNav({ sections, headings, active, onSelect, onReorder }: Section
   // dragged.
   useEffect(() => {
     let live = true
-    import("@hello-pangea/dnd").then(
+    loadDragAndDrop().then(
       (module) => {
         if (!live) return
         // The draggable list's buttons are new elements, so a button with the
