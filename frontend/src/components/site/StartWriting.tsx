@@ -3,13 +3,22 @@
 import type React from "react"
 import { useCallback, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { useResumeActions } from "@/context/ResumeContext"
+import { getStorage, hasSavedResumes } from "@/lib/resumeKeys"
 import type { TemplateId } from "@/lib/templates"
 import { loadCompiler, savingData } from "@/lib/typst/compile"
 
 // How long a mouse rests on a link before it counts as reaching for it. One
 // passing over it on the way somewhere else is there for less.
 const RESTING_MS = 100
+
+// The code that reads and saves resumes, only downloaded to start a new one:
+// these links are on pages that don't otherwise need it.
+const loadResumes = () => import("@/context/ResumeContext")
+
+// Whether starting may make a new resume, rather than go to the dashboard.
+// Saved resumes are looked for by their keys alone; reading them is for the
+// dashboard.
+const opensNew = (template?: TemplateId) => template !== undefined || !hasSavedResumes(getStorage())
 
 /**
  * Starts the user writing. First-time visitors get a new resume straight away;
@@ -19,39 +28,29 @@ const RESTING_MS = 100
  */
 export function useStartWriting() {
   const router = useRouter()
-  // The resumes are only looked at when a link is used, so this doesn't re-render as they change.
-  const { getState, createNewResume } = useResumeActions()
-
-  // Whether starting makes a new resume, rather than going to the dashboard.
-  const opensNew = useCallback(
-    (template?: TemplateId) => {
-      const { resumes, loaded } = getState()
-      return loaded && (template !== undefined || Object.keys(resumes).length === 0)
-    },
-    [getState],
-  )
 
   const start = useCallback(
-    (template?: TemplateId) => {
-      if (!opensNew(template)) {
+    async (template?: TemplateId) => {
+      const store = opensNew(template) ? (await loadResumes()).openResumes() : null
+      // Resumes the browser couldn't save are only in the store, until the page is closed.
+      if (!store || (template === undefined && Object.keys(store.getState().resumes).length > 0)) {
         router.push("/create/dashboard")
         return
       }
-      const id = createNewResume("Untitled resume", "personal", template)
+      const id = store.create("Untitled resume", "personal", template)
       // The editor's preview needs the PDF compiler and the template's fonts, so they start downloading now.
       loadCompiler(template)
       router.push(`/create/new/${id}`)
     },
-    [opensNew, createNewResume, router],
+    [router],
   )
 
   // The dashboard starts its own downloads, with the fonts of the resume edited last.
-  const prepare = useCallback(
-    (template?: TemplateId) => {
-      if (opensNew(template)) loadCompiler(template)
-    },
-    [opensNew],
-  )
+  const prepare = useCallback((template?: TemplateId) => {
+    if (!opensNew(template)) return
+    loadCompiler(template)
+    void loadResumes()
+  }, [])
 
   return { start, prepare }
 }
@@ -99,7 +98,7 @@ export function StartWritingLink({ template, className, preloadOnHover = false, 
       onClick={(event) => {
         if (!plainClick(event)) return
         event.preventDefault()
-        start(template)
+        void start(template)
       }}
     >
       {children}
