@@ -11,7 +11,7 @@ test("Harper loaded from jsDelivr is the installed one", () => {
   const dir = path.resolve("node_modules/harper.js")
   expect(JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")).version).toBe(HARPER_VERSION)
   const file = readFileSync(path.join(dir, HARPER_FILE))
-  expect(HARPER_INTEGRITY).toBe(`sha384-${createHash("sha384").update(file).digest("base64")}`)
+  expect(HARPER_INTEGRITY).toBe(`sha256-${createHash("sha256").update(file).digest("base64")}`)
 })
 
 test("the English follows the browser's language", () => {

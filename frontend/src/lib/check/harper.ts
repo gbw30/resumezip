@@ -13,8 +13,8 @@ export const HARPER_VERSION = "2.10.0"
 export const HARPER_FILE = "dist/harper_wasm_slim_bg.wasm"
 export const HARPER_CDN_URL = `https://cdn.jsdelivr.net/npm/harper.js@${HARPER_VERSION}/${HARPER_FILE}`
 
-/** The file's SHA-384, for subresource integrity. harper.test.ts checks it against the installed package. */
-export const HARPER_INTEGRITY = "sha384-d4tz693j+G1ZEGoEcNQIKWMekpnZLq0qq6PEv5i0kSMO48Y4j1xMz7c+6BnErIxV"
+/** The file's SHA-256, in subresource-integrity form. harper.test.ts checks it against the installed package. */
+export const HARPER_INTEGRITY = "sha256-jTVPYtaXGUI1lZy2+lhpmxlcBY3jbVnpFPQHhBDp4KE="
 
 /** Harper's name for each kind of English (dialect.ts). */
 export const DIALECTS: Record<DialectName, Dialect> = {
