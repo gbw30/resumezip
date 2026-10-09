@@ -1740,7 +1740,7 @@ function bodySize(lines: Line[]): number {
  * Some layouts put each section's heading in a margin column, on the same
  * line as the section's first entry. Splits such lines in two.
  */
-type SourceLine = Line & { sourceIndex: number }
+export type SourceLine = Line & { sourceIndex: number }
 
 function splitSideHeadings(lines: SourceLine[]): SourceLine[] {
   const candidate = (line: Line) =>
@@ -1808,8 +1808,16 @@ function withoutPageNumbers<T extends Line>(lines: T[]): T[] {
   return lines.filter((line) => !(ends.has(line) && Number(line.text.match(PAGE_NUMBER)?.[1]) === line.page))
 }
 
+/**
+ * A file's lines as the parser reads them: without the pages' numbers, and
+ * with a heading set in a margin column split off its line. Each keeps its
+ * place in the file as `sourceIndex`.
+ */
+export const preparedLines = (file: Line[]): SourceLine[] =>
+  splitSideHeadings(withoutPageNumbers(file.map((line, sourceIndex) => ({ ...line, sourceIndex }))))
+
 export function parseResume(file: Line[]): ParsedResume {
-  const input = splitSideHeadings(withoutPageNumbers(file.map((line, sourceIndex) => ({ ...line, sourceIndex }))))
+  const input = preparedLines(file)
   const lines: ParseLine[] = input.map((line, index) => ({ ...line, index }))
   const body = bodySize(lines)
 

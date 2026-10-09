@@ -4,7 +4,7 @@
 
 import { MAX_CHARACTERS, MAX_LINES, TooMuchTextError } from "./limits"
 import { linesFromDocx, linesFromPages, UnreadableWordFileError, type Line, type PdfPage } from "./lines"
-import { parseResume, type ParsedResume } from "./parse"
+import { parseResume, preparedLines, type ParsedResume } from "./parse"
 import { matchExtraPdf, type ExtraPdfReading, type PdfSectionLayout } from "@/lib/check/extraPdf"
 
 /** A PDF's pages, read on the page with pdf.js, or a Word file. */
@@ -35,13 +35,12 @@ export async function readFile(request: ReadRequest): Promise<ReadResult> {
 
 /** Keep the physical source addresses even after excluding verified custom occurrences. */
 export function readForChecks(lines: Line[], layout: PdfSectionLayout[]): { parsed: ParsedResume; extras: ExtraPdfReading } {
-  // The parser's existing side-heading split gives headings their own text
-  // occurrence in every template, including those that put a heading beside
-  // the first entry. No semantics from this first parse are trusted.
-  const initial = parseResume(lines)
-  const original = initial.lines
+  // The lines as the parser prepares them, where a heading beside a section's
+  // first entry has a line of its own in every template, to match the added
+  // sections on. The file is parsed once, without the ones matched.
+  const original = preparedLines(lines)
   const extras = matchExtraPdf(original, layout)
-  if (extras.excludedLines.length === 0) return { parsed: initial, extras }
+  if (extras.excludedLines.length === 0) return { parsed: parseResume(lines), extras }
   const excluded = new Set(extras.excludedLines)
   const indexes = original.flatMap((_, index) => (excluded.has(index) ? [] : [index]))
   const parsed = parseResume(indexes.map((index) => original[index]))
