@@ -6,6 +6,7 @@ import type { DraggableProvided, DropResult } from "@hello-pangea/dnd"
 import { GripVertical } from "lucide-react"
 import type { Headings } from "@/lib/resume"
 import { extraHeading, extraKey, type ExtraKind, type ExtraSections, type SectionRef } from "@/lib/resumeSections"
+import AddSectionMenu from "./AddSectionMenu"
 import { loadDragAndDrop, type DragAndDrop } from "./dragAndDrop"
 import { WIDE_SCREEN } from "./layout"
 import { SECTION_NAMES, SECTIONS, type SectionName } from "./sections"
@@ -33,7 +34,12 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
   const navRef = useRef<HTMLElement>(null)
   const [wide, setWide] = useState(() => typeof window !== "undefined" && window.matchMedia(WIDE_SCREEN).matches)
   const [dnd, setDnd] = useState<DragAndDrop | null>(null)
-  const [adding, setAdding] = useState(false)
+  // The sections at the last render, to tell one just added, which slides in.
+  const seen = useRef<ReadonlySet<SectionRef> | null>(null)
+  const added = new Set(seen.current ? sections.filter((ref) => !seen.current!.has(ref)) : [])
+  useEffect(() => {
+    seen.current = new Set(sections)
+  }, [sections])
 
   // The drag and drop isn't in the page's first download, as it's only needed
   // once a section is dragged. It loads as soon as the editor opens; until
@@ -98,10 +104,8 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
   const counts = new Map<string, number>()
   for (const title of titles.values()) counts.set(title, (counts.get(title) ?? 0) + 1)
   const titleOf = (name: SectionRef) => titles.get(name)!
-  // The optional sections that aren't on the resume, which Add section offers before a text or bullet list.
-  const addable = SECTION_NAMES.filter((name) => SECTIONS[name].optional && !sections.includes(name)).map(
-    (name) => [name, SECTIONS[name].title] as const,
-  )
+  // The optional sections that aren't on the resume, which Add section offers.
+  const addable = SECTION_NAMES.filter((name) => SECTIONS[name].optional && !sections.includes(name))
   // Two sections can have the same title, so a screen reader also hears where each is.
   const labelOf = (name: SectionRef, index: number) =>
     (counts.get(titleOf(name)) ?? 0) > 1 ? `${titleOf(name)}, section ${index + 2}` : titleOf(name)
@@ -119,7 +123,9 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
         key={name}
         ref={drag?.innerRef}
         {...drag?.draggableProps}
-        className={`flex shrink-0 items-center rounded-[4px] ${dragging ? "bg-sheet shadow-sm ring-1 ring-rule" : ""}`}
+        className={`flex shrink-0 items-center rounded-[4px] transition-[opacity,translate] duration-300 ease-out motion-reduce:transition-none ${
+          added.has(name) ? "starting:-translate-x-2 starting:opacity-0" : ""
+        } ${dragging ? "bg-sheet shadow-sm ring-1 ring-rule" : ""}`}
       >
         <span
           {...drag?.dragHandleProps}
@@ -182,36 +188,7 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
         <div className="flex gap-1 xl:flex-col">{sections.map((name, index) => renderSection(name, index))}</div>
       )}
 
-      {onAdd && (
-        <div className="shrink-0 xl:mt-3">
-          <button
-            type="button"
-            aria-expanded={adding}
-            onClick={() => setAdding(!adding)}
-            className="rounded-[4px] px-2 py-2 text-sm text-ink underline underline-offset-4"
-          >
-            Add section
-          </button>
-          {adding && (
-            <div role="group" aria-label="Add section" className="flex flex-col gap-1 rounded-[4px] border border-rule bg-sheet p-2">
-              {[...addable, ["text", "Text"] as const, ["list", "Bullet list"] as const].map(([kind, title]) => (
-                <button
-                  key={kind}
-                  type="button"
-                  aria-label={`Add ${title} section`}
-                  onClick={() => {
-                    onAdd(kind)
-                    setAdding(false)
-                  }}
-                  className="rounded-[4px] px-2 py-2 text-left text-sm hover:bg-paper"
-                >
-                  {title}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {onAdd && <AddSectionMenu sections={addable} onAdd={onAdd} />}
 
       <p className="mt-3 hidden border-t border-rule px-2 pt-5 text-[13px] leading-normal text-ink-2 xl:block">
         Drag a section to change its place on the page.

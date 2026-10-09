@@ -20,11 +20,13 @@ async function open(page: Page) {
   }, initial)
   await page.goto("/create/new/flexible")
 }
+const menu = (page: Page) => page.getByRole("menu", { name: "Add section" })
+/** Adds a section from the Add section menu: an optional one, or a custom Text or Bullet list. */
 async function add(page: Page, kind: string) {
   await nav(page).getByRole("button", { name: "Add section", exact: true }).click()
-  await nav(page)
-    .getByRole("button", { name: `Add ${kind} section`, exact: true })
-    .click()
+  if (kind === "Text" || kind === "Bullet list") await menu(page).getByRole("menuitem", { name: "Custom section" }).click()
+  await menu(page).getByRole("menuitem", { name: kind, exact: true }).click()
+  await expect(menu(page)).toBeHidden()
 }
 async function rename(page: Page, heading: string) {
   await page.getByRole("button", { name: "Rename section", exact: true }).click()
@@ -111,10 +113,19 @@ test("a resume starts with four sections, and the optional ones are added and de
   await add(page, "Awards & Certifications")
   await expect(page.getByRole("heading", { name: "Awards & Certifications", exact: true })).toBeVisible()
   await expect.poll(async () => (await saved(page)).sectionOrder).toContain("Awards")
-  // Added once: it's no longer offered.
+  // Added once, it's no longer offered. The menu opens over the page, and
+  // Escape closes it, back on its button.
+  const help = page.getByText("Drag a section to change its place on the page.")
+  const before = await help.boundingBox()
   await nav(page).getByRole("button", { name: "Add section", exact: true }).click()
-  await expect(nav(page).getByRole("button", { name: "Add Awards & Certifications section", exact: true })).toHaveCount(0)
-  await nav(page).getByRole("button", { name: "Add section", exact: true }).click()
+  await expect(menu(page).getByRole("menuitem", { name: "Publications", exact: true })).toBeFocused()
+  await expect(menu(page).getByRole("menuitem", { name: "Awards & Certifications", exact: true })).toHaveCount(0)
+  expect(await help.boundingBox()).toEqual(before)
+  await page.keyboard.press("ArrowDown")
+  await expect(menu(page).getByRole("menuitem", { name: "Volunteer", exact: true })).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(menu(page)).toBeHidden()
+  await expect(nav(page).getByRole("button", { name: "Add section", exact: true })).toBeFocused()
   await page.getByRole("button", { name: "Delete section", exact: true }).click()
   await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeFocused()
   await page.getByRole("button", { name: "Delete section", exact: true }).click()
