@@ -13,20 +13,38 @@ function extra<Kind extends ExtraSection["kind"]>(content: { extraSections?: Ext
 }
 
 const line = (text: string, heading = false, bullet = false): Line => ({
-  text, heading, bullet, parts: [{ text, x: 72, runs: [{ start: 0, end: text.length, bold: heading, italic: false }] }],
-  left: 72, x: 72, size: heading ? 13 : 11, bold: heading, italic: false, links: [],
+  text,
+  heading,
+  bullet,
+  parts: [{ text, x: 72, runs: [{ start: 0, end: text.length, bold: heading, italic: false }] }],
+  left: 72,
+  x: 72,
+  size: heading ? 13 : 11,
+  bold: heading,
+  italic: false,
+  links: [],
 })
-const parse = (...rows: (string | [string, boolean, boolean?])[]) => parseResume(rows.map((row) => typeof row === "string" ? line(row) : line(...row)))
+const parse = (...rows: (string | [string, boolean, boolean?])[]) =>
+  parseResume(rows.map((row) => (typeof row === "string" ? line(row) : line(...row))))
 
 describe("flexible section import review", () => {
   test("parsing gives stable heading occurrence addresses without generating editor UUIDs", () => {
     const uuid = vi.spyOn(crypto, "randomUUID")
     try {
-      const rows: Line[] = [line("Mara Lin"), line("Summary", true), line("Engineer building useful tools."), line("Summary", true), line("Mentor and teacher.")]
+      const rows: Line[] = [
+        line("Mara Lin"),
+        line("Summary", true),
+        line("Engineer building useful tools."),
+        line("Summary", true),
+        line("Mentor and teacher."),
+      ]
       const first = parseResume(rows)
       expect(parseResume(rows).occurrences).toEqual(first.occurrences)
       expect(first.extraGroups?.map((group) => group.id)).toEqual(["heading:1", "heading:3"])
-      expect(first.extraGroups?.map((group) => group.sourceLines)).toEqual([[1, 2], [3, 4]])
+      expect(first.extraGroups?.map((group) => group.sourceLines)).toEqual([
+        [1, 2],
+        [3, 4],
+      ])
       expect(uuid).not.toHaveBeenCalled()
     } finally {
       uuid.mockRestore()
@@ -34,7 +52,15 @@ describe("flexible section import review", () => {
   })
 
   test("selected summary groups consolidate in source order using the first selected heading and position", () => {
-    const parsed = parse("Mara Lin", ["Summary", true], "First paragraph.", ["Work", true], "Engineer | Acme Inc", ["Professional Summary", true], "Second paragraph.")
+    const parsed = parse(
+      "Mara Lin",
+      ["Summary", true],
+      "First paragraph.",
+      ["Work", true],
+      "Engineer | Acme Inc",
+      ["Professional Summary", true],
+      "Second paragraph.",
+    )
     const all = toResumeContent(parsed)
     expect(extra(all, "summary", "summary")).toEqual({ kind: "summary", heading: "Summary", text: "First paragraph.\n\nSecond paragraph." })
     expect(all.sectionOrder.slice(0, 2)).toEqual(["extra:summary", "Work"])
@@ -45,12 +71,22 @@ describe("flexible section import review", () => {
   })
 
   test("page-number removal retains original heading and body provenance", () => {
-    const rows = [line("Mara Lin"), line("Summary", true), line("First paragraph."), line("1"), line("Summary", true), line("Second paragraph."), line("2")]
-      .map((row, index) => ({ ...row, page: index < 4 ? 1 : 2 }))
+    const rows = [
+      line("Mara Lin"),
+      line("Summary", true),
+      line("First paragraph."),
+      line("1"),
+      line("Summary", true),
+      line("Second paragraph."),
+      line("2"),
+    ].map((row, index) => ({ ...row, page: index < 4 ? 1 : 2 }))
     const parsed = parseResume(rows)
     expect(parsed.lines.map((row) => row.text)).not.toContain("1")
     expect(parsed.lines.map((row) => row.text)).not.toContain("2")
-    expect(parsed.extraGroups?.map((group) => group.sourceLines)).toEqual([[1, 2], [4, 5]])
+    expect(parsed.extraGroups?.map((group) => group.sourceLines)).toEqual([
+      [1, 2],
+      [4, 5],
+    ])
     expect(extra(toResumeContent(parsed), "summary", "summary").text).toBe("First paragraph.\n\nSecond paragraph.")
   })
 
@@ -63,13 +99,25 @@ describe("flexible section import review", () => {
   })
 
   test("credential labels are interpreted conservatively and uncertain fragments survive", () => {
-    const parsed = parse("Mara Lin", ["Certifications", true], "Cloud Engineer | Issuer: Example Co | Issued: May 2024 | Expires: 2027 | Credential ID: ABC-123 | https://example.com/verify", "Safety Training | uncertain detail", ["Certificates", true], "First Aid")
+    const parsed = parse(
+      "Mara Lin",
+      ["Certifications", true],
+      "Cloud Engineer | Issuer: Example Co | Issued: May 2024 | Expires: 2027 | Credential ID: ABC-123 | https://example.com/verify",
+      "Safety Training | uncertain detail",
+      ["Certificates", true],
+      "First Aid",
+    )
     expect(parsed.extraGroups).toHaveLength(2)
     expect(parsed.unplaced[0].text).toEqual(["uncertain detail"])
     const content = toResumeContent(parsed)
     expect(extra(content, "certifications", "certifications").entries).toHaveLength(3)
     expect(extra(content, "certifications", "certifications").entries[0]).toMatchObject({
-      name: "Cloud Engineer", issuer: "Example Co", issued: "May 2024", expires: "2027", credentialId: "ABC-123", link: "https://example.com/verify",
+      name: "Cloud Engineer",
+      issuer: "Example Co",
+      issued: "May 2024",
+      expires: "2027",
+      credentialId: "ABC-123",
+      link: "https://example.com/verify",
     })
     expect(new Set(extra(content, "certifications", "certifications").entries.map((entry: { id: string }) => entry.id)).size).toBe(3)
   })
@@ -82,28 +130,35 @@ describe("flexible section import review", () => {
     expect(toResumeContent(parsed).extraSections).toBeUndefined()
     const id = unplacedKey(parsed.unplaced[0], 0)
     const content = toResumeContent(parsed, new Set(), { keepAs: { [id]: "text" } })
-    expect(Object.values(content.extraSections ?? {})).toEqual([{ kind: "text", heading: "Awards & Certifications", text: "Community Award, Example Org\nCloud Certificate, Example Co" }])
+    expect(Object.values(content.extraSections ?? {})).toEqual([
+      { kind: "text", heading: "Awards & Certifications", text: "Community Award, Example Org\nCloud Certificate, Example Co" },
+    ])
     expect(content.awardsSection).toEqual([])
   })
 
-  test.each(["Certifications", "Awards & Certifications", "Certifications & Awards"])("checker parsing preserves the original Awards semantics for %s", (heading) => {
-    const rows = [line("Mara Lin"), line(heading, true), line("Community Award, Example Org 2024")]
-    const checked = parseResume(rows, { purpose: "check" })
-    expect(checked.sections.map((section) => section.name)).toEqual(["Awards"])
-    expect(checked.sections[0].entries[0].fields.awardName).toBe("Community Award")
-    expect(checked.unplaced).toEqual([])
-    expect(checked.extraGroups).toEqual([])
-    const imported = parseResume(rows)
-    expect(imported.sections).toEqual([])
-    expect(imported.extraGroups?.length || imported.unplaced.length).toBeGreaterThan(0)
-  })
+  test.each(["Certifications", "Awards & Certifications", "Certifications & Awards"])(
+    "checker parsing preserves the original Awards semantics for %s",
+    (heading) => {
+      const rows = [line("Mara Lin"), line(heading, true), line("Community Award, Example Org 2024")]
+      const checked = parseResume(rows, { purpose: "check" })
+      expect(checked.sections.map((section) => section.name)).toEqual(["Awards"])
+      expect(checked.sections[0].entries[0].fields.awardName).toBe("Community Award")
+      expect(checked.unplaced).toEqual([])
+      expect(checked.extraGroups).toEqual([])
+      const imported = parseResume(rows)
+      expect(imported.sections).toEqual([])
+      expect(imported.extraGroups?.length || imported.unplaced.length).toBeGreaterThan(0)
+    },
+  )
 
   test("repeated unsupported headings remain independently selectable with durable UUIDs only at confirmation", () => {
     const parsed = parse("Mara Lin", ["Presentations", true], "First talk", ["Presentations", true], "Second talk")
     expect(parsed.unplaced.map((group) => group.heading)).toEqual(["Presentations", "Presentations"])
     expect(parsed.unplaced[0].id).not.toBe(parsed.unplaced[1].id)
     expect(toResumeContent(parsed).extraSections).toBeUndefined()
-    const keepAs = Object.fromEntries(parsed.unplaced.map((group, index) => [unplacedKey(group, index), index === 0 ? "text" : "list"])) as Record<string, "text" | "list">
+    const keepAs = Object.fromEntries(
+      parsed.unplaced.map((group, index) => [unplacedKey(group, index), index === 0 ? "text" : "list"]),
+    ) as Record<string, "text" | "list">
     const content = toResumeContent(parsed, new Set(), { keepAs })
     expect(Object.keys(content.extraSections ?? {})).toHaveLength(2)
     expect(Object.values(content.extraSections ?? {})).toEqual([
@@ -114,7 +169,15 @@ describe("flexible section import review", () => {
   })
 
   test("Word parsing preserves recognized groups and uncertain leftover words for review", async () => {
-    const paragraphs = ["Mara Lin", "SUMMARY", "Engineer building useful tools.", "CERTIFICATIONS", "Cloud Engineer | Issuer: Example Co", "PRESENTATIONS", "Talk on accessible software"]
+    const paragraphs = [
+      "Mara Lin",
+      "SUMMARY",
+      "Engineer building useful tools.",
+      "CERTIFICATIONS",
+      "Cloud Engineer | Issuer: Example Co",
+      "PRESENTATIONS",
+      "Talk on accessible software",
+    ]
     const result = await readFile({ kind: "docx", data: new Uint8Array(wordFile(paragraphs)).buffer })
     expect("parsed" in result).toBe(true)
     if (!("parsed" in result)) return

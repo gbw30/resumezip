@@ -150,7 +150,11 @@ describe("a resumezip PDF", () => {
   })
 
   test("too long to open says so, instead of opening with parts cut off", async () => {
-    attachment = JSON.stringify({ format: "resumezip", version: 1, resume: { ...resume, profileSection: { fullName: "x".repeat(MAX_LENGTH) } } })
+    attachment = JSON.stringify({
+      format: "resumezip",
+      version: 1,
+      resume: { ...resume, profileSection: { fullName: "x".repeat(MAX_LENGTH) } },
+    })
     const opening = openResumeFile(pdf())
     await expect(opening).rejects.toThrow(OpenFileError)
     await expect(opening).rejects.toThrow(

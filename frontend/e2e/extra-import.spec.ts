@@ -2,12 +2,28 @@ import { expect, test } from "@playwright/test"
 import { wordFile, textPdf } from "../src/lib/import/testFiles"
 import { pageErrors, seriousAccessibilityProblems } from "./helpers"
 
-const WORDS = ["Mara Lin", "SUMMARY", "First paragraph.", "PROFESSIONAL SUMMARY", "Second paragraph.", "CERTIFICATIONS", "Cloud Engineer | Issuer: Example Co", "PRESENTATIONS", "First talk", "PRESENTATIONS", "Second talk"]
+const WORDS = [
+  "Mara Lin",
+  "SUMMARY",
+  "First paragraph.",
+  "PROFESSIONAL SUMMARY",
+  "Second paragraph.",
+  "CERTIFICATIONS",
+  "Cloud Engineer | Issuer: Example Co",
+  "PRESENTATIONS",
+  "First talk",
+  "PRESENTATIONS",
+  "Second talk",
+]
 
 test("review consolidates selected singletons and keeps repeated unknown groups independently", async ({ page }) => {
   const errors = pageErrors(page)
   await page.goto("/create/dashboard")
-  await page.locator('input[type="file"]').setInputFiles({ name: "Flexible.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: wordFile(WORDS) })
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "Flexible.docx",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    buffer: wordFile(WORDS),
+  })
   const review = page.getByRole("dialog", { name: "Here's what we found" })
   await expect(review).toContainText("2 selected groups will become one Summary section")
   const choices = review.getByRole("combobox")
@@ -19,8 +35,21 @@ test("review consolidates selected singletons and keeps repeated unknown groups 
   expect(await seriousAccessibilityProblems(page)).toEqual([])
   await review.getByRole("button", { name: "Create resume", exact: true }).click()
   await expect(review).toBeHidden()
-  await expect.poll(() => page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("resume:")).map(([, value]) => JSON.parse(value)))).toHaveLength(1)
-  const saved = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("resume:")).map(([, value]) => JSON.parse(value))[0])
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.entries(localStorage)
+          .filter(([key]) => key.startsWith("resume:"))
+          .map(([, value]) => JSON.parse(value)),
+      ),
+    )
+    .toHaveLength(1)
+  const saved = await page.evaluate(
+    () =>
+      Object.entries(localStorage)
+        .filter(([key]) => key.startsWith("resume:"))
+        .map(([, value]) => JSON.parse(value))[0],
+  )
   expect(saved.extraSections.summary.text).toBe("First paragraph.\n\nSecond paragraph.")
   expect(saved.extraSections.certifications.entries[0]).toMatchObject({ name: "Cloud Engineer", issuer: "Example Co" })
   const custom = Object.entries(saved.extraSections).filter(([key]) => !["summary", "certifications"].includes(key))
@@ -35,7 +64,13 @@ test("review consolidates selected singletons and keeps repeated unknown groups 
 test("narrow PDF review retains uncertain and excluded text in its download", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto("/create/dashboard")
-  await page.locator('input[type="file"]').setInputFiles({ name: "Flexible.pdf", mimeType: "application/pdf", buffer: textPdf([["Mara Lin", "SUMMARY", "Private draft paragraph.", "AWARDS AND CERTIFICATIONS", "Community award and uncertain credential"]]) })
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "Flexible.pdf",
+    mimeType: "application/pdf",
+    buffer: textPdf([
+      ["Mara Lin", "SUMMARY", "Private draft paragraph.", "AWARDS AND CERTIFICATIONS", "Community award and uncertain credential"],
+    ]),
+  })
   const review = page.getByRole("dialog", { name: "Here's what we found" })
   await expect(review.getByRole("combobox")).toHaveValue("")
   await review.getByRole("checkbox", { name: "Include SUMMARY, group 1" }).uncheck()
@@ -51,6 +86,11 @@ test("narrow PDF review retains uncertain and excluded text in its download", as
   expect(text).toContain("Community award and uncertain credential")
   await review.getByRole("button", { name: "Create resume", exact: true }).click()
   await expect(review).toBeHidden()
-  const saved = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("resume:")).map(([, value]) => JSON.parse(value))[0])
+  const saved = await page.evaluate(
+    () =>
+      Object.entries(localStorage)
+        .filter(([key]) => key.startsWith("resume:"))
+        .map(([, value]) => JSON.parse(value))[0],
+  )
   expect(saved.extraSections ?? {}).toEqual({})
 })

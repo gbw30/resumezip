@@ -34,7 +34,12 @@ export async function readPreview(url: string, signal: AbortSignal, checkerLayou
     const result = await readInWorker({ kind: "pdf", pages, checkerLayout: checkerLayout ?? [] }, signal, { keep: true })
     if ("failed" in result) throw new Error(result.failed)
     if (!("parsed" in result)) return null
-    return { lines: result.parsed.lines, pages: pages.map(({ width, height }) => ({ width, height })), parsed: result.parsed, extras: result.extras }
+    return {
+      lines: result.parsed.lines,
+      pages: pages.map(({ width, height }) => ({ width, height })),
+      parsed: result.parsed,
+      extras: result.extras,
+    }
   } catch (error) {
     if (error instanceof TooMuchTextError) return null
     throw error

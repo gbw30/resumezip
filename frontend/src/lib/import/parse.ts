@@ -239,9 +239,23 @@ const normalizeHeading = (text: string) =>
     .replace(/\s+/g, " ")
     .trim()
 
-const SUMMARY_HEADINGS = new Set(["summary", "professional summary", "objective", "career objective", "profile", "about", "about me", "summary of qualifications", "career summary", "executive summary", "overview", "bio"])
+const SUMMARY_HEADINGS = new Set([
+  "summary",
+  "professional summary",
+  "objective",
+  "career objective",
+  "profile",
+  "about",
+  "about me",
+  "summary of qualifications",
+  "career summary",
+  "executive summary",
+  "overview",
+  "bio",
+])
 const CERTIFICATION_HEADINGS = new Set(["certifications", "certificates", "certification", "licenses", "licenses and certifications"])
-const MIXED_CREDENTIAL_HEADINGS = /\b(?:awards?|honors?|skills?|education|achievements?)\b.*\bcertifications?\b|\bcertifications?\b.*\b(?:awards?|honors?|skills?|education|achievements?)\b/
+const MIXED_CREDENTIAL_HEADINGS =
+  /\b(?:awards?|honors?|skills?|education|achievements?)\b.*\bcertifications?\b|\bcertifications?\b.*\b(?:awards?|honors?|skills?|education|achievements?)\b/
 
 const words = (text: string) => text.split(/\s+/).filter(Boolean)
 const isAllCaps = (text: string) => /[A-Z]/.test(text) && !/[a-z]/.test(text) && text.replace(/[^A-Z]/g, "").length >= 3
@@ -1594,12 +1608,24 @@ function readAwards(lines: ParseLine[]): SectionResult {
 
 const lineIndexes = (line: ParseLine) => [line.index, ...(line.merged ?? [])]
 const CREDENTIAL_FIELDS: Record<string, string> = {
-  name: "name", credential: "name", certification: "name", certificate: "name",
-  issuer: "issuer", "issued by": "issuer", organization: "issuer",
-  issued: "issued", "issue date": "issued", date: "issued",
-  expires: "expires", "expiry date": "expires", "expiration date": "expires",
-  "credential id": "credentialId", "certificate id": "credentialId", id: "credentialId",
-  link: "link", url: "link",
+  name: "name",
+  credential: "name",
+  certification: "name",
+  certificate: "name",
+  issuer: "issuer",
+  "issued by": "issuer",
+  organization: "issuer",
+  issued: "issued",
+  "issue date": "issued",
+  date: "issued",
+  expires: "expires",
+  "expiry date": "expires",
+  "expiration date": "expires",
+  "credential id": "credentialId",
+  "certificate id": "credentialId",
+  id: "credentialId",
+  link: "link",
+  url: "link",
 }
 
 /** Only explicit labels are assigned to credential fields. Uncertain fragments stay reviewable. */
@@ -1619,7 +1645,13 @@ function readCredentials(lines: ParseLine[]): { entries: FoundCredential[]; left
       else residual.push(part)
     }
     const previous = entries.at(-1)
-    if (!fields.name && previous && Object.keys(fields).length && !line.bullet && Object.keys(fields).every((key) => !previous.fields[key])) {
+    if (
+      !fields.name &&
+      previous &&
+      Object.keys(fields).length &&
+      !line.bullet &&
+      Object.keys(fields).every((key) => !previous.fields[key])
+    ) {
       Object.assign(previous.fields, fields)
       previous.lines.push(...lineIndexes(line))
     } else if (fields.name) {
@@ -1921,7 +1953,11 @@ export function parseResume(file: Line[], { purpose = "import" }: { purpose?: "i
     const meaning = known.get(line.index)
     if (meaning) headings.set(line.index, { meaning, label: line.text.replace(/:$/, "") })
     // The first line is usually the name, which can look like a heading.
-    else if (i > 0 && headingShaped(line) && (line.heading === true || (guessHeadings && headingStyle(line) && !looksLikeName(line.text)))) {
+    else if (
+      i > 0 &&
+      headingShaped(line) &&
+      (line.heading === true || (guessHeadings && headingStyle(line) && !looksLikeName(line.text)))
+    ) {
       headings.set(line.index, { meaning: { section: null }, label: line.text.replace(/:$/, "") })
     }
   })
@@ -1958,11 +1994,20 @@ export function parseResume(file: Line[], { purpose = "import" }: { purpose?: "i
   }
 
   const unplaced: ParsedResume["unplaced"] = []
-  const provenance = (indexes: number[]) => [...new Set(indexes.map((index) => input[index]?.sourceIndex).filter((index): index is number => index !== undefined))]
+  const provenance = (indexes: number[]) => [
+    ...new Set(indexes.map((index) => input[index]?.sourceIndex).filter((index): index is number => index !== undefined)),
+  ]
   const addUnplaced = (heading: string, lineIndexes: number[], text: string[], headingLine = lineIndexes[0] ?? -1) => {
     const kept = text.map((line) => line.trim()).filter(Boolean)
     if (kept.length === 0) return
-    unplaced.push({ id: `unplaced:${headingLine}:${unplaced.length}`, heading, headingLine, lines: lineIndexes, sourceLines: provenance(lineIndexes), text: kept })
+    unplaced.push({
+      id: `unplaced:${headingLine}:${unplaced.length}`,
+      heading,
+      headingLine,
+      lines: lineIndexes,
+      sourceLines: provenance(lineIndexes),
+      text: kept,
+    })
   }
   const textOf = (line: Line & { index: number }) => contacts.remainders.get(line.index) ?? line.text
   const content = (line: Line & { index: number }) => !contacts.used.has(line.index) && line !== nameLine
@@ -2006,11 +2051,22 @@ export function parseResume(file: Line[], { purpose = "import" }: { purpose?: "i
     const summary = purpose === "import" && SUMMARY_HEADINGS.has(normalized) && !sectionLines.some((line) => line.bullet)
     const certification = purpose === "import" && CERTIFICATION_HEADINGS.has(normalized)
     const mixed = purpose === "import" && MIXED_CREDENTIAL_HEADINGS.test(normalized)
-    const kind: FoundOccurrence["kind"] = summary ? "summary" : certification ? "certifications" : mixed || meaning.section === null ? "unsupported" : "builtin"
+    const kind: FoundOccurrence["kind"] = summary
+      ? "summary"
+      : certification
+        ? "certifications"
+        : mixed || meaning.section === null
+          ? "unsupported"
+          : "builtin"
     const indexes = sectionLines.flatMap(lineIndexes)
     const occurrence: FoundOccurrence = {
-      id: `heading:${start.index}`, heading: label, headingLine: start.index, lines: indexes,
-      sourceLines: provenance([start.index, ...indexes]), section: kind === "builtin" ? meaning.section : null, kind,
+      id: `heading:${start.index}`,
+      heading: label,
+      headingLine: start.index,
+      lines: indexes,
+      sourceLines: provenance([start.index, ...indexes]),
+      section: kind === "builtin" ? meaning.section : null,
+      kind,
     }
     occurrences.push(occurrence)
     if (sectionLines.length === 0) return
@@ -2027,7 +2083,12 @@ export function parseResume(file: Line[], { purpose = "import" }: { purpose?: "i
     }
 
     if (mixed) {
-      addUnplaced(label, indexes, sectionLines.map((line) => line.text), start.index)
+      addUnplaced(
+        label,
+        indexes,
+        sectionLines.map((line) => line.text),
+        start.index,
+      )
       return
     }
 
@@ -2039,7 +2100,12 @@ export function parseResume(file: Line[], { purpose = "import" }: { purpose?: "i
         education.entries[0].lines.push(...sectionLines.map((line) => line.index))
         return
       }
-      addUnplaced(titleCase(label), indexes, sectionLines.map((line) => line.text), start.index)
+      addUnplaced(
+        titleCase(label),
+        indexes,
+        sectionLines.map((line) => line.text),
+        start.index,
+      )
       return
     }
 
@@ -2116,9 +2182,18 @@ export function toResumeContent(parsed: ParsedResume, skip: Set<string> = new Se
     if (kind === "summary") {
       extras.summary = { kind, heading: first.heading, text: groups.map((group) => group.text.join("\n")).join("\n\n") }
     } else {
-      const entries: Certification[] = groups.flatMap((group) => (group.entries ?? []).map((entry) => ({
-        id: crypto.randomUUID(), name: "", issuer: "", issued: "", expires: "", credentialId: "", link: "", ...entry.fields,
-      })))
+      const entries: Certification[] = groups.flatMap((group) =>
+        (group.entries ?? []).map((entry) => ({
+          id: crypto.randomUUID(),
+          name: "",
+          issuer: "",
+          issued: "",
+          expires: "",
+          credentialId: "",
+          link: "",
+          ...entry.fields,
+        })),
+      )
       extras.certifications = { kind, heading: first.heading, entries }
     }
   }
@@ -2126,13 +2201,22 @@ export function toResumeContent(parsed: ParsedResume, skip: Set<string> = new Se
     const kind = choices.keepAs?.[unplacedKey(group, index)]
     if (!kind) return
     const key = crypto.randomUUID()
-    const common = { kind, heading: group.heading === "Top of the resume" || group.heading === "Everything else" ? "New section" : group.heading }
-    extras[key] = kind === "text" ? { ...common, kind, text: group.text.join("\n") } : { ...common, kind, bullets: group.text.map((line) => `• ${line.replace(/^[•○]\s*/, "")}`).join("\n") }
+    const common = {
+      kind,
+      heading: group.heading === "Top of the resume" || group.heading === "Everything else" ? "New section" : group.heading,
+    }
+    extras[key] =
+      kind === "text"
+        ? { ...common, kind, text: group.text.join("\n") }
+        : { ...common, kind, bullets: group.text.map((line) => `• ${line.replace(/^[•○]\s*/, "")}`).join("\n") }
     positions.set(`extra:${key}`, group.headingLine ?? group.lines[0] ?? Number.MAX_SAFE_INTEGER)
   })
   if (Object.keys(extras).length) {
     resume.extraSections = extras
-    const authored: SectionRef[] = [...parsed.sections.map((section) => section.name), ...Object.keys(extras).map((key): SectionRef => `extra:${key}`)]
+    const authored: SectionRef[] = [
+      ...parsed.sections.map((section) => section.name),
+      ...Object.keys(extras).map((key): SectionRef => `extra:${key}`),
+    ]
     authored.sort((a, b) => (positions.get(a) ?? Number.MAX_SAFE_INTEGER) - (positions.get(b) ?? Number.MAX_SAFE_INTEGER))
     resume.sectionOrder = [...authored, ...SECTION_NAMES.filter((name) => !authored.includes(name))]
   }

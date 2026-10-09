@@ -11,7 +11,8 @@ import { matchExtraPdf, type ExtraPdfReading, type PdfSectionLayout } from "@/li
 export type ReadRequest = { kind: "pdf"; pages: PdfPage[]; checkerLayout?: PdfSectionLayout[] } | { kind: "docx"; data: ArrayBuffer }
 
 /** What was found, why nothing was, or a bug's message (`failed`) for the page to log. */
-export type ReadResult = { parsed: ParsedResume; extras?: ExtraPdfReading } | { problem: "no text" | "too much text" | "unreadable" } | { failed: string }
+export type ReadResult =
+  { parsed: ParsedResume; extras?: ExtraPdfReading } | { problem: "no text" | "too much text" | "unreadable" } | { failed: string }
 
 export async function readFile(request: ReadRequest): Promise<ReadResult> {
   try {
@@ -42,11 +43,14 @@ export function readForChecks(lines: Line[], layout: PdfSectionLayout[]): { pars
   const extras = matchExtraPdf(original, layout)
   if (extras.excludedLines.length === 0) return { parsed: initial, extras }
   const excluded = new Set(extras.excludedLines)
-  const indexes = original.flatMap((_, index) => excluded.has(index) ? [] : [index])
-  const parsed = parseResume(indexes.map((index) => original[index]), { purpose: "check" })
+  const indexes = original.flatMap((_, index) => (excluded.has(index) ? [] : [index]))
+  const parsed = parseResume(
+    indexes.map((index) => original[index]),
+    { purpose: "check" },
+  )
   const source = parsed.lines.map((line, index) => indexes[(line as Line & { sourceIndex?: number }).sourceIndex ?? index])
   const remap = (values: number[]) => values.map((index) => source[index]).filter((index): index is number => index !== undefined)
-  const remapHeading = (index: number | undefined) => index === undefined ? undefined : source[index] ?? index
+  const remapHeading = (index: number | undefined) => (index === undefined ? undefined : (source[index] ?? index))
   parsed.profileLines = remap(parsed.profileLines)
   for (const section of parsed.sections) for (const entry of section.entries) entry.lines = remap(entry.lines)
   for (const group of parsed.unplaced) {

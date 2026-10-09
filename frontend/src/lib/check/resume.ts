@@ -9,7 +9,18 @@ import { PROFILE_FIELDS, SECTION_NAMES, SECTIONS, type FieldKey, type ProfileKey
 import { isLeftOut, isLeftOutLine } from "@/lib/leftOut"
 import type { Resume } from "@/lib/resume"
 import { plainText } from "@/lib/typst/resumeData"
-import { CERTIFICATION_FIELDS, credentialIncluded, extraHasBody, extraHeading, extraKey, extrasOf, resolveSections, sectionIncluded, type ExtraSection, type SectionRef } from "@/lib/resumeSections"
+import {
+  CERTIFICATION_FIELDS,
+  credentialIncluded,
+  extraHasBody,
+  extraHeading,
+  extraKey,
+  extrasOf,
+  resolveSections,
+  sectionIncluded,
+  type ExtraSection,
+  type SectionRef,
+} from "@/lib/resumeSections"
 import type { Place } from "./places"
 import { readCheckState } from "./state"
 
@@ -136,17 +147,38 @@ export function viewOf(resume: Resume): ResumeView {
     titles[name] = text(headings[headingKey])
   }
   const allOrder = resolveSections(resume)
-  const extras = Object.fromEntries(Object.entries(extrasOf(resume)).filter(([, section]) => sectionIncluded(section)).map(([id, saved]) => {
-    const section = saved.kind === "certifications" ? { ...saved, entries: saved.entries.filter(credentialIncluded) } : saved.kind === "list" ? { ...saved, bullets: linesOf(saved.bullets).join("\n") } : saved
-    return [id, { id, heading: extraHeading(section), section, bullets: saved.kind === "list" ? bulletsOf("bullets", saved.bullets) : [], blank: !extraHasBody(section) }]
-  }))
+  const extras = Object.fromEntries(
+    Object.entries(extrasOf(resume))
+      .filter(([, section]) => sectionIncluded(section))
+      .map(([id, saved]) => {
+        const section =
+          saved.kind === "certifications"
+            ? { ...saved, entries: saved.entries.filter(credentialIncluded) }
+            : saved.kind === "list"
+              ? { ...saved, bullets: linesOf(saved.bullets).join("\n") }
+              : saved
+        return [
+          id,
+          {
+            id,
+            heading: extraHeading(section),
+            section,
+            bullets: saved.kind === "list" ? bulletsOf("bullets", saved.bullets) : [],
+            blank: !extraHasBody(section),
+          },
+        ]
+      }),
+  )
   return {
     type: resumeTypeOf(resume),
     grammarLanguage: readCheckState(resume).grammarLanguage ?? "english",
     profile: Object.fromEntries(PROFILE_FIELDS.map((field) => [field.key, text(profile[field.key])])) as Record<ProfileKey, string>,
     sections,
     headings: titles,
-    printedHeadings: Object.fromEntries(SECTION_NAMES.map((name) => [name, titles[name] || SECTIONS[name].title])) as Record<SectionName, string>,
+    printedHeadings: Object.fromEntries(SECTION_NAMES.map((name) => [name, titles[name] || SECTIONS[name].title])) as Record<
+      SectionName,
+      string
+    >,
     order: allOrder.filter((ref): ref is SectionName => extraKey(ref) === null),
     allOrder,
     extras,
@@ -201,11 +233,14 @@ export function extraTexts(view: ResumeView, sectionId: string): { place: Place;
   const result: { place: Place; text: string }[] = [{ place: { kind: "extra-heading", sectionId }, text: extra.heading }]
   const section = extra.section
   if (section.kind === "certifications") {
-    for (const entry of section.entries) for (const field of CERTIFICATION_FIELDS) {
-      if (entry[field].trim()) result.push({ place: { kind: "credential", sectionId: "certifications", entryId: entry.id, field }, text: entry[field].trim() })
-    }
+    for (const entry of section.entries)
+      for (const field of CERTIFICATION_FIELDS) {
+        if (entry[field].trim())
+          result.push({ place: { kind: "credential", sectionId: "certifications", entryId: entry.id, field }, text: entry[field].trim() })
+      }
   } else if (section.kind === "list") {
-    for (const bullet of extra.bullets) result.push({ place: { kind: "extra-text", sectionId, field: "bullets", line: bullet.line }, text: bullet.text })
+    for (const bullet of extra.bullets)
+      result.push({ place: { kind: "extra-text", sectionId, field: "bullets", line: bullet.line }, text: bullet.text })
   } else if (section.text.trim()) result.push({ place: { kind: "extra-text", sectionId, field: "text" }, text: section.text.trim() })
   return result
 }

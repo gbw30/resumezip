@@ -271,7 +271,12 @@ describe.each(files)("%s", (file) => {
     const [person] = file.split("/")
     const fixture = JSON.parse(readFileSync(path.join(CORPUS, person, "resume.json"), "utf8"))
     const { parsed, resume } = await readBack(new Uint8Array(readFileSync(path.join(CORPUS, `${file}.pdf`))))
-    const tokens = (text: string) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).sort()
+    const tokens = (text: string) =>
+      text
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter(Boolean)
+        .sort()
     const summaries = parsed.extraGroups?.filter((group) => group.kind === "summary") ?? []
     if (summaries.length) {
       const summary = resume.extraSections?.summary

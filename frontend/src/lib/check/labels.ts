@@ -11,7 +11,11 @@ import { credentialAt } from "./places"
  * checker would only list what's missing, so the panel asks for that instead.
  */
 export function hasEnoughToCheck(view: ResumeView): boolean {
-  return view.profile.fullName !== "" && (SECTION_NAMES.some((section) => view.sections[section].some((entry) => !entry.blank)) || Object.values(view.extras).some((extra) => !extra.blank))
+  return (
+    view.profile.fullName !== "" &&
+    (SECTION_NAMES.some((section) => view.sections[section].some((entry) => !entry.blank)) ||
+      Object.values(view.extras).some((extra) => !extra.blank))
+  )
 }
 
 // A section's title as printed: the person's own, or the editor's.
@@ -46,7 +50,8 @@ function entryName(entry: Entry | undefined, index: number): string {
  */
 export function describePlace(view: ResumeView, place: Place): string {
   switch (place.kind) {
-    case "extra-heading": return `${view.extras[place.sectionId]?.heading ?? "Section"} → Section title`
+    case "extra-heading":
+      return `${view.extras[place.sectionId]?.heading ?? "Section"} → Section title`
     case "extra-text": {
       const extra = view.extras[place.sectionId]
       const bullet = extra?.bullets.find((bullet) => bullet.line === place.line)

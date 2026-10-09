@@ -97,7 +97,13 @@ const CheckTargetContext = createContext<Target | null | undefined>(undefined)
 
 /** The form section a place is in; none for the PDF's pages. */
 export function sectionOf(place: Place): ActiveSection | null {
-  return place.kind === "profile" ? "Profile" : place.kind === "page" ? null : "sectionId" in place ? `extra:${place.sectionId}` : place.section
+  return place.kind === "profile"
+    ? "Profile"
+    : place.kind === "page"
+      ? null
+      : "sectionId" in place
+        ? `extra:${place.sectionId}`
+        : place.section
 }
 
 const PLACE_PARTS = ["field", "section", "sectionId", "entry", "entryId", "line", "page"] as const
@@ -160,7 +166,10 @@ export function CheckProvider({ onSelect, preview, unbuilt, children }: CheckPro
   // same as the preview, it's that one.
   const pdfResume = preview && preview.printed === printed ? resume : preview?.checkerResume
   const layoutJSON = useMemo(() => (pdfResume ? JSON.stringify(pdfLayoutOf(viewOf(pdfResume))) : undefined), [pdfResume])
-  const layout = useMemo<PdfSectionLayout[] | undefined>(() => (layoutJSON === undefined ? undefined : JSON.parse(layoutJSON)), [layoutJSON])
+  const layout = useMemo<PdfSectionLayout[] | undefined>(
+    () => (layoutJSON === undefined ? undefined : JSON.parse(layoutJSON)),
+    [layoutJSON],
+  )
   const previewUrl = preview?.url
   const previewPrinted = preview?.printed
   // Private omitted-line edits can keep the PDF identical while moving an

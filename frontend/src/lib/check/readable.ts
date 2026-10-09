@@ -17,7 +17,11 @@ import type { ResumeView } from "./resume"
 // the heuristic semantic parse. Do not turn that uncertainty into invented
 // jobs, missing fields or an ATS heading accusation against the builtin.
 function unresolvedExtraHeadings(resume: ResumeView, pdf: PdfReading): Set<string> {
-  return new Set(Object.values(resume.extras).filter((extra) => !extra.blank && pdf.extras?.sections.find(({ sectionId }) => sectionId === extra.id)?.status !== "matched").map((extra) => comparable(extra.heading)))
+  return new Set(
+    Object.values(resume.extras)
+      .filter((extra) => !extra.blank && pdf.extras?.sections.find(({ sectionId }) => sectionId === extra.id)?.status !== "matched")
+      .map((extra) => comparable(extra.heading)),
+  )
 }
 
 function uncertainBuiltinSections(resume: ResumeView, pdf: PdfReading): Set<SectionName> {
@@ -25,7 +29,8 @@ function uncertainBuiltinSections(resume: ResumeView, pdf: PdfReading): Set<Sect
   const sections = new Set(resume.order.filter((section) => headings.has(comparable(resume.printedHeadings[section]))))
   // Parser provenance covers aliases such as 'Work Experience', not merely
   // the exact default heading printed by our own templates.
-  for (const occurrence of pdf.parsed.occurrences ?? []) if (occurrence.section && headings.has(comparable(occurrence.heading))) sections.add(occurrence.section)
+  for (const occurrence of pdf.parsed.occurrences ?? [])
+    if (occurrence.section && headings.has(comparable(occurrence.heading))) sections.add(occurrence.section)
   return sections
 }
 
@@ -160,7 +165,10 @@ const entriesRead: Rule = {
       const keys = KEY_FIELDS[section]
       const typed = resume.sections[section].filter((entry) => !entry.blank)
       if (typed.length === 0) continue
-      if (uncertain.has(section)) { partial = true; continue }
+      if (uncertain.has(section)) {
+        partial = true
+        continue
+      }
       const found = pdf.parsed.sections.find(({ name }) => name === section)
       // A section that isn't found at all is R2's.
       if (typed.length === 0 || !found) continue
@@ -199,7 +207,10 @@ const entriesRead: Rule = {
       problems.push({
         place: { kind: "extra-heading", sectionId: extra.id },
         message: `The checker couldn't verify all the text in “${extra.heading}” in the PDF`,
-        suggestion: match?.status === "ambiguous" ? "Repeated text makes this occurrence uncertain. Check the section in the preview." : "Check the section in the preview; the extracted text did not match completely.",
+        suggestion:
+          match?.status === "ambiguous"
+            ? "Repeated text makes this occurrence uncertain. Check the section in the preview."
+            : "Check the section in the preview; the extracted text did not match completely.",
       })
     }
     return checked ? { checked, problems, ...(partial && { partial }) } : null
@@ -243,29 +254,33 @@ const unplaced: Rule = {
   why: "Text it can't place under a section may be left out of what it reads.",
   check: ({ resume, pdf }) => {
     const uncertain = unresolvedExtraHeadings(resume, pdf)
-    const texts = textsOf(resume).filter(({ place }) => !("sectionId" in place)).map(({ place, text }) => ({
-      place,
-      text: comparable(text),
-      section: place.kind === "entry" || place.kind === "heading" ? place.section : null,
-    }))
+    const texts = textsOf(resume)
+      .filter(({ place }) => !("sectionId" in place))
+      .map(({ place, text }) => ({
+        place,
+        text: comparable(text),
+        section: place.kind === "entry" || place.kind === "heading" ? place.section : null,
+      }))
     // The section each printed heading stands for, to know which section a line was found under.
     const headed = new Map(resume.order.map((section) => [comparable(resume.printedHeadings[section]), section]))
     return {
       checked: 1,
       ...(uncertain.size > 0 && { partial: true }),
-      problems: pdf.parsed.unplaced.filter((group) => !uncertain.has(comparable(group.heading))).map((group): Problem => {
-        // Pointing at the field it came from, when it can be found; text with
-        // no letters or digits can't be, so it points at its page.
-        const line = comparable(group.text[0] ?? "")
-        const typed = line ? fieldOf(texts, line, headed.get(comparable(group.heading)) ?? null) : undefined
-        const page: Place = { kind: "page", page: pdf.parsed.lines[group.lines[0]]?.page }
-        return {
-          place: typed ?? page,
-          text: group.text.join(" "),
-          message: `Hiring software can't tell where “${short(group.text[0] ?? "")}” belongs`,
-          suggestion: "Check it's in the field it's for, without a date or place typed into it.",
-        }
-      }),
+      problems: pdf.parsed.unplaced
+        .filter((group) => !uncertain.has(comparable(group.heading)))
+        .map((group): Problem => {
+          // Pointing at the field it came from, when it can be found; text with
+          // no letters or digits can't be, so it points at its page.
+          const line = comparable(group.text[0] ?? "")
+          const typed = line ? fieldOf(texts, line, headed.get(comparable(group.heading)) ?? null) : undefined
+          const page: Place = { kind: "page", page: pdf.parsed.lines[group.lines[0]]?.page }
+          return {
+            place: typed ?? page,
+            text: group.text.join(" "),
+            message: `Hiring software can't tell where “${short(group.text[0] ?? "")}” belongs`,
+            suggestion: "Check it's in the field it's for, without a date or place typed into it.",
+          }
+        }),
     }
   },
 }
@@ -288,7 +303,8 @@ const symbols: Rule = {
       checked: texts.length,
       problems: texts.flatMap(({ place, text }) => {
         // A bullet character typed at the start of a bullet is R6's.
-        const body = (place.kind === "entry" || place.kind === "extra-text") && place.line !== undefined ? text.replace(TYPED_BULLET, "") : text
+        const body =
+          (place.kind === "entry" || place.kind === "extra-text") && place.line !== undefined ? text.replace(TYPED_BULLET, "") : text
         const found = [...body].find((char) => ODD_SYMBOLS.test(char) && !FINE_SYMBOLS.includes(char))
         return found ? [{ place, message: `“${found}” may not come through`, suggestion: "Leave it out, or say it in words." }] : []
       }),

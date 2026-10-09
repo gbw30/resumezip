@@ -572,7 +572,9 @@ test.describe("on a phone", () => {
 
     // Measure the final colors, after the Edit/Preview buttons finish their
     // color transition. Safari can otherwise capture its intermediate frame.
-    await page.getByRole("group", { name: "View" }).evaluate((group) => Promise.all(group.getAnimations({ subtree: true }).map((animation) => animation.finished)))
+    await page
+      .getByRole("group", { name: "View" })
+      .evaluate((group) => Promise.all(group.getAnimations({ subtree: true }).map((animation) => animation.finished)))
     expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
     expect(errors).toEqual([])
   })

@@ -9,15 +9,25 @@ import { comparable } from "./pdf"
 import type { Place } from "./places"
 import { extraTexts, type ResumeView } from "./resume"
 
-export interface PdfTextPart { text: string; place?: Place }
-export interface PdfSectionLayout { ref: string; heading: string; parts: PdfTextPart[] }
+export interface PdfTextPart {
+  text: string
+  place?: Place
+}
+export interface PdfSectionLayout {
+  ref: string
+  heading: string
+  parts: PdfTextPart[]
+}
 export interface ExtraPdfMatch {
   sectionId: string
   status: "matched" | "missing" | "ambiguous"
   lines: number[]
   parts: { place: Place; lines: number[] }[]
 }
-export interface ExtraPdfReading { sections: ExtraPdfMatch[]; excludedLines: number[] }
+export interface ExtraPdfReading {
+  sections: ExtraPdfMatch[]
+  excludedLines: number[]
+}
 
 /** Builtin headings anchor occurrences, but their fields keep their existing semantic rules. */
 export function pdfLayoutOf(view: ResumeView): PdfSectionLayout[] {
@@ -37,8 +47,15 @@ export function pdfLayoutOf(view: ResumeView): PdfSectionLayout[] {
         for (const field of ["name", "issuer", "issued", "expires", "credentialId", "link"] as const) {
           const raw = entry[field].trim()
           if (!raw) continue
-          const text = field === "link" ? raw.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/+$/, "") : raw
-          const prefix = field === "issued" ? "Issued: " : field === "expires" ? "Expires: " : field === "credentialId" ? "Credential ID: " : ""
+          const text =
+            field === "link"
+              ? raw
+                  .replace(/^https?:\/\//i, "")
+                  .replace(/^www\./i, "")
+                  .replace(/\/+$/, "")
+              : raw
+          const prefix =
+            field === "issued" ? "Issued: " : field === "expires" ? "Expires: " : field === "credentialId" ? "Credential ID: " : ""
           if (prefix) values.push({ text: prefix })
           values.push({ text, place: { kind: "credential", sectionId: "certifications", entryId: entry.id, field } })
         }
@@ -58,7 +75,7 @@ export function pdfLayoutOf(view: ResumeView): PdfSectionLayout[] {
 export function matchExtraPdf(lines: Line[], layout: readonly PdfSectionLayout[]): ExtraPdfReading {
   const headings = new Set(layout.map((section) => comparable(section.heading)))
   const normalized = lines.map((line) => comparable(line.text))
-  const allStarts = lines.flatMap((line, index) => headings.has(normalized[index]) ? [index] : [])
+  const allStarts = lines.flatMap((line, index) => (headings.has(normalized[index]) ? [index] : []))
   // Prose can literally contain another section's heading on a line of its
   // own. Recognize a full expected body before deciding which heading-shaped
   // lines are boundaries; matching bodies own their interior lines.
@@ -76,19 +93,28 @@ export function matchExtraPdf(lines: Line[], layout: readonly PdfSectionLayout[]
     bodies.set(section, found)
   }
   const interiors = new Set<number>()
-  for (const found of bodies.values()) for (const range of found) for (const index of allStarts) if (index > range.start && index < range.end) interiors.add(index)
+  for (const found of bodies.values())
+    for (const range of found) for (const index of allStarts) if (index > range.start && index < range.end) interiors.add(index)
   const required = new Map<string, number>()
   for (const section of layout) required.set(comparable(section.heading), (required.get(comparable(section.heading)) ?? 0) + 1)
-  const deficient = new Set([...required].filter(([heading, count]) => allStarts.filter((index) => normalized[index] === heading && !interiors.has(index)).length < count).map(([heading]) => heading))
+  const deficient = new Set(
+    [...required]
+      .filter(([heading, count]) => allStarts.filter((index) => normalized[index] === heading && !interiors.has(index)).length < count)
+      .map(([heading]) => heading),
+  )
   const ambiguousOwnership = new Set<PdfSectionLayout>()
-  for (const [section, found] of bodies) if (found.some((range) => allStarts.some((index) => index > range.start && index < range.end && deficient.has(normalized[index])))) ambiguousOwnership.add(section)
+  for (const [section, found] of bodies)
+    if (found.some((range) => allStarts.some((index) => index > range.start && index < range.end && deficient.has(normalized[index]))))
+      ambiguousOwnership.add(section)
   // A matching prose suffix must not swallow the only heading occurrence
   // needed by another expected section. Missing custom text followed by a
   // real builtin 'Awards / Prize' is otherwise indistinguishable from prose
   // that literally ends with those words.
   if (ambiguousOwnership.size) {
     interiors.clear()
-    for (const [section, found] of bodies) if (!ambiguousOwnership.has(section)) for (const range of found) for (const index of allStarts) if (index > range.start && index < range.end) interiors.add(index)
+    for (const [section, found] of bodies)
+      if (!ambiguousOwnership.has(section))
+        for (const range of found) for (const index of allStarts) if (index > range.start && index < range.end) interiors.add(index)
   }
   const starts = allStarts.filter((index) => !interiors.has(index))
   const ranges = starts.map((start, index) => ({ start, end: starts[index + 1] ?? lines.length, heading: comparable(lines[start].text) }))
@@ -107,10 +133,16 @@ export function matchExtraPdf(lines: Line[], layout: readonly PdfSectionLayout[]
   })
   const before: number[] = []
   let maximum = -Infinity
-  for (const range of assigned) { before.push(maximum); if (range) maximum = Math.max(maximum, range.start) }
+  for (const range of assigned) {
+    before.push(maximum)
+    if (range) maximum = Math.max(maximum, range.start)
+  }
   const after: number[] = []
   let minimum = Infinity
-  for (let i = assigned.length - 1; i >= 0; i--) { after[i] = minimum; if (assigned[i]) minimum = Math.min(minimum, assigned[i]!.start) }
+  for (let i = assigned.length - 1; i >= 0; i--) {
+    after[i] = minimum
+    if (assigned[i]) minimum = Math.min(minimum, assigned[i]!.start)
+  }
   for (const [sectionIndex, section] of layout.entries()) {
     const sectionId = extraKey(section.ref)
     if (sectionId === null) continue
@@ -148,7 +180,9 @@ export function matchExtraPdf(lines: Line[], layout: readonly PdfSectionLayout[]
       const start = offset
       offset += wanted[index].length
       if (!part.place || start === offset) return []
-      return [{ place: part.place, lines: body.flatMap((_, i) => offsets[i] < offset && offsets[i + 1] > start ? [range.start + 1 + i] : []) }]
+      return [
+        { place: part.place, lines: body.flatMap((_, i) => (offsets[i] < offset && offsets[i + 1] > start ? [range.start + 1 + i] : [])) },
+      ]
     })
     sections.push({ sectionId, status: "matched", lines: indexes, parts })
     excludedLines.push(...indexes)

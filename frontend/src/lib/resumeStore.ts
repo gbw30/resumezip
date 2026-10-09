@@ -33,7 +33,20 @@ import {
 } from "./resumeStorage"
 import { numberDuplicateTitles, uniqueTitle } from "./resumeTitles"
 import { DEFAULT_TEMPLATE } from "./templates"
-import { extraKey, extraRef, newCertification, newExtraSection, readExtraSections, resolveSections, type CredentialPatch, type ExtraKind, type ExtraPatch, type ExtraSection, type ExtraSections, type SectionRef } from "./resumeSections"
+import {
+  extraKey,
+  extraRef,
+  newCertification,
+  newExtraSection,
+  readExtraSections,
+  resolveSections,
+  type CredentialPatch,
+  type ExtraKind,
+  type ExtraPatch,
+  type ExtraSection,
+  type ExtraSections,
+  type SectionRef,
+} from "./resumeSections"
 
 export interface ResumeState {
   /** Every resume saved in this browser, by id. */
@@ -148,7 +161,10 @@ export function createResumeStore(delay = SAVE_DELAY) {
     const key = kind === "summary" || kind === "certifications" ? kind : crypto.randomUUID()
     if (Object.hasOwn(extras, key)) return extraRef(key)
     const ref = extraRef(key)
-    commit(id, { extraSections: { ...extras, [key]: newExtraSection(kind) }, sectionOrder: [...resolveSections(resume), ref] }, [`extraSections.${key}`, "sectionOrder"])
+    commit(id, { extraSections: { ...extras, [key]: newExtraSection(kind) }, sectionOrder: [...resolveSections(resume), ref] }, [
+      `extraSections.${key}`,
+      "sectionOrder",
+    ])
     return ref
   }
 
@@ -166,13 +182,19 @@ export function createResumeStore(delay = SAVE_DELAY) {
   function editSection(id: string, key: string, patch: ExtraPatch) {
     changeSection(id, key, (section) => {
       const { heading, leftOut, text, bullets } = patch
-      return { ...section, ...(heading !== undefined && { heading }), ...(leftOut !== undefined && { leftOut }),
+      return {
+        ...section,
+        ...(heading !== undefined && { heading }),
+        ...(leftOut !== undefined && { leftOut }),
         ...((section.kind === "summary" || section.kind === "text") && text !== undefined && { text }),
-        ...(section.kind === "list" && bullets !== undefined && { bullets }) }
+        ...(section.kind === "list" && bullets !== undefined && { bullets }),
+      }
     })
   }
 
-  function includeSection(id: string, key: string, included: boolean) { editSection(id, key, { leftOut: !included }) }
+  function includeSection(id: string, key: string, included: boolean) {
+    editSection(id, key, { leftOut: !included })
+  }
 
   function deleteSection(id: string, key: string) {
     if (!has(id)) return
@@ -195,20 +217,31 @@ export function createResumeStore(delay = SAVE_DELAY) {
     const section = state.resumes[id]?.extraSections?.certifications as ExtraSection | undefined
     if (section?.kind !== "certifications") return null
     const entry = newCertification()
-    changeSection(id, "certifications", (current) => current.kind === "certifications" ? { ...current, entries: [...current.entries, entry] } : current)
+    changeSection(id, "certifications", (current) =>
+      current.kind === "certifications" ? { ...current, entries: [...current.entries, entry] } : current,
+    )
     return entry.id
   }
 
   function editCredential(id: string, entryId: string, patch: CredentialPatch) {
-    changeSection(id, "certifications", (section) => section.kind !== "certifications" ? section : {
-      ...section, entries: section.entries.map((entry) => entry.id === entryId ? { ...entry, ...patch, id: entry.id } : entry),
-    })
+    changeSection(id, "certifications", (section) =>
+      section.kind !== "certifications"
+        ? section
+        : {
+            ...section,
+            entries: section.entries.map((entry) => (entry.id === entryId ? { ...entry, ...patch, id: entry.id } : entry)),
+          },
+    )
   }
 
-  function includeCredential(id: string, entryId: string, included: boolean) { editCredential(id, entryId, { leftOut: !included }) }
+  function includeCredential(id: string, entryId: string, included: boolean) {
+    editCredential(id, entryId, { leftOut: !included })
+  }
 
   function deleteCredential(id: string, entryId: string) {
-    changeSection(id, "certifications", (section) => section.kind === "certifications" ? { ...section, entries: section.entries.filter((entry) => entry.id !== entryId) } : section)
+    changeSection(id, "certifications", (section) =>
+      section.kind === "certifications" ? { ...section, entries: section.entries.filter((entry) => entry.id !== entryId) } : section,
+    )
   }
 
   function moveCredential(id: string, entryId: string, by: -1 | 1) {

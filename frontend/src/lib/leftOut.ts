@@ -40,19 +40,24 @@ export function hasLeftOut(resume: Resume): boolean {
       (section.kind === "list" && section.bullets.split("\n").some(isLeftOutLine)) ||
       (section.kind === "certifications" && section.entries.some((entry) => !credentialIncluded(entry))),
   )
-  return extraLeftOut || Object.values(SECTIONS).some(({ dataKey, fields }) => {
-    const entries = resume[dataKey]
-    return (
-      Array.isArray(entries) &&
-      entries.some(
-        (entry: unknown) =>
-          isLeftOut(entry) ||
-          (typeof entry === "object" &&
-            entry !== null &&
-            fields.some((field) => field.type === "bullets" && linesOf((entry as Record<string, unknown>)[field.key]).some(isLeftOutLine))),
+  return (
+    extraLeftOut ||
+    Object.values(SECTIONS).some(({ dataKey, fields }) => {
+      const entries = resume[dataKey]
+      return (
+        Array.isArray(entries) &&
+        entries.some(
+          (entry: unknown) =>
+            isLeftOut(entry) ||
+            (typeof entry === "object" &&
+              entry !== null &&
+              fields.some(
+                (field) => field.type === "bullets" && linesOf((entry as Record<string, unknown>)[field.key]).some(isLeftOutLine),
+              )),
+        )
       )
-    )
-  })
+    })
+  )
 }
 
 /**

@@ -23,7 +23,8 @@ export type Place =
   | { kind: "page"; page?: number }
 
 /** The field a place is in: a profile field, or one of an entry's. */
-export const fieldOf = (place: Place) => (place.kind === "profile" || place.kind === "entry" || place.kind === "extra-text" || place.kind === "credential" ? place.field : undefined)
+export const fieldOf = (place: Place) =>
+  place.kind === "profile" || place.kind === "entry" || place.kind === "extra-text" || place.kind === "credential" ? place.field : undefined
 
 /** Fields that hold a link or an email address rather than words. */
 export const LINK_FIELDS: ReadonlySet<ReturnType<typeof fieldOf>> = new Set<ReturnType<typeof fieldOf>>([
@@ -53,14 +54,17 @@ export function credentialAt(view: ResumeView, entryId: string): Certification |
 /** Whether a place is on this resume, so the editor can open it. `pages` is how many the PDF has. */
 export function placeExists(view: ResumeView, place: Place, pages = 0): boolean {
   switch (place.kind) {
-    case "extra-heading": return !!view.extras[place.sectionId] && !view.extras[place.sectionId].blank
+    case "extra-heading":
+      return !!view.extras[place.sectionId] && !view.extras[place.sectionId].blank
     case "extra-text": {
       const extra = view.extras[place.sectionId]
       if (!extra) return false
-      if (place.field === "bullets") return extra.section.kind === "list" && (place.line === undefined || extra.bullets.some((bullet) => bullet.line === place.line))
+      if (place.field === "bullets")
+        return extra.section.kind === "list" && (place.line === undefined || extra.bullets.some((bullet) => bullet.line === place.line))
       return (extra.section.kind === "text" || extra.section.kind === "summary") && place.line === undefined
     }
-    case "credential": return !!credentialAt(view, place.entryId) && (place.field === undefined || CERTIFICATION_FIELDS.includes(place.field))
+    case "credential":
+      return !!credentialAt(view, place.entryId) && (place.field === undefined || CERTIFICATION_FIELDS.includes(place.field))
     case "profile":
       return PROFILE_FIELDS.some((field) => field.key === place.field)
     case "heading":
@@ -88,16 +92,20 @@ export function placeExists(view: ResumeView, place: Place, pages = 0): boolean 
  */
 export function textAt(view: ResumeView, place: Place): string {
   switch (place.kind) {
-    case "extra-heading": return view.extras[place.sectionId]?.heading ?? ""
+    case "extra-heading":
+      return view.extras[place.sectionId]?.heading ?? ""
     case "extra-text": {
       const extra = view.extras[place.sectionId]
       if (!extra) return ""
-      if (place.field === "bullets") return place.line === undefined ? extra.bullets.map((bullet) => bullet.raw).join("\n") : extra.bullets.find((bullet) => bullet.line === place.line)?.raw ?? ""
+      if (place.field === "bullets")
+        return place.line === undefined
+          ? extra.bullets.map((bullet) => bullet.raw).join("\n")
+          : (extra.bullets.find((bullet) => bullet.line === place.line)?.raw ?? "")
       return extra.section.kind === "text" || extra.section.kind === "summary" ? extra.section.text.trim() : ""
     }
     case "credential": {
       const entry = credentialAt(view, place.entryId)
-      return entry ? place.field === undefined ? [entry.name, entry.issuer].filter(Boolean).join(", ") : entry[place.field].trim() : ""
+      return entry ? (place.field === undefined ? [entry.name, entry.issuer].filter(Boolean).join(", ") : entry[place.field].trim()) : ""
     }
     case "profile":
       return view.profile[place.field] ?? ""
@@ -131,12 +139,18 @@ export function samePlaceSource(before: ResumeView, now: ResumeView, place: Plac
   if (place.kind === "page") return true
   if (!placeExists(before, place) || !placeExists(now, place)) return false
   if (place.kind === "extra-heading") return JSON.stringify(before.extras[place.sectionId]) === JSON.stringify(now.extras[place.sectionId])
-  if (place.kind === "extra-text" && place.field === "bullets") return JSON.stringify(before.extras[place.sectionId].bullets) === JSON.stringify(now.extras[place.sectionId].bullets)
+  if (place.kind === "extra-text" && place.field === "bullets")
+    return JSON.stringify(before.extras[place.sectionId].bullets) === JSON.stringify(now.extras[place.sectionId].bullets)
   if (place.kind === "entry" && place.line !== undefined) {
-    const bullets = (view: ResumeView) => entryAt(view, place.section, place.entry)?.bullets.filter((bullet) => bullet.field === place.field)
+    const bullets = (view: ResumeView) =>
+      entryAt(view, place.section, place.entry)?.bullets.filter((bullet) => bullet.field === place.field)
     return JSON.stringify(bullets(before)) === JSON.stringify(bullets(now))
   }
-  if (place.kind === "section" || place.kind === "heading") return JSON.stringify(before.sections[place.section]) === JSON.stringify(now.sections[place.section]) && textAt(before, place) === textAt(now, place)
+  if (place.kind === "section" || place.kind === "heading")
+    return (
+      JSON.stringify(before.sections[place.section]) === JSON.stringify(now.sections[place.section]) &&
+      textAt(before, place) === textAt(now, place)
+    )
   return textAt(before, place) === textAt(now, place)
 }
 
@@ -145,9 +159,12 @@ export function samePlaceSource(before: ResumeView, now: ResumeView, place: Plac
 // page's number stays in, as pages can have the same text, or none.
 function pathOf(place: Place): string {
   switch (place.kind) {
-    case "extra-heading": return `extra.${place.sectionId}.heading`
-    case "extra-text": return `extra.${place.sectionId}.${place.field}`
-    case "credential": return `extra.${place.sectionId}.${place.entryId}.${place.field ?? "entry"}`
+    case "extra-heading":
+      return `extra.${place.sectionId}.heading`
+    case "extra-text":
+      return `extra.${place.sectionId}.${place.field}`
+    case "credential":
+      return `extra.${place.sectionId}.${place.entryId}.${place.field ?? "entry"}`
     case "profile":
       return `profile.${place.field}`
     case "heading":

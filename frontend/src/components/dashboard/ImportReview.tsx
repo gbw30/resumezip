@@ -6,7 +6,17 @@ import { ArrowLeftRight, Check, CircleAlert, Copy, Download } from "lucide-react
 import { SECTIONS, type FieldKey, type FieldKeyOf, type SectionName } from "@/components/editor/sections"
 import type { Line, PageSize } from "@/lib/import/lines"
 import type { OpenedFile } from "@/lib/import/open"
-import { entryKey, extraGroupKey, MUCH_UNPLACED, unplacedKey, toResumeContent, unplacedShare, type FoundEntry, type ImportChoices, type ParsedResume } from "@/lib/import/parse"
+import {
+  entryKey,
+  extraGroupKey,
+  MUCH_UNPLACED,
+  unplacedKey,
+  toResumeContent,
+  unplacedShare,
+  type FoundEntry,
+  type ImportChoices,
+  type ParsedResume,
+} from "@/lib/import/parse"
 import type { ResumeContent } from "@/lib/resume"
 import Modal from "./Modal"
 
@@ -114,11 +124,20 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
   ].filter(Boolean)
   const leftovers = parsed.unplaced.reduce((sum, group) => sum + group.text.length, 0)
   const foundNothing = !profile.fullName && parsed.sections.length === 0 && !parsed.extraGroups?.length
-  const selectedGroups = (kind: "summary" | "certifications") => (parsed.extraGroups ?? []).filter((group) => group.kind === kind && !skipped.has(extraGroupKey(group.id)))
+  const selectedGroups = (kind: "summary" | "certifications") =>
+    (parsed.extraGroups ?? []).filter((group) => group.kind === kind && !skipped.has(extraGroupKey(group.id)))
   const reviewText = [
     ...parsed.unplaced.map((group) => [group.heading, ...group.text].join("\n")),
-    ...(parsed.extraGroups ?? []).filter((group) => skipped.has(extraGroupKey(group.id))).map((group) => [group.heading, ...group.text].join("\n")),
-    ...parsed.sections.flatMap((section) => section.entries.filter((_, index) => skipped.has(entryKey(section.name, index))).map((entry) => [SECTIONS[section.name].title, ...entry.lines.map((index) => parsed.lines[index]?.text).filter(Boolean)].join("\n"))),
+    ...(parsed.extraGroups ?? [])
+      .filter((group) => skipped.has(extraGroupKey(group.id)))
+      .map((group) => [group.heading, ...group.text].join("\n")),
+    ...parsed.sections.flatMap((section) =>
+      section.entries
+        .filter((_, index) => skipped.has(entryKey(section.name, index)))
+        .map((entry) =>
+          [SECTIONS[section.name].title, ...entry.lines.map((index) => parsed.lines[index]?.text).filter(Boolean)].join("\n"),
+        ),
+    ),
   ].join("\n\n")
   // Most of a file that wasn't placed was likely read wrong, so it's said up
   // front instead of left at the bottom, where it's easy to miss.
@@ -245,10 +264,15 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
                   <div className={`mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed ${off ? "opacity-45" : ""}`}>
                     {group.text.join("\n")}
                   </div>
-                  {group.kind === "certifications" && <p className="mt-2 text-xs text-ink-2">{plural(group.entries?.length ?? 0, "credential")} recognized. Uncertain details stay below for review.</p>}
+                  {group.kind === "certifications" && (
+                    <p className="mt-2 text-xs text-ink-2">
+                      {plural(group.entries?.length ?? 0, "credential")} recognized. Uncertain details stay below for review.
+                    </p>
+                  )}
                   {!off && combined.length > 1 && combined[0].id === group.id && (
                     <p className="mt-2 text-sm text-ink-2" role="status">
-                      {combined.length} selected groups will become one {group.kind === "summary" ? "Summary" : "Certifications"} section, in file order, using “{group.heading}” and this position.
+                      {combined.length} selected groups will become one {group.kind === "summary" ? "Summary" : "Certifications"} section,
+                      in file order, using “{group.heading}” and this position.
                     </p>
                   )}
                 </section>
@@ -317,20 +341,31 @@ export default function ImportReview({ file, onCancel, onCreate }: ImportReviewP
             {reviewText && (
               <section ref={unplacedRef} tabIndex={-1} aria-labelledby="couldnt-place" className="mt-8 scroll-mt-4 outline-none">
                 <div className="flex items-baseline justify-between gap-4 border-b border-ink pb-2">
-                  <h3 id="couldnt-place" className="label-mono text-ink-2">Couldn&apos;t place · {plural(leftovers, "line")}</h3>
-                  <div className="flex gap-3"><button
-                    type="button"
-                    onClick={copyLeftovers}
-                    className="inline-flex items-center gap-1.5 text-sm text-ink-2 transition-colors hover:text-ink"
-                  >
-                    {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-                    {copied ? "Copied" : "Copy"}
-                  </button>
-                  <button type="button" onClick={downloadLeftovers} className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink">
-                    <Download className="h-3.5 w-3.5" aria-hidden="true" />Download
-                  </button></div>
+                  <h3 id="couldnt-place" className="label-mono text-ink-2">
+                    Couldn&apos;t place · {plural(leftovers, "line")}
+                  </h3>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={copyLeftovers}
+                      className="inline-flex items-center gap-1.5 text-sm text-ink-2 transition-colors hover:text-ink"
+                    >
+                      {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+                      {copied ? "Copied" : "Copy"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={downloadLeftovers}
+                      className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink"
+                    >
+                      <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                      Download
+                    </button>
+                  </div>
                 </div>
-                <p className="mt-2 text-sm text-ink-2">Choose whether to keep each group. Copy or download also saves text from anything you unticked above.</p>
+                <p className="mt-2 text-sm text-ink-2">
+                  Choose whether to keep each group. Copy or download also saves text from anything you unticked above.
+                </p>
                 {parsed.unplaced.map((group, index) => (
                   <div key={unplacedKey(group, index)} className="mt-4" {...point(group.lines)}>
                     <p className="label-mono text-ink-2">{group.heading}</p>

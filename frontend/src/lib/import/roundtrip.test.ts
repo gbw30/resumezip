@@ -59,11 +59,18 @@ describe.each(samples.map((sample) => [sample.selectedTemplate as string, sample
 
     // Mixed headings deliberately await review instead of guessing which records
     // are awards or credentials. Their complete rendered text must remain available.
-    const mixed = parsed.occurrences?.find((occurrence) => occurrence.kind === "unsupported" && /awards?/i.test(occurrence.heading) && /certifications?/i.test(occurrence.heading))
+    const mixed = parsed.occurrences?.find(
+      (occurrence) =>
+        occurrence.kind === "unsupported" && /awards?/i.test(occurrence.heading) && /certifications?/i.test(occurrence.heading),
+    )
     if (mixed) {
       expect(parsed.unplaced).toHaveLength(1)
       expect(parsed.unplaced[0].headingLine).toBe(mixed.headingLine)
-      const normal = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+      const normal = (text: string) =>
+        text
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim()
       const residual = normal(parsed.unplaced[0].text.join(" "))
       for (const award of want.awards) {
         for (const value of [award.name, award.organization, award.date].filter(Boolean)) expect(residual).toContain(normal(value))

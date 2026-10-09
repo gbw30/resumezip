@@ -411,7 +411,8 @@ function Editor({ id }: { id: string }) {
                       select(next)
                       requestAnimationFrame(() =>
                         (
-                          document.querySelector<HTMLElement>(`[data-section-ref="${next}"]`) ?? mainRef.current?.querySelector<HTMLElement>("h1")
+                          document.querySelector<HTMLElement>(`[data-section-ref="${next}"]`) ??
+                          mainRef.current?.querySelector<HTMLElement>("h1")
                         )?.focus(),
                       )
                     }}

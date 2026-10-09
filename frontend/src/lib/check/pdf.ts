@@ -38,7 +38,7 @@ export interface PrintedBullet {
  */
 export function printedBullets(resume: ResumeView, pdf: PdfReading): (PlacedBullet & { printed: PrintedBullet })[] {
   const excluded = new Set(pdf.extras?.excludedLines ?? [])
-  const lines = pdf.lines.flatMap((line, index) => excluded.has(index) ? [] : [{ line, text: comparable(line.text) }])
+  const lines = pdf.lines.flatMap((line, index) => (excluded.has(index) ? [] : [{ line, text: comparable(line.text) }]))
   let from = 0
   const builtin = bulletsIn(resume).flatMap((placed) => {
     const want = comparable(placed.bullet.text)
@@ -62,8 +62,14 @@ export function printedBullets(resume: ResumeView, pdf: PdfReading): (PlacedBull
 
 /** Custom lists participate in physical layout checks, without role-specific bullet advice. */
 export function printedLayoutBullets(resume: ResumeView, pdf: PdfReading): { place: Place; printed: PrintedBullet }[] {
-  const custom = (pdf.extras?.sections ?? []).filter((section) => section.status === "matched").flatMap((section) => section.parts.flatMap(({ place, lines }) =>
-    place.kind === "extra-text" && place.field === "bullets" && lines.length ? [{ place, printed: { lines: lines.map((index) => pdf.lines[index]) } }] : [],
-  ))
+  const custom = (pdf.extras?.sections ?? [])
+    .filter((section) => section.status === "matched")
+    .flatMap((section) =>
+      section.parts.flatMap(({ place, lines }) =>
+        place.kind === "extra-text" && place.field === "bullets" && lines.length
+          ? [{ place, printed: { lines: lines.map((index) => pdf.lines[index]) } }]
+          : [],
+      ),
+    )
   return [...printedBullets(resume, pdf), ...custom]
 }

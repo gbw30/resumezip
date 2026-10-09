@@ -3,18 +3,28 @@ import { expect, test, type Page } from "@playwright/test"
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs"
 import { pageErrors, seriousAccessibilityProblems } from "./helpers"
 
-const initial = { id: "flexible", resumeTitle: "Flexible", selectedTemplate: "jake", profileSection: { fullName: "Ada Lovelace" }, workExperienceSection: [{ id: 1, workRole: "Engineer", companyName: "Computing", workDescription: "• Built the analytical engine" }] }
+const initial = {
+  id: "flexible",
+  resumeTitle: "Flexible",
+  selectedTemplate: "jake",
+  profileSection: { fullName: "Ada Lovelace" },
+  workExperienceSection: [{ id: 1, workRole: "Engineer", companyName: "Computing", workDescription: "• Built the analytical engine" }],
+}
 const saved = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem("resume:flexible") ?? "{}"))
 const nav = (page: Page) => page.getByRole("navigation", { name: "Sections" })
 const preview = (page: Page) => page.getByRole("region", { name: "Live preview" })
 const previewShown = (page: Page) => expect(preview(page).locator(".react-pdf__Page__canvas").first()).toBeVisible()
 async function open(page: Page) {
-  await page.addInitScript((resume) => { if (!localStorage.getItem("resume:flexible")) localStorage.setItem("resume:flexible", JSON.stringify(resume)) }, initial)
+  await page.addInitScript((resume) => {
+    if (!localStorage.getItem("resume:flexible")) localStorage.setItem("resume:flexible", JSON.stringify(resume))
+  }, initial)
   await page.goto("/create/new/flexible")
 }
 async function add(page: Page, kind: string) {
   await nav(page).getByRole("button", { name: "Add section", exact: true }).click()
-  await nav(page).getByRole("button", { name: `Add ${kind} section`, exact: true }).click()
+  await nav(page)
+    .getByRole("button", { name: `Add ${kind} section`, exact: true })
+    .click()
 }
 async function rename(page: Page, heading: string) {
   await page.getByRole("button", { name: "Rename section", exact: true }).click()
@@ -36,10 +46,13 @@ test("optional section lifecycle, duplicate headings, keyboard movement and v2 P
   await page.getByRole("textbox", { name: "Text", exact: true }).fill("Community projects and interests.")
   await add(page, "Bullet list")
   await rename(page, "Experience")
-  await page.getByRole("textbox", { name: "Bullet points", exact: true }).fill("• **Public** list item\n○ PRIVATE_SENTINEL\n• Final list item")
+  await page
+    .getByRole("textbox", { name: "Bullet points", exact: true })
+    .fill("• **Public** list item\n○ PRIVATE_SENTINEL\n• Final list item")
   await expect(nav(page).getByRole("button", { name: /^\d+ Experience, section \d+$/ })).toHaveCount(3)
   const moving = nav(page).getByRole("button", { name: /^Move Experience, section \d+ section up$/ })
-  await moving.focus(); await page.keyboard.press("Enter")
+  await moving.focus()
+  await page.keyboard.press("Enter")
   await expect(moving).toBeFocused()
   await expect(nav(page).getByRole("status")).toContainText("Moved Experience")
   await add(page, "Certifications")
@@ -53,24 +66,31 @@ test("optional section lifecycle, duplicate headings, keyboard movement and v2 P
   await page.getByLabel("Credential name", { exact: true }).fill("PRIVATE_CREDENTIAL")
   await page.getByRole("checkbox", { name: "Include credential 2 in the PDF", exact: true }).uncheck()
   await expect.poll(async () => (await saved(page)).extraSections?.certifications?.entries?.length).toBe(2)
-  await nav(page).getByRole("button", { name: /^\d+ Summary$/ }).click()
+  await nav(page)
+    .getByRole("button", { name: /^\d+ Summary$/ })
+    .click()
   expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
   await page.screenshot({ path: info.outputPath("flexible-editor.png"), fullPage: true })
   const downloading = page.waitForEvent("download")
   await page.getByRole("button", { name: "Download PDF", exact: true }).click()
-  const file = info.outputPath("flexible.pdf"); await (await downloading).saveAs(file)
+  const file = info.outputPath("flexible.pdf")
+  await (await downloading).saveAs(file)
   const doc = await getDocument({ data: new Uint8Array(readFileSync(file)), isEvalSupported: false }).promise
   try {
     const attachment = (await doc.getAttachments())["resumezip.json"]
     const json = new TextDecoder().decode(attachment.content)
     expect(JSON.parse(json).version).toBe(2)
     expect(json).not.toContain("PRIVATE")
-    const contents = await Promise.all(Array.from({ length: doc.numPages }, async (_, index) => (await doc.getPage(index + 1)).getTextContent()))
-    const text = contents.flatMap((content) => content.items.map((item) => "str" in item ? item.str : "")).join(" ")
+    const contents = await Promise.all(
+      Array.from({ length: doc.numPages }, async (_, index) => (await doc.getPage(index + 1)).getTextContent()),
+    )
+    const text = contents.flatMap((content) => content.items.map((item) => ("str" in item ? item.str : ""))).join(" ")
     expect(text).toContain("Certified Engineer")
     expect(text).toContain("Literal prose")
     expect(text).not.toContain("PRIVATE")
-  } finally { await doc.destroy() }
+  } finally {
+    await doc.destroy()
+  }
   const elsewhere = await browser.newContext()
   const other = await elsewhere.newPage()
   await other.goto("/create/dashboard")
@@ -82,8 +102,11 @@ test("optional section lifecycle, duplicate headings, keyboard movement and v2 P
   expect(reopened.extraSections.certifications.entries).toHaveLength(1)
   expect(JSON.stringify(reopened)).not.toContain("PRIVATE")
   await elsewhere.close()
-  await page.reload(); await previewShown(page)
-  await nav(page).getByRole("button", { name: /^\d+ Summary$/ }).click()
+  await page.reload()
+  await previewShown(page)
+  await nav(page)
+    .getByRole("button", { name: /^\d+ Summary$/ })
+    .click()
   await page.getByRole("button", { name: "Delete section", exact: true }).click()
   await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeFocused()
   await page.getByRole("button", { name: "Cancel", exact: true }).press("Escape")
@@ -97,7 +120,20 @@ test("optional section lifecycle, duplicate headings, keyboard movement and v2 P
 
 test("extra-only checking targets original list lines and deletion restores focus in Check mode", async ({ page }) => {
   const sectionId = "11111111-1111-4111-8111-111111111111"
-  await page.addInitScript(({ sectionId }) => localStorage.setItem("resume:flexible", JSON.stringify({ id: "flexible", resumeTitle: "Extra checks", profileSection: { fullName: "Ada Lovelace" }, extraSections: { [sectionId]: { kind: "list", heading: "Interests", bullets: "○ PRIVATE_SENTINEL\n• Wrote the the notes" } }, sectionOrder: [`extra:${sectionId}`] })), { sectionId })
+  await page.addInitScript(
+    ({ sectionId }) =>
+      localStorage.setItem(
+        "resume:flexible",
+        JSON.stringify({
+          id: "flexible",
+          resumeTitle: "Extra checks",
+          profileSection: { fullName: "Ada Lovelace" },
+          extraSections: { [sectionId]: { kind: "list", heading: "Interests", bullets: "○ PRIVATE_SENTINEL\n• Wrote the the notes" } },
+          sectionOrder: [`extra:${sectionId}`],
+        }),
+      ),
+    { sectionId },
+  )
   await page.goto("/create/new/flexible")
   await previewShown(page)
   await page.getByRole("tab", { name: /^Check/ }).click()
@@ -108,7 +144,9 @@ test("extra-only checking targets original list lines and deletion restores focu
   await issue.click()
   const field = page.getByRole("textbox", { name: "Bullet points", exact: true })
   await expect(field).toBeFocused()
-  expect(await field.evaluate((element: HTMLTextAreaElement) => element.value.slice(element.selectionStart, element.selectionEnd))).toBe("Wrote the the notes")
+  expect(await field.evaluate((element: HTMLTextAreaElement) => element.value.slice(element.selectionStart, element.selectionEnd))).toBe(
+    "Wrote the the notes",
+  )
   await page.getByRole("button", { name: "Delete section", exact: true }).click()
   await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeFocused()
   await page.getByRole("button", { name: "Delete section", exact: true }).click()
@@ -117,23 +155,23 @@ test("extra-only checking targets original list lines and deletion restores focu
 })
 
 test.describe("touch", () => {
-test.use({ hasTouch: true })
-test("narrow flows keep the keyboard closed on add and allow literal text, inclusion and deletion", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.emulateMedia({ reducedMotion: "reduce" })
-  await open(page)
-  await add(page, "Text")
-  await expect(page.getByRole("heading", { name: "New section", exact: true })).toBeVisible()
-  await expect(page.getByRole("textbox", { name: "Text", exact: true })).not.toBeFocused()
-  await page.getByRole("textbox", { name: "Text", exact: true }).fill("Narrow screen content.")
-  await rename(page, "")
-  await expect(page.getByRole("heading", { name: "New section", exact: true })).toBeVisible()
-  await page.getByRole("checkbox", { name: "Include section in the PDF", exact: true }).uncheck()
-  await expect.poll(async () => Object.values((await saved(page)).extraSections ?? {}).some((section: any) => section.leftOut)).toBe(true)
-  await page.getByRole("button", { name: "Delete section", exact: true }).click()
-  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeFocused()
-  await page.getByRole("button", { name: "Delete section", exact: true }).click()
-  await expect.poll(async () => Object.keys((await saved(page)).extraSections)).toEqual([])
-  expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
-})
+  test.use({ hasTouch: true })
+  test("narrow flows keep the keyboard closed on add and allow literal text, inclusion and deletion", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await open(page)
+    await add(page, "Text")
+    await expect(page.getByRole("heading", { name: "New section", exact: true })).toBeVisible()
+    await expect(page.getByRole("textbox", { name: "Text", exact: true })).not.toBeFocused()
+    await page.getByRole("textbox", { name: "Text", exact: true }).fill("Narrow screen content.")
+    await rename(page, "")
+    await expect(page.getByRole("heading", { name: "New section", exact: true })).toBeVisible()
+    await page.getByRole("checkbox", { name: "Include section in the PDF", exact: true }).uncheck()
+    await expect.poll(async () => Object.values((await saved(page)).extraSections ?? {}).some((section: any) => section.leftOut)).toBe(true)
+    await page.getByRole("button", { name: "Delete section", exact: true }).click()
+    await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeFocused()
+    await page.getByRole("button", { name: "Delete section", exact: true }).click()
+    await expect.poll(async () => Object.keys((await saved(page)).extraSections)).toEqual([])
+    expect(await seriousAccessibilityProblems(page, [".react-pdf__Page"])).toEqual([])
+  })
 })

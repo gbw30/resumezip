@@ -504,7 +504,9 @@ export function SectionHeading({ position, title, onRename, flag, allowEmpty = f
       <span className="label-mono text-ink-2">{position}</span>
       {draft === null ? (
         <div className="flex items-center gap-2">
-          <h1 tabIndex={-1} className="font-serif text-[40px] leading-[1.1] tracking-[-0.02em]">{title}</h1>
+          <h1 tabIndex={-1} className="font-serif text-[40px] leading-[1.1] tracking-[-0.02em]">
+            {title}
+          </h1>
           {onRename && (
             <button
               ref={renameButton}

@@ -34,7 +34,10 @@ export function layoutBulletsIn(resume: ResumeView): { bullet: Bullet<FieldKey |
   return resume.allOrder.flatMap<{ bullet: Bullet<FieldKey | "bullets">; place: Place }>((ref) => {
     const id = extraKey(ref)
     if (id === null) return builtin.filter(({ entry }) => entry.section === ref)
-    return (resume.extras[id]?.bullets ?? []).map((bullet) => ({ bullet, place: { kind: "extra-text", sectionId: id, field: "bullets", line: bullet.line } as const }))
+    return (resume.extras[id]?.bullets ?? []).map((bullet) => ({
+      bullet,
+      place: { kind: "extra-text", sectionId: id, field: "bullets", line: bullet.line } as const,
+    }))
   })
 }
 

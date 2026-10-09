@@ -66,8 +66,10 @@ export function fromAttachment(text: string): ResumeContent | null {
     return null
   }
   if (file?.format !== FORMAT) return null
-  if (file.version !== 1 && file.version !== VERSION) throw new AttachmentError("This PDF needs a newer resumezip. Refresh the app and try again, or open it with a newer version.")
-  if (!file.resume || typeof file.resume !== "object" || Array.isArray(file.resume)) throw new AttachmentError("The resume data in this PDF is damaged. Try another saved PDF.")
+  if (file.version !== 1 && file.version !== VERSION)
+    throw new AttachmentError("This PDF needs a newer resumezip. Refresh the app and try again, or open it with a newer version.")
+  if (!file.resume || typeof file.resume !== "object" || Array.isArray(file.resume))
+    throw new AttachmentError("The resume data in this PDF is damaged. Try another saved PDF.")
   if (entryCount(file.resume) > MAX_ENTRIES) throw new TooLongError()
   if (file.version === 1) {
     const { extraSections, ...legacy } = file.resume
@@ -75,7 +77,18 @@ export function fromAttachment(text: string): ResumeContent | null {
   }
   const decoded = readExtraSections(file.resume.extraSections)
   if (!decoded.complete) throw new AttachmentError("The sections in this PDF are damaged. Try another saved PDF.")
-  if (file.resume.sectionOrder !== undefined && (!Array.isArray(file.resume.sectionOrder) || file.resume.sectionOrder.some((ref: unknown) => typeof ref !== "string" || (extraKey(ref) === null ? !SECTION_NAMES.includes(ref as (typeof SECTION_NAMES)[number]) : !Object.hasOwn(decoded.sections, extraKey(ref)!))))) throw new AttachmentError("The section order in this PDF is damaged. Try another saved PDF.")
+  if (
+    file.resume.sectionOrder !== undefined &&
+    (!Array.isArray(file.resume.sectionOrder) ||
+      file.resume.sectionOrder.some(
+        (ref: unknown) =>
+          typeof ref !== "string" ||
+          (extraKey(ref) === null
+            ? !SECTION_NAMES.includes(ref as (typeof SECTION_NAMES)[number])
+            : !Object.hasOwn(decoded.sections, extraKey(ref)!)),
+      ))
+  )
+    throw new AttachmentError("The section order in this PDF is damaged. Try another saved PDF.")
   return cleanResume({ ...file.resume, extraSections: decoded.sections })
 }
 
@@ -87,10 +100,16 @@ const string = (value: unknown) => (typeof value === "string" ? value : "")
 /** How many entries a resume's sections have together. */
 const entryCount = (resume: unknown) => {
   const extras = object(object(resume).extraSections)
-  return SECTION_NAMES.reduce((count, name) => {
-    const entries = object(resume)[SECTIONS[name].dataKey]
-    return count + (Array.isArray(entries) ? entries.length : 0)
-  }, 0) + Object.values(extras).reduce((count: number, section) => count + 1 + (Array.isArray(object(section).entries) ? (object(section).entries as unknown[]).length : 0), 0)
+  return (
+    SECTION_NAMES.reduce((count, name) => {
+      const entries = object(resume)[SECTIONS[name].dataKey]
+      return count + (Array.isArray(entries) ? entries.length : 0)
+    }, 0) +
+    Object.values(extras).reduce(
+      (count: number, section) => count + 1 + (Array.isArray(object(section).entries) ? (object(section).entries as unknown[]).length : 0),
+      0,
+    )
+  )
 }
 
 // Older resumes stored bullets as a list; the editor uses one "• " line each.
@@ -151,7 +170,12 @@ export function cleanResume(input: unknown): ResumeContent {
     const decoded = readExtraSections(resume.extraSections)
     if (!decoded.complete) throw new AttachmentError("The sections in this PDF are damaged. Try another saved PDF.")
     // The decoder is an allowlist; omit flags even when cleanResume is called directly.
-    clean.extraSections = Object.fromEntries(Object.entries(decoded.sections).map(([key, { leftOut, ...section }]) => [key, section.kind === "certifications" ? { ...section, entries: section.entries.map(({ leftOut, ...entry }) => entry) } : section]))
+    clean.extraSections = Object.fromEntries(
+      Object.entries(decoded.sections).map(([key, { leftOut, ...section }]) => [
+        key,
+        section.kind === "certifications" ? { ...section, entries: section.entries.map(({ leftOut, ...entry }) => entry) } : section,
+      ]),
+    )
     clean.sectionOrder = resolveSections({ ...resume, extraSections: clean.extraSections })
   }
   return clean

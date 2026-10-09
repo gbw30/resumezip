@@ -6,20 +6,19 @@ import { getStorage } from "@/lib/resumeKeys"
 import { createResumeStore, INITIAL_STATE, resumeOf, type ResumeState, type ResumeStore } from "@/lib/resumeStore"
 
 /** What changes the resumes. Each keeps the same identity until the page leaves the dashboard and editor. */
-interface ResumeActions
-  extends Pick<
-    ResumeStore,
-    | "addSection"
-    | "editSection"
-    | "includeSection"
-    | "deleteSection"
-    | "reorderSections"
-    | "addCredential"
-    | "editCredential"
-    | "includeCredential"
-    | "deleteCredential"
-    | "moveCredential"
-  > {
+interface ResumeActions extends Pick<
+  ResumeStore,
+  | "addSection"
+  | "editSection"
+  | "includeSection"
+  | "deleteSection"
+  | "reorderSections"
+  | "addCredential"
+  | "editCredential"
+  | "includeCredential"
+  | "deleteCredential"
+  | "moveCredential"
+> {
   createNewResume: (title: string, tag: string, template?: string) => string
   importResume: (content: ResumeContent, title: string, options?: { keepId?: boolean }) => string
   replaceResume: (id: string, content: ResumeContent) => void

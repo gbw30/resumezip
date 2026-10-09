@@ -103,7 +103,8 @@ function SectionNav({ sections, headings, extras, active, onSelect, onReorder, o
   for (const title of titles.values()) counts.set(title, (counts.get(title) ?? 0) + 1)
   const titleOf = (name: SectionRef) => titles.get(name)!
   // Two sections can have the same title, so a screen reader also hears where each is.
-  const labelOf = (name: SectionRef, index: number) => ((counts.get(titleOf(name)) ?? 0) > 1 ? `${titleOf(name)}, section ${index + 2}` : titleOf(name))
+  const labelOf = (name: SectionRef, index: number) =>
+    (counts.get(titleOf(name)) ?? 0) > 1 ? `${titleOf(name)}, section ${index + 2}` : titleOf(name)
 
   const item = (isActive: boolean) =>
     `flex shrink-0 items-center gap-3 whitespace-nowrap rounded-[4px] px-2 py-[9px] text-left text-sm transition-colors xl:w-full xl:shrink ${

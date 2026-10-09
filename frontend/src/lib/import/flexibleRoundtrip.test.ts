@@ -15,7 +15,21 @@ test("heuristic PDFs retain optional content and repeated unsupported groups acr
       profileSection: { fullName: "Mara Lin" },
       extraSections: {
         summary: { kind: "summary", heading: "Summary", text: "Engineer building useful tools for curious people." },
-        certifications: { kind: "certifications", heading: "Certifications", entries: [{ id: credential, name: "Cloud Engineer", issuer: "Example Academy", issued: "2024", expires: "2028", credentialId: "CLOUD-007", link: "example.com/verify" }] },
+        certifications: {
+          kind: "certifications",
+          heading: "Certifications",
+          entries: [
+            {
+              id: credential,
+              name: "Cloud Engineer",
+              issuer: "Example Academy",
+              issued: "2024",
+              expires: "2028",
+              credentialId: "CLOUD-007",
+              link: "example.com/verify",
+            },
+          ],
+        },
         [first]: { kind: "text", heading: "Presentations", text: "First talk on accessible software." },
         [second]: { kind: "list", heading: "Presentations", bullets: "• Second talk on reliable systems." },
       },
@@ -23,15 +37,36 @@ test("heuristic PDFs retain optional content and repeated unsupported groups acr
     }
     const { parsed } = await readBack(await render(input))
     const groups = parsed.extraGroups ?? []
-    expect(groups.map((group) => group.kind), sample.selectedTemplate).toEqual(["summary", "certifications"])
+    expect(
+      groups.map((group) => group.kind),
+      sample.selectedTemplate,
+    ).toEqual(["summary", "certifications"])
     const presentations = parsed.unplaced.filter((group) => /^presentations$/i.test(group.heading))
     expect(presentations, sample.selectedTemplate).toHaveLength(2)
     expect(presentations[0].id).not.toBe(presentations[1].id)
     const keepAs = Object.fromEntries(parsed.unplaced.map((group, index) => [unplacedKey(group, index), "text" as const]))
     const kept = toResumeContent(parsed, new Set(), { keepAs })
     const sections: ExtraSection[] = Object.values(kept.extraSections ?? {})
-    const body = sections.flatMap((section) => section.kind === "certifications" ? section.entries.map((entry) => Object.values(entry).join(" ")) : section.kind === "list" ? [section.bullets] : [section.text]).join(" ")
-    for (const expected of ["Engineer building useful tools for curious people.", "Cloud Engineer", "Example Academy", "2024", "2028", "CLOUD-007", "example.com/verify", "First talk on accessible software.", "Second talk on reliable systems."]) {
+    const body = sections
+      .flatMap((section) =>
+        section.kind === "certifications"
+          ? section.entries.map((entry) => Object.values(entry).join(" "))
+          : section.kind === "list"
+            ? [section.bullets]
+            : [section.text],
+      )
+      .join(" ")
+    for (const expected of [
+      "Engineer building useful tools for curious people.",
+      "Cloud Engineer",
+      "Example Academy",
+      "2024",
+      "2028",
+      "CLOUD-007",
+      "example.com/verify",
+      "First talk on accessible software.",
+      "Second talk on reliable systems.",
+    ]) {
       expect(normal(body), `${sample.selectedTemplate}: ${expected}`).toContain(normal(expected))
     }
     expect(normal(body).match(/first talk on accessible software/g)).toHaveLength(1)

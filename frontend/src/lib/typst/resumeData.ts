@@ -51,7 +51,11 @@ export interface TemplateData {
 export type ExtraTemplateSection =
   | { kind: "text"; heading: string; paragraphs: string[] }
   | { kind: "list"; heading: string; bullets: Run[][] }
-  | { kind: "certifications"; heading: string; certificates: { name: string; issuer: string; issued: string; expires: string; credentialId: string; link: string }[] }
+  | {
+      kind: "certifications"
+      heading: string
+      certificates: { name: string; issuer: string; issued: string; expires: string; credentialId: string; link: string }[]
+    }
 
 /** A stretch of a bullet's text: **bold**, *italic* or ***both*** where the user marked it. */
 interface Run {
@@ -227,20 +231,39 @@ export function toTemplateData(saved: Resume): TemplateData {
       awards: text(headings.awards),
     },
     order: resolveSections(resume),
-    extras: Object.fromEntries(Object.entries(extrasOf(resume)).filter(([, section]) => extraHasBody(section)).map(([id, section]) => {
-      const heading = extraHeading(section)
-      const printable: ExtraTemplateSection = section.kind === "list"
-        ? { kind: "list", heading, bullets: bullets(section.bullets) }
-        : section.kind === "certifications"
-          ? { kind: "certifications", heading, certificates: section.entries
-            .map((entry) => ({
-              name: text(entry.name), issuer: text(entry.issuer), issued: text(entry.issued), expires: text(entry.expires),
-              credentialId: text(entry.credentialId), link: bareUrl(entry.link),
-            }))
-            .filter((entry) => Object.values(entry).some((field) => field.length > 0)) }
-          : { kind: "text", heading, paragraphs: text(section.text).split(/\r?\n\s*\r?\n/).filter(Boolean) }
-      return [`extra:${id}`, printable]
-    })),
+    extras: Object.fromEntries(
+      Object.entries(extrasOf(resume))
+        .filter(([, section]) => extraHasBody(section))
+        .map(([id, section]) => {
+          const heading = extraHeading(section)
+          const printable: ExtraTemplateSection =
+            section.kind === "list"
+              ? { kind: "list", heading, bullets: bullets(section.bullets) }
+              : section.kind === "certifications"
+                ? {
+                    kind: "certifications",
+                    heading,
+                    certificates: section.entries
+                      .map((entry) => ({
+                        name: text(entry.name),
+                        issuer: text(entry.issuer),
+                        issued: text(entry.issued),
+                        expires: text(entry.expires),
+                        credentialId: text(entry.credentialId),
+                        link: bareUrl(entry.link),
+                      }))
+                      .filter((entry) => Object.values(entry).some((field) => field.length > 0)),
+                  }
+                : {
+                    kind: "text",
+                    heading,
+                    paragraphs: text(section.text)
+                      .split(/\r?\n\s*\r?\n/)
+                      .filter(Boolean),
+                  }
+          return [`extra:${id}`, printable]
+        }),
+    ),
     education: entries(resume.educationSection, (e) => ({
       school: text(e.schoolName),
       location: text(e.schoolLocation),
