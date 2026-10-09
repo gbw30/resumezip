@@ -200,20 +200,24 @@ const entriesRead: Rule = {
       })
     }
     for (const extra of Object.values(resume.extras).filter((extra) => !extra.blank)) {
-      checked++
       const match = pdf.extras?.sections.find((section) => section.sectionId === extra.id)
-      if (match?.status === "matched") continue
-      if (!match || match.status === "ambiguous") partial = true
+      // Repeated text can leave it unclear which printed section is this one.
+      // That's the checker's uncertainty, not the resume's problem, so it only
+      // makes the check partial, as a section it can't tell apart does above.
+      if (!match || match.status === "ambiguous") {
+        partial = true
+        continue
+      }
+      checked++
+      if (match.status === "matched") continue
       problems.push({
         place: { kind: "extra-heading", sectionId: extra.id },
         message: `The checker couldn't verify all the text in “${extra.heading}” in the PDF`,
-        suggestion:
-          match?.status === "ambiguous"
-            ? "Repeated text makes this occurrence uncertain. Check the section in the preview."
-            : "Check the section in the preview; the extracted text did not match completely.",
+        suggestion: "Check the section in the preview; the extracted text did not match completely.",
       })
     }
-    return checked ? { checked, problems, ...(partial && { partial }) } : null
+    // Only uncertain sections is still partial, not a rule that doesn't apply.
+    return checked || partial ? { checked, problems, ...(partial && { partial }) } : null
   },
 }
 

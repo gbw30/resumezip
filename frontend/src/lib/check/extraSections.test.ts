@@ -107,7 +107,7 @@ describe("actual extra PDF occurrences", () => {
     ])
   })
 
-  test("does not hide missing, changed, or ambiguous text; only uncertainty makes R3 partial", () => {
+  test("missing or changed text is a problem, and ambiguous text only makes R3 partial", () => {
     const source: Resume = { extraSections: { [first]: { kind: "text", heading: "Interests", text: "Reading fiction" } } }
     for (const lines of [
       [line("Interests"), line("Unexpected text")],
@@ -117,8 +117,9 @@ describe("actual extra PDF occurrences", () => {
       const result = readForChecks(lines, pdfLayoutOf(viewOf(source)))
       expect(result.extras.excludedLines).toEqual([])
       const report = runChecks(source, { rules: RULES.filter(({ id }) => id === "R3"), pdf: { ...reading(lines), ...result } })
-      expect(!!report.results[0].partial).toBe(result.extras.sections[0].status === "ambiguous")
-      expect(report.findings[0].place).toEqual({ kind: "extra-heading", sectionId: first })
+      const ambiguous = result.extras.sections[0].status === "ambiguous"
+      expect(!!report.results[0].partial).toBe(ambiguous)
+      expect(report.findings.map(({ place }) => place)).toEqual(ambiguous ? [] : [{ kind: "extra-heading", sectionId: first }])
     }
   })
 
