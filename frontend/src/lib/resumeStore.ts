@@ -118,7 +118,7 @@ export function createResumeStore(delay = SAVE_DELAY) {
     state = { ...state, ...next, unsaved: pending.size > 0 || deleted.size > 0 }
     // Every way a resume can change goes through here, so this is where a replaced one stops being undoable.
     const { replaced } = state
-    if (replaced && state.resumes[replaced.id] !== (replaced.undone ? replaced.before : replaced.after)) {
+    if (replaced && resumeOf(state, replaced.id) !== (replaced.undone ? replaced.before : replaced.after)) {
       state = { ...state, replaced: null }
     }
     for (const listener of listeners) listener()

@@ -2,7 +2,7 @@
 
 import { useRef } from "react"
 import { flushSync } from "react-dom"
-import { useResumeContext } from "@/context/ResumeContext"
+import { useResumeActions, useResumeState } from "@/context/ResumeContext"
 
 interface ReplacedProps {
   /** The open resume. */
@@ -16,9 +16,11 @@ interface ReplacedProps {
  * again (see lib/resumeStore.ts).
  */
 export default function Replaced({ id, className = "" }: ReplacedProps) {
-  const { replaced, undoReplace } = useResumeContext()
+  // Kept as it is in the store's state, so typing doesn't re-render this.
+  const replaced = useResumeState((state) => (state.replaced?.id === id ? state.replaced : null))
+  const { undoReplace } = useResumeActions()
   const message = useRef<HTMLParagraphElement>(null)
-  if (replaced?.id !== id) return null
+  if (!replaced) return null
 
   // Undo goes once it's pressed, so focus moves to what's now said instead of
   // being lost to the page. That's read out as focus lands on it.
