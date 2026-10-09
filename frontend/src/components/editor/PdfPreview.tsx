@@ -1,5 +1,6 @@
 "use client"
 
+import type { PDFWorker } from "pdfjs-dist"
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent } from "react"
 // react-pdf's styles are in the page's first download, though its code isn't
 // (see below). Next loads a later chunk's CSS as a React stylesheet resource,
@@ -18,11 +19,18 @@ type ReactPdf = typeof import("./reactPdf")
 // worker matches the library. reactPdf.ts points pdf.js at the same file.
 const WORKER_URL = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
 
-// pdf.js only starts its worker for the first PDF it shows, so the first
-// preview would wait for the worker to download once Typst's PDF is ready.
-// Instead it's fetched into the browser's cache as soon as the compiler has
-// downloaded: Typst still has to build and compile, and the connection is
-// free meanwhile. If that fails, pdf.js downloads it as it would have.
+// Every preview is loaded in one pdf.js worker, started with the first. Given
+// none, pdf.js starts a worker for each PDF, which loads its script again, and
+// ends it when the PDF closes; a worker it was given is left running. react-pdf
+// loads a PDF again when its options change, so they stay one object.
+let documentOptions: { worker: PDFWorker } | null = null
+const previewOptions = (pdfjs: ReactPdf["pdfjs"]) => (documentOptions ??= { worker: new pdfjs.PDFWorker() })
+
+// The worker only starts with the first PDF, so the first preview would wait
+// for it to download once Typst's PDF is ready. Instead it's fetched into the
+// browser's cache as soon as the compiler has downloaded: Typst still has to
+// build and compile, and the connection is free meanwhile. If that fails,
+// pdf.js downloads it as it would have.
 let workerFetched = false
 function fetchWorker() {
   if (workerFetched) return
@@ -313,14 +321,15 @@ export default function PdfPreview({ pdfUrl, error, updating = false }: PdfPrevi
             style={{ width: pageWidth, minHeight: numPages * pageWidth * PAGE_RATIO + (numPages - 1) * PAGE_GAP }}
           >
             {!faded && <PrintingPage width={pageWidth} leaving={!waiting} />}
-            {/* A <Document> loads its file in a pdf.js worker of its own, so the drawings of a PDF
-                share one. react-pdf then keeps one page per page number for links within the PDF,
-                and drops it when an older drawing goes; the templates only link out. */}
+            {/* A <Document> loads and parses its file, so the drawings of a PDF share one.
+                react-pdf then keeps one page per page number for links within the PDF, and drops
+                it when an older drawing goes; the templates only link out. */}
             {pdf &&
               files.map((file) => (
                 <pdf.Document
                   key={file}
                   file={file}
+                  options={previewOptions(pdf.pdfjs)}
                   // A link in the preview, such as the person's LinkedIn, opens in a new tab rather than leaving the editor.
                   externalLinkTarget="_blank"
                   onLoadSuccess={({ numPages }) => onLoadSuccess(file, numPages)}
